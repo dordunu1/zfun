@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   FaBars, 
   FaChevronLeft,
@@ -14,15 +15,20 @@ import {
   FaTwitter,
   FaChartBar 
 } from 'react-icons/fa';
+import { BiHome, BiCollection } from 'react-icons/bi';
 
 export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const location = useLocation();
+  
+  const isActive = (path) => location.pathname === path;
 
   const menuItems = [
     { icon: FaPlus, label: 'Create Token', action: onOpenModal, primary: true },
     { icon: FaFileAlt, label: 'Create NFT', action: onOpenNFTModal },
-    { icon: FaThLarge, label: 'Dashboard', href: '#' },
+    { icon: BiHome, label: 'Dashboard', to: '/', isRouterLink: true },
+    { icon: BiCollection, label: 'Collections', to: '/collections', isRouterLink: true },
     { icon: FaChartLine, label: 'Trending Tokens', href: '#' },
     { icon: FaChartBar, label: 'Activity', href: '#' },
     { icon: FaClock, label: 'Recent Tokens', href: '#' },
@@ -36,6 +42,46 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
     { icon: FaGithub, href: 'https://github.com/dordunu1', label: 'GitHub' },
   ];
 
+  const renderMenuItem = (item, index) => {
+    const commonClasses = `w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200
+      ${item.primary 
+        ? 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold' 
+        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#1a1b1f]'}
+      ${isCollapsed ? 'justify-center' : ''}
+      ${item.isRouterLink && isActive(item.to) ? 'bg-[#00ffbd] text-black' : ''}
+    `;
+
+    if (item.isRouterLink) {
+      return (
+        <Link
+          key={index}
+          to={item.to}
+          className={commonClasses}
+        >
+          <item.icon size={20} className="flex-shrink-0" />
+          {!isCollapsed && (
+            <span className="truncate">{item.label}</span>
+          )}
+        </Link>
+      );
+    }
+
+    return (
+      <button
+        key={index}
+        onClick={item.action || (() => {})}
+        className={commonClasses}
+      >
+        <item.icon size={20} className="flex-shrink-0" />
+        {!isCollapsed && (
+          <div className="flex items-center justify-between w-full min-w-0 transition-opacity duration-200">
+            <span className="truncate">{item.label}</span>
+          </div>
+        )}
+      </button>
+    );
+  };
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -46,7 +92,7 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
         />
       )}
 
-      {/* Mobile Toggle Button - Outside sidebar for when it's closed */}
+      {/* Mobile Toggle Button */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className={`fixed top-8 -left-3 p-1.5 rounded-full bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 lg:hidden z-30 transition-all duration-300 ${
@@ -97,25 +143,7 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
 
           {/* Menu Items */}
           <div className="space-y-2">
-            {menuItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={item.action || (() => {})}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200
-                  ${item.primary 
-                    ? 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold' 
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#1a1b1f]'}
-                  ${isCollapsed ? 'justify-center' : ''}
-                `}
-              >
-                <item.icon size={20} className="flex-shrink-0" />
-                {!isCollapsed && (
-                  <div className="flex items-center justify-between w-full min-w-0 transition-opacity duration-200">
-                    <span className="truncate">{item.label}</span>
-                  </div>
-                )}
-              </button>
-            ))}
+            {menuItems.map((item, index) => renderMenuItem(item, index))}
           </div>
         </div>
 

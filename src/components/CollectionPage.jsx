@@ -1,8 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { FaEthereum } from 'react-icons/fa';
-import { BiMinus, BiPlus, BiCopy } from 'react-icons/bi';
+import { FaEthereum, FaDiscord, FaTwitter, FaGlobe } from 'react-icons/fa';
+import { BiMinus, BiPlus, BiCopy, BiCheck, BiX } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
+
+function CountdownTimer({ targetDate }) {
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+  function calculateTimeLeft() {
+    const difference = +new Date(targetDate) - +new Date();
+    let timeLeft = {};
+
+    if (difference > 0) {
+      timeLeft = {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+      };
+    }
+
+    return timeLeft;
+  }
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  if (Object.keys(timeLeft).length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="grid grid-cols-4 gap-2 text-center">
+      {Object.entries(timeLeft).map(([key, value]) => (
+        <div key={key} className="bg-[#0d0e12] rounded-lg p-2 border border-gray-800">
+          <div className="text-xl font-bold text-[#00ffbd]">
+            {String(value).padStart(2, '0')}
+          </div>
+          <div className="text-xs text-gray-500 capitalize">{key}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function CollectionPage() {
   const { symbol } = useParams();
@@ -10,6 +55,8 @@ export default function CollectionPage() {
   const [mintAmount, setMintAmount] = useState(1);
   const [collection, setCollection] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [checkingAddress, setCheckingAddress] = useState('');
+  const [isEligible, setIsEligible] = useState(null);
 
   useEffect(() => {
     const storedData = localStorage.getItem(`collection_${symbol}`);
@@ -57,6 +104,24 @@ export default function CollectionPage() {
   
   // Calculate minting progress
   const progress = ((collection.totalMinted || 0) / collection.maxSupply) * 100;
+
+  const checkEligibility = () => {
+    if (!checkingAddress) {
+      toast.error('Please enter an address');
+      return;
+    }
+
+    const isWhitelisted = collection.whitelistAddresses?.some(
+      addr => addr.address.toLowerCase() === checkingAddress.toLowerCase()
+    );
+
+    setIsEligible(isWhitelisted);
+    if (isWhitelisted) {
+      toast.success('Congratulations! You are eligible to mint');
+    } else {
+      toast.error('Sorry, this address is not whitelisted');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0b0f]">
@@ -115,6 +180,40 @@ export default function CollectionPage() {
                 </div>
               ))}
             </div>
+
+            {/* Add Social Links */}
+            <div className="flex gap-4 mt-6 mb-6">
+              {collection.website && (
+                <a 
+                  href={collection.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                >
+                  <FaGlobe size={20} />
+                </a>
+              )}
+              {collection.socials?.twitter && (
+                <a 
+                  href={`https://twitter.com/${collection.socials.twitter}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                >
+                  <FaTwitter size={20} />
+                </a>
+              )}
+              {collection.socials?.discord && (
+                <a 
+                  href={collection.socials.discord}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                >
+                  <FaDiscord size={20} />
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Minting Section */}
@@ -129,11 +228,51 @@ export default function CollectionPage() {
               </div>
               
               {!isLive && (
-                <div className="text-sm text-gray-400 bg-[#0d0e12] rounded-lg p-3 border border-gray-800">
-                  Starts {releaseDate.toLocaleDateString()} at {releaseDate.toLocaleTimeString()}
-                </div>
+                <>
+                  <div className="text-sm text-gray-400 bg-[#0d0e12] rounded-lg p-3 border border-gray-800 mb-4">
+                    Starts {releaseDate.toLocaleDateString()} at {releaseDate.toLocaleTimeString()}
+                  </div>
+                  <CountdownTimer targetDate={releaseDate} />
+                </>
               )}
             </div>
+
+            {/* Whitelist Checker */}
+            {collection.enableWhitelist && (
+              <div className="mb-8 p-4 bg-[#0d0e12] rounded-lg border border-gray-800">
+                <h3 className="text-white font-semibold mb-3">Whitelist Checker</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter your wallet address"
+                    value={checkingAddress}
+                    onChange={(e) => setCheckingAddress(e.target.value)}
+                    className="flex-1 bg-[#1a1b1f] border border-gray-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#00ffbd]"
+                  />
+                  <button
+                    onClick={checkEligibility}
+                    className="px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Check
+                  </button>
+                </div>
+                {isEligible !== null && (
+                  <div className={`flex items-center gap-2 mt-3 ${isEligible ? 'text-green-400' : 'text-red-400'}`}>
+                    {isEligible ? (
+                      <>
+                        <BiCheck size={20} />
+                        <span>You are whitelisted!</span>
+                      </>
+                    ) : (
+                      <>
+                        <BiX size={20} />
+                        <span>Address not whitelisted</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Mint Controls */}
             <div className="space-y-6">
@@ -177,6 +316,18 @@ export default function CollectionPage() {
                     style={{ width: `${progress}%` }}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Additional Stats */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-[#0d0e12] rounded-lg p-4 border border-gray-800">
+                <div className="text-sm text-gray-400 mb-1">Max Per Wallet</div>
+                <div className="text-xl font-bold text-white">{collection.maxPerWallet}</div>
+              </div>
+              <div className="bg-[#0d0e12] rounded-lg p-4 border border-gray-800">
+                <div className="text-sm text-gray-400 mb-1">Total Supply</div>
+                <div className="text-xl font-bold text-white">{collection.maxSupply}</div>
               </div>
             </div>
           </div>

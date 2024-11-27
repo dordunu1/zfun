@@ -25,7 +25,10 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     symbol: '',
     description: '',
     website: '',
-    socials: { twitter: '', discord: '' },
+    socials: {
+      twitter: '',
+      discord: ''
+    },
     category: '',
     artwork: null,
     previewUrl: null,
