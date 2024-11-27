@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAccount, useDisconnect, useNetwork, useSwitchNetwork } from 'wagmi';
 import toast from 'react-hot-toast';
+import { sepolia, polygon } from 'wagmi/chains';
 
 const WalletContext = createContext();
 
@@ -14,7 +15,7 @@ export function WalletProvider({ children }) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { chain } = useNetwork();
-  const { switchNetwork } = useSwitchNetwork();
+  const { switchNetwork, isLoading } = useSwitchNetwork();
   
   const [loading, setLoading] = useState(false);
 
@@ -23,9 +24,14 @@ export function WalletProvider({ children }) {
     
     if (chain?.id !== targetChainId) {
       try {
-        await switchNetwork?.(targetChainId);
+        setLoading(true);
+        await switchNetwork(targetChainId);
       } catch (error) {
-        toast.error(`Please switch to supported network`);
+        console.error('Network switch error:', error);
+        toast.error('Failed to switch network');
+        throw error;
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -38,7 +44,7 @@ export function WalletProvider({ children }) {
   return (
     <WalletContext.Provider value={{ 
       account: address, 
-      loading,
+      loading: loading || isLoading,
       disconnectWallet,
       checkAndSwitchNetwork
     }}>

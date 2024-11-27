@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 const NETWORKS = [
   {
     ...sepolia,
-    logo: '/sepolia.png', // You'll need to add these logo files to your public folder
+    logo: '/sepolia.png',
     name: 'Sepolia'
   },
   {
@@ -17,7 +17,7 @@ const NETWORKS = [
     name: 'Polygon'
   },
   {
-    id: 999, // Placeholder ID
+    id: 999,
     logo: '/zchain.png',
     name: 'Z Chain',
     disabled: true
@@ -27,7 +27,7 @@ const NETWORKS = [
 export default function NetworkSelector() {
   const [isOpen, setIsOpen] = useState(false);
   const { chain } = useNetwork();
-  const { switchNetwork } = useSwitchNetwork();
+  const { switchNetwork, isLoading } = useSwitchNetwork();
 
   const currentNetwork = NETWORKS.find(net => net.id === chain?.id) || NETWORKS[0];
 
@@ -38,10 +38,16 @@ export default function NetworkSelector() {
       return;
     }
 
+    if (network.id === chain?.id) {
+      setIsOpen(false);
+      return;
+    }
+
     try {
-      await switchNetwork(network.id);
+      await switchNetwork?.(network.id);
       setIsOpen(false);
     } catch (error) {
+      console.error('Failed to switch network:', error);
       toast.error('Failed to switch network');
     }
   };
@@ -50,7 +56,8 @@ export default function NetworkSelector() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1a1b1f] hover:bg-gray-200 dark:hover:bg-[#2d2f36]"
+        disabled={isLoading}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-[#1a1b1f] hover:bg-gray-200 dark:hover:bg-[#2d2f36] disabled:opacity-50"
       >
         <img 
           src={currentNetwork.logo} 
@@ -71,6 +78,7 @@ export default function NetworkSelector() {
             <button
               key={network.id}
               onClick={() => handleNetworkSwitch(network)}
+              disabled={isLoading}
               className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-[#2d2f36] ${
                 network.disabled ? 'opacity-50 cursor-not-allowed' : ''
               } ${network.id === chain?.id ? 'bg-gray-100 dark:bg-[#2d2f36]' : ''}`}
