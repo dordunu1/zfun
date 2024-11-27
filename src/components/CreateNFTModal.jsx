@@ -654,175 +654,133 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         </label>
 
         {formData.enableWhitelist && (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Import Whitelist
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Add wallet addresses for whitelist access
-                  </p>
-                </div>
-                <button
-                  onClick={() => updateFormData({
-                    whitelistAddresses: [...formData.whitelistAddresses, { address: '', maxMint: 1 }]
-                  })}
-                  className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
-                >
-                  Add Address
-                </button>
-              </div>
+          renderWhitelistSection()
+        )}
+      </div>
+    </div>
+  );
 
-              {/* File import buttons */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleFileUpload('csv')}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-                >
-                  <FaFileCsv size={16} />
-                  Import CSV
-                </button>
-                <button
-                  onClick={() => handleFileUpload('excel')}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-                >
-                  <FaFileExcel size={16} />
-                  Import Excel
-                </button>
-                <button
-                  onClick={() => handleFileUpload('json')}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-                >
-                  <FaFileCode size={16} />
-                  Import JSON
-                </button>
-              </div>
+  const renderWhitelistSection = () => (
+    <div className="mt-4 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg">
+      <div className="space-y-4 max-h-[400px] overflow-y-auto">
+        <div className="sticky top-0 bg-gray-50 dark:bg-[#1a1b1f] z-10 pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Import Whitelist
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Add wallet addresses for whitelist access
+              </p>
+            </div>
+            <button
+              onClick={() => updateFormData({
+                whitelistAddresses: [...formData.whitelistAddresses, { address: '', maxMint: 1 }]
+              })}
+              className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
+            >
+              Add Address
+            </button>
+          </div>
 
-              {/* Manual Address Input */}
-              <div className="space-y-3">
-                <div className="flex gap-3 items-start">
-                  <div className="flex-1">
-                    <textarea
-                      placeholder="Enter wallet addresses (one per line)&#10;Example:&#10;0x1234...5678&#10;0x8765...4321"
-                      value={formData.whitelistAddresses.map(item => item.address).join('\n')}
-                      onChange={(e) => {
-                        const addresses = e.target.value
-                          .split('\n')
-                          .map(addr => addr.trim())
-                          .filter(addr => addr !== '');
-                          
-                        const newAddresses = addresses.map(address => ({
-                          address,
-                          maxMint: formData.defaultMaxMint || 1
-                        }));
-                        
-                        updateFormData({ whitelistAddresses: newAddresses });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const textarea = e.target;
-                          const cursorPosition = textarea.selectionStart;
-                          const text = textarea.value;
-                          
-                          // Insert newline at cursor position
-                          const newText = 
-                            text.slice(0, cursorPosition) + 
-                            '\n' + 
-                            text.slice(cursorPosition);
-                          
-                          // Update the textarea value directly
-                          textarea.value = newText;
-                          
-                          // Update the cursor position
-                          textarea.selectionStart = textarea.selectionEnd = cursorPosition + 1;
-                          
-                          // Trigger the change event to update state
-                          const event = new Event('input', { bubbles: true });
-                          Object.defineProperty(event, 'target', { value: textarea, enumerable: true });
-                          textarea.dispatchEvent(event);
-                        } else if (e.key === ' ') {
-                          const textarea = e.target;
-                          const cursorPosition = textarea.selectionStart;
-                          const text = textarea.value;
-                          
-                          // Let the space character be inserted normally
-                          setTimeout(() => {
-                            // After space is inserted, ensure cursor position is maintained
-                            textarea.selectionStart = textarea.selectionEnd = cursorPosition + 1;
-                          }, 0);
-                        }
-                      }}
-                      className="w-full h-32 bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm font-mono"
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      You can paste multiple addresses, each on a new line
-                    </p>
-                  </div>
-                  <div className="w-24">
-                    <input
-                      type="number"
-                      placeholder="Max mint"
-                      value={formData.defaultMaxMint || 1}
-                      onChange={(e) => {
-                        const maxMint = parseInt(e.target.value);
-                        const newAddresses = formData.whitelistAddresses.map(addr => ({
-                          ...addr,
-                          maxMint
-                        }));
-                        updateFormData({ 
-                          whitelistAddresses: newAddresses,
-                          defaultMaxMint: maxMint 
-                        });
-                      }}
-                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Max per wallet
-                    </p>
-                  </div>
-                </div>
-              </div>
+          {/* File import buttons */}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => handleFileUpload('csv')}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+            >
+              <FaFileCsv size={16} />
+              Import CSV
+            </button>
+            <button
+              onClick={() => handleFileUpload('excel')}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+            >
+              <FaFileExcel size={16} />
+              Import Excel
+            </button>
+            <button
+              onClick={() => handleFileUpload('json')}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+            >
+              <FaFileCode size={16} />
+              Import JSON
+            </button>
+          </div>
+        </div>
 
-              {/* Display added addresses */}
-              {formData.whitelistAddresses.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Added Addresses ({formData.whitelistAddresses.length})
-                  </h4>
-                  <div className="max-h-40 overflow-y-auto space-y-2">
-                    {formData.whitelistAddresses.map((item, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center justify-between py-1 px-2 bg-gray-50 dark:bg-[#0d0e12] rounded"
-                      >
-                        <span className="text-sm font-mono text-gray-600 dark:text-gray-400">
-                          {item.address}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">
-                            Max: {item.maxMint}
-                          </span>
-                          <button
-                            onClick={() => {
-                              const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
-                              updateFormData({ whitelistAddresses: newAddresses });
-                            }}
-                            className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                          >
-                            <BiX size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+        {/* Address input and list section */}
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <textarea
+                placeholder="Enter addresses (one per line)"
+                value={formData.whitelistAddresses.map(addr => addr.address).join('\n')}
+                onChange={(e) => {
+                  const addresses = e.target.value
+                    .split('\n')
+                    .map(addr => addr.trim())
+                    .filter(addr => addr)
+                    .map(address => ({
+                      address,
+                      maxMint: formData.defaultMaxMint || 1
+                    }));
+                  updateFormData({ whitelistAddresses: addresses });
+                }}
+                className="w-full h-24 bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm font-mono"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                You can paste multiple addresses, each on a new line
+              </p>
+            </div>
+            <div className="w-24">
+              <input
+                type="number"
+                placeholder="Max mint"
+                value={formData.defaultMaxMint || 1}
+                onChange={(e) => {
+                  const maxMint = parseInt(e.target.value) || 1;
+                  updateFormData({ defaultMaxMint: maxMint });
+                }}
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Max per wallet
+              </p>
             </div>
           </div>
-        )}
+
+          {formData.whitelistAddresses.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Added Addresses ({formData.whitelistAddresses.length})
+              </h4>
+              <div className="max-h-[150px] overflow-y-auto">
+                <div className="space-y-2">
+                  {formData.whitelistAddresses.map((addr, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-2 bg-white dark:bg-[#0d0e12] rounded-lg"
+                    >
+                      <span className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate">
+                        {addr.address}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
+                          updateFormData({ whitelistAddresses: newAddresses });
+                        }}
+                        className="ml-2 text-red-500 hover:text-red-600"
+                      >
+                        <BiX size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
