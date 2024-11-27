@@ -161,7 +161,7 @@ export default function CollectionPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Collection Info */}
-          <div className="bg-[#1a1b1f] rounded-xl p-8 shadow-2xl border border-gray-800">
+          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-8 shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-6 mb-6">
               <img 
                 src={collection.previewUrl} 
@@ -169,10 +169,10 @@ export default function CollectionPage() {
                 className="w-24 h-24 rounded-xl object-cover border-2 border-[#00ffbd]"
               />
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                   {collection.name}
                 </h1>
-                <div className="flex items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                   <span>{collection.symbol}</span>
                   <button 
                     onClick={() => {
@@ -187,7 +187,7 @@ export default function CollectionPage() {
               </div>
             </div>
 
-            <p className="text-gray-400 mb-6 leading-relaxed">
+            <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
               {collection.description}
             </p>
 
@@ -196,7 +196,7 @@ export default function CollectionPage() {
               {collection.properties?.map((prop, index) => (
                 <div 
                   key={index}
-                  className="bg-[#0d0e12] rounded-lg p-4 border border-gray-800"
+                  className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800"
                 >
                   <p className="text-sm text-gray-500 mb-1">{prop.trait_type}</p>
                   <p className="text-lg font-medium text-[#00ffbd]">{prop.value}</p>
@@ -240,11 +240,11 @@ export default function CollectionPage() {
           </div>
 
           {/* Minting Section */}
-          <div className="bg-[#1a1b1f] rounded-xl p-8 shadow-2xl border border-gray-800">
+          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-8 shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gray-800">
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-400">Price</span>
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
+                <span className="text-gray-500 dark:text-gray-400">Price</span>
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
                   <TokenIcon type={collection.mintToken?.type || 'native'} size="large" />
                   <span className="text-2xl font-bold text-gray-900 dark:text-white">
                     {collection.mintPrice} {collection.mintToken?.symbol || 'ETH'}
@@ -254,7 +254,7 @@ export default function CollectionPage() {
               
               {!isLive && (
                 <>
-                  <div className="text-sm text-gray-400 bg-[#0d0e12] rounded-lg p-3 border border-gray-800 mb-4">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-3 border border-gray-200 dark:border-gray-800 mb-4">
                     Starts {releaseDate.toLocaleDateString()} at {releaseDate.toLocaleTimeString()}
                   </div>
                   <CountdownTimer targetDate={releaseDate} />
@@ -264,15 +264,15 @@ export default function CollectionPage() {
 
             {/* Whitelist Checker */}
             {collection.enableWhitelist && (
-              <div className="mb-8 p-4 bg-[#0d0e12] rounded-lg border border-gray-800">
-                <h3 className="text-white font-semibold mb-3">Whitelist Checker</h3>
+              <div className="mb-8 p-4 bg-gray-50 dark:bg-[#0d0e12] rounded-lg border border-gray-200 dark:border-gray-800">
+                <h3 className="text-gray-900 dark:text-white font-semibold mb-3">Whitelist Checker</h3>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="Enter your wallet address"
                     value={checkingAddress}
                     onChange={(e) => setCheckingAddress(e.target.value)}
-                    className="flex-1 bg-[#1a1b1f] border border-gray-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-[#00ffbd]"
+                    className="flex-1 bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-[#00ffbd]"
                   />
                   <button
                     onClick={checkEligibility}
@@ -281,40 +281,25 @@ export default function CollectionPage() {
                     Check
                   </button>
                 </div>
-                {isEligible !== null && (
-                  <div className={`flex items-center gap-2 mt-3 ${isEligible ? 'text-green-400' : 'text-red-400'}`}>
-                    {isEligible ? (
-                      <>
-                        <BiCheck size={20} />
-                        <span>You are whitelisted!</span>
-                      </>
-                    ) : (
-                      <>
-                        <BiX size={20} />
-                        <span>Address not whitelisted</span>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             )}
 
             {/* Mint Controls */}
             <div className="space-y-6">
-              <div className="flex items-center justify-between bg-[#0d0e12] rounded-lg p-4 border border-gray-800">
+              <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                 <button
                   onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
-                  className="p-2 rounded-lg bg-[#1a1b1f] text-gray-400 hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
                   disabled={!isLive}
                 >
                   <BiMinus size={24} />
                 </button>
-                <span className="text-2xl font-bold text-white min-w-[60px] text-center">
+                <span className="text-2xl font-bold text-gray-900 dark:text-white min-w-[60px] text-center">
                   {mintAmount}
                 </span>
                 <button
                   onClick={() => setMintAmount(Math.min(collection.maxPerWallet, mintAmount + 1))}
-                  className="p-2 rounded-lg bg-[#1a1b1f] text-gray-400 hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
                   disabled={!isLive}
                 >
                   <BiPlus size={24} />
@@ -331,28 +316,28 @@ export default function CollectionPage() {
 
               {/* Progress Bar */}
               <div>
-                <div className="flex justify-between text-sm text-gray-400 mb-2">
+                <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
                   <span>Progress</span>
                   <span>{collection.totalMinted || 0}/{collection.maxSupply} Minted</span>
                 </div>
-                <div className="h-2 bg-[#0d0e12] rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 dark:bg-[#0d0e12] rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-[#00ffbd] transition-all duration-500"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Additional Stats */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-[#0d0e12] rounded-lg p-4 border border-gray-800">
-                <div className="text-sm text-gray-400 mb-1">Max Per Wallet</div>
-                <div className="text-xl font-bold text-white">{collection.maxPerWallet}</div>
-              </div>
-              <div className="bg-[#0d0e12] rounded-lg p-4 border border-gray-800">
-                <div className="text-sm text-gray-400 mb-1">Total Supply</div>
-                <div className="text-xl font-bold text-white">{collection.maxSupply}</div>
+              {/* Additional Stats */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Max Per Wallet</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white">{collection.maxPerWallet}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Supply</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white">{collection.maxSupply}</div>
+                </div>
               </div>
             </div>
           </div>
