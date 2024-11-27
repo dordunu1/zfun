@@ -66,7 +66,7 @@ export default function CollectionsList() {
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-8">Collections</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Collections</h1>
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {collections.map((collection) => {
@@ -76,9 +76,8 @@ export default function CollectionsList() {
               <Link 
                 key={collection.symbol}
                 to={`/collection/${collection.symbol}`}
-                className="bg-[#1a1b1f] rounded-xl overflow-hidden border border-gray-800 hover:border-[#00ffbd] transition-colors group h-[360px] flex flex-col"
+                className="bg-white dark:bg-[#1a1b1f] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-[#00ffbd] transition-colors group h-[360px] flex flex-col"
               >
-                {/* Collection Image - Reduced size */}
                 <div className="aspect-[16/9] relative overflow-hidden">
                   <img 
                     src={collection.previewUrl}
@@ -91,31 +90,27 @@ export default function CollectionsList() {
                       <span className="font-medium">{status.label}</span>
                     </div>
                   </div>
-                  {/* NFT Type Badge */}
                   <div className="absolute top-2 left-2 z-10">
                     <div className="bg-black/50 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
                       {collection.tokenType || 'ERC721'}
                     </div>
                   </div>
-                  {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1a1b1f] to-transparent opacity-50" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-[#1a1b1f] to-transparent opacity-50" />
                 </div>
 
                 <div className="p-3 flex-1 flex flex-col">
-                  {/* Collection Info */}
                   <div className="mb-2">
-                    <h3 className="text-base font-bold text-white mb-1 truncate">
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 truncate">
                       {collection.name}
                     </h3>
-                    <p className="text-gray-400 text-xs line-clamp-2 min-h-[2.5rem]">
+                    <p className="text-gray-500 dark:text-gray-400 text-xs line-clamp-2 min-h-[2.5rem]">
                       {collection.description}
                     </p>
                   </div>
 
-                  {/* Category & Price */}
                   <div className="flex items-center justify-between mb-2">
-                    <div className="bg-[#0d0e12] px-2 py-1 rounded-lg">
-                      <span className="text-xs text-gray-400">
+                    <div className="bg-gray-100 dark:bg-[#0d0e12] px-2 py-1 rounded-lg">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
                         {collection.category || 'Art'}
                       </span>
                     </div>
@@ -127,23 +122,21 @@ export default function CollectionsList() {
                     </div>
                   </div>
 
-                  {/* Stats Row */}
                   <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
-                    <div className="bg-[#0d0e12] rounded-lg p-1.5">
-                      <div className="text-gray-400">Supply</div>
-                      <div className="text-white font-medium">
+                    <div className="bg-gray-100 dark:bg-[#0d0e12] rounded-lg p-1.5">
+                      <div className="text-gray-600 dark:text-gray-400">Supply</div>
+                      <div className="text-gray-900 dark:text-white font-medium">
                         {collection.maxSupply}
                       </div>
                     </div>
-                    <div className="bg-[#0d0e12] rounded-lg p-1.5">
-                      <div className="text-gray-400">Minted</div>
-                      <div className="text-white font-medium">
+                    <div className="bg-gray-100 dark:bg-[#0d0e12] rounded-lg p-1.5">
+                      <div className="text-gray-600 dark:text-gray-400">Minted</div>
+                      <div className="text-gray-900 dark:text-white font-medium">
                         {collection.totalMinted || 0}
                       </div>
                     </div>
                   </div>
 
-                  {/* Social Links */}
                   <div className="flex gap-2 mt-auto">
                     {collection.website && (
                       <a 
