@@ -1,7 +1,28 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaEthereum, FaDiscord, FaTwitter, FaGlobe } from 'react-icons/fa';
-import { BiTime, BiCheck, BiX } from 'react-icons/bi';
+import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram } from 'react-icons/fa';
+import { BiTime, BiCheck, BiX, BiWorld } from 'react-icons/bi';
+
+const TokenIcon = ({ type, className = "w-4 h-4" }) => {
+  switch (type) {
+    case 'native':
+      return <FaEthereum className="text-gray-600 dark:text-gray-400" size={16} />;
+    case 'usdc':
+      return (
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-full p-0.5">
+          <img src="/usdc.png" alt="USDC" className={className} />
+        </div>
+      );
+    case 'usdt':
+      return (
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-full p-0.5">
+          <img src="/usdt.png" alt="USDT" className={className} />
+        </div>
+      );
+    default:
+      return <FaEthereum className="text-gray-600 dark:text-gray-400" size={16} />;
+  }
+};
 
 export default function CollectionsList() {
   // Get all collections from localStorage
@@ -55,62 +76,66 @@ export default function CollectionsList() {
               <Link 
                 key={collection.symbol}
                 to={`/collection/${collection.symbol}`}
-                className="bg-[#1a1b1f] rounded-xl overflow-hidden border border-gray-800 hover:border-[#00ffbd] transition-colors group"
+                className="bg-[#1a1b1f] rounded-xl overflow-hidden border border-gray-800 hover:border-[#00ffbd] transition-colors group h-[360px] flex flex-col"
               >
                 {/* Collection Image - Reduced size */}
-                <div className="aspect-[4/3] relative overflow-hidden">
+                <div className="aspect-[16/9] relative overflow-hidden">
                   <img 
                     src={collection.previewUrl}
                     alt={collection.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="absolute top-2 right-2">
-                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${status.color} text-xs`}>
+                  <div className="absolute top-2 right-2 z-10">
+                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${status.color} text-xs backdrop-blur-sm`}>
                       <status.icon size={12} />
                       <span className="font-medium">{status.label}</span>
                     </div>
                   </div>
                   {/* NFT Type Badge */}
-                  <div className="absolute top-2 left-2">
+                  <div className="absolute top-2 left-2 z-10">
                     <div className="bg-black/50 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
                       {collection.tokenType || 'ERC721'}
                     </div>
                   </div>
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1a1b1f] to-transparent opacity-50" />
                 </div>
 
-                <div className="p-4">
+                <div className="p-3 flex-1 flex flex-col">
                   {/* Collection Info */}
-                  <div className="mb-3">
-                    <h3 className="text-lg font-bold text-white mb-1 truncate">
+                  <div className="mb-2">
+                    <h3 className="text-base font-bold text-white mb-1 truncate">
                       {collection.name}
                     </h3>
-                    <p className="text-gray-400 text-xs line-clamp-2 h-8">
+                    <p className="text-gray-400 text-xs line-clamp-2 min-h-[2.5rem]">
                       {collection.description}
                     </p>
                   </div>
 
                   {/* Category & Price */}
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-2">
                     <div className="bg-[#0d0e12] px-2 py-1 rounded-lg">
                       <span className="text-xs text-gray-400">
                         {collection.category || 'Art'}
                       </span>
                     </div>
-                    <div className="flex items-center text-white">
-                      <FaEthereum className="w-3 h-3 mr-1 text-[#00ffbd]" />
-                      <span className="text-sm font-medium">{collection.mintPrice}</span>
+                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-[#0d0e12] px-2 py-1 rounded-lg">
+                      <TokenIcon type={collection.mintToken?.type || 'native'} />
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {collection.mintPrice} {collection.mintToken?.symbol || 'ETH'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Stats Row */}
-                  <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                    <div className="bg-[#0d0e12] rounded-lg p-2">
+                  <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                    <div className="bg-[#0d0e12] rounded-lg p-1.5">
                       <div className="text-gray-400">Supply</div>
                       <div className="text-white font-medium">
                         {collection.maxSupply}
                       </div>
                     </div>
-                    <div className="bg-[#0d0e12] rounded-lg p-2">
+                    <div className="bg-[#0d0e12] rounded-lg p-1.5">
                       <div className="text-gray-400">Minted</div>
                       <div className="text-white font-medium">
                         {collection.totalMinted || 0}
@@ -119,7 +144,7 @@ export default function CollectionsList() {
                   </div>
 
                   {/* Social Links */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto">
                     {collection.website && (
                       <a 
                         href={collection.website}
@@ -151,6 +176,28 @@ export default function CollectionsList() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <FaDiscord size={14} />
+                      </a>
+                    )}
+                    {collection.socials?.telegram && (
+                      <a 
+                        href={collection.socials.telegram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <FaTelegram size={14} />
+                      </a>
+                    )}
+                    {collection.socials?.zos && (
+                      <a 
+                        href={`https://zos.zero.tech/${collection.socials.zos}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <BiWorld size={14} />
                       </a>
                     )}
                   </div>

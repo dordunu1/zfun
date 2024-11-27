@@ -1,8 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom';
 import App from './App';
-import CollectionPage from './components/CollectionPage';
-import CollectionsList from './components/CollectionsList';
 import Dashboard from './components/Dashboard';
+import CollectionsList from './components/CollectionsList';
+import CollectionPage from './components/CollectionPage';
 
 export const router = createBrowserRouter([
   {
@@ -10,7 +10,7 @@ export const router = createBrowserRouter([
     element: <App />,
     children: [
       {
-        path: '/',
+        index: true,
         element: <Dashboard />,
       },
       {

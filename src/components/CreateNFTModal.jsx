@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown } from 'react-icons/bi';
-import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode } from 'react-icons/fa';
+import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
+import { BiWorld } from 'react-icons/bi';
 import clsx from 'clsx';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -27,7 +28,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     website: '',
     socials: {
       twitter: '',
-      discord: ''
+      discord: '',
+      telegram: '',
+      zos: ''
     },
     category: '',
     artwork: null,
@@ -42,6 +45,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     mintingToken: 'native', // 'native', 'usdc', 'usdt', or 'custom'
     customTokenAddress: '',
     customTokenSymbol: '',
+    mintEndDate: '',
+    infiniteMint: false,
   });
 
   const updateFormData = (updates) => {
@@ -100,7 +105,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
   const handleCreate = async () => {
     try {
-      // Save collection data to localStorage
+      // Save collection data to localStorage with proper token info
       const collectionData = {
         ...formData,
         previewUrl: formData.previewUrl || '/logo.png',
@@ -111,14 +116,20 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         releaseDate: new Date(formData.releaseDate).getTime(),
         isWhitelistPhase: formData.enableWhitelist,
         whitelistAddresses: formData.whitelistAddresses,
+        // Add token information
+        mintToken: {
+          type: formData.mintingToken, // 'native', 'usdc', 'usdt', or 'custom'
+          symbol: formData.mintingToken === 'native' ? 'ETH' :
+                 formData.mintingToken === 'usdc' ? 'USDC' :
+                 formData.mintingToken === 'usdt' ? 'USDT' :
+                 formData.customTokenSymbol,
+          address: formData.mintingToken === 'custom' ? formData.customTokenAddress : null
+        }
       };
 
       localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
       
-      // Show success message
       toast.success('Collection created successfully!');
-      
-      // Close modal and navigate
       onClose();
       navigate(`/collection/${formData.symbol}`);
     } catch (error) {
@@ -406,6 +417,81 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           </select>
         </div>
       </div>
+
+      {/* Social Links Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Social Links
+        </h3>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+              Twitter Username
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+              <input
+                type="text"
+                value={formData.socials.twitter}
+                onChange={(e) => updateFormData({
+                  socials: { ...formData.socials, twitter: e.target.value }
+                })}
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-8 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                placeholder="username"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+              Discord Server
+            </label>
+            <input
+              type="url"
+              value={formData.socials.discord}
+              onChange={(e) => updateFormData({
+                socials: { ...formData.socials, discord: e.target.value }
+              })}
+              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              placeholder="https://discord.gg/..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+              Telegram Group
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">t.me/</span>
+              <input
+                type="text"
+                value={formData.socials.telegram}
+                onChange={(e) => updateFormData({
+                  socials: { ...formData.socials, telegram: e.target.value }
+                })}
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-12 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                placeholder="groupname"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+              ZOS Profile
+            </label>
+            <input
+              type="url"
+              value={formData.socials.zos}
+              onChange={(e) => updateFormData({
+                socials: { ...formData.socials, zos: e.target.value }
+              })}
+              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              placeholder="https://zos.zero.tech/..."
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -668,9 +754,34 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           </span>
         </label>
 
-        {formData.enableWhitelist && (
-          renderWhitelistSection()
-        )}
+        {formData.enableWhitelist && renderWhitelistSection()}
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Mint End Date
+          </label>
+          <input
+            type="datetime-local"
+            disabled={formData.infiniteMint}
+            value={formData.mintEndDate}
+            onChange={(e) => setFormData({ ...formData, mintEndDate: e.target.value })}
+            className="w-full px-3 py-2 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00ffbd]"
+          />
+        </div>
+        <div className="flex items-center mt-6">
+          <input
+            type="checkbox"
+            id="infiniteMint"
+            checked={formData.infiniteMint}
+            onChange={(e) => setFormData({ ...formData, infiniteMint: e.target.checked, mintEndDate: '' })}
+            className="mr-2"
+          />
+          <label htmlFor="infiniteMint" className="text-sm text-gray-700 dark:text-gray-300">
+            Infinite Mint
+          </label>
+        </div>
       </div>
     </div>
   );

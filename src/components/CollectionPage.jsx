@@ -4,6 +4,29 @@ import { BiMinus, BiPlus, BiCopy, BiCheck, BiX } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 
+const TokenIcon = ({ type, size = "small" }) => {
+  const sizeClasses = size === "large" ? "w-6 h-6" : "w-4 h-4";
+  
+  switch (type) {
+    case 'native':
+      return <FaEthereum className="text-gray-600 dark:text-gray-400" size={size === "large" ? 24 : 16} />;
+    case 'usdc':
+      return (
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-full p-0.5">
+          <img src="/usdc.png" alt="USDC" className={sizeClasses} />
+        </div>
+      );
+    case 'usdt':
+      return (
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-full p-0.5">
+          <img src="/usdt.png" alt="USDT" className={sizeClasses} />
+        </div>
+      );
+    default:
+      return <FaEthereum className="text-gray-600 dark:text-gray-400" size={size === "large" ? 24 : 16} />;
+  }
+};
+
 function CountdownTimer({ targetDate }) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
@@ -221,10 +244,12 @@ export default function CollectionPage() {
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-400">Price</span>
-                <span className="flex items-center text-2xl font-bold text-white">
-                  <FaEthereum className="mr-2 text-[#00ffbd]" />
-                  {collection.mintPrice}
-                </span>
+                <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
+                  <TokenIcon type={collection.mintToken?.type || 'native'} size="large" />
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {collection.mintPrice} {collection.mintToken?.symbol || 'ETH'}
+                  </span>
+                </div>
               </div>
               
               {!isLive && (

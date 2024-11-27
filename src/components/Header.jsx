@@ -8,7 +8,7 @@ import NetworkSelector from './NetworkSelector';
 import PriceTicker from './PriceTicker';
 
 export default function Header() {
-  const { darkMode, setDarkMode } = useTheme();
+  const { isDarkMode, toggleTheme } = useTheme();
   const { disconnectWallet } = useWallet();
   const { open } = useWeb3Modal();
   const { address, isConnected } = useAccount();
@@ -27,10 +27,10 @@ export default function Header() {
         {isConnected && <NetworkSelector />}
         
         <button
-          onClick={() => setDarkMode(!darkMode)}
+          onClick={toggleTheme}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#1a1b1f] text-gray-600 dark:text-gray-300"
         >
-          {darkMode ? <BiSun size={20} /> : <BiMoon size={20} />}
+          {isDarkMode ? <BiSun size={20} /> : <BiMoon size={20} />}
         </button>
 
         {isConnected ? (

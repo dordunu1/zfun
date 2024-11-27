@@ -83,59 +83,59 @@ export default function Dashboard() {
           Ecosystem Integrations
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          <div className="bg-[#1a1b1f] rounded-xl p-6">
+          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-3 mb-4">
               <BiWater className="w-8 h-8 text-[#00ffbd]" />
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Add Liquidity & Trade
               </h3>
             </div>
-            <p className="text-gray-400 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               List your token on popular DEXes and create trading pairs
             </p>
             <div className="flex flex-wrap gap-3">
               <a href="https://quickswap.exchange/#/pools" target="_blank" rel="noopener noreferrer" 
-                 className="text-purple-400 bg-purple-900/20 px-3 py-1 rounded-full text-sm">
+                 className="text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20 px-3 py-1 rounded-full text-sm hover:bg-purple-200 dark:hover:bg-purple-900/30 transition-colors">
                 QuickSwap
               </a>
               <a href="https://app.sushi.com/pools" target="_blank" rel="noopener noreferrer"
-                 className="text-blue-400 bg-blue-900/20 px-3 py-1 rounded-full text-sm">
+                 className="text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20 px-3 py-1 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors">
                 SushiSwap
               </a>
               <a href="https://app.uniswap.org/#/pools" target="_blank" rel="noopener noreferrer"
-                 className="text-pink-400 bg-pink-900/20 px-3 py-1 rounded-full text-sm">
+                 className="text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/20 px-3 py-1 rounded-full text-sm hover:bg-pink-200 dark:hover:bg-pink-900/30 transition-colors">
                 Uniswap
               </a>
-              <span className="text-gray-400 bg-gray-800 px-3 py-1 rounded-full text-sm">
+              <span className="text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full text-sm">
                 More coming soon
               </span>
             </div>
           </div>
 
-          <div className="bg-[#1a1b1f] rounded-xl p-6">
+          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-3 mb-4">
               <BiStore className="w-8 h-8 text-[#00ffbd]" />
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 NFT Marketplaces
               </h3>
             </div>
-            <p className="text-gray-400 mb-4">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               List your NFTs on popular marketplaces instantly
             </p>
             <div className="flex flex-wrap gap-3">
               <a href="https://opensea.io/" target="_blank" rel="noopener noreferrer"
-                 className="text-blue-400 bg-blue-900/20 px-3 py-1 rounded-full text-sm">
+                 className="text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20 px-3 py-1 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors">
                 OpenSea
               </a>
               <a href="https://market.wilderworld.com/" target="_blank" rel="noopener noreferrer"
-                 className="text-orange-400 bg-orange-900/20 px-3 py-1 rounded-full text-sm">
+                 className="text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/20 px-3 py-1 rounded-full text-sm hover:bg-orange-200 dark:hover:bg-orange-900/30 transition-colors">
                 WWMarket
               </a>
               <a href="https://rarible.com/" target="_blank" rel="noopener noreferrer"
-                 className="text-purple-400 bg-purple-900/20 px-3 py-1 rounded-full text-sm">
+                 className="text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20 px-3 py-1 rounded-full text-sm hover:bg-purple-200 dark:hover:bg-purple-900/30 transition-colors">
                 Rarible
               </a>
-              <span className="text-gray-400 bg-gray-800 px-3 py-1 rounded-full text-sm">
+              <span className="text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full text-sm">
                 More coming soon
               </span>
             </div>
@@ -143,7 +143,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-[#1a1b1f] rounded-xl p-6">
+          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-3 mb-4">
               <BiTransfer className="w-8 h-8 text-[#00ffbd]" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -206,7 +206,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-[#1a1b1f] rounded-xl p-6">
+          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-3 mb-4">
               <BiLineChart className="w-8 h-8 text-[#00ffbd]" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -217,7 +217,7 @@ export default function Dashboard() {
               Track your token's performance and trading activity
             </p>
             
-            <div className="mt-4 h-[200px] bg-gray-50 dark:bg-[#1a1b1f] rounded-lg p-4 relative overflow-hidden">
+            <div className="mt-4 h-[200px] bg-gray-50 dark:bg-[#1a1b1f] rounded-lg p-4 relative overflow-hidden border border-gray-200 dark:border-gray-800">
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">ZFUN/POL</span>
@@ -225,7 +225,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex gap-2">
                   <button className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-[#2d2f36] text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-[#3d3f46]">1H</button>
-                  <button className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-[#2d2f36] text-[#00ffbd]">24H</button>
+                  <button className="px-2 py-1 text-xs rounded bg-[#00ffbd] text-black">24H</button>
                   <button className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-[#2d2f36] text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-[#3d3f46]">7D</button>
                 </div>
               </div>
