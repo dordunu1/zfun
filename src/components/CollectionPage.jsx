@@ -61,11 +61,11 @@ function CountdownTimer({ targetDate }) {
   return (
     <div className="grid grid-cols-4 gap-2 text-center">
       {Object.entries(timeLeft).map(([key, value]) => (
-        <div key={key} className="bg-[#0d0e12] rounded-lg p-2 border border-gray-800">
+        <div key={key} className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
           <div className="text-xl font-bold text-[#00ffbd]">
             {String(value).padStart(2, '0')}
           </div>
-          <div className="text-xs text-gray-500 capitalize">{key}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{key}</div>
         </div>
       ))}
     </div>
