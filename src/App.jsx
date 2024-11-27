@@ -9,7 +9,7 @@ import FAQ from './components/FAQ';
 import { Web3Modal } from '@web3modal/react'
 import { WagmiConfig } from 'wagmi'
 import { config, ethereumClient } from './config/wagmi'
-import { BiRocket, BiShield, BiCoin, BiPalette, BiLineChart, BiCog } from 'react-icons/bi';
+import { BiRocket, BiShield, BiCoin, BiPalette, BiLineChart, BiCog, BiStore, BiTransfer, BiWater, BiCollection } from 'react-icons/bi';
 
 function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,7 +73,7 @@ function AppContent() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-12">
               {features.map((feature, index) => (
                 <div 
                   key={index}
@@ -91,6 +91,101 @@ function AppContent() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="max-w-7xl mx-auto mt-16">
+              <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+                Ecosystem Integrations
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center gap-3 mb-4">
+                    <BiWater className="w-8 h-8 text-[#00ffbd]" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Add Liquidity
+                    </h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    List your token on popular DEXes and create trading pairs
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <a href="https://quickswap.exchange/" target="_blank" rel="noopener noreferrer" 
+                       className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-sm">
+                      QuickSwap
+                    </a>
+                    <a href="https://app.sushi.com/" target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm">
+                      SushiSwap
+                    </a>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm">
+                      More coming soon
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center gap-3 mb-4">
+                    <BiStore className="w-8 h-8 text-[#00ffbd]" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      NFT Marketplaces
+                    </h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    List your NFTs on popular marketplaces instantly
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <a href="https://opensea.io/" target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm">
+                      OpenSea
+                    </a>
+                    <a href="https://rarible.com/" target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-sm">
+                      Rarible
+                    </a>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm">
+                      More coming soon
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center gap-3 mb-4">
+                    <BiTransfer className="w-8 h-8 text-[#00ffbd]" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Recent Deployments
+                    </h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
+                      <div className="flex items-center gap-2">
+                        <BiCollection className="text-gray-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Token deployed on Polygon</span>
+                      </div>
+                      <span className="text-xs text-gray-500">2m ago</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
+                  <div className="flex items-center gap-3 mb-4">
+                    <BiLineChart className="w-8 h-8 text-[#00ffbd]" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Token Analytics
+                    </h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Track your token's performance and trading activity
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <a href="#" className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
+                      View Charts
+                    </a>
+                    <a href="#" className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm">
+                      Trading Volume
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </main>
         </div>
