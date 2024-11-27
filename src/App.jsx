@@ -117,20 +117,24 @@ function AppContent() {
                   <div className="flex items-center gap-3 mb-4">
                     <BiWater className="w-8 h-8 text-[#00ffbd]" />
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Add Liquidity
+                      Add Liquidity & Trade
                     </h3>
                   </div>
                   <p className="text-gray-600 dark:text-gray-400 mb-4">
                     List your token on popular DEXes and create trading pairs
                   </p>
                   <div className="flex flex-wrap gap-3">
-                    <a href="https://quickswap.exchange/" target="_blank" rel="noopener noreferrer" 
+                    <a href="https://quickswap.exchange/#/pools" target="_blank" rel="noopener noreferrer" 
                        className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-sm">
                       QuickSwap
                     </a>
-                    <a href="https://app.sushi.com/" target="_blank" rel="noopener noreferrer"
+                    <a href="https://app.sushi.com/pools" target="_blank" rel="noopener noreferrer"
                        className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm">
                       SushiSwap
+                    </a>
+                    <a href="https://app.uniswap.org/#/pools" target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center px-3 py-1 rounded-full bg-pink-100 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 text-sm">
+                      Uniswap
                     </a>
                     <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm">
                       More coming soon
@@ -153,8 +157,12 @@ function AppContent() {
                        className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm">
                       OpenSea
                     </a>
-                    <a href="https://rarible.com/" target="_blank" rel="noopener noreferrer"
+                    <a href="https://market.wilderworld.com/" target="_blank" rel="noopener noreferrer"
                        className="inline-flex items-center px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-sm">
+                      WWMarket
+                    </a>
+                    <a href="https://rarible.com/" target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-sm">
                       Rarible
                     </a>
                     <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm">
@@ -176,7 +184,7 @@ function AppContent() {
                         No tokens deployed yet
                       </p>
                     ) : (
-                      deployments.slice(0, 3).map((deployment, index) => (
+                      deployments.slice(0, 5).map((deployment, index) => (
                         <div 
                           key={deployment.timestamp}
                           className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0"
@@ -236,13 +244,71 @@ function AppContent() {
                   <p className="text-gray-600 dark:text-gray-400 mb-4">
                     Track your token's performance and trading activity
                   </p>
-                  <div className="flex flex-wrap gap-3">
-                    <a href="#" className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm">
-                      View Charts
-                    </a>
-                    <a href="#" className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm">
-                      Trading Volume
-                    </a>
+                  
+                  {/* Trading View Style Chart */}
+                  <div className="mt-4 h-[200px] bg-gray-50 dark:bg-[#1a1b1f] rounded-lg p-4 relative overflow-hidden">
+                    {/* Chart Header */}
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">ZFUN/POL</span>
+                        <span className="text-xs text-[#00ffbd]">+2.45%</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-[#2d2f36] text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-[#3d3f46]">1H</button>
+                        <button className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-[#2d2f36] text-[#00ffbd]">24H</button>
+                        <button className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-[#2d2f36] text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-[#3d3f46]">7D</button>
+                      </div>
+                    </div>
+                    
+                    {/* Placeholder Chart */}
+                    <div className="relative h-[120px]">
+                      {/* Gradient Line */}
+                      <div className="absolute inset-0">
+                        <svg className="w-full h-full">
+                          <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="#00ffbd" stopOpacity="0.1" />
+                              <stop offset="100%" stopColor="#00ffbd" stopOpacity="0" />
+                            </linearGradient>
+                          </defs>
+                          <path 
+                            d="M0,100 C50,80 100,120 150,60 C200,0 250,40 300,20 L300,150 L0,150 Z" 
+                            fill="url(#gradient)"
+                            className="transition-all duration-300"
+                          />
+                          <path 
+                            d="M0,100 C50,80 100,120 150,60 C200,0 250,40 300,20" 
+                            fill="none"
+                            stroke="#00ffbd"
+                            strokeWidth="2"
+                            className="transition-all duration-300"
+                          />
+                        </svg>
+                      </div>
+                      
+                      {/* Price Points */}
+                      <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-gray-500 py-2">
+                        <span>$1.24</span>
+                        <span>$1.12</span>
+                        <span>$1.00</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Trading Stats */}
+                  <div className="grid grid-cols-3 gap-4 mt-4">
+                    <div className="text-center">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Volume 24h</div>
+                      <div className="text-lg font-medium text-gray-900 dark:text-white">369K</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Liquidity</div>
+                      <div className="text-lg font-medium text-gray-900 dark:text-white">$369K</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Holders</div>
+                      <div className="text-lg font-medium text-gray-900 dark:text-white">69</div>
+                    </div>
                   </div>
                 </div>
               </div>
