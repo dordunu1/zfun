@@ -11,7 +11,8 @@ import {
   FaGithub, 
   FaTelegram, 
   FaDiscord, 
-  FaTwitter 
+  FaTwitter,
+  FaChartBar 
 } from 'react-icons/fa';
 
 export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
@@ -23,6 +24,7 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
     { icon: FaFileAlt, label: 'Create NFT', action: onOpenNFTModal },
     { icon: FaThLarge, label: 'Dashboard', href: '#' },
     { icon: FaChartLine, label: 'Trending Tokens', href: '#' },
+    { icon: FaChartBar, label: 'Activity', href: '#' },
     { icon: FaClock, label: 'Recent Tokens', href: '#' },
     { icon: FaHistory, label: 'History', href: '#' },
   ];
