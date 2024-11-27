@@ -96,18 +96,30 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   };
 
   const handleCreate = async () => {
-    if (!formData.symbol) {
-      toast.error('Please enter a collection symbol');
-      return;
-    }
-    
     try {
-      const symbol = formData.symbol.toLowerCase();
-      localStorage.setItem(`collection_${symbol}`, JSON.stringify(formData));
+      // Save collection data to localStorage
+      const collectionData = {
+        ...formData,
+        previewUrl: formData.previewUrl || '/logo.png',
+        totalMinted: 0,
+        maxSupply: parseInt(formData.maxSupply),
+        mintPrice: formData.mintPrice,
+        maxPerWallet: parseInt(formData.maxPerWallet),
+        releaseDate: new Date(formData.releaseDate).getTime(),
+        isWhitelistPhase: formData.enableWhitelist,
+        whitelistAddresses: formData.whitelistAddresses,
+      };
+
+      localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
+      
+      // Show success message
+      toast.success('Collection created successfully!');
+      
+      // Close modal and navigate
       onClose();
-      navigate(`/collection/${symbol}`);
+      navigate(`/collection/${formData.symbol}`);
     } catch (error) {
-      console.error('Error creating collection:', error);
+      console.error('Creation error:', error);
       toast.error('Failed to create collection');
     }
   };

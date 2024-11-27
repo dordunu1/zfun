@@ -1,7 +1,8 @@
 import { createConfig, configureChains } from 'wagmi'
-import { sepolia, polygon } from 'wagmi/chains'
+import { mainnet, sepolia } from 'wagmi/chains'
 import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum'
 import { InjectedConnector } from 'wagmi/connectors/injected'
+import { publicProvider } from 'wagmi/providers/public'
 
 const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID
 
@@ -12,9 +13,10 @@ const metadata = {
   icons: ['https://avatars.githubusercontent.com/u/37784886']
 }
 
-const chains = [sepolia, polygon]
-
-const { publicClient } = configureChains(chains, [w3mProvider({ projectId })])
+const { chains, publicClient, webSocketPublicClient } = configureChains(
+  [mainnet, sepolia],
+  [publicProvider()]
+)
 
 // Configure MetaMask connector
 const metaMask = new InjectedConnector({ 
