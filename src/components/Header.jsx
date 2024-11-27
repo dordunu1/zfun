@@ -2,10 +2,14 @@ import React from 'react';
 import { BiSun, BiMoon, BiWallet, BiLogOut } from 'react-icons/bi';
 import { useTheme } from '../context/ThemeContext';
 import { useWallet } from '../context/WalletContext';
+import { useWeb3Modal } from '@web3modal/react';
+import { useAccount } from 'wagmi';
 
 export default function Header() {
   const { darkMode, setDarkMode } = useTheme();
-  const { account, connectWallet, disconnectWallet } = useWallet();
+  const { disconnectWallet } = useWallet();
+  const { open } = useWeb3Modal();
+  const { address, isConnected } = useAccount();
 
   const shortenAddress = (address) => {
     if (!address) return '';
@@ -21,10 +25,10 @@ export default function Header() {
         {darkMode ? <BiSun size={20} /> : <BiMoon size={20} />}
       </button>
 
-      {account ? (
+      {isConnected ? (
         <div className="flex items-center gap-2">
           <span className="text-gray-700 dark:text-gray-300">
-            {shortenAddress(account)}
+            {shortenAddress(address)}
           </span>
           <button
             onClick={disconnectWallet}
@@ -35,7 +39,7 @@ export default function Header() {
         </div>
       ) : (
         <button
-          onClick={connectWallet}
+          onClick={() => open()}
           className="flex items-center gap-2 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg"
         >
           <BiWallet size={20} />
