@@ -14,6 +14,17 @@ import { useDeployments } from './context/DeploymentsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { DeploymentsProvider } from './context/DeploymentsContext';
 
+const getExplorerUrl = (chainId, address) => {
+  switch (chainId) {
+    case 137:
+      return `https://polygonscan.com/token/${address}`;
+    case 11155111:
+      return `https://sepolia.etherscan.io/token/${address}`;
+    default:
+      return '#';
+  }
+};
+
 function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
@@ -181,8 +192,15 @@ function AppContent() {
                               }}
                             />
                             <div>
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                {deployment.name} ({deployment.symbol})
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {deployment.name} ({deployment.symbol})
+                                </span>
+                                <BiShield 
+                                  className="text-[#00ffbd]" 
+                                  size={16} 
+                                  title="Non-Mintable Token"
+                                />
                               </div>
                               <div className="text-xs text-gray-500">
                                 on {deployment.chainName}
@@ -193,9 +211,14 @@ function AppContent() {
                             <div className="text-xs text-gray-500">
                               {formatDistanceToNow(deployment.timestamp, { addSuffix: true })}
                             </div>
-                            <div className="text-xs text-gray-400">
+                            <a 
+                              href={getExplorerUrl(deployment.chainId, deployment.address)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+                            >
                               Supply: {Number(deployment.totalSupply).toLocaleString()}
-                            </div>
+                            </a>
                           </div>
                         </div>
                       ))
