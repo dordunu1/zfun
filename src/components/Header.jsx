@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useWallet } from '../context/WalletContext';
 import { useWeb3Modal } from '@web3modal/react';
 import { useAccount } from 'wagmi';
+import NetworkSelector from './NetworkSelector';
 
 export default function Header() {
   const { darkMode, setDarkMode } = useTheme();
@@ -24,6 +25,8 @@ export default function Header() {
       >
         {darkMode ? <BiSun size={20} /> : <BiMoon size={20} />}
       </button>
+
+      {isConnected && <NetworkSelector />}
 
       {isConnected ? (
         <div className="flex items-center gap-2">
