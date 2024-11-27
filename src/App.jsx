@@ -5,6 +5,7 @@ import { WalletProvider } from './context/WalletContext';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CreateTokenModal from './components/CreateTokenModal';
+import CreateNFTModal from './components/CreateNFTModal';
 import FAQ from './components/FAQ';
 import { Web3Modal } from '@web3modal/react'
 import { WagmiConfig } from 'wagmi'
@@ -27,6 +28,7 @@ const getExplorerUrl = (chainId, address) => {
 
 function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   const { darkMode } = useTheme();
   const { deployments } = useDeployments();
@@ -74,7 +76,10 @@ function AppContent() {
     <>
       <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
         <Toaster position="top-right" />
-        <Sidebar onCreateToken={() => setIsModalOpen(true)} />
+        <Sidebar 
+          onOpenModal={() => setIsModalOpen(true)}
+          onOpenNFTModal={() => setIsNFTModalOpen(true)}
+        />
         <div className="flex-1">
           <Header />
           <main className="mt-16 p-8">
@@ -318,6 +323,10 @@ function AppContent() {
         <CreateTokenModal 
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)} 
+        />
+        <CreateNFTModal 
+          isOpen={isNFTModalOpen}
+          onClose={() => setIsNFTModalOpen(false)}
         />
         <FAQ 
           isOpen={isFAQOpen}
