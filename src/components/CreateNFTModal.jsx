@@ -736,7 +736,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             type="datetime-local"
             value={formData.releaseDate}
             onChange={(e) => updateFormData({ releaseDate: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-auto"
           />
         </div>
       </div>
@@ -767,7 +767,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             disabled={formData.infiniteMint}
             value={formData.mintEndDate}
             onChange={(e) => setFormData({ ...formData, mintEndDate: e.target.value })}
-            className="w-full px-3 py-2 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00ffbd]"
+            className="w-full px-3 py-2 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00ffbd] [color-scheme:light] dark:[color-scheme:dark]"
           />
         </div>
         <div className="flex items-center mt-6">
