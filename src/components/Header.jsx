@@ -5,6 +5,7 @@ import { useWallet } from '../context/WalletContext';
 import { useWeb3Modal } from '@web3modal/react';
 import { useAccount, useNetwork } from 'wagmi';
 import NetworkSelector from './NetworkSelector';
+import PriceTicker from './PriceTicker';
 
 export default function Header() {
   const { darkMode, setDarkMode } = useTheme();
@@ -20,8 +21,8 @@ export default function Header() {
 
   return (
     <header className="fixed top-0 right-0 lg:left-64 left-0 h-16 bg-white dark:bg-[#0d0e12] border-b border-gray-200 dark:border-gray-800 px-6 flex items-center justify-between z-10 transition-all duration-300">
-      <div className="flex-1" />
-
+      <PriceTicker />
+      
       <div className="flex items-center gap-4">
         {isConnected && <NetworkSelector />}
         
