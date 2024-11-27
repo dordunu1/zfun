@@ -147,15 +147,15 @@ export default function CollectionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0b0f]">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
       {/* Hero Section */}
-      <div className="relative h-[400px] bg-gradient-to-br from-[#00ffbd]/10 to-[#00e6a9]/10">
+      <div className="relative h-[400px] bg-gradient-to-br from-[#00ffbd]/5 to-[#00e6a9]/5 dark:from-[#00ffbd]/10 dark:to-[#00e6a9]/10">
         <img 
           src={collection.previewUrl} 
           alt={collection.name}
-          className="w-full h-full object-cover opacity-30"
+          className="w-full h-full object-cover opacity-20 dark:opacity-30"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0b0f] to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-50 dark:from-[#0a0b0f] to-transparent" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-10">
