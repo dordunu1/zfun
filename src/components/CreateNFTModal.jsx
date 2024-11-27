@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown } from 'react-icons/bi';
 import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
@@ -8,6 +8,8 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useAccount, useConnect } from 'wagmi';
+import { InjectedConnector } from 'wagmi/connectors/injected';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -48,6 +50,19 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     mintEndDate: '',
     infiniteMint: false,
   });
+
+  const { address, isConnected } = useAccount();
+  const { connect } = useConnect({
+    connector: new InjectedConnector(),
+  });
+
+  const handleConnect = async () => {
+    try {
+      await connect();
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  };
 
   const updateFormData = (updates) => {
     setFormData(prev => ({ ...prev, ...updates }));
@@ -242,6 +257,20 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   };
 
   const renderStep = () => {
+    if (!isConnected) {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center">
+          <h3 className="text-xl font-semibold mb-4">Connect Wallet</h3>
+          <button
+            onClick={handleConnect}
+            className="bg-[#00ffbd] text-black px-6 py-2 rounded-lg hover:opacity-90 transition-opacity"
+          >
+            Connect Wallet
+          </button>
+        </div>
+      );
+    }
+
     const commonLayout = (content) => (
       <div className="space-y-6">
         {content}
