@@ -6,6 +6,7 @@ import { BiX, BiImageAdd } from 'react-icons/bi';
 import { useWallet } from '../context/WalletContext';
 import TokenFactoryABI from '../contracts/TokenFactory.json';
 import { uploadTokenLogo } from '../services/storage';
+import { useDeployments } from '../context/DeploymentsContext';
 
 
 const SUPPORTED_CHAINS = import.meta.env.VITE_SUPPORTED_CHAINS.split(',').map(Number);
@@ -30,6 +31,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
     logo: null
   });
   const [previewLogo, setPreviewLogo] = useState(null);
+  const { addDeployment } = useDeployments();
 
   useEffect(() => {
     const checkChain = async () => {
@@ -105,9 +107,60 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         }
       );
 
-      await tx.wait();
+      const receipt = await tx.wait();
+      
+      const tokenCreatedEvent = receipt.logs.find(log => {
+        try {
+          const parsed = factory.interface.parseLog({
+            topics: log.topics,
+            data: log.data
+          });
+          return parsed?.name === 'TokenCreated';
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (!tokenCreatedEvent) {
+        throw new Error('Token creation event not found');
+      }
+
+      const parsedEvent = factory.interface.parseLog({
+        topics: tokenCreatedEvent.topics,
+        data: tokenCreatedEvent.data
+      });
+      
+      const deployedAddress = parsedEvent.args[1];
+      const eventName = parsedEvent.args[2];
+      const eventSymbol = parsedEvent.args[3];
+      const eventDecimals = parsedEvent.args[4];
+      const eventSupply = parsedEvent.args[5];
+      const eventLogo = parsedEvent.args[6];
+
+      addDeployment({
+        name: eventName,
+        symbol: eventSymbol,
+        address: deployedAddress,
+        chainId: currentChainId,
+        chainName: currentChainId === 137 ? 'Polygon' : 'Sepolia',
+        logo: eventLogo,
+        description: formData.description,
+        totalSupply: ethers.formatUnits(eventSupply, eventDecimals),
+        timestamp: Date.now()
+      });
+
       toast.success('Token created successfully!', { id: 'create' });
       onClose();
+      
+      setFormData({
+        name: '',
+        symbol: '',
+        totalSupply: '',
+        description: '',
+        logo: null
+      });
+      setPreviewLogo(null);
+
     } catch (error) {
       console.error('Error:', error);
       toast.error(error.reason || error.message || 'Transaction failed', { id: 'create' });

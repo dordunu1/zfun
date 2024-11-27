@@ -10,11 +10,15 @@ import { Web3Modal } from '@web3modal/react'
 import { WagmiConfig } from 'wagmi'
 import { config, ethereumClient } from './config/wagmi'
 import { BiRocket, BiShield, BiCoin, BiPalette, BiLineChart, BiCog, BiStore, BiTransfer, BiWater, BiCollection } from 'react-icons/bi';
+import { useDeployments } from './context/DeploymentsContext';
+import { formatDistanceToNow } from 'date-fns';
+import { DeploymentsProvider } from './context/DeploymentsContext';
 
 function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   const { darkMode } = useTheme();
+  const { deployments } = useDeployments();
 
   const features = [
     {
@@ -156,13 +160,46 @@ function AppContent() {
                     </h3>
                   </div>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                      <div className="flex items-center gap-2">
-                        <BiCollection className="text-gray-400" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Token deployed on Polygon</span>
-                      </div>
-                      <span className="text-xs text-gray-500">2m ago</span>
-                    </div>
+                    {deployments.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No tokens deployed yet
+                      </p>
+                    ) : (
+                      deployments.slice(0, 3).map((deployment, index) => (
+                        <div 
+                          key={deployment.timestamp}
+                          className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img 
+                              src={deployment.logo.replace('ipfs://', 'https://ipfs.io/ipfs/')} 
+                              alt={deployment.name}
+                              className="w-8 h-8 rounded-full"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = '/token-default.png';
+                              }}
+                            />
+                            <div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                {deployment.name} ({deployment.symbol})
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                on {deployment.chainName}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-500">
+                              {formatDistanceToNow(deployment.timestamp, { addSuffix: true })}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              Supply: {Number(deployment.totalSupply).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -213,7 +250,9 @@ function App() {
     <WagmiConfig config={config}>
       <ThemeProvider>
         <WalletProvider>
-          <AppContent />
+          <DeploymentsProvider>
+            <AppContent />
+          </DeploymentsProvider>
         </WalletProvider>
       </ThemeProvider>
     </WagmiConfig>
