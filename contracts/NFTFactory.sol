@@ -157,7 +157,10 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         address implementation = keccak256(bytes(collectionType)) == keccak256(bytes("ERC721")) 
             ? nft721Implementation 
             : nft1155Implementation;
-        return implementation.clone();
+        
+        address clone = implementation.clone();
+        require(clone != address(0), "Clone deployment failed");
+        return clone;
     }
 
     function _finalizeCollection(
@@ -221,8 +224,9 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
     function _createNFTCollection(CreateCollectionParams memory params) internal {
         _handleFees();
         
-        // Deploy
+        // Deploy with validation
         address collection = _deployCollection(params.collectionType);
+        require(collection != address(0), "Collection deployment failed");
         
         // Create config
         CollectionConfig memory config = _prepareCollectionConfig(
@@ -236,30 +240,38 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
             params.enableWhitelist
         );
 
-        // Initialize
+        // Initialize with try-catch
+        bool success;
+        bytes memory initData;
         if (keccak256(bytes(params.collectionType)) == keccak256(bytes("ERC721"))) {
-            NFT721(collection).initialize(
+            initData = abi.encodeWithSelector(
+                NFT721(collection).initialize.selector,
                 params.name,
                 params.symbol,
                 params.metadataURI,
                 config,
                 msg.sender
             );
+            (success, ) = collection.call(initData);
         } else {
-            NFT1155(collection).initialize(
+            initData = abi.encodeWithSelector(
+                NFT1155(collection).initialize.selector,
                 params.name,
                 params.symbol,
                 params.metadataURI,
                 config,
                 msg.sender
             );
+            (success, ) = collection.call(initData);
         }
+        
+        require(success, "Collection initialization failed");
 
-        // Finalize
+        // Store collection data
         creatorCollections[msg.sender].push(collection);
         collectionMetadata[collection] = params.metadataURI;
 
-        // Emit
+        // Emit event with the correct collection address
         emit CollectionCreated(CollectionData({
             creator: msg.sender,
             collection: collection,

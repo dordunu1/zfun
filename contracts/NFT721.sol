@@ -24,6 +24,7 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
     string public symbol_;
 
     event Minted(address indexed to, uint256 tokenId);
+    event Initialized(address indexed owner, string name, string symbol);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -43,14 +44,16 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
     ) external {
         require(!initialized, "Already initialized");
         require(_owner != address(0), "Invalid owner");
-
-        initialized = true;
-        owner = _owner;
-        tokenBaseURI = _tokenURI;
-        config = _config;
         
         name_ = _name;
         symbol_ = _symbol;
+        tokenBaseURI = _tokenURI;
+        config = _config;
+        owner = _owner;
+        initialized = true;
+        
+        // Emit an event for initialization verification
+        emit Initialized(_owner, _name, _symbol);
     }
 
     function name() public view override returns (string memory) {

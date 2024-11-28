@@ -4,6 +4,8 @@ import { BiMinus, BiPlus, BiCopy, BiCheck, BiX } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import TokenIcon from './TokenIcon';
+import { NFTCollectionABI } from '../abi/NFTCollection';
+import { ethers } from 'ethers';
 
 function CountdownTimer({ targetDate }) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
@@ -58,6 +60,9 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [checkingAddress, setCheckingAddress] = useState('');
   const [isEligible, setIsEligible] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [totalSupply, setTotalSupply] = useState(0);
+  const [maxSupply, setMaxSupply] = useState(0);
 
   useEffect(() => {
     const storedData = localStorage.getItem(`collection_${symbol}`);
@@ -68,9 +73,67 @@ export default function CollectionPage() {
     }
 
     const collectionData = JSON.parse(storedData);
+    console.log('Loaded collection data:', collectionData);
     setCollection(collectionData);
     setLoading(false);
   }, [symbol, navigate]);
+
+  useEffect(() => {
+    const checkAccount = async () => {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      setAccount(address);
+    };
+
+    checkAccount();
+  }, []);
+
+  useEffect(() => {
+    const fetchSupply = async () => {
+      if (!collection || !collection.contractAddress) {
+        console.log('Collection data not ready');
+        return;
+      }
+
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const abi = collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721;
+        const nftContract = new ethers.Contract(collection.contractAddress, abi, provider);
+        
+        // Get the actual values from contract
+        const [config, currentSupply] = await Promise.all([
+          nftContract.config().catch(() => ({ maxSupply: collection.maxSupply })),
+          nftContract.totalSupply().catch(() => 0)
+        ]);
+        
+        setTotalSupply(Number(currentSupply));
+        setMaxSupply(Number(config.maxSupply));
+      } catch (error) {
+        console.error('Error fetching supply:', error);
+        // Use fallback values from collection data
+        setMaxSupply(collection.maxSupply);
+        setTotalSupply(collection.totalMinted || 0);
+      }
+    };
+
+    fetchSupply();
+  }, [collection]);
+
+  useEffect(() => {
+    const storedData = localStorage.getItem(`collection_${symbol}`);
+    if (storedData) {
+      const collectionData = JSON.parse(storedData);
+      console.log('Collection Data Check:', {
+        contractAddress: collectionData.contractAddress,
+        type: collectionData.type,
+        mintPrice: collectionData.mintPrice,
+        symbol: collectionData.symbol,
+        maxSupply: collectionData.maxSupply,
+        maxPerWallet: collectionData.maxPerWallet
+      });
+    }
+  }, [symbol]);
 
   if (loading || !collection) {
     return (
@@ -82,19 +145,97 @@ export default function CollectionPage() {
 
   const handleMint = async () => {
     try {
-      const newTotalMinted = (collection.totalMinted || 0) + mintAmount;
+      if (!account) {
+        toast.error('Please connect your wallet');
+        return;
+      }
+
+      if (!collection.contractAddress) {
+        toast.error('Invalid contract address');
+        return;
+      }
+
+      // Debug logs
+      console.log('Minting with parameters:', {
+        contractAddress: collection.contractAddress,
+        type: collection.type,
+        mintAmount: mintAmount,
+        mintPrice: collection.mintPrice
+      });
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      
+      // Make sure we're using the correct ABI based on collection type
+      const abi = collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721;
+      
+      // Create contract instance with the correct address and ABI
+      const nftContract = new ethers.Contract(
+        collection.contractAddress,
+        abi,
+        signer
+      );
+
+      // Calculate total cost in Wei
+      const mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
+      const totalCost = mintPriceWei * BigInt(mintAmount);
+
+      console.log('Contract parameters:', {
+        address: collection.contractAddress,
+        mintAmount: mintAmount,
+        totalCost: totalCost.toString(),
+        signer: await signer.getAddress()
+      });
+
+      let mintTx;
+      if (collection.type === 'ERC1155') {
+        mintTx = await nftContract.mint(0, mintAmount, {
+          value: totalCost
+        });
+      } else {
+        // For ERC721
+        mintTx = await nftContract.mint(mintAmount, {
+          value: totalCost
+        });
+      }
+
+      toast.loading('Minting in progress...', { id: 'mint' });
+      
+      const receipt = await mintTx.wait();
+      console.log('Mint receipt:', receipt);
+
+      // Update total minted in local storage and state
       const updatedCollection = {
         ...collection,
-        totalMinted: newTotalMinted
+        totalMinted: (collection.totalMinted || 0) + mintAmount
       };
-      
-      localStorage.setItem(`collection_${symbol}`, JSON.stringify(updatedCollection));
+      localStorage.setItem(`collection_${collection.symbol}`, JSON.stringify(updatedCollection));
       setCollection(updatedCollection);
-      
-      toast.success(`Minted ${mintAmount} NFTs!`);
+
+      // Update total supply
+      const newSupply = await nftContract.totalSupply().catch(() => totalSupply + mintAmount);
+      setTotalSupply(Number(newSupply));
+
+      toast.success('NFT minted successfully!', { id: 'mint' });
+
     } catch (error) {
       console.error('Minting error:', error);
-      toast.error('Failed to mint');
+      let errorMessage = 'Failed to mint';
+      
+      if (error.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error.message) {
+        // Clean up common error messages
+        if (error.message.includes('user rejected transaction')) {
+          errorMessage = 'Transaction was rejected';
+        } else if (error.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds to complete the transaction';
+        } else {
+          errorMessage = error.message.replace('execution reverted: ', '');
+        }
+      }
+      
+      toast.error(errorMessage, { id: 'mint' });
     }
   };
 
@@ -122,6 +263,16 @@ export default function CollectionPage() {
     } else {
       toast.error('Sorry, this address is not whitelisted');
     }
+  };
+
+  // Add this check when loading collection data
+  const verifyCollectionData = async () => {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const nftContract = new ethers.Contract(collection.contractAddress, abi, provider);
+    const config = await nftContract.config();
+    
+    console.log('On-chain config:', config);
+    console.log('Local collection data:', collection);
   };
 
   return (

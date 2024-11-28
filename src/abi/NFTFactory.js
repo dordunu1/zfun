@@ -1,64 +1,64 @@
-[
+export const NFTFactoryABI = [
   {
     "inputs": [
       {
         "internalType": "string",
-        "name": "_type",
+        "name": "collectionType",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "_name",
+        "name": "name",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "_symbol",
+        "name": "symbol",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "_metadataURI",
+        "name": "metadataUrl",
         "type": "string"
       },
       {
         "internalType": "uint256",
-        "name": "_maxSupply",
+        "name": "maxSupply",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "_mintPrice",
+        "name": "mintPrice",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "_maxPerWallet",
+        "name": "maxPerWallet",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "_releaseDate",
+        "name": "startTime",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "_mintEndDate",
+        "name": "endTime",
         "type": "uint256"
       },
       {
         "internalType": "bool",
-        "name": "_infiniteMint",
+        "name": "infiniteMint",
         "type": "bool"
       },
       {
         "internalType": "address",
-        "name": "_paymentToken",
+        "name": "paymentToken",
         "type": "address"
       },
       {
         "internalType": "bool",
-        "name": "_enableWhitelist",
+        "name": "enableWhitelist",
         "type": "bool"
       }
     ],
@@ -68,16 +68,28 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "sepoliaFee",
-    "outputs": [
+    "anonymous": false,
+    "inputs": [
       {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "collectionType",
+        "type": "string"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "name": "CollectionCreated",
+    "type": "event"
   }
-] 
+]; 

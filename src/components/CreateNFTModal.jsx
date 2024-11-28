@@ -7,7 +7,7 @@ import clsx from 'clsx';
 import { useWallet } from '../context/WalletContext';
 import { NFT_CONTRACTS, TOKEN_ADDRESSES } from '../config/contracts';
 import { ethers } from 'ethers';
-import NFTFactoryABI from '../abis/NFTFactory.json';
+import { NFTFactoryABI } from '../abi/NFTFactory';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { parseEther } from 'viem';
@@ -169,11 +169,29 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         { value: fee }
       );
 
+      toast.loading('Waiting for transaction...', { id: 'create' });
+      console.log('Transaction sent:', tx.hash);
+
       const receipt = await tx.wait();
-      
-      // Store collection data in localStorage
+      console.log('Full transaction receipt:', receipt);
+
+      // Find the Initialized event first (it comes from the new collection)
+      const initializedEvent = receipt.logs.find(log => 
+        log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
+      );
+
+      if (!initializedEvent) {
+        throw new Error('Initialization event not found');
+      }
+
+      // The address that emitted the Initialized event is our collection address
+      const collectionAddress = initializedEvent.address;
+      console.log('Collection created at:', collectionAddress);
+
+      // Store collection data
       const collectionData = {
         ...formData,
+        contractAddress: collectionAddress,
         network: networkChainId === 137 ? 'polygon' : 'sepolia',
         mintToken: {
           type: formData.mintingToken || 'native',
@@ -185,7 +203,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         createdAt: Date.now(),
         totalMinted: 0
       };
-      
+
+      console.log('Storing collection data:', collectionData);
       localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
       
       toast.success('Collection created successfully!', { id: 'create' });
@@ -193,7 +212,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       navigate(`/collection/${formData.symbol}`);
 
     } catch (error) {
-      console.error('Error creating collection:', error);
+      console.error('Creation error:', error);
       toast.error(error.message || 'Failed to create collection', { id: 'create' });
     }
   };
