@@ -174,9 +174,16 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       // Store collection data in localStorage
       const collectionData = {
         ...formData,
-        totalMinted: 0,
+        network: networkChainId === 137 ? 'polygon' : 'sepolia',
+        mintToken: {
+          type: formData.mintingToken || 'native',
+          symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
+                  formData.mintingToken === 'usdt' ? 'USDT' : 
+                  networkChainId === 137 ? 'MATIC' : 'ETH',
+          address: getPaymentToken(networkChainId)
+        },
         createdAt: Date.now(),
-        network: networkChainId
+        totalMinted: 0
       };
       
       localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
@@ -974,7 +981,10 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
     
     const tokenAddresses = TOKEN_ADDRESSES[chainId];
-    if (!tokenAddresses) return '0x0000000000000000000000000000000000000000';
+    if (!tokenAddresses) {
+      console.warn('Token addresses not configured for this network');
+      return '0x0000000000000000000000000000000000000000';
+    }
 
     switch (formData.mintingToken) {
       case 'usdc':
@@ -982,7 +992,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       case 'usdt':
         return tokenAddresses.USDT;
       case 'custom':
-        return formData.customTokenAddress;
+        return formData.customTokenAddress || '0x0000000000000000000000000000000000000000';
       default:
         return '0x0000000000000000000000000000000000000000';
     }

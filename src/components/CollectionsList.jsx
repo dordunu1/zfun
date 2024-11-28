@@ -2,27 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram } from 'react-icons/fa';
 import { BiTime, BiCheck, BiX, BiWorld } from 'react-icons/bi';
-
-const TokenIcon = ({ type, className = "w-4 h-4" }) => {
-  switch (type) {
-    case 'native':
-      return <FaEthereum className="text-gray-600 dark:text-gray-400" size={16} />;
-    case 'usdc':
-      return (
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-full p-0.5">
-          <img src="/usdc.png" alt="USDC" className={className} />
-        </div>
-      );
-    case 'usdt':
-      return (
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-full p-0.5">
-          <img src="/usdt.png" alt="USDT" className={className} />
-        </div>
-      );
-    default:
-      return <FaEthereum className="text-gray-600 dark:text-gray-400" size={16} />;
-  }
-};
+import TokenIcon from './TokenIcon';
 
 export default function CollectionsList() {
   // Get all collections from localStorage
@@ -115,9 +95,12 @@ export default function CollectionsList() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-[#0d0e12] px-2 py-1 rounded-lg">
-                      <TokenIcon type={collection.mintToken?.type || 'native'} />
+                      <TokenIcon 
+                        type={collection.mintingToken} 
+                        network={collection.network}
+                      />
                       <span className="font-medium text-gray-900 dark:text-white">
-                        {collection.mintPrice} {collection.mintToken?.symbol || 'ETH'}
+                        {collection.mintPrice} {collection.mintToken?.symbol}
                       </span>
                     </div>
                   </div>
