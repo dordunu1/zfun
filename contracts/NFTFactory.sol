@@ -4,9 +4,47 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
-import "./NFT721.sol";
-import "./NFT1155.sol";
-import "./ICollectionTypes.sol";
+import "../tokens/NFT721.sol";
+import "../tokens/NFT1155.sol";
+import "../interfaces/ICollectionTypes.sol";
+
+struct CollectionData {
+    address creator;
+    address collection;
+    string collectionType;
+    string name;
+    string symbol;
+    uint256 maxSupply;
+    uint256 mintPrice;
+    uint256 maxPerWallet;
+    uint256 releaseDate;
+    uint256 mintEndDate;
+    bool infiniteMint;
+}
+
+struct InitParams {
+    address collection;
+    string collectionType;
+    string name;
+    string symbol;
+    string metadataURI;
+    ICollectionTypes.CollectionConfig config;
+}
+
+struct CreateCollectionParams {
+    string collectionType;
+    string name;
+    string symbol;
+    string metadataURI;
+    uint256 maxSupply;
+    uint256 mintPrice;
+    uint256 maxPerWallet;
+    uint256 releaseDate;
+    uint256 mintEndDate;
+    bool infiniteMint;
+    address paymentToken;
+    bool enableWhitelist;
+}
 
 contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
     using Clones for address;
@@ -20,19 +58,7 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
     mapping(address => address[]) public creatorCollections;
     mapping(address => string) public collectionMetadata;
 
-    event CollectionCreated(
-        address indexed creator,
-        address indexed collection,
-        string collectionType,
-        string name,
-        string symbol,
-        uint256 maxSupply,
-        uint256 mintPrice,
-        uint256 maxPerWallet,
-        uint256 releaseDate,
-        uint256 mintEndDate,
-        bool infiniteMint
-    );
+    event CollectionCreated(CollectionData data);
 
     constructor(address _nft721Implementation, address _nft1155Implementation) 
         Ownable(msg.sender)
@@ -65,6 +91,26 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         });
     }
 
+    function _initializeCollection(InitParams memory params) internal {
+        if (keccak256(bytes(params.collectionType)) == keccak256(bytes("ERC721"))) {
+            NFT721(params.collection).initialize(
+                params.name,
+                params.symbol,
+                params.metadataURI,
+                params.config,
+                msg.sender
+            );
+        } else {
+            NFT1155(params.collection).initialize(
+                params.name,
+                params.symbol,
+                params.metadataURI,
+                params.config,
+                msg.sender
+            );
+        }
+    }
+
     function createNFTCollection(
         string memory _type,
         string memory _name,
@@ -78,33 +124,155 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         bool _infiniteMint,
         address _paymentToken,
         bool _enableWhitelist
-    ) external payable nonReentrant {
-        require(msg.value >= (block.chainid == 11155111 ? sepoliaFee : polygonFee), "Insufficient fee");
+    ) external payable {
+        CreateCollectionParams memory params = CreateCollectionParams({
+            collectionType: _type,
+            name: _name,
+            symbol: _symbol,
+            metadataURI: _metadataURI,
+            maxSupply: _maxSupply,
+            mintPrice: _mintPrice,
+            maxPerWallet: _maxPerWallet,
+            releaseDate: _releaseDate,
+            mintEndDate: _mintEndDate,
+            infiniteMint: _infiniteMint,
+            paymentToken: _paymentToken,
+            enableWhitelist: _enableWhitelist
+        });
 
-        address implementation = keccak256(bytes(_type)) == keccak256(bytes("ERC721")) 
+        _createNFTCollection(params);
+    }
+
+    function _handleFees() internal view {
+        if (block.chainid == 11155111) {
+            require(msg.value >= sepoliaFee, "Insufficient fee");
+        } else if (block.chainid == 137) {
+            require(msg.value >= polygonFee, "Insufficient fee");
+        } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _deployCollection(string memory collectionType) internal returns (address) {
+        address implementation = keccak256(bytes(collectionType)) == keccak256(bytes("ERC721")) 
             ? nft721Implementation 
             : nft1155Implementation;
+        return implementation.clone();
+    }
 
-        address collection = implementation.clone();
-        CollectionConfig memory config = _createConfig(
-            _maxSupply, _mintPrice, _maxPerWallet, _releaseDate, 
-            _mintEndDate, _infiniteMint, _paymentToken, _enableWhitelist
+    function _finalizeCollection(
+        address collection,
+        string memory metadataURI,
+        address creator
+    ) internal {
+        creatorCollections[creator].push(collection);
+        collectionMetadata[collection] = metadataURI;
+    }
+
+    function _prepareCollectionConfig(
+        uint256 _maxSupply,
+        uint256 _mintPrice,
+        uint256 _maxPerWallet,
+        uint256 _releaseDate,
+        uint256 _mintEndDate,
+        bool _infiniteMint,
+        address _paymentToken,
+        bool _enableWhitelist
+    ) internal pure returns (CollectionConfig memory) {
+        return _createConfig(
+            _maxSupply,
+            _mintPrice,
+            _maxPerWallet,
+            _releaseDate,
+            _mintEndDate,
+            _infiniteMint,
+            _paymentToken,
+            _enableWhitelist
+        );
+    }
+
+    function _createCollectionData(
+        address collection,
+        string memory _type,
+        string memory _name,
+        string memory _symbol,
+        uint256 _maxSupply,
+        uint256 _mintPrice,
+        uint256 _maxPerWallet,
+        uint256 _releaseDate,
+        uint256 _mintEndDate,
+        bool _infiniteMint
+    ) internal view returns (CollectionData memory) {
+        return CollectionData({
+            creator: msg.sender,
+            collection: collection,
+            collectionType: _type,
+            name: _name,
+            symbol: _symbol,
+            maxSupply: _maxSupply,
+            mintPrice: _mintPrice,
+            maxPerWallet: _maxPerWallet,
+            releaseDate: _releaseDate,
+            mintEndDate: _mintEndDate,
+            infiniteMint: _infiniteMint
+        });
+    }
+
+    function _createNFTCollection(CreateCollectionParams memory params) internal {
+        _handleFees();
+        
+        // Deploy
+        address collection = _deployCollection(params.collectionType);
+        
+        // Create config
+        CollectionConfig memory config = _prepareCollectionConfig(
+            params.maxSupply,
+            params.mintPrice,
+            params.maxPerWallet,
+            params.releaseDate,
+            params.mintEndDate,
+            params.infiniteMint,
+            params.paymentToken,
+            params.enableWhitelist
         );
 
-        if (keccak256(bytes(_type)) == keccak256(bytes("ERC721"))) {
-            NFT721(collection).initialize(_name, _symbol, _metadataURI, config, msg.sender);
+        // Initialize
+        if (keccak256(bytes(params.collectionType)) == keccak256(bytes("ERC721"))) {
+            NFT721(collection).initialize(
+                params.name,
+                params.symbol,
+                params.metadataURI,
+                config,
+                msg.sender
+            );
         } else {
-            NFT1155(collection).initialize(_name, _symbol, _metadataURI, config, msg.sender);
+            NFT1155(collection).initialize(
+                params.name,
+                params.symbol,
+                params.metadataURI,
+                config,
+                msg.sender
+            );
         }
 
+        // Finalize
         creatorCollections[msg.sender].push(collection);
-        collectionMetadata[collection] = _metadataURI;
+        collectionMetadata[collection] = params.metadataURI;
 
-        emit CollectionCreated(
-            msg.sender, collection, _type, _name, _symbol,
-            _maxSupply, _mintPrice, _maxPerWallet,
-            _releaseDate, _mintEndDate, _infiniteMint
-        );
+        // Emit
+        emit CollectionCreated(CollectionData({
+            creator: msg.sender,
+            collection: collection,
+            collectionType: params.collectionType,
+            name: params.name,
+            symbol: params.symbol,
+            maxSupply: params.maxSupply,
+            mintPrice: params.mintPrice,
+            maxPerWallet: params.maxPerWallet,
+            releaseDate: params.releaseDate,
+            mintEndDate: params.mintEndDate,
+            infiniteMint: params.infiniteMint
+        }));
     }
 
     function updateFees(uint256 _sepoliaFee, uint256 _polygonFee) external onlyOwner {
@@ -118,4 +286,4 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         (bool success, ) = owner().call{value: balance}("");
         require(success, "Withdrawal failed");
     }
-} 
+}

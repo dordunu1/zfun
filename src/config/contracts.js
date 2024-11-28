@@ -5,36 +5,39 @@
 export const NFT_CONTRACTS = {
     // Sepolia Testnet
     11155111: {
-        NFT721_IMPLEMENTATION: "0x356162fe2c60dff28903bddf607a322e92d759e5",
-        NFT1155_IMPLEMENTATION: "0xa1d970560766b21acfa79d631a023d4fb1364365",
-        NFT_FACTORY: "0x5949e4305c6299cde26c02d9fa80a5107f64afa7"
+        NFT721_IMPLEMENTATION: import.meta.env.VITE_NFT721_IMPLEMENTATION_SEPOLIA,
+        NFT1155_IMPLEMENTATION: import.meta.env.VITE_NFT1155_IMPLEMENTATION_SEPOLIA,
+        NFT_FACTORY: import.meta.env.VITE_NFT_FACTORY_SEPOLIA
     },
     // Polygon Mainnet
     137: {
-        NFT721_IMPLEMENTATION: "YOUR_POLYGON_721_IMPLEMENTATION_ADDRESS",
-        NFT1155_IMPLEMENTATION: "YOUR_POLYGON_1155_IMPLEMENTATION_ADDRESS",
-        NFT_FACTORY: "YOUR_POLYGON_FACTORY_ADDRESS"
+        NFT721_IMPLEMENTATION: import.meta.env.VITE_NFT721_IMPLEMENTATION_POLYGON,
+        NFT1155_IMPLEMENTATION: import.meta.env.VITE_NFT1155_IMPLEMENTATION_POLYGON,
+        NFT_FACTORY: import.meta.env.VITE_NFT_FACTORY_POLYGON
     }
 };
 
 // Keep ERC20 contracts separate
 export const TOKEN_CONTRACTS = {
     11155111: {
-        FACTORY: "YOUR_EXISTING_SEPOLIA_TOKEN_FACTORY"
+        FACTORY: import.meta.env.VITE_FACTORY_ADDRESS_11155111
     },
     137: {
-        FACTORY: "YOUR_EXISTING_POLYGON_TOKEN_FACTORY"
+        FACTORY: import.meta.env.VITE_FACTORY_ADDRESS_137
     }
 };
-
-// Deployment steps in Remix:
-// 1. Deploy NFT721.sol
-// 2. Deploy NFT1155.sol
-// 3. Deploy NFTFactory.sol with constructor arguments:
-//    - _nft721Implementation: address from step 1
-//    - _nft1155Implementation: address from step 2
-// 4. Update this file with the deployed addresses
 
 // Network-specific fees are handled by the contract:
 // - Sepolia: 0.015 ETH
 // - Polygon: 20 POL 
+
+export const TOKEN_ADDRESSES = {
+    11155111: { // Sepolia
+        USDC: import.meta.env.VITE_USDC_ADDRESS_SEPOLIA,
+        USDT: import.meta.env.VITE_USDT_ADDRESS_SEPOLIA
+    },
+    137: { // Polygon
+        USDC: import.meta.env.VITE_USDC_ADDRESS_POLYGON,
+        USDT: import.meta.env.VITE_USDT_ADDRESS_POLYGON
+    }
+};

@@ -11,6 +11,23 @@ import { useTheme } from './context/ThemeContext';
 import { config, ethereumClient } from './config/wagmi';
 import { WalletProvider } from './context/WalletContext';
 import { DeploymentsProvider } from './context/DeploymentsContext';
+import { WagmiConfig, createConfig, configureChains } from 'wagmi';
+import { sepolia, polygon } from 'wagmi/chains';
+import { publicProvider } from 'wagmi/providers/public';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
+
+const { chains, publicClient } = configureChains(
+  [sepolia, polygon],
+  [publicProvider()]
+);
+
+const wagmiConfig = createConfig({
+  autoConnect: true,
+  connectors: [
+    new MetaMaskConnector({ chains })
+  ],
+  publicClient
+});
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,7 +36,7 @@ function App() {
   const { isDarkMode } = useTheme();
 
   return (
-    <>
+    <WagmiConfig config={wagmiConfig}>
       <Web3Modal 
         projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
         ethereumClient={ethereumClient}
@@ -54,7 +71,7 @@ function App() {
           </div>
         </DeploymentsProvider>
       </WalletProvider>
-    </>
+    </WagmiConfig>
   );
 }
 

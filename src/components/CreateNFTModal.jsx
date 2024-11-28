@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown } from 'react-icons/bi';
 import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
 import { BiWorld } from 'react-icons/bi';
 import clsx from 'clsx';
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
-import { useNavigate } from 'react-router-dom';
+import { useWallet } from '../context/WalletContext';
+import { NFT_CONTRACTS, TOKEN_ADDRESSES } from '../config/contracts';
+import { ethers } from 'ethers';
+import NFTFactoryABI from '../abis/NFTFactory.json';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { parseEther } from 'viem';
+import { sepolia, polygon } from 'wagmi/chains';
+import { prepareAndUploadMetadata } from '../services/metadata';
+import { Contract } from 'ethers';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -19,6 +25,7 @@ const STEPS = [
 
 export default function CreateNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
+  const { account, provider, signer, connectWallet } = useWallet();
   const [currentStep, setCurrentStep] = useState('type');
   const [formData, setFormData] = useState({
     type: '', // ERC721 or ERC1155
@@ -48,6 +55,14 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     mintEndDate: '',
     infiniteMint: false,
   });
+
+  useEffect(() => {
+    if (isOpen && !account) {
+      connectWallet();
+    } else if (isOpen && account) {
+      setCurrentStep('type');
+    }
+  }, [isOpen, account, connectWallet]);
 
   const updateFormData = (updates) => {
     setFormData(prev => ({ ...prev, ...updates }));
@@ -103,38 +118,70 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
   };
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     try {
-      // Save collection data to localStorage with proper token info
-      const collectionData = {
-        ...formData,
-        previewUrl: formData.previewUrl || '/logo.png',
-        totalMinted: 0,
-        maxSupply: parseInt(formData.maxSupply),
-        mintPrice: formData.mintPrice,
-        maxPerWallet: parseInt(formData.maxPerWallet),
-        releaseDate: new Date(formData.releaseDate).getTime(),
-        isWhitelistPhase: formData.enableWhitelist,
-        whitelistAddresses: formData.whitelistAddresses,
-        // Add token information
-        mintToken: {
-          type: formData.mintingToken, // 'native', 'usdc', 'usdt', or 'custom'
-          symbol: formData.mintingToken === 'native' ? 'ETH' :
-                 formData.mintingToken === 'usdc' ? 'USDC' :
-                 formData.mintingToken === 'usdt' ? 'USDT' :
-                 formData.customTokenSymbol,
-          address: formData.mintingToken === 'custom' ? formData.customTokenAddress : null
-        }
-      };
+      if (!account) {
+        connectWallet();
+        return;
+      }
 
-      localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
+      // Validate form data
+      if (!formData.type || !formData.name || !formData.symbol || !formData.artwork) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // Initialize provider and signer first
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer2 = await provider.getSigner();
+      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+      const networkChainId = parseInt(currentChainId, 16);
       
-      toast.success('Collection created successfully!');
+      const factoryAddress = NFT_CONTRACTS[networkChainId]?.NFT_FACTORY;
+      if (!factoryAddress) {
+        toast.error('Unsupported network');
+        return;
+      }
+
+      toast.loading('Uploading metadata...', { id: 'metadata' });
+      const metadataUrl = await prepareAndUploadMetadata(formData, formData.artwork);
+      toast.success('Metadata uploaded successfully!', { id: 'metadata' });
+
+      // Use signer2 for contract instance
+      const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
+      const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
+
+      toast.loading('Creating collection...', { id: 'create' });
+
+      const tx = await factory.createNFTCollection(
+        formData.type,
+        formData.name,
+        formData.symbol,
+        metadataUrl,
+        BigInt(formData.maxSupply || 1000),
+        formData.mintPrice ? ethers.parseEther(formData.mintPrice.toString()) : BigInt(0),
+        BigInt(formData.maxPerWallet || 1),
+        BigInt(Math.floor(Date.now() / 1000)),
+        BigInt(formData.infiniteMint ? 0 : Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60),
+        Boolean(formData.infiniteMint),
+        getPaymentToken(networkChainId),
+        Boolean(formData.enableWhitelist),
+        { value: fee }
+      );
+
+      const receipt = await tx.wait();
+      toast.success('Collection created successfully!', { id: 'create' });
       onClose();
-      navigate(`/collection/${formData.symbol}`);
+      navigate('/collections');
+
     } catch (error) {
       console.error('Creation error:', error);
-      toast.error('Failed to create collection');
+      toast.error(
+        error.message.includes('insufficient funds') 
+          ? 'Insufficient funds for transaction' 
+          : error.message || 'Failed to create collection',
+        { id: 'create' }
+      );
     }
   };
 
@@ -258,14 +305,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             </button>
           )}
           <button
-            onClick={() => {
-              if (currentStep === 'minting') {
-                handleCreate();
-              } else {
-                const currentIndex = STEPS.findIndex(s => s.id === currentStep);
-                setCurrentStep(STEPS[currentIndex + 1].id);
-              }
-            }}
+            onClick={handleButtonClick}
             className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors ml-auto"
           >
             {currentStep === 'minting' ? 'Create Collection' : 'Continue'}
@@ -288,62 +328,64 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
   };
 
-  const renderTypeSelection = () => (
-    <div className="space-y-4">
-      <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-        Choose your NFT collection type
-      </p>
-      <div className="grid grid-cols-1 gap-4">
-        <button
-          onClick={() => {
-            updateFormData({ type: 'ERC721' });
-            setCurrentStep('basics');
-          }}
-          className={clsx(
-            'p-4 rounded-lg border-2 text-left',
-            'hover:border-[#00ffbd] transition-colors',
-            formData.type === 'ERC721' 
-              ? 'border-[#00ffbd]' 
-              : 'border-gray-200 dark:border-gray-800'
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <FaEthereum size={24} className="text-[#00ffbd]" />
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">ERC-721</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Traditional NFTs, unique and non-divisible
-              </p>
+  const renderTypeSelection = () => {
+    return (
+      <div className="space-y-4">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+          Choose your NFT collection type
+        </p>
+        <div className="grid grid-cols-1 gap-4">
+          <button
+            onClick={() => {
+              updateFormData({ type: 'ERC721' });
+              setCurrentStep('basics');
+            }}
+            className={clsx(
+              'p-4 rounded-lg border-2 text-left',
+              'hover:border-[#00ffbd] transition-colors',
+              formData.type === 'ERC721' 
+                ? 'border-[#00ffbd]' 
+                : 'border-gray-200 dark:border-gray-800'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <FaEthereum size={24} className="text-[#00ffbd]" />
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">ERC-721</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Traditional NFTs, unique and non-divisible
+                </p>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
 
-        <button
-          onClick={() => {
-            updateFormData({ type: 'ERC1155' });
-            setCurrentStep('basics');
-          }}
-          className={clsx(
-            'p-4 rounded-lg border-2',
-            'hover:border-[#00ffbd] transition-colors',
-            formData.type === 'ERC1155' 
-              ? 'border-[#00ffbd]' 
-              : 'border-gray-200 dark:border-gray-800'
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <FaEthereum size={24} className="text-[#00ffbd]" />
-            <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">ERC-1155</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Multi-token standard, semi-fungible
-              </p>
+          <button
+            onClick={() => {
+              updateFormData({ type: 'ERC1155' });
+              setCurrentStep('basics');
+            }}
+            className={clsx(
+              'p-4 rounded-lg border-2',
+              'hover:border-[#00ffbd] transition-colors',
+              formData.type === 'ERC1155' 
+                ? 'border-[#00ffbd]' 
+                : 'border-gray-200 dark:border-gray-800'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <FaEthereum size={24} className="text-[#00ffbd]" />
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">ERC-1155</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Multi-token standard, semi-fungible
+                </p>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderBasicInfo = () => (
     <div className="space-y-6">
@@ -552,7 +594,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Properties
           </h3>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Add traits that make your NFTs unique
           </p>
         </div>
@@ -910,6 +952,89 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       </div>
     </div>
   );
+
+  const handleButtonClick = () => {
+    if (currentStep === 'minting') {
+      handleSubmit();
+    } else {
+      const currentIndex = STEPS.findIndex(s => s.id === currentStep);
+      setCurrentStep(STEPS[currentIndex + 1].id);
+    }
+  };
+
+  const getPaymentToken = (chainId) => {
+    if (!formData.mintingToken || formData.mintingToken === 'native') {
+      return '0x0000000000000000000000000000000000000000';
+    }
+    
+    const tokenAddresses = TOKEN_ADDRESSES[chainId];
+    if (!tokenAddresses) return '0x0000000000000000000000000000000000000000';
+
+    switch (formData.mintingToken) {
+      case 'usdc':
+        return tokenAddresses.USDC;
+      case 'usdt':
+        return tokenAddresses.USDT;
+      case 'custom':
+        return formData.customTokenAddress;
+      default:
+        return '0x0000000000000000000000000000000000000000';
+    }
+  };
+
+  const createNFT = async () => {
+    if (!account) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const network = await provider.getNetwork();
+      const chainId = Number(network.chainId);
+
+      // Validate chain
+      if (!NFT_CONTRACTS[chainId]) {
+        toast.error('Please switch to a supported network');
+        return;
+      }
+
+      const factory = new ethers.Contract(
+        NFT_CONTRACTS[chainId],
+        NFTFactoryABI,
+        signer
+      );
+
+      // Prepare transaction with explicit chain configuration
+      const txParams = {
+        value: parseEther("0.015"),
+        chainId: chainId,
+      };
+
+      // Create NFT with transaction parameters
+      const tx = await factory.createNFT(
+        formData.name,
+        formData.symbol,
+        formData.baseURI,
+        txParams
+      );
+
+      toast.loading('Creating NFT collection...', { id: 'create' });
+      await tx.wait();
+      toast.success('NFT collection created!', { id: 'create' });
+      onClose();
+
+    } catch (error) {
+      console.error('NFT Creation error:', error);
+      toast.error(
+        error.message.includes('chain') 
+          ? 'Please switch to a supported network'
+          : `Failed to create NFT: ${error.message}`,
+        { id: 'create' }
+      );
+    }
+  };
 
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">

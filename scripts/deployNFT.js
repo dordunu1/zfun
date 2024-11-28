@@ -16,8 +16,8 @@ async function main() {
   // Deploy NFTFactory
   const NFTFactory = await hre.ethers.getContractFactory("NFTFactory");
   const factory = await NFTFactory.deploy(
-    await nft721Implementation.getAddress(),
-    await nft1155Implementation.getAddress()
+    "0x36e9df4040669ecd10534d3fb2569aa1c9999efe",  // NFT721 implementation
+    "0xb0fcbb102cd769d9ef67a0fb1f9b63772898515c"   // NFT1155 implementation
   );
   await factory.waitForDeployment();
   console.log("NFTFactory deployed to:", await factory.getAddress());
@@ -41,8 +41,8 @@ async function main() {
   await hre.run("verify:verify", {
     address: await factory.getAddress(),
     constructorArguments: [
-      await nft721Implementation.getAddress(),
-      await nft1155Implementation.getAddress()
+      "0x36e9df4040669ecd10534d3fb2569aa1c9999efe",
+      "0xb0fcbb102cd769d9ef67a0fb1f9b63772898515c"
     ],
   });
 }
