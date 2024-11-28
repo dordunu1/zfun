@@ -170,18 +170,24 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       );
 
       const receipt = await tx.wait();
+      
+      // Store collection data in localStorage
+      const collectionData = {
+        ...formData,
+        totalMinted: 0,
+        createdAt: Date.now(),
+        network: networkChainId
+      };
+      
+      localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
+      
       toast.success('Collection created successfully!', { id: 'create' });
       onClose();
-      navigate('/collections');
+      navigate(`/collection/${formData.symbol}`);
 
     } catch (error) {
-      console.error('Creation error:', error);
-      toast.error(
-        error.message.includes('insufficient funds') 
-          ? 'Insufficient funds for transaction' 
-          : error.message || 'Failed to create collection',
-        { id: 'create' }
-      );
+      console.error('Error creating collection:', error);
+      toast.error(error.message || 'Failed to create collection', { id: 'create' });
     }
   };
 
