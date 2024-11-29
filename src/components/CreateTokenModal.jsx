@@ -7,6 +7,7 @@ import { useWallet } from '../context/WalletContext';
 import TokenFactoryABI from '../contracts/TokenFactory.json';
 import { uploadTokenLogo } from '../services/storage';
 import { useDeployments } from '../context/DeploymentsContext';
+import { ipfsToHttp } from '../utils/ipfs';
 
 
 const SUPPORTED_CHAINS = import.meta.env.VITE_SUPPORTED_CHAINS.split(',').map(Number);
@@ -91,63 +92,81 @@ export default function CreateTokenModal({ isOpen, onClose }) {
   };
 
   // Update the handleSuccess function
-  const handleSuccess = (deployedAddress) => {
-    // Clear any existing toasts
-    toast.dismiss();
-    
-    // Delay the success toast slightly to let confetti start
-    setTimeout(() => {
-      const dexes = DEX_CONFIGS[currentChainId] || [];
+  const handleSuccess = async (deployedAddress, eventData, logoUrls) => {
+    try {
+      await addDeployment({
+        name: eventData.name,
+        symbol: eventData.symbol,
+        address: deployedAddress,
+        chainId: currentChainId,
+        chainName: currentChainId === 137 ? 'Polygon' : 'Sepolia',
+        logo: logoUrls.httpUrl,
+        logoIpfs: logoUrls.ipfsUrl,
+        description: formData.description,
+        totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
+        timestamp: Date.now()
+      });
+
+      // Clear any existing toasts
+      toast.dismiss();
       
-      toast.custom((t) => (
-        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-[#1a1b1f] shadow-lg rounded-lg pointer-events-auto flex flex-col`}>
-          <div className="p-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 pt-0.5">
-                <img src="/success-icon.png" alt="Success" className="h-10 w-10" />
+      // Delay the success toast slightly to let confetti start
+      setTimeout(() => {
+        const dexes = DEX_CONFIGS[currentChainId] || [];
+        
+        toast.custom((t) => (
+          <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-[#1a1b1f] shadow-lg rounded-lg pointer-events-auto flex flex-col`}>
+            <div className="p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 pt-0.5">
+                  <img src="/success-icon.png" alt="Success" className="h-10 w-10" />
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-lg font-medium text-[#00ffbd]">
+                    Token created successfully! 🎉
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    Add liquidity to make your token tradeable:
+                  </p>
+                </div>
               </div>
-              <div className="ml-3 flex-1">
-                <p className="text-lg font-medium text-[#00ffbd]">
-                  Token created successfully! 🎉
-                </p>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                  Add liquidity to make your token tradeable:
-                </p>
+              <div className="mt-4 space-y-2">
+                {dexes.map((dex) => (
+                  <a
+                    key={dex.name}
+                    href={dex.addLiquidityUrl(deployedAddress)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-[#2d2f36] hover:bg-gray-100 dark:hover:bg-[#3d3f46] transition-colors"
+                  >
+                    <img src={dex.logo} alt={dex.name} className="w-6 h-6" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Add liquidity on {dex.name}
+                    </span>
+                  </a>
+                ))}
               </div>
-            </div>
-            <div className="mt-4 space-y-2">
-              {dexes.map((dex) => (
-                <a
-                  key={dex.name}
-                  href={dex.addLiquidityUrl(deployedAddress)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-[#2d2f36] hover:bg-gray-100 dark:hover:bg-[#3d3f46] transition-colors"
-                >
-                  <img src={dex.logo} alt={dex.name} className="w-6 h-6" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    Add liquidity on {dex.name}
-                  </span>
-                </a>
-              ))}
             </div>
           </div>
-        </div>
-      ), {
-        duration: 15000,
-        position: 'top-center',
-      });
-    }, 100);
+        ), {
+          duration: 15000,
+          position: 'top-center',
+        });
+      }, 100);
 
-    onClose();
-    setFormData({
-      name: '',
-      symbol: '',
-      totalSupply: '',
-      description: '',
-      logo: null
-    });
-    setPreviewLogo(null);
+      onClose();
+      setFormData({
+        name: '',
+        symbol: '',
+        totalSupply: '',
+        description: '',
+        logo: null
+      });
+      setPreviewLogo(null);
+    } catch (error) {
+      console.error('Error saving deployment:', error);
+      toast.error('Error saving deployment data');
+    }
   };
 
   const createToken = async (e) => {
@@ -159,11 +178,11 @@ export default function CreateTokenModal({ isOpen, onClose }) {
     }
 
     try {
-      let logoUrl = '';
+      let logoUrls = { ipfsUrl: '', httpUrl: '' };
       if (formData.logo) {
         toast.loading('Uploading logo...', { id: 'upload' });
         try {
-          logoUrl = await uploadTokenLogo(formData.logo);
+          logoUrls = await uploadTokenLogo(formData.logo);
           toast.success('Logo uploaded!', { id: 'upload' });
         } catch (uploadError) {
           toast.error(`Logo upload failed: ${uploadError.message}`, { id: 'upload' });
@@ -194,12 +213,13 @@ export default function CreateTokenModal({ isOpen, onClose }) {
           border: '1px solid #2d2f36'
         }
       });
+
       const tx = await factory.createToken(
         formData.name,
         formData.symbol,
         18,
         ethers.parseUnits(formData.totalSupply, 18),
-        logoUrl,
+        logoUrls.ipfsUrl, // Use IPFS URL for blockchain storage
         { 
           value: fee,
           gasLimit: 3000000
@@ -230,38 +250,24 @@ export default function CreateTokenModal({ isOpen, onClose }) {
       });
       
       const deployedAddress = parsedEvent.args[1];
-      const eventName = parsedEvent.args[2];
-      const eventSymbol = parsedEvent.args[3];
-      const eventDecimals = parsedEvent.args[4];
-      const eventSupply = parsedEvent.args[5];
-      const eventLogo = parsedEvent.args[6];
+      const eventData = {
+        name: parsedEvent.args[2],
+        symbol: parsedEvent.args[3],
+        decimals: parsedEvent.args[4],
+        supply: parsedEvent.args[5],
+        logo: parsedEvent.args[6]
+      };
 
-      addDeployment({
-        name: eventName,
-        symbol: eventSymbol,
-        address: deployedAddress,
-        chainId: currentChainId,
-        chainName: currentChainId === 137 ? 'Polygon' : 'Sepolia',
-        logo: eventLogo,
-        description: formData.description,
-        totalSupply: ethers.formatUnits(eventSupply, eventDecimals),
-        timestamp: Date.now()
-      });
-
-      // After successful deployment, call handleSuccess
-      handleSuccess(deployedAddress);
+      handleSuccess(deployedAddress, eventData, logoUrls);
 
     } catch (error) {
-      console.error('Error:', error);
-      toast.error(error.reason || error.message || 'Transaction failed', { 
-        id: 'create',
-        style: {
-          background: '#1a1b1f',
-          color: '#ffffff',
-          borderRadius: '0.5rem',
-          border: '1px solid #2d2f36'
-        }
-      });
+      console.error('Token Creation error:', error);
+      toast.error(
+        error.message.includes('chain') 
+          ? 'Please switch to a supported network'
+          : `Failed to create token: ${error.message}`,
+        { id: 'create' }
+      );
     }
   };
 

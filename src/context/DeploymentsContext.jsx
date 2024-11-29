@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
+import { saveTokenDeployment, getTokenDeploymentsByWallet } from '../services/firebase';
 
 const DeploymentsContext = createContext();
 
@@ -7,28 +8,40 @@ export function DeploymentsProvider({ children }) {
   const { address } = useAccount();
   const [deployments, setDeployments] = useState([]);
 
-  // Load deployments from localStorage on mount
+  // Load deployments from Firebase when wallet connects/changes
   useEffect(() => {
-    if (address) {
-      const stored = localStorage.getItem(`deployments_${address}`);
-      if (stored) {
-        setDeployments(JSON.parse(stored));
+    const loadDeployments = async () => {
+      if (address) {
+        try {
+          const walletDeployments = await getTokenDeploymentsByWallet(address);
+          const sortedDeployments = walletDeployments
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 10);
+          setDeployments(sortedDeployments);
+        } catch (error) {
+          console.error('Error loading deployments:', error);
+        }
+      } else {
+        setDeployments([]);
       }
-    }
+    };
+
+    loadDeployments();
   }, [address]);
 
-  const addDeployment = (deployment) => {
-    const newDeployments = [
-      {
-        ...deployment,
-        timestamp: Date.now(),
-      },
-      ...deployments,
-    ].slice(0, 10); // Keep only last 10 deployments
-
-    setDeployments(newDeployments);
-    if (address) {
-      localStorage.setItem(`deployments_${address}`, JSON.stringify(newDeployments));
+  const addDeployment = async (deployment) => {
+    if (!address) return;
+    
+    try {
+      await saveTokenDeployment(deployment, address);
+      const walletDeployments = await getTokenDeploymentsByWallet(address);
+      const sortedDeployments = walletDeployments
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 10);
+      setDeployments(sortedDeployments);
+    } catch (error) {
+      console.error('Error adding deployment:', error);
+      throw error;
     }
   };
 

@@ -19,6 +19,7 @@ const db = getFirestore(app);
 
 // Collection reference
 const collectionsRef = collection(db, 'collections');
+const tokenDeploymentsRef = collection(db, 'tokenDeployments');
 
 export const saveCollection = async (collectionData) => {
   try {
@@ -135,4 +136,40 @@ export const subscribeToCollection = (symbol, callback) => {
       callback(snapshot.docs[0].data());
     }
   });
-}; 
+};
+
+const deploymentsRef = collection(db, 'deployments');
+
+export const saveTokenDeployment = async (deployment, walletAddress) => {
+  try {
+    await addDoc(tokenDeploymentsRef, {
+      ...deployment,
+      creatorAddress: walletAddress.toLowerCase(),
+      createdAt: Date.now(),
+      type: 'token' // To distinguish from NFTs
+    });
+  } catch (error) {
+    console.error('Error saving token deployment:', error);
+    throw error;
+  }
+};
+
+export const getTokenDeploymentsByWallet = async (walletAddress) => {
+  try {
+    const q = query(
+      tokenDeploymentsRef,
+      where('creatorAddress', '==', walletAddress.toLowerCase()),
+      where('type', '==', 'token'),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error getting token deployments:', error);
+    throw error;
+  }
+};

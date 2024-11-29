@@ -3,6 +3,7 @@ import { BiRocket, BiShield, BiCoin, BiPalette, BiLineChart, BiCog, BiStore, BiT
 import { useDeployments } from '../context/DeploymentsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { getExplorerUrl } from '../utils/explorer';
+import { ipfsToHttp } from '../utils/ipfs';
 
 export default function Dashboard() {
   const { deployments } = useDeployments();
@@ -45,6 +46,52 @@ export default function Dashboard() {
       gradient: "from-green-500 to-green-600"
     }
   ];
+
+  function TokenCard({ deployment }) {
+    return (
+      <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
+        <div className="flex items-center gap-3">
+          <img 
+            src={deployment.logo || ipfsToHttp(deployment.logoIpfs)} 
+            alt={deployment.name}
+            className="w-8 h-8 rounded-full"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = '/token-default.png';
+            }}
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                {deployment.name} ({deployment.symbol})
+              </span>
+              <BiShield 
+                className="text-[#00ffbd]" 
+                size={16} 
+                title="Non-Mintable Token"
+              />
+            </div>
+            <div className="text-xs text-gray-500">
+              on {deployment.chainName}
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xs text-gray-500">
+            {formatDistanceToNow(deployment.timestamp, { addSuffix: true })}
+          </div>
+          <a 
+            href={getExplorerUrl(deployment.chainId, deployment.address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+          >
+            Supply: {Number(deployment.totalSupply).toLocaleString()}
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="mt-16 p-8">
@@ -156,52 +203,11 @@ export default function Dashboard() {
                   No tokens deployed yet
                 </p>
               ) : (
-                deployments.slice(0, 5).map((deployment) => (
-                  <div 
-                    key={deployment.timestamp}
-                    className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src={deployment.logo.replace('ipfs://', 'https://ipfs.io/ipfs/')} 
-                        alt={deployment.name}
-                        className="w-8 h-8 rounded-full"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/token-default.png';
-                        }}
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {deployment.name} ({deployment.symbol})
-                          </span>
-                          <BiShield 
-                            className="text-[#00ffbd]" 
-                            size={16} 
-                            title="Non-Mintable Token"
-                          />
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          on {deployment.chainName}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-gray-500">
-                        {formatDistanceToNow(deployment.timestamp, { addSuffix: true })}
-                      </div>
-                      <a 
-                        href={getExplorerUrl(deployment.chainId, deployment.address)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
-                      >
-                        Supply: {Number(deployment.totalSupply).toLocaleString()}
-                      </a>
-                    </div>
-                  </div>
-                ))
+                <div className="space-y-2">
+                  {deployments.slice(0, 5).map((deployment) => (
+                    <TokenCard key={deployment.timestamp} deployment={deployment} />
+                  ))}
+                </div>
               )}
             </div>
           </div>

@@ -32,7 +32,13 @@ export async function uploadTokenLogo(file) {
     }
 
     const data = await response.json();
-    return `ipfs://${data.IpfsHash}`;
+    const ipfsUrl = `ipfs://${data.IpfsHash}`;
+    const httpUrl = ipfsUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
+
+    return {
+      ipfsUrl,
+      httpUrl
+    };
   } catch (error) {
     console.error('Upload Error:', error);
     throw new Error(`Upload failed: ${error.message}`);
