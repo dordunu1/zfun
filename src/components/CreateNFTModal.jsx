@@ -17,6 +17,7 @@ import { saveCollection } from '../services/firebase';
 import FuturisticCard from './FuturisticCard';
 import { useAccount } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/react';
+import { NFTCollectionABI } from '../abi/NFTCollection';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -26,9 +27,33 @@ const STEPS = [
   { id: 'minting', title: 'Minting' },
 ];
 
+const setWhitelistInContract = async (collectionAddress, whitelistAddresses, signer, maxPerWallet) => {
+  try {
+    const contract = new ethers.Contract(
+      collectionAddress,
+      NFTCollectionABI.ERC721, // or ERC1155 based on type
+      signer
+    );
+    
+    // Convert addresses to arrays for contract
+    const addresses = whitelistAddresses;
+    const limits = whitelistAddresses.map(() => maxPerWallet); // Each address can mint up to maxPerWallet
+    
+    toast.loading('Setting whitelist addresses...', { id: 'whitelist' });
+    const tx = await contract.setWhitelist(addresses, limits);
+    await tx.wait();
+    toast.success('Whitelist addresses set successfully!', { id: 'whitelist' });
+  } catch (error) {
+    console.error('Error setting whitelist:', error);
+    toast.error('Failed to set whitelist addresses', { id: 'whitelist' });
+    throw error;
+  }
+};
+
 export default function CreateNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState('type');
+  const [newAddress, setNewAddress] = useState('');
   const [formData, setFormData] = useState({
     type: '', // ERC721 or ERC1155
     name: '',
@@ -88,7 +113,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       if (file.name.endsWith('.csv')) {
         const text = await file.text();
         const result = Papa.parse(text, { header: true });
-        addresses = result.data.map(row => row.address || row.wallet || Object.values(row)[0]);
+        addresses = result.data
+          .map(row => row.address || row.wallet || Object.values(row)[0])
+          .filter(addr => addr); // Filter out empty values
       } 
       else if (file.name.endsWith('.xlsx')) {
         const data = await file.arrayBuffer();
@@ -102,7 +129,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         addresses = Array.isArray(data) ? data : Object.values(data);
       }
 
-      const validAddresses = addresses.filter(validateAddress);
+      const validAddresses = addresses
+        .map(addr => typeof addr === 'object' ? addr.address : addr)
+        .filter(validateAddress);
       
       if (validAddresses.length !== addresses.length) {
         toast.warning('Some addresses were invalid and were removed');
@@ -128,7 +157,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         return;
       }
 
-      // Initialize provider and signer first
+      toast.loading('Creating your collection...', { id: 'create' });
+
+      // Initialize provider and signer
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer2 = await provider.getSigner();
       const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
@@ -140,15 +171,14 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         return;
       }
 
-      toast.loading('Uploading metadata...', { id: 'metadata' });
+      // Step 1: Upload metadata
+      toast.loading('1/3 - Uploading metadata...', { id: 'create' });
       const metadataUrl = await prepareAndUploadMetadata(formData, formData.artwork);
-      toast.success('Metadata uploaded successfully!', { id: 'metadata' });
 
-      // Use signer2 for contract instance
+      // Step 2: Create collection
+      toast.loading('2/3 - Creating collection...', { id: 'create' });
       const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
       const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
-
-      toast.loading('Creating collection...', { id: 'create' });
 
       const tx = await factory.createNFTCollection(
         formData.type,
@@ -166,46 +196,47 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         { value: fee }
       );
 
-      toast.loading('Waiting for confirmation...', { id: 'create' });
-      console.log('Transaction sent:', tx.hash);
-
+      toast.loading('2/3 - Confirming transaction...', { id: 'create' });
       const receipt = await tx.wait();
-      console.log('Full transaction receipt:', receipt);
 
-      // Find the collection address from the CollectionCreated event data
+      // Get collection address from events
       let collectionAddress;
       const creationEvent = receipt.logs.find(log => 
-        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'  // CollectionCreated event
+        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'
       );
 
       if (creationEvent) {
-        try {
-          // Parse the event data to get the collection address
-          const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-            ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
-            creationEvent.data
-          );
-          collectionAddress = decodedData[0].collection;
-        } catch (error) {
-          console.error('Failed to decode event:', error);
-        }
+        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+          ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
+          creationEvent.data
+        );
+        collectionAddress = decodedData[0].collection;
       }
 
       if (!collectionAddress) {
-        // Fallback to checking for Initialized event
         const initializedEvent = receipt.logs.find(log => 
-          log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'  // Initialized event
+          log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
         );
         collectionAddress = initializedEvent?.address;
       }
 
-      if (!collectionAddress) {
-        throw new Error('Collection address not found');
+      // Step 3: Set whitelist if enabled
+      if (formData.enableWhitelist && formData.whitelistAddresses.length > 0) {
+        toast.loading('3/3 - Setting whitelist...', { id: 'create' });
+        const nftContract = new ethers.Contract(
+          collectionAddress,
+          NFTCollectionABI.ERC721,
+          signer2
+        );
+        
+        const whitelistTx = await nftContract.setWhitelist(
+          formData.whitelistAddresses,
+          formData.whitelistAddresses.map(() => formData.maxPerWallet)
+        );
+        await whitelistTx.wait();
       }
 
-      console.log('Collection created at:', collectionAddress);
-
-      // Store collection data
+      // Save collection data
       const collectionData = {
         ...formData,
         contractAddress: collectionAddress,
@@ -217,47 +248,25 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   networkChainId === 137 ? 'MATIC' : 'ETH',
           address: getPaymentToken(networkChainId)
         },
+        whitelistAddresses: formData.whitelistAddresses,
         createdAt: Date.now(),
         totalMinted: 0
       };
 
-      console.log('Storing collection data:', collectionData);
-      // Store in both places to maintain existing functionality
-      localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
       await saveCollection(collectionData);
-
-      // Also store in collections array for the list view
-      const collections = JSON.parse(localStorage.getItem('collections') || '[]');
-      collections.push({
-        ...collectionData,
-        type: formData.type // Ensure type is stored
-      });
-      localStorage.setItem('collections', JSON.stringify(collections));
       
       toast.success('Collection created successfully!', { id: 'create' });
       onClose();
       navigate(`/collection/${formData.symbol}`);
 
-      console.log('Collection Creation Debug:', {
-        receipt: receipt,
-        collectionAddress: collectionAddress,
-        collectionData: collectionData
-      });
-
     } catch (error) {
       console.error('Creation error:', error);
-      
-      let errorMessage = 'Failed to create collection. Please try again.';
-      
-      if (error.message.includes('insufficient funds')) {
-        errorMessage = 'Insufficient funds to pay the creation fee';
-      } else if (error.message.includes('user rejected')) {
-        errorMessage = 'Transaction was rejected';
-      } else if (error.message.includes('network error')) {
-        errorMessage = 'Network error. Please check your connection and try again';
-      }
-      
-      toast.error(errorMessage, { id: 'create' });
+      toast.error(
+        error.message.includes('user rejected') 
+          ? 'Transaction was cancelled'
+          : 'Failed to create collection. Please try again.',
+        { id: 'create' }
+      );
     }
   };
 
@@ -914,125 +923,104 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
   const renderWhitelistSection = () => (
     <div className="mt-4 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg">
-      <div className="space-y-4 max-h-[400px] overflow-y-auto">
-        <div className="sticky top-0 bg-gray-50 dark:bg-[#1a1b1f] z-10 pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Import Whitelist
-              </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Add wallet addresses for whitelist access
-              </p>
-            </div>
-            <button
-              onClick={() => updateFormData({
-                whitelistAddresses: [...formData.whitelistAddresses, { address: '', maxMint: 1 }]
-              })}
-              className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
-            >
-              Add Address
-            </button>
+      <div className="sticky top-0 bg-gray-50 dark:bg-[#1a1b1f] z-10 pb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Import Whitelist
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Add wallet addresses for whitelist access
+            </p>
           </div>
-
-          {/* File import buttons */}
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={() => handleFileUpload('csv')}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-            >
-              <FaFileCsv size={16} />
-              Import CSV
-            </button>
-            <button
-              onClick={() => handleFileUpload('excel')}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-            >
-              <FaFileExcel size={16} />
-              Import Excel
-            </button>
-            <button
-              onClick={() => handleFileUpload('json')}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-            >
-              <FaFileCode size={16} />
-              Import JSON
-            </button>
+          <div className="px-3 py-1 bg-[#00ffbd]/10 rounded-lg">
+            <span className="text-sm font-medium text-[#00ffbd]">
+              {formData.whitelistAddresses.length} Addresses
+            </span>
           </div>
         </div>
 
-        {/* Address input and list section */}
-        <div className="space-y-4">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <textarea
-                placeholder="Enter addresses (one per line)"
-                value={formData.whitelistAddresses.map(addr => addr.address).join('\n')}
-                onChange={(e) => {
-                  const addresses = e.target.value
-                    .split('\n')
-                    .map(addr => addr.trim())
-                    .filter(addr => addr)
-                    .map(address => ({
-                      address,
-                      maxMint: formData.defaultMaxMint || 1
-                    }));
-                  updateFormData({ whitelistAddresses: addresses });
-                }}
-                className="w-full h-24 bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm font-mono"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                You can paste multiple addresses, each on a new line
-              </p>
-            </div>
-            <div className="w-24">
-              <input
-                type="number"
-                placeholder="Max mint"
-                value={formData.defaultMaxMint || 1}
-                onChange={(e) => {
-                  const maxMint = parseInt(e.target.value) || 1;
-                  updateFormData({ defaultMaxMint: maxMint });
-                }}
-                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Max per wallet
-              </p>
-            </div>
-          </div>
+        {/* Manual address input */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            placeholder="Enter wallet address (0x...)"
+            value={newAddress}
+            onChange={(e) => setNewAddress(e.target.value)}
+            className="flex-1 bg-white dark:bg-[#0d0e12] text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+          />
+          <button
+            onClick={() => {
+              if (validateAddress(newAddress)) {
+                updateFormData({
+                  whitelistAddresses: [...formData.whitelistAddresses, newAddress]
+                });
+                setNewAddress('');
+              } else {
+                toast.error('Invalid wallet address');
+              }
+            }}
+            className="px-3 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg text-sm"
+          >
+            Add
+          </button>
+        </div>
 
-          {formData.whitelistAddresses.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Added Addresses ({formData.whitelistAddresses.length})
-              </h4>
-              <div className="max-h-[150px] overflow-y-auto">
-                <div className="space-y-2">
-                  {formData.whitelistAddresses.map((addr, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-white dark:bg-[#0d0e12] rounded-lg"
-                    >
-                      <span className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate">
-                        {addr.address}
-                      </span>
-                      <button
-                        onClick={() => {
-                          const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
-                          updateFormData({ whitelistAddresses: newAddresses });
-                        }}
-                        className="ml-2 text-red-500 hover:text-red-600"
-                      >
-                        <BiX size={20} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+        {/* File import buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleFileUpload('csv')}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+          >
+            <FaFileCsv size={16} />
+            Import CSV
+          </button>
+          <button
+            onClick={() => handleFileUpload('excel')}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+          >
+            <FaFileExcel size={16} />
+            Import Excel
+          </button>
+          <button
+            onClick={() => handleFileUpload('json')}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+          >
+            <FaFileCode size={16} />
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable addresses list */}
+      <div className="mt-4 h-[150px] overflow-y-auto custom-scrollbar">
+        {formData.whitelistAddresses.length > 0 ? (
+          <div className="space-y-2">
+            {formData.whitelistAddresses.map((addr, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-2 bg-white dark:bg-[#0d0e12] rounded-lg"
+              >
+                <span className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate">
+                  {typeof addr === 'object' ? addr.address : addr}
+                </span>
+                <button
+                  onClick={() => {
+                    const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
+                    updateFormData({ whitelistAddresses: newAddresses });
+                  }}
+                  className="ml-2 text-red-500 hover:text-red-600"
+                >
+                  <BiX size={20} />
+                </button>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+            No addresses added yet
+          </div>
+        )}
       </div>
     </div>
   );

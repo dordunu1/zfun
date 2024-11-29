@@ -9,6 +9,10 @@ import { ethers } from 'ethers';
 import { getCollection, updateCollectionMinted, subscribeToCollection } from '../services/firebase';
 import FuturisticCard from './FuturisticCard';
 
+const validateAddress = (address) => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
+
 function CountdownTimer({ targetDate }) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
@@ -67,6 +71,7 @@ export default function CollectionPage() {
   const [maxSupply, setMaxSupply] = useState(0);
   const [userMintedAmount, setUserMintedAmount] = useState(0);
   const [totalMinted, setTotalMinted] = useState(0);
+  const [provider, setProvider] = useState(null);
 
   // Load on-chain data when wallet connects
   useEffect(() => {
@@ -192,6 +197,14 @@ export default function CollectionPage() {
       getMaxSupply();
     }
   }, [collection?.contractAddress]);
+
+  // Add this useEffect to initialize provider
+  useEffect(() => {
+    if (window.ethereum) {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      setProvider(provider);
+    }
+  }, []);
 
   if (loading || !collection) {
     return (
@@ -380,21 +393,51 @@ export default function CollectionPage() {
   const releaseDate = new Date(collection.releaseDate);
   const isLive = now >= releaseDate;
   
-  const checkEligibility = () => {
-    if (!checkingAddress) {
-      toast.error('Please enter an address');
+  const checkEligibility = async () => {
+    if (!validateAddress(checkingAddress)) {
+      toast.error('Invalid wallet address');
       return;
     }
 
-    const isWhitelisted = collection.whitelistAddresses?.some(
-      addr => addr.address.toLowerCase() === checkingAddress.toLowerCase()
-    );
+    try {
+      // First check local whitelist
+      const whitelistAddresses = collection.whitelistAddresses || [];
+      const checkAddress = checkingAddress.toLowerCase();
+      
+      const isWhitelisted = whitelistAddresses.some(addr => {
+        if (!addr) return false;
+        const addressToCheck = typeof addr === 'object' ? addr.address : addr;
+        return addressToCheck && addressToCheck.toLowerCase() === checkAddress;
+      });
 
-    setIsEligible(isWhitelisted);
-    if (isWhitelisted) {
-      toast.success('Congratulations! You are eligible to mint');
-    } else {
-      toast.error('Sorry, this address is not whitelisted');
+      if (isWhitelisted) {
+        toast.success('Address is whitelisted! 🎉');
+        setIsEligible(true);
+      } else {
+        toast.error('Address is not whitelisted');
+        setIsEligible(false);
+      }
+
+      // Also check contract if available
+      if (collection.contractAddress && provider) {
+        const contract = new ethers.Contract(
+          collection.contractAddress, 
+          collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+          provider
+        );
+        
+        try {
+          const onChainStatus = await contract.isWhitelisted(checkingAddress);
+          if (onChainStatus !== isWhitelisted) {
+            console.warn('Whitelist status mismatch between local and contract');
+          }
+        } catch (error) {
+          console.warn('Contract whitelist check failed:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking whitelist:', error);
+      toast.error('Error checking whitelist status');
     }
   };
 
@@ -555,11 +598,21 @@ export default function CollectionPage() {
                     />
                     <button
                       onClick={checkEligibility}
-                      className="px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black rounded-lg text-sm font-semibold transition-colors"
+                      disabled={!checkingAddress || !validateAddress(checkingAddress)}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                        checkingAddress && validateAddress(checkingAddress)
+                          ? 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black' 
+                          : 'bg-gray-200 dark:bg-gray-800 text-gray-500 cursor-not-allowed'
+                      }`}
                     >
                       Check
                     </button>
                   </div>
+                  {isEligible !== null && (
+                    <div className={`mt-2 text-sm ${isEligible ? 'text-[#00ffbd]' : 'text-red-500'}`}>
+                      {isEligible ? '✓ Address is whitelisted' : '✗ Address is not whitelisted'}
+                    </div>
+                  )}
                 </div>
               )}
 
