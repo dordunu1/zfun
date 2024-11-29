@@ -1,12 +1,26 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram } from 'react-icons/fa';
-import { BiTime, BiCheck, BiX, BiWorld } from 'react-icons/bi';
+import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram, FaPaintBrush, FaGamepad, FaCamera, FaMusic, FaStar } from 'react-icons/fa';
+import { BiTime, BiCheck, BiX, BiWorld, BiMoviePlay } from 'react-icons/bi';
+import { IoMdPaper } from 'react-icons/io';
+import { GiCrownCoin } from 'react-icons/gi';
 import TokenIcon from './TokenIcon';
 import { getAllCollections } from '../services/firebase';
 import { useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import FuturisticCard from './FuturisticCard';
+
+// Category icons mapping
+const CATEGORY_ICONS = {
+  'Art': { icon: FaPaintBrush, label: 'Art Collection' },
+  'gaming': { icon: FaGamepad, label: 'Gaming Assets' },
+  'photography': { icon: FaCamera, label: 'Photography' },
+  'music': { icon: FaMusic, label: 'Music' },
+  'video': { icon: BiMoviePlay, label: 'Video Content' },
+  'collectibles': { icon: GiCrownCoin, label: 'Collectibles' },
+  'sports': { icon: FaGamepad, label: 'Sports' },
+  'other': { icon: FaStar, label: 'Other' }
+};
 
 export default function CollectionsList() {
   const [collections, setCollections] = useState([]);
@@ -62,17 +76,18 @@ export default function CollectionsList() {
       <select
         value={filters.network}
         onChange={(e) => setFilters(f => ({ ...f, network: e.target.value }))}
-        className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2"
+        className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
       >
         <option value="all">All Networks</option>
         <option value="sepolia">Sepolia</option>
         <option value="polygon">Polygon</option>
+        <option value="zchain">Z Chain</option>
       </select>
 
       <select
         value={filters.type}
         onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
-        className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2"
+        className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
       >
         <option value="all">All Types</option>
         <option value="ERC721">ERC721</option>
@@ -82,7 +97,7 @@ export default function CollectionsList() {
       <select
         value={filters.sortBy}
         onChange={(e) => setFilters(f => ({ ...f, sortBy: e.target.value }))}
-        className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2"
+        className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
       >
         <option value="newest">Newest First</option>
         <option value="oldest">Oldest First</option>
@@ -121,6 +136,30 @@ export default function CollectionsList() {
       color: 'text-green-400 bg-green-400/10',
       icon: BiCheck
     };
+  };
+
+  const getCategoryIcon = (category) => {
+    // Debug log to see what category value we're receiving
+    console.log('Category received:', category);
+    
+    // Convert category to lowercase and handle null/undefined
+    const categoryKey = (category || 'other').toLowerCase();
+    console.log('Category key:', categoryKey);
+    
+    const iconData = CATEGORY_ICONS[categoryKey] || CATEGORY_ICONS.other;
+    console.log('Icon data:', iconData);
+    
+    return (
+      <div className="group relative">
+        <div className="bg-[#1a1b1f] p-2 rounded-lg">
+          <iconData.icon className="w-4 h-4 text-[#00ffbd]" />
+        </div>
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+          {category || 'Other'}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -177,30 +216,29 @@ export default function CollectionsList() {
                       </div>
 
                       <div className="flex items-center justify-between mb-3">
-                        <div className="bg-[#1a1b1f] px-2 py-1 rounded text-xs text-gray-400">
-                          {collection.category || 'Art'}
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-[#1a1b1f] px-2 py-1 rounded">
+                        {getCategoryIcon(collection.category)}
+                        <div className="flex items-center gap-1.5 bg-white dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                           <TokenIcon 
                             type={collection.mintingToken} 
                             network={collection.network}
+                            size="small"
                           />
-                          <span className="text-xs font-medium text-white">
-                            {collection.mintPrice} {collection.mintToken?.symbol}
+                          <span className="text-xs font-medium text-gray-900 dark:text-white">
+                            {collection.mintPrice}
                           </span>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="bg-[#1a1b1f] rounded p-2">
-                          <div className="text-[11px] text-gray-400">Supply</div>
-                          <div className="text-xs text-white font-medium">
+                        <div className="bg-white dark:bg-[#1a1b1f] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
+                          <div className="text-[11px] text-gray-600 dark:text-gray-400">Supply</div>
+                          <div className="text-xs text-gray-900 dark:text-white font-medium">
                             {collection.maxSupply}
                           </div>
                         </div>
-                        <div className="bg-[#1a1b1f] rounded p-2">
-                          <div className="text-[11px] text-gray-400">Minted</div>
-                          <div className="text-xs text-white font-medium">
+                        <div className="bg-white dark:bg-[#1a1b1f] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
+                          <div className="text-[11px] text-gray-600 dark:text-gray-400">Minted</div>
+                          <div className="text-xs text-gray-900 dark:text-white font-medium">
                             {collection.totalMinted || 0}
                           </div>
                         </div>
