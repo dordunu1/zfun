@@ -173,7 +173,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
       // Step 1: Upload metadata
       toast.loading('1/3 - Uploading metadata...', { id: 'create' });
-      const metadataUrl = await prepareAndUploadMetadata(formData, formData.artwork);
+      const { metadataUrl, imageHttpUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
 
       // Step 2: Create collection
       toast.loading('2/3 - Creating collection...', { id: 'create' });
@@ -241,6 +241,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         ...formData,
         contractAddress: collectionAddress,
         network: networkChainId === 137 ? 'polygon' : 'sepolia',
+        previewUrl: imageHttpUrl,
+        imageIpfsUrl: metadataUrl,
         mintToken: {
           type: formData.mintingToken || 'native',
           symbol: formData.mintingToken === 'usdc' ? 'USDC' : 

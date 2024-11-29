@@ -1,19 +1,20 @@
 import { NFTMetadata, Property } from '../types/nft';
-import { uploadFileToIPFS, uploadMetadataToIPFS } from '../utils/ipfs';
+import { uploadFileToIPFS, uploadMetadataToIPFS, ipfsToHttp } from '../utils/ipfs';
 
 export async function prepareAndUploadMetadata(
   formData: any,
   artworkFile: File
-): Promise<string> {
+): Promise<{ metadataUrl: string, imageHttpUrl: string }> {
   try {
     // 1. Upload artwork first
-    const imageUrl = await uploadFileToIPFS(artworkFile);
+    const imageIpfsUrl = await uploadFileToIPFS(artworkFile);
+    const imageHttpUrl = ipfsToHttp(imageIpfsUrl); // Convert IPFS URL to HTTP URL
 
     // 2. Prepare metadata
     const metadata: NFTMetadata = {
       name: formData.name,
       description: formData.description || '',
-      image: imageUrl,
+      image: imageIpfsUrl, // Store the IPFS URL in metadata
       external_url: formData.website || '',
       category: formData.category || '',
       properties: formData.properties || [],
@@ -27,8 +28,11 @@ export async function prepareAndUploadMetadata(
 
     // 3. Upload metadata to IPFS
     const metadataUrl = await uploadMetadataToIPFS(metadata);
-    return metadataUrl;
-
+    
+    return {
+      metadataUrl,
+      imageHttpUrl // Return the HTTP URL for immediate display
+    };
   } catch (error) {
     console.error('Error preparing metadata:', error);
     throw new Error('Failed to prepare and upload metadata');

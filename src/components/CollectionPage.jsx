@@ -8,6 +8,7 @@ import { NFTCollectionABI } from '../abi/NFTCollection';
 import { ethers } from 'ethers';
 import { getCollection, updateCollectionMinted, subscribeToCollection } from '../services/firebase';
 import FuturisticCard from './FuturisticCard';
+import { ipfsToHttp } from '../utils/ipfs';
 
 const validateAddress = (address) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
@@ -72,6 +73,8 @@ export default function CollectionPage() {
   const [userMintedAmount, setUserMintedAmount] = useState(0);
   const [totalMinted, setTotalMinted] = useState(0);
   const [provider, setProvider] = useState(null);
+  const [whitelistChecked, setWhitelistChecked] = useState(false);
+  const [isWhitelisted, setIsWhitelisted] = useState(false);
 
   // Load on-chain data when wallet connects
   useEffect(() => {
@@ -410,12 +413,13 @@ export default function CollectionPage() {
         return addressToCheck && addressToCheck.toLowerCase() === checkAddress;
       });
 
+      setWhitelistChecked(true);
+      setIsWhitelisted(isWhitelisted);
+
       if (isWhitelisted) {
         toast.success('Address is whitelisted! 🎉');
-        setIsEligible(true);
       } else {
         toast.error('Address is not whitelisted');
-        setIsEligible(false);
       }
 
       // Also check contract if available
@@ -456,7 +460,7 @@ export default function CollectionPage() {
       {/* Hero Section */}
       <div className="relative h-[300px] sm:h-[400px] bg-gradient-to-br from-[#00ffbd]/5 to-[#00e6a9]/5 dark:from-[#00ffbd]/10 dark:to-[#00e6a9]/10">
         <img 
-          src={collection.previewUrl} 
+          src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
           alt={collection.name}
           className="w-full h-full object-cover opacity-20 dark:opacity-30"
         />
@@ -470,7 +474,7 @@ export default function CollectionPage() {
             <div className="overflow-y-auto">
               <div className="flex items-center gap-6 mb-6">
                 <img 
-                  src={collection.previewUrl} 
+                  src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
                   alt={collection.name}
                   className="w-24 h-24 rounded-xl object-cover border-2 border-[#00ffbd]"
                 />
@@ -655,11 +659,23 @@ export default function CollectionPage() {
                 <div className="flex justify-center px-4">
                   <button
                     onClick={handleMint}
-                    disabled={!isLive || userMintedAmount >= collection.maxPerWallet || mintAmount === 0}
-                    className="w-full py-3 bg-[#00ffbd] hover:bg-[#00e6a9] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors"
+                    disabled={
+                      !isLive || 
+                      userMintedAmount >= collection.maxPerWallet || 
+                      mintAmount === 0 ||
+                      (collection.enableWhitelist && (!whitelistChecked || !isWhitelisted))
+                    }
+                    className={`w-full py-3 ${
+                      collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
+                        ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                        : 'bg-[#00ffbd] hover:bg-[#00e6a9]'
+                    } disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors`}
                   >
                     {!isLive ? 'Not Live Yet' : 
-                     userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' : 'Mint Now'}
+                     userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' :
+                     collection.enableWhitelist && !whitelistChecked ? 'Check Whitelist Status First' :
+                     collection.enableWhitelist && !isWhitelisted ? 'Address Not Whitelisted' :
+                     'Mint Now'}
                   </button>
                 </div>
 
