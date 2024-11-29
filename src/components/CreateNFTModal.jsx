@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown, BiWallet } from 'react-icons/bi';
+import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown, BiWallet, BiVideo } from 'react-icons/bi';
 import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
 import { BiWorld } from 'react-icons/bi';
 import clsx from 'clsx';
@@ -26,6 +26,12 @@ const STEPS = [
   { id: 'properties', title: 'Properties' },
   { id: 'minting', title: 'Minting' },
 ];
+
+const CREATION_FEES = {
+  137: "20 MATIC",  // Polygon
+  11155111: "0.015 ETH",  // Sepolia
+  1: "0.015 ETH",  // Mainnet
+};
 
 const setWhitelistInContract = async (collectionAddress, whitelistAddresses, signer, maxPerWallet) => {
   try {
@@ -54,6 +60,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState('type');
   const [newAddress, setNewAddress] = useState('');
+  const [currentChainId, setCurrentChainId] = useState(null);
   const [formData, setFormData] = useState({
     type: '', // ERC721 or ERC1155
     name: '',
@@ -93,12 +100,28 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('File size must be less than 2MB');
+      // Check file type
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+      
+      if (!isVideo && !isImage) {
+        toast.error('Please upload an image or video file');
         return;
       }
+
+      // Check file size
+      const maxSize = isVideo ? 5 * 1024 * 1024 : 2 * 1024 * 1024; // 5MB for video, 2MB for images
+      if (file.size > maxSize) {
+        toast.error(`File size must be less than ${isVideo ? '5MB' : '2MB'}`);
+        return;
+      }
+
       const url = URL.createObjectURL(file);
-      updateFormData({ artwork: file, previewUrl: url });
+      updateFormData({ 
+        artwork: file, 
+        previewUrl: url,
+        artworkType: isVideo ? 'video' : 'image'
+      });
     }
   };
 
@@ -415,6 +438,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         return (
           <FuturisticCard variant="nested">
             <div className="space-y-6">
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Create NFT Collection
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Choose your collection type. Creation fee: {getCreationFee()}
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   onClick={() => {
@@ -634,19 +666,30 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                     )}
                   >
                     {formData.previewUrl ? (
-                      <img 
-                        src={formData.previewUrl} 
-                        alt="Preview" 
-                        className="w-full h-full object-cover"
-                      />
+                      formData.artworkType === 'video' ? (
+                        <video 
+                          src={formData.previewUrl} 
+                          className="w-full h-full object-cover"
+                          controls
+                        />
+                      ) : (
+                        <img 
+                          src={formData.previewUrl} 
+                          alt="Preview" 
+                          className="w-full h-full object-cover"
+                        />
+                      )
                     ) : (
                       <div className="text-center">
-                        <BiImageAdd size={48} className="mx-auto mb-2 text-gray-400" />
+                        <div className="flex justify-center gap-4 mb-2">
+                          <BiImageAdd size={24} className="text-gray-400" />
+                          <BiVideo size={24} className="text-gray-400" />
+                        </div>
                         <p className="text-sm text-gray-500">
-                          Drop your image here, or click to browse
+                          Drop your file here, or click to browse
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                          Max size: 2MB
+                          Supported: Images (2MB) or Videos (5MB)
                         </p>
                       </div>
                     )}
@@ -654,7 +697,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   <input
                     type="file"
                     onChange={handleFileChange}
-                    accept="image/*"
+                    accept="image/*,video/*"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                 </div>
@@ -663,10 +706,14 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               {formData.previewUrl && (
                 <div className="text-center">
                   <button
-                    onClick={() => updateFormData({ artwork: null, previewUrl: null })}
+                    onClick={() => updateFormData({ 
+                      artwork: null, 
+                      previewUrl: null,
+                      artworkType: null
+                    })}
                     className="text-sm text-red-500 hover:text-red-600"
                   >
-                    Remove Image
+                    Remove File
                   </button>
                 </div>
               )}
@@ -1136,6 +1183,26 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       </button>
     </div>
   );
+
+  // Add useEffect to get chain ID
+  useEffect(() => {
+    const getChainId = async () => {
+      if (window.ethereum) {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        setCurrentChainId(parseInt(chainId, 16));
+      }
+    };
+    getChainId();
+
+    // Listen for chain changes
+    window.ethereum?.on('chainChanged', (chainId) => {
+      setCurrentChainId(parseInt(chainId, 16));
+    });
+  }, []);
+
+  const getCreationFee = () => {
+    return CREATION_FEES[currentChainId] || "0.015 ETH";
+  };
 
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
