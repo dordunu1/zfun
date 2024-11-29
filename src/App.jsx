@@ -8,26 +8,9 @@ import CreateTokenModal from './components/CreateTokenModal';
 import CreateNFTModal from './components/CreateNFTModal';
 import FAQ from './components/FAQ';
 import { useTheme } from './context/ThemeContext';
-import { config, ethereumClient } from './config/wagmi';
-import { WalletProvider } from './context/WalletContext';
+import { config as wagmiConfig, ethereumClient } from './config/wagmi';
 import { DeploymentsProvider } from './context/DeploymentsContext';
-import { WagmiConfig, createConfig, configureChains } from 'wagmi';
-import { sepolia, polygon } from 'wagmi/chains';
-import { publicProvider } from 'wagmi/providers/public';
-import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
-
-const { chains, publicClient } = configureChains(
-  [sepolia, polygon],
-  [publicProvider()]
-);
-
-const wagmiConfig = createConfig({
-  autoConnect: true,
-  connectors: [
-    new MetaMaskConnector({ chains })
-  ],
-  publicClient
-});
+import { WagmiConfig } from 'wagmi';
 
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,34 +26,32 @@ function App() {
         themeMode={isDarkMode ? 'dark' : 'light'}
       />
       
-      <WalletProvider>
-        <DeploymentsProvider>
-          <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
-            <Toaster position="top-right" />
-            <Sidebar 
-              onOpenModal={() => setIsModalOpen(true)}
-              onOpenNFTModal={() => setIsNFTModalOpen(true)}
-            />
-            <div className="flex-1">
-              <Header />
-              <Outlet />
-            </div>
-
-            <CreateTokenModal 
-              isOpen={isModalOpen} 
-              onClose={() => setIsModalOpen(false)} 
-            />
-            <CreateNFTModal 
-              isOpen={isNFTModalOpen}
-              onClose={() => setIsNFTModalOpen(false)}
-            />
-            <FAQ 
-              isOpen={isFAQOpen}
-              onClose={setIsFAQOpen}
-            />
+      <DeploymentsProvider>
+        <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
+          <Toaster position="top-right" />
+          <Sidebar 
+            onOpenModal={() => setIsModalOpen(true)}
+            onOpenNFTModal={() => setIsNFTModalOpen(true)}
+          />
+          <div className="flex-1">
+            <Header />
+            <Outlet />
           </div>
-        </DeploymentsProvider>
-      </WalletProvider>
+
+          <CreateTokenModal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)} 
+          />
+          <CreateNFTModal 
+            isOpen={isNFTModalOpen}
+            onClose={() => setIsNFTModalOpen(false)}
+          />
+          <FAQ 
+            isOpen={isFAQOpen}
+            onClose={setIsFAQOpen}
+          />
+        </div>
+      </DeploymentsProvider>
     </WagmiConfig>
   );
 }
