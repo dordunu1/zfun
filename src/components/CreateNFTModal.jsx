@@ -15,6 +15,7 @@ import { sepolia, polygon } from 'wagmi/chains';
 import { prepareAndUploadMetadata } from '../services/metadata';
 import { Contract } from 'ethers';
 import { saveCollection } from '../services/firebase';
+import FuturisticCard from './FuturisticCard';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -369,544 +370,552 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   };
 
   const renderStep = () => {
-    const commonLayout = (content) => (
-      <div className="space-y-6">
-        {content}
-        <div className="flex justify-between items-center gap-3 mt-6">
-          {currentStep !== 'type' && (
-            <button 
-              onClick={() => {
-                const currentIndex = STEPS.findIndex(s => s.id === currentStep);
-                setCurrentStep(STEPS[currentIndex - 1].id);
-              }}
-              className="px-6 py-2 border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-[#1a1b1f] text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors"
-            >
-              Back
-            </button>
-          )}
+    // Common button layout that we'll add to each step
+    const renderButtons = () => (
+      <div className="flex justify-between items-center gap-3 mt-6">
+        {currentStep !== 'type' && (
+          <button 
+            onClick={() => {
+              const currentIndex = STEPS.findIndex(s => s.id === currentStep);
+              setCurrentStep(STEPS[currentIndex - 1].id);
+            }}
+            className="px-6 py-2 border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-[#1a1b1f] text-gray-700 dark:text-gray-300 font-semibold rounded-lg transition-colors"
+          >
+            Back
+          </button>
+        )}
+        {currentStep !== 'minting' && ( // Only show Continue button if not on last step
           <button
             onClick={handleButtonClick}
             className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors ml-auto"
           >
-            {currentStep === 'minting' ? 'Create Collection' : 'Continue'}
+            Continue
           </button>
-        </div>
+        )}
+        {currentStep === 'minting' && ( // Show Create Collection button on last step
+          <button
+            onClick={handleSubmit}
+            className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors ml-auto"
+          >
+            Create Collection
+          </button>
+        )}
       </div>
     );
 
     switch (currentStep) {
       case 'type':
-        return commonLayout(renderTypeSelection());
+        return (
+          <FuturisticCard variant="nested">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    updateFormData({ type: 'ERC721' });
+                    setCurrentStep('basics');
+                  }}
+                  className={clsx(
+                    'p-4 rounded-lg border-2 text-left',
+                    'hover:border-[#00ffbd] transition-colors',
+                    formData.type === 'ERC721' 
+                      ? 'border-[#00ffbd]' 
+                      : 'border-gray-200 dark:border-gray-800'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <FaEthereum size={24} className="text-[#00ffbd]" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">ERC-721</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Traditional NFTs, unique and non-divisible
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    updateFormData({ type: 'ERC1155' });
+                    setCurrentStep('basics');
+                  }}
+                  className={clsx(
+                    'p-4 rounded-lg border-2',
+                    'hover:border-[#00ffbd] transition-colors',
+                    formData.type === 'ERC1155' 
+                      ? 'border-[#00ffbd]' 
+                      : 'border-gray-200 dark:border-gray-800'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <FaEthereum size={24} className="text-[#00ffbd]" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">ERC-1155</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Multi-token standard, semi-fungible
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+              {renderButtons()}
+            </div>
+          </FuturisticCard>
+        );
       case 'basics':
-        return commonLayout(renderBasicInfo());
+        return (
+          <FuturisticCard variant="nested">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Collection Name *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => updateFormData({ name: e.target.value })}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                  placeholder="My NFT Collection"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Symbol *
+                </label>
+                <input
+                  type="text"
+                  value={formData.symbol}
+                  onChange={(e) => updateFormData({ symbol: e.target.value.toUpperCase() })}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                  placeholder="MYNFT"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => updateFormData({ description: e.target.value })}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none h-24"
+                  placeholder="Describe your collection..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Website
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.website}
+                    onChange={(e) => updateFormData({ website: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    placeholder="https://"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => updateFormData({ category: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                  >
+                    <option value="">Select Category</option>
+                    <option value="art">Art</option>
+                    <option value="collectibles">Collectibles</option>
+                    <option value="gaming">Gaming</option>
+                    <option value="music">Music</option>
+                    <option value="photography">Photography</option>
+                    <option value="sports">Sports</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Social Links Section */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Social Links
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Twitter Username
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">@</span>
+                      <input
+                        type="text"
+                        value={formData.socials.twitter}
+                        onChange={(e) => updateFormData({
+                          socials: { ...formData.socials, twitter: e.target.value }
+                        })}
+                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-8 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                        placeholder="username"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Discord Server
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.socials.discord}
+                      onChange={(e) => updateFormData({
+                        socials: { ...formData.socials, discord: e.target.value }
+                      })}
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      placeholder="https://discord.gg/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Telegram Group
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">t.me/</span>
+                      <input
+                        type="text"
+                        value={formData.socials.telegram}
+                        onChange={(e) => updateFormData({
+                          socials: { ...formData.socials, telegram: e.target.value }
+                        })}
+                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-12 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                        placeholder="groupname"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      ZOS Profile
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.socials.zos}
+                      onChange={(e) => updateFormData({
+                        socials: { ...formData.socials, zos: e.target.value }
+                      })}
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      placeholder="https://zos.zero.tech/..."
+                    />
+                  </div>
+                </div>
+              </div>
+              {renderButtons()}
+            </div>
+          </FuturisticCard>
+        );
       case 'artwork':
-        return commonLayout(renderArtworkUpload());
+        return (
+          <FuturisticCard variant="nested">
+            <div className="space-y-6">
+              <div className="flex justify-center">
+                <div className="w-64 h-64 relative">
+                  <div 
+                    className={clsx(
+                      'w-full h-full rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden',
+                      formData.previewUrl ? 'border-[#00ffbd]' : 'border-gray-300 dark:border-gray-700'
+                    )}
+                  >
+                    {formData.previewUrl ? (
+                      <img 
+                        src={formData.previewUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <BiImageAdd size={48} className="mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-500">
+                          Drop your image here, or click to browse
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Max size: 2MB
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {formData.previewUrl && (
+                <div className="text-center">
+                  <button
+                    onClick={() => updateFormData({ artwork: null, previewUrl: null })}
+                    className="text-sm text-red-500 hover:text-red-600"
+                  >
+                    Remove Image
+                  </button>
+                </div>
+              )}
+              {renderButtons()}
+            </div>
+          </FuturisticCard>
+        );
       case 'properties':
-        return commonLayout(renderPropertiesSection());
+        return (
+          <FuturisticCard variant="nested">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Properties
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Add traits that make your NFTs unique
+                  </p>
+                </div>
+                <button
+                  onClick={() => updateFormData({
+                    properties: [...formData.properties, { trait_type: '', value: '' }]
+                  })}
+                  className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
+                >
+                  Add Property
+                </button>
+              </div>
+
+              {formData.properties.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+                  <p className="text-sm text-gray-500">
+                    No properties added yet
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {formData.properties.map((prop, index) => (
+                    <div key={index} className="flex gap-3 items-start">
+                      <div className="flex-1">
+                        <input
+                          placeholder="Property name"
+                          value={prop.trait_type}
+                          onChange={(e) => {
+                            const newProps = [...formData.properties];
+                            newProps[index].trait_type = e.target.value;
+                            updateFormData({ properties: newProps });
+                          }}
+                          className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          placeholder="Value"
+                          value={prop.value}
+                          onChange={(e) => {
+                            const newProps = [...formData.properties];
+                            newProps[index].value = e.target.value;
+                            updateFormData({ properties: newProps });
+                          }}
+                          className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newProps = formData.properties.filter((_, i) => i !== index);
+                          updateFormData({ properties: newProps });
+                        }}
+                        className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                      >
+                        <BiX size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {renderButtons()}
+            </div>
+          </FuturisticCard>
+        );
       case 'minting':
-        return commonLayout(renderTokenSelection());
+        return (
+          <FuturisticCard variant="nested">
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Minting Currency
+                </label>
+                <div className="relative">
+                  <select
+                    value={formData.mintingToken}
+                    onChange={(e) => updateFormData({ mintingToken: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 pl-10 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-none"
+                  >
+                    <option value="native">Native Token (ETH/MATIC)</option>
+                    <option value="usdc">USDC</option>
+                    <option value="usdt">USDT</option>
+                    <option value="custom">Custom Token</option>
+                  </select>
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    {formData.mintingToken === 'native' && <FaEthereum size={16} className="text-[#00ffbd]" />}
+                    {formData.mintingToken === 'usdc' && (
+                      <img src="/usdc.png" alt="USDC" className="w-4 h-4" />
+                    )}
+                    {formData.mintingToken === 'usdt' && (
+                      <img src="/usdt.png" alt="USDT" className="w-4 h-4" />
+                    )}
+                    {formData.mintingToken === 'custom' && (
+                      <div className="w-4 h-4 rounded-full bg-gray-400" />
+                    )}
+                  </div>
+                  <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                    <BiChevronDown size={20} className="text-gray-500" />
+                  </div>
+                </div>
+              </div>
+
+              {formData.mintingToken === 'custom' && (
+                <div className="space-y-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Token Contract Address
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="0x..."
+                      value={formData.customTokenAddress}
+                      onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Token Symbol
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter token symbol"
+                      value={formData.customTokenSymbol}
+                      onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Mint Price
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.000000000000000001"
+                      value={formData.mintPrice}
+                      onChange={(e) => updateFormData({ mintPrice: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-16 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      placeholder="0.00"
+                    />
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                      {formData.mintingToken === 'native' && <FaEthereum className="text-gray-400" size={20} />}
+                      {formData.mintingToken === 'usdc' && <img src="/usdc.png" alt="USDC" className="w-5 h-5" />}
+                      {formData.mintingToken === 'usdt' && <img src="/usdt.png" alt="USDT" className="w-5 h-5" />}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Max Supply
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.maxSupply}
+                    onChange={(e) => updateFormData({ maxSupply: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    placeholder="Enter max supply"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Max Per Wallet
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.maxPerWallet}
+                    onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    placeholder="Enter max per wallet"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Release Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.releaseDate}
+                    onChange={(e) => updateFormData({ releaseDate: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-auto"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={formData.enableWhitelist}
+                    onChange={(e) => updateFormData({ enableWhitelist: e.target.checked })}
+                    className="w-4 h-4 text-[#00ffbd] border-gray-300 rounded focus:ring-[#00ffbd]"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Enable whitelist for early minting
+                  </span>
+                </label>
+
+                {formData.enableWhitelist && renderWhitelistSection()}
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Mint End Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    disabled={formData.infiniteMint}
+                    value={formData.mintEndDate}
+                    onChange={(e) => setFormData({ ...formData, mintEndDate: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00ffbd] [color-scheme:light] dark:[color-scheme:dark]"
+                  />
+                </div>
+                <div className="flex items-center mt-6">
+                  <input
+                    type="checkbox"
+                    id="infiniteMint"
+                    checked={formData.infiniteMint}
+                    onChange={(e) => setFormData({ ...formData, infiniteMint: e.target.checked, mintEndDate: '' })}
+                    className="mr-2"
+                  />
+                  <label htmlFor="infiniteMint" className="text-sm text-gray-700 dark:text-gray-300">
+                    Infinite Mint
+                  </label>
+                </div>
+              </div>
+              {renderButtons()}
+            </div>
+          </FuturisticCard>
+        );
     }
   };
-
-  const renderTypeSelection = () => {
-    return (
-      <div className="space-y-4">
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-          Choose your NFT collection type
-        </p>
-        <div className="grid grid-cols-1 gap-4">
-          <button
-            onClick={() => {
-              updateFormData({ type: 'ERC721' });
-              setCurrentStep('basics');
-            }}
-            className={clsx(
-              'p-4 rounded-lg border-2 text-left',
-              'hover:border-[#00ffbd] transition-colors',
-              formData.type === 'ERC721' 
-                ? 'border-[#00ffbd]' 
-                : 'border-gray-200 dark:border-gray-800'
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <FaEthereum size={24} className="text-[#00ffbd]" />
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">ERC-721</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Traditional NFTs, unique and non-divisible
-                </p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => {
-              updateFormData({ type: 'ERC1155' });
-              setCurrentStep('basics');
-            }}
-            className={clsx(
-              'p-4 rounded-lg border-2',
-              'hover:border-[#00ffbd] transition-colors',
-              formData.type === 'ERC1155' 
-                ? 'border-[#00ffbd]' 
-                : 'border-gray-200 dark:border-gray-800'
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <FaEthereum size={24} className="text-[#00ffbd]" />
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">ERC-1155</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Multi-token standard, semi-fungible
-                </p>
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderBasicInfo = () => (
-    <div className="space-y-6">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Collection Name *
-        </label>
-        <input
-          type="text"
-          value={formData.name}
-          onChange={(e) => updateFormData({ name: e.target.value })}
-          className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-          placeholder="My NFT Collection"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Symbol *
-        </label>
-        <input
-          type="text"
-          value={formData.symbol}
-          onChange={(e) => updateFormData({ symbol: e.target.value.toUpperCase() })}
-          className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-          placeholder="MYNFT"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Description
-        </label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => updateFormData({ description: e.target.value })}
-          className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none h-24"
-          placeholder="Describe your collection..."
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Website
-          </label>
-          <input
-            type="url"
-            value={formData.website}
-            onChange={(e) => updateFormData({ website: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-            placeholder="https://"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Category
-          </label>
-          <select
-            value={formData.category}
-            onChange={(e) => updateFormData({ category: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-          >
-            <option value="">Select Category</option>
-            <option value="art">Art</option>
-            <option value="collectibles">Collectibles</option>
-            <option value="gaming">Gaming</option>
-            <option value="music">Music</option>
-            <option value="photography">Photography</option>
-            <option value="sports">Sports</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Social Links Section */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Social Links
-        </h3>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
-              Twitter Username
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">@</span>
-              <input
-                type="text"
-                value={formData.socials.twitter}
-                onChange={(e) => updateFormData({
-                  socials: { ...formData.socials, twitter: e.target.value }
-                })}
-                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-8 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                placeholder="username"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
-              Discord Server
-            </label>
-            <input
-              type="url"
-              value={formData.socials.discord}
-              onChange={(e) => updateFormData({
-                socials: { ...formData.socials, discord: e.target.value }
-              })}
-              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-              placeholder="https://discord.gg/..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
-              Telegram Group
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">t.me/</span>
-              <input
-                type="text"
-                value={formData.socials.telegram}
-                onChange={(e) => updateFormData({
-                  socials: { ...formData.socials, telegram: e.target.value }
-                })}
-                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-12 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                placeholder="groupname"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
-              ZOS Profile
-            </label>
-            <input
-              type="url"
-              value={formData.socials.zos}
-              onChange={(e) => updateFormData({
-                socials: { ...formData.socials, zos: e.target.value }
-              })}
-              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-              placeholder="https://zos.zero.tech/..."
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderArtworkUpload = () => (
-    <div className="space-y-6">
-      <div className="flex justify-center">
-        <div className="w-64 h-64 relative">
-          <div 
-            className={clsx(
-              'w-full h-full rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden',
-              formData.previewUrl ? 'border-[#00ffbd]' : 'border-gray-300 dark:border-gray-700'
-            )}
-          >
-            {formData.previewUrl ? (
-              <img 
-                src={formData.previewUrl} 
-                alt="Preview" 
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="text-center">
-                <BiImageAdd size={48} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500">
-                  Drop your image here, or click to browse
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Max size: 2MB
-                </p>
-              </div>
-            )}
-          </div>
-          <input
-            type="file"
-            onChange={handleFileChange}
-            accept="image/*"
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
-        </div>
-      </div>
-
-      {formData.previewUrl && (
-        <div className="text-center">
-          <button
-            onClick={() => updateFormData({ artwork: null, previewUrl: null })}
-            className="text-sm text-red-500 hover:text-red-600"
-          >
-            Remove Image
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderPropertiesSection = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Properties
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Add traits that make your NFTs unique
-          </p>
-        </div>
-        <button
-          onClick={() => updateFormData({
-            properties: [...formData.properties, { trait_type: '', value: '' }]
-          })}
-          className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
-        >
-          Add Property
-        </button>
-      </div>
-
-      {formData.properties.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-          <p className="text-sm text-gray-500">
-            No properties added yet
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {formData.properties.map((prop, index) => (
-            <div key={index} className="flex gap-3 items-start">
-              <div className="flex-1">
-                <input
-                  placeholder="Property name"
-                  value={prop.trait_type}
-                  onChange={(e) => {
-                    const newProps = [...formData.properties];
-                    newProps[index].trait_type = e.target.value;
-                    updateFormData({ properties: newProps });
-                  }}
-                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
-                />
-              </div>
-              <div className="flex-1">
-                <input
-                  placeholder="Value"
-                  value={prop.value}
-                  onChange={(e) => {
-                    const newProps = [...formData.properties];
-                    newProps[index].value = e.target.value;
-                    updateFormData({ properties: newProps });
-                  }}
-                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  const newProps = formData.properties.filter((_, i) => i !== index);
-                  updateFormData({ properties: newProps });
-                }}
-                className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-              >
-                <BiX size={20} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderTokenSelection = () => (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Minting Currency
-        </label>
-        <div className="relative">
-          <select
-            value={formData.mintingToken}
-            onChange={(e) => updateFormData({ mintingToken: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 pl-10 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-none"
-          >
-            <option value="native">Native Token (ETH/MATIC)</option>
-            <option value="usdc">USDC</option>
-            <option value="usdt">USDT</option>
-            <option value="custom">Custom Token</option>
-          </select>
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-            {formData.mintingToken === 'native' && <FaEthereum size={16} className="text-[#00ffbd]" />}
-            {formData.mintingToken === 'usdc' && (
-              <img src="/usdc.png" alt="USDC" className="w-4 h-4" />
-            )}
-            {formData.mintingToken === 'usdt' && (
-              <img src="/usdt.png" alt="USDT" className="w-4 h-4" />
-            )}
-            {formData.mintingToken === 'custom' && (
-              <div className="w-4 h-4 rounded-full bg-gray-400" />
-            )}
-          </div>
-          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-            <BiChevronDown size={20} className="text-gray-500" />
-          </div>
-        </div>
-      </div>
-
-      {formData.mintingToken === 'custom' && (
-        <div className="space-y-4 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Token Contract Address
-            </label>
-            <input
-              type="text"
-              placeholder="0x..."
-              value={formData.customTokenAddress}
-              onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
-              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Token Symbol
-            </label>
-            <input
-              type="text"
-              placeholder="Enter token symbol"
-              value={formData.customTokenSymbol}
-              onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
-              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Mint Price
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              step="0.000000000000000001"
-              value={formData.mintPrice}
-              onChange={(e) => updateFormData({ mintPrice: e.target.value })}
-              className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-16 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-              placeholder="0.00"
-            />
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-              {formData.mintingToken === 'native' && <FaEthereum className="text-gray-400" size={20} />}
-              {formData.mintingToken === 'usdc' && <img src="/usdc.png" alt="USDC" className="w-5 h-5" />}
-              {formData.mintingToken === 'usdt' && <img src="/usdt.png" alt="USDT" className="w-5 h-5" />}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Max Supply
-          </label>
-          <input
-            type="number"
-            value={formData.maxSupply}
-            onChange={(e) => updateFormData({ maxSupply: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-            placeholder="Enter max supply"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Max Per Wallet
-          </label>
-          <input
-            type="number"
-            value={formData.maxPerWallet}
-            onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-            placeholder="Enter max per wallet"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Release Date
-          </label>
-          <input
-            type="datetime-local"
-            value={formData.releaseDate}
-            onChange={(e) => updateFormData({ releaseDate: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-auto"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <label className="flex items-center space-x-3">
-          <input
-            type="checkbox"
-            checked={formData.enableWhitelist}
-            onChange={(e) => updateFormData({ enableWhitelist: e.target.checked })}
-            className="w-4 h-4 text-[#00ffbd] border-gray-300 rounded focus:ring-[#00ffbd]"
-          />
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Enable whitelist for early minting
-          </span>
-        </label>
-
-        {formData.enableWhitelist && renderWhitelistSection()}
-      </div>
-
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Mint End Date
-          </label>
-          <input
-            type="datetime-local"
-            disabled={formData.infiniteMint}
-            value={formData.mintEndDate}
-            onChange={(e) => setFormData({ ...formData, mintEndDate: e.target.value })}
-            className="w-full px-3 py-2 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00ffbd] [color-scheme:light] dark:[color-scheme:dark]"
-          />
-        </div>
-        <div className="flex items-center mt-6">
-          <input
-            type="checkbox"
-            id="infiniteMint"
-            checked={formData.infiniteMint}
-            onChange={(e) => setFormData({ ...formData, infiniteMint: e.target.checked, mintEndDate: '' })}
-            className="mr-2"
-          />
-          <label htmlFor="infiniteMint" className="text-sm text-gray-700 dark:text-gray-300">
-            Infinite Mint
-          </label>
-        </div>
-      </div>
-    </div>
-  );
 
   const renderWhitelistSection = () => (
     <div className="mt-4 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg">
@@ -1124,64 +1133,63 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
       
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="bg-white dark:bg-[#0d0e12] rounded-xl p-6 max-w-2xl w-full">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
-              {currentStep !== 'type' && (
-                <button 
-                  onClick={() => {
-                    const currentIndex = STEPS.findIndex(s => s.id === currentStep);
-                    setCurrentStep(STEPS[currentIndex - 1].id);
-                  }}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-[#1a1b1f] rounded-lg transition-colors"
-                >
-                  <BiChevronLeft size={20} className="text-gray-600 dark:text-gray-400" />
-                </button>
-              )}
-              <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
-                Create NFT Collection
-              </Dialog.Title>
-            </div>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <BiX size={24} />
-            </button>
-          </div>
-
-          {/* Progress Indicator */}
-          <div className="mb-6">
-            <div className="flex justify-between">
-              {STEPS.map((step, index) => (
-                <div 
-                  key={step.id}
-                  className={clsx(
-                    'flex items-center',
-                    index !== STEPS.length - 1 && 'flex-1'
+        <Dialog.Panel className="relative w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-[#0a0b0f] p-6">
+          <FuturisticCard>
+            <div className="relative">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-4">
+                  {currentStep !== 'type' && (
+                    <button 
+                      onClick={() => {
+                        const currentIndex = STEPS.findIndex(s => s.id === currentStep);
+                        setCurrentStep(STEPS[currentIndex - 1].id);
+                      }}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-[#1a1b1f] rounded-lg transition-colors"
+                    >
+                      <BiChevronLeft size={20} className="text-gray-600 dark:text-gray-400" />
+                    </button>
                   )}
-                >
-                  <div className={clsx(
-                    'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-                    currentStep === step.id
-                      ? 'bg-[#00ffbd] text-black'
-                      : STEPS.findIndex(s => s.id === currentStep) > index
-                      ? 'bg-[#00ffbd] text-black'
-                      : 'bg-gray-100 dark:bg-[#1a1b1f] text-gray-400'
-                  )}>
-                    {index + 1}
-                  </div>
-                  {index !== STEPS.length - 1 && (
-                    <div className={clsx(
-                      'h-0.5 w-full mx-2',
-                      STEPS.findIndex(s => s.id === currentStep) > index
-                        ? 'bg-[#00ffbd]'
-                        : 'bg-gray-100 dark:bg-[#1a1b1f]'
-                    )} />
-                  )}
+                  <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Create NFT Collection
+                  </Dialog.Title>
                 </div>
-              ))}
-            </div>
-          </div>
+                <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                  <BiX size={24} />
+                </button>
+              </div>
 
-          {renderStep()}
+              {/* Progress Indicator */}
+              <div className="mb-6">
+                <div className="flex justify-between">
+                  {STEPS.map((step, index) => (
+                    <div key={step.id} className="flex items-center">
+                      <div className={clsx(
+                        'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
+                        currentStep === step.id
+                          ? 'bg-[#00ffbd] text-black'
+                          : STEPS.findIndex(s => s.id === currentStep) > index
+                          ? 'bg-[#00ffbd] text-black'
+                          : 'bg-gray-100 dark:bg-[#1a1b1f] text-gray-400'
+                      )}>
+                        {index + 1}
+                      </div>
+                      {index !== STEPS.length - 1 && (
+                        <div className={clsx(
+                          'h-0.5 w-full mx-2',
+                          STEPS.findIndex(s => s.id === currentStep) > index
+                            ? 'bg-[#00ffbd]'
+                            : 'bg-gray-100 dark:bg-[#1a1b1f]'
+                        )} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step Content */}
+              {renderStep()}
+            </div>
+          </FuturisticCard>
         </Dialog.Panel>
       </div>
     </Dialog>

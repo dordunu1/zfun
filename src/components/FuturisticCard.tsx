@@ -4,11 +4,18 @@ import GlowingDots from './GlowingDots';
 
 interface FuturisticCardProps {
   children?: React.ReactNode;
+  variant?: 'default' | 'nested';
 }
 
-const FuturisticCard: React.FC<FuturisticCardProps> = ({ children }) => {
+const FuturisticCard: React.FC<FuturisticCardProps> = ({ children, variant = 'default' }) => {
+  const baseClasses = "relative w-full overflow-hidden group min-h-[200px] h-auto";
+  const variantClasses = {
+    default: "bg-white dark:bg-[#0a0f18] rounded-sm",
+    nested: "bg-gray-50 dark:bg-[#0d0e12] rounded-lg border border-gray-200 dark:border-gray-800"
+  };
+
   return (
-    <div className="relative w-full bg-white dark:bg-[#0a0f18] rounded-sm overflow-hidden group min-h-[200px] h-auto">
+    <div className={`${baseClasses} ${variantClasses[variant]}`}>
       {/* Border Corners */}
       <BorderCorner position="top-left" />
       <BorderCorner position="top-right" />
