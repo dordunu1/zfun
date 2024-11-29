@@ -8,7 +8,7 @@ interface FuturisticCardProps {
 
 const FuturisticCard: React.FC<FuturisticCardProps> = ({ children }) => {
   return (
-    <div className="relative w-full h-full bg-white dark:bg-[#0a0f18] rounded-sm overflow-hidden group border border-gray-200 dark:border-gray-800">
+    <div className="relative w-full bg-white dark:bg-[#0a0f18] rounded-sm overflow-hidden group min-h-[200px] h-auto">
       {/* Border Corners */}
       <BorderCorner position="top-left" />
       <BorderCorner position="top-right" />
@@ -19,7 +19,7 @@ const FuturisticCard: React.FC<FuturisticCardProps> = ({ children }) => {
       <GlowingDots />
 
       {/* Main Content */}
-      <div className="relative z-10 w-full h-full p-8">
+      <div className="relative z-10 w-full h-full p-4 sm:p-8">
         {children}
       </div>
 
