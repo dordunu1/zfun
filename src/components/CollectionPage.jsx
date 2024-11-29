@@ -332,7 +332,44 @@ export default function CollectionPage() {
           window.location.reload();
         }
       } else {
-        // Your existing ERC721 mint code
+        // ERC721 mint
+        const tx = await nftContract.mint(mintAmount, { 
+          value: totalCost,
+          gasLimit: 300000
+        });
+
+        await tx.wait();
+
+        // Update states immediately after mint confirmation
+        try {
+          // Get updated values using the same contract instance
+          const [newTotal, newUserMinted] = await Promise.all([
+            nftContract.totalSupply(),
+            nftContract.mintedPerWallet(account)
+          ]);
+
+          const updatedTotal = Number(newTotal);
+          const updatedUserMinted = Number(newUserMinted);
+
+          // Update all states
+          setTotalMinted(updatedTotal);
+          setUserMintedAmount(updatedUserMinted);
+
+          // Update Firebase
+          await updateCollectionMinted(symbol, updatedTotal);
+
+          // Update local collection data
+          setCollection(prev => ({
+            ...prev,
+            totalMinted: updatedTotal
+          }));
+
+          toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
+        } catch (error) {
+          console.error('Error updating states:', error);
+          // Force a page refresh if state updates fail
+          window.location.reload();
+        }
       }
     } catch (error) {
       console.error('Mint error:', error);
