@@ -175,17 +175,37 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       const receipt = await tx.wait();
       console.log('Full transaction receipt:', receipt);
 
-      // Find the Initialized event first (it comes from the new collection)
-      const initializedEvent = receipt.logs.find(log => 
-        log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
+      // Find the collection address from the CollectionCreated event data
+      let collectionAddress;
+      const creationEvent = receipt.logs.find(log => 
+        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'  // CollectionCreated event
       );
 
-      if (!initializedEvent) {
-        throw new Error('Initialization event not found');
+      if (creationEvent) {
+        try {
+          // Parse the event data to get the collection address
+          const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
+            creationEvent.data
+          );
+          collectionAddress = decodedData[0].collection;
+        } catch (error) {
+          console.error('Failed to decode event:', error);
+        }
       }
 
-      // The address that emitted the Initialized event is our collection address
-      const collectionAddress = initializedEvent.address;
+      if (!collectionAddress) {
+        // Fallback to checking for Initialized event
+        const initializedEvent = receipt.logs.find(log => 
+          log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'  // Initialized event
+        );
+        collectionAddress = initializedEvent?.address;
+      }
+
+      if (!collectionAddress) {
+        throw new Error('Collection address not found');
+      }
+
       console.log('Collection created at:', collectionAddress);
 
       // Store collection data
@@ -210,6 +230,12 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       toast.success('Collection created successfully!', { id: 'create' });
       onClose();
       navigate(`/collection/${formData.symbol}`);
+
+      console.log('Collection Creation Debug:', {
+        receipt: receipt,
+        collectionAddress: collectionAddress,
+        collectionData: collectionData
+      });
 
     } catch (error) {
       console.error('Creation error:', error);

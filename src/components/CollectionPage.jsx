@@ -150,92 +150,67 @@ export default function CollectionPage() {
         return;
       }
 
-      if (!collection.contractAddress) {
-        toast.error('Invalid contract address');
-        return;
-      }
-
-      // Debug logs
-      console.log('Minting with parameters:', {
-        contractAddress: collection.contractAddress,
-        type: collection.type,
-        mintAmount: mintAmount,
-        mintPrice: collection.mintPrice
-      });
-
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      
-      // Make sure we're using the correct ABI based on collection type
-      const abi = collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721;
-      
-      // Create contract instance with the correct address and ABI
+
+      // Use minimal ABI for ERC1155
+      const minimalABI = collection.type === 'ERC1155' ? [
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "tokenId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            }
+          ],
+          "name": "mint",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
+        }
+      ] : NFTCollectionABI.ERC721;
+
       const nftContract = new ethers.Contract(
         collection.contractAddress,
-        abi,
+        minimalABI,
         signer
       );
 
-      // Calculate total cost in Wei
       const mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      console.log('Contract parameters:', {
-        address: collection.contractAddress,
-        mintAmount: mintAmount,
-        totalCost: totalCost.toString(),
-        signer: await signer.getAddress()
-      });
-
-      let mintTx;
+      let tx;
       if (collection.type === 'ERC1155') {
-        mintTx = await nftContract.mint(0, mintAmount, {
-          value: totalCost
-        });
+        // Simple mint call for ERC1155
+        tx = await nftContract.mint(
+          0, // tokenId
+          mintAmount,
+          { 
+            value: totalCost,
+            gasLimit: 300000
+          }
+        );
       } else {
-        // For ERC721
-        mintTx = await nftContract.mint(mintAmount, {
-          value: totalCost
-        });
+        tx = await nftContract.mint(mintAmount, { value: totalCost });
       }
 
       toast.loading('Minting in progress...', { id: 'mint' });
-      
-      const receipt = await mintTx.wait();
-      console.log('Mint receipt:', receipt);
-
-      // Update total minted in local storage and state
-      const updatedCollection = {
-        ...collection,
-        totalMinted: (collection.totalMinted || 0) + mintAmount
-      };
-      localStorage.setItem(`collection_${collection.symbol}`, JSON.stringify(updatedCollection));
-      setCollection(updatedCollection);
-
-      // Update total supply
-      const newSupply = await nftContract.totalSupply().catch(() => totalSupply + mintAmount);
-      setTotalSupply(Number(newSupply));
-
+      await tx.wait();
       toast.success('NFT minted successfully!', { id: 'mint' });
 
     } catch (error) {
-      console.error('Minting error:', error);
-      let errorMessage = 'Failed to mint';
-      
-      if (error.data?.message) {
-        errorMessage = error.data.message;
-      } else if (error.message) {
-        // Clean up common error messages
-        if (error.message.includes('user rejected transaction')) {
-          errorMessage = 'Transaction was rejected';
-        } else if (error.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds to complete the transaction';
-        } else {
-          errorMessage = error.message.replace('execution reverted: ', '');
-        }
-      }
-      
-      toast.error(errorMessage, { id: 'mint' });
+      console.error('Mint error:', error);
+      toast.error(
+        error.message.includes('execution reverted') 
+          ? error.message.split('execution reverted:')[1] || 'Minting failed'
+          : 'Failed to mint NFT',
+        { id: 'mint' }
+      );
     }
   };
 

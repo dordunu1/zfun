@@ -17,7 +17,7 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
     string public baseURI;
     CollectionConfig public config;
     uint256 public totalSupply;
-    
+
     mapping(address => uint256) public mintedPerWallet;
     mapping(address => bool) public whitelist;
     mapping(address => uint256) public whitelistMintLimit;
@@ -25,6 +25,7 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
 
     event Minted(address indexed to, uint256 indexed tokenId, uint256 amount);
     event BatchMinted(address indexed to, uint256[] tokenIds, uint256[] amounts);
+    event Debug(string message, uint256 value); // Debug event for troubleshooting
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -54,25 +55,56 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
     }
 
     function mint(uint256 tokenId, uint256 amount) external payable nonReentrant {
+        // Mint start and end checks
         require(block.timestamp >= config.releaseDate, "Minting not started");
-        require(config.infiniteMint || block.timestamp <= config.mintEndDate, "Minting ended");
+        emit Debug("Release Date", config.releaseDate);
+        require(
+            config.infiniteMint || block.timestamp <= config.mintEndDate,
+            "Minting ended"
+        );
+        emit Debug("Mint End Date", config.mintEndDate);
+
+        // Max supply and wallet limit checks
         require(totalSupply + amount <= config.maxSupply, "Exceeds max supply");
-        require(mintedPerWallet[msg.sender] + amount <= config.maxPerWallet, "Exceeds wallet limit");
-        
+        emit Debug("Total Supply", totalSupply);
+        emit Debug("Max Supply", config.maxSupply);
+        require(
+            mintedPerWallet[msg.sender] + amount <= config.maxPerWallet,
+            "Exceeds wallet limit"
+        );
+        emit Debug("Minted Per Wallet", mintedPerWallet[msg.sender]);
+
+        // Whitelist check
         if (config.enableWhitelist) {
             require(whitelist[msg.sender], "Not whitelisted");
-            require(mintedPerWallet[msg.sender] + amount <= whitelistMintLimit[msg.sender], "Exceeds whitelist limit");
+            emit Debug("Whitelist Check", 1);
+            require(
+                mintedPerWallet[msg.sender] + amount <=
+                    whitelistMintLimit[msg.sender],
+                "Exceeds whitelist limit"
+            );
+            emit Debug("Whitelist Mint Limit", whitelistMintLimit[msg.sender]);
         }
 
+        // Payment processing
         uint256 payment = config.mintPrice * amount;
+        emit Debug("Mint Price", config.mintPrice);
+        emit Debug("Payment Amount", payment);
         if (config.paymentToken == address(0)) {
             require(msg.value >= payment, "Insufficient payment");
-            (bool success, ) = owner.call{value: msg.value}("");
+            emit Debug("Msg Value", msg.value);
+
+            // Safe ETH transfer
+            (bool success, ) = owner.call{value: payment}("");
             require(success, "Transfer failed");
         } else {
-            require(IERC20(config.paymentToken).transferFrom(msg.sender, owner, payment), "Payment failed");
+            // ERC-20 token transfer
+            bool tokenTransferSuccess = IERC20(config.paymentToken)
+                .transferFrom(msg.sender, owner, payment);
+            require(tokenTransferSuccess, "Payment failed");
         }
 
+        // Mint the NFT
         _mint(msg.sender, tokenId, amount, "");
         mintedPerWallet[msg.sender] += amount;
         tokenSupply[tokenId] += amount;
@@ -85,35 +117,59 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
         uint256[] memory tokenIds,
         uint256[] memory amounts
     ) external payable nonReentrant {
-        require(tokenIds.length == amounts.length, "Length mismatch");
+        require(
+            tokenIds.length == amounts.length,
+            "Length mismatch"
+        );
+
         require(block.timestamp >= config.releaseDate, "Minting not started");
-        require(config.infiniteMint || block.timestamp <= config.mintEndDate, "Minting ended");
+        require(
+            config.infiniteMint || block.timestamp <= config.mintEndDate,
+            "Minting ended"
+        );
 
         uint256 totalAmount;
         for (uint256 i = 0; i < amounts.length; i++) {
             totalAmount += amounts[i];
         }
 
-        require(totalSupply + totalAmount <= config.maxSupply, "Exceeds max supply");
-        require(mintedPerWallet[msg.sender] + totalAmount <= config.maxPerWallet, "Exceeds wallet limit");
+        require(
+            totalSupply + totalAmount <= config.maxSupply,
+            "Exceeds max supply"
+        );
+        require(
+            mintedPerWallet[msg.sender] + totalAmount <= config.maxPerWallet,
+            "Exceeds wallet limit"
+        );
 
         if (config.enableWhitelist) {
             require(whitelist[msg.sender], "Not whitelisted");
-            require(mintedPerWallet[msg.sender] + totalAmount <= whitelistMintLimit[msg.sender], "Exceeds whitelist limit");
+            require(
+                mintedPerWallet[msg.sender] + totalAmount <=
+                    whitelistMintLimit[msg.sender],
+                "Exceeds whitelist limit"
+            );
         }
 
         uint256 payment = config.mintPrice * totalAmount;
         if (config.paymentToken == address(0)) {
             require(msg.value >= payment, "Insufficient payment");
-            (bool success, ) = owner.call{value: msg.value}("");
+            (bool success, ) = owner.call{value: payment}("");
             require(success, "Transfer failed");
         } else {
-            require(IERC20(config.paymentToken).transferFrom(msg.sender, owner, payment), "Payment failed");
+            require(
+                IERC20(config.paymentToken).transferFrom(
+                    msg.sender,
+                    owner,
+                    payment
+                ),
+                "Payment failed"
+            );
         }
 
         _mintBatch(msg.sender, tokenIds, amounts, "");
         mintedPerWallet[msg.sender] += totalAmount;
-        
+
         for (uint256 i = 0; i < tokenIds.length; i++) {
             tokenSupply[tokenIds[i]] += amounts[i];
         }
@@ -122,7 +178,10 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
         emit BatchMinted(msg.sender, tokenIds, amounts);
     }
 
-    function setWhitelist(address[] calldata addresses, uint256[] calldata limits) external onlyOwner {
+    function setWhitelist(
+        address[] calldata addresses,
+        uint256[] calldata limits
+    ) external onlyOwner {
         require(addresses.length == limits.length, "Length mismatch");
         for (uint256 i = 0; i < addresses.length; i++) {
             whitelist[addresses[i]] = true;
@@ -142,4 +201,4 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
     function totalSupplyOf(uint256 tokenId) public view returns (uint256) {
         return tokenSupply[tokenId];
     }
-} 
+}
