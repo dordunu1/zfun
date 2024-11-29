@@ -6,6 +6,7 @@ import TokenIcon from './TokenIcon';
 import { getAllCollections } from '../services/firebase';
 import { useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import FuturisticCard from './FuturisticCard';
 
 export default function CollectionsList() {
   const [collections, setCollections] = useState([]);
@@ -130,7 +131,7 @@ export default function CollectionsList() {
           <FilterControls />
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {filteredCollections.map((collection) => {
             const status = getMintStatus(collection);
             
@@ -138,128 +139,133 @@ export default function CollectionsList() {
               <Link 
                 key={collection.symbol}
                 to={`/collection/${collection.symbol}`}
-                className="bg-white dark:bg-[#1a1b1f] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-[#00ffbd] transition-colors group h-[360px] flex flex-col"
+                className="block"
               >
-                <div className="aspect-[16/9] relative overflow-hidden">
-                  <img 
-                    src={collection.previewUrl}
-                    alt={collection.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute top-2 right-2 z-10">
-                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full ${status.color} text-xs backdrop-blur-sm`}>
-                      <status.icon size={12} />
-                      <span className="font-medium">{status.label}</span>
-                    </div>
-                  </div>
-                  <div className="absolute top-2 left-2 z-10">
-                    <div className="bg-black/50 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
-                      {collection.type || 'ERC721'}
-                    </div>
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-[#1a1b1f] to-transparent opacity-50" />
-                </div>
-
-                <div className="p-3 flex-1 flex flex-col">
-                  <div className="mb-2">
-                    <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1 truncate">
-                      {collection.name}
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs line-clamp-2 min-h-[2.5rem]">
-                      {collection.description}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="bg-gray-100 dark:bg-[#0d0e12] px-2 py-1 rounded-lg">
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {collection.category || 'Art'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-[#0d0e12] px-2 py-1 rounded-lg">
-                      <TokenIcon 
-                        type={collection.mintingToken} 
-                        network={collection.network}
+                <FuturisticCard>
+                  <div className="flex flex-col h-[320px]">
+                    {/* Image section */}
+                    <div className="relative h-[160px] overflow-hidden rounded-t-lg">
+                      <img 
+                        src={collection.previewUrl}
+                        alt={collection.name}
+                        className="w-full h-full object-cover"
                       />
-                      <span className="font-medium text-gray-900 dark:text-white">
-                        {collection.mintPrice} {collection.mintToken?.symbol}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
-                    <div className="bg-gray-100 dark:bg-[#0d0e12] rounded-lg p-1.5">
-                      <div className="text-gray-600 dark:text-gray-400">Supply</div>
-                      <div className="text-gray-900 dark:text-white font-medium">
-                        {collection.maxSupply}
+                      {/* Status badge */}
+                      <div className="absolute top-3 right-3 z-10">
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+                          <status.icon size={12} />
+                          <span>{status.label}</span>
+                        </div>
+                      </div>
+                      {/* Type badge */}
+                      <div className="absolute top-3 left-3 z-10">
+                        <div className="bg-[#0d0e12]/80 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
+                          {collection.type || 'ERC721'}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gray-100 dark:bg-[#0d0e12] rounded-lg p-1.5">
-                      <div className="text-gray-600 dark:text-gray-400">Minted</div>
-                      <div className="text-gray-900 dark:text-white font-medium">
-                        {collection.totalMinted || 0}
+
+                    {/* Content section */}
+                    <div className="flex flex-col flex-1 p-4">
+                      <div className="mb-3">
+                        <h3 className="text-base font-semibold text-white mb-1 truncate">
+                          {collection.name}
+                        </h3>
+                        <p className="text-gray-400 text-xs line-clamp-2">
+                          {collection.description}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="bg-[#1a1b1f] px-2 py-1 rounded text-xs text-gray-400">
+                          {collection.category || 'Art'}
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-[#1a1b1f] px-2 py-1 rounded">
+                          <TokenIcon 
+                            type={collection.mintingToken} 
+                            network={collection.network}
+                          />
+                          <span className="text-xs font-medium text-white">
+                            {collection.mintPrice} {collection.mintToken?.symbol}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="bg-[#1a1b1f] rounded p-2">
+                          <div className="text-[11px] text-gray-400">Supply</div>
+                          <div className="text-xs text-white font-medium">
+                            {collection.maxSupply}
+                          </div>
+                        </div>
+                        <div className="bg-[#1a1b1f] rounded p-2">
+                          <div className="text-[11px] text-gray-400">Minted</div>
+                          <div className="text-xs text-white font-medium">
+                            {collection.totalMinted || 0}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-auto">
+                        {collection.socials?.zos && (
+                          <a 
+                            href={`https://zos.zero.tech/${collection.socials.zos}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <BiWorld size={14} />
+                          </a>
+                        )}
+                        {collection.website && (
+                          <a 
+                            href={collection.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FaGlobe size={14} />
+                          </a>
+                        )}
+                        {collection.socials?.twitter && (
+                          <a 
+                            href={`https://twitter.com/${collection.socials.twitter}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FaTwitter size={14} />
+                          </a>
+                        )}
+                        {collection.socials?.discord && (
+                          <a 
+                            href={collection.socials.discord}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FaDiscord size={14} />
+                          </a>
+                        )}
+                        {collection.socials?.telegram && (
+                          <a 
+                            href={collection.socials.telegram}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FaTelegram size={14} />
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex gap-2 mt-auto">
-                    {collection.website && (
-                      <a 
-                        href={collection.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <FaGlobe size={14} />
-                      </a>
-                    )}
-                    {collection.socials?.twitter && (
-                      <a 
-                        href={`https://twitter.com/${collection.socials.twitter}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <FaTwitter size={14} />
-                      </a>
-                    )}
-                    {collection.socials?.discord && (
-                      <a 
-                        href={collection.socials.discord}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <FaDiscord size={14} />
-                      </a>
-                    )}
-                    {collection.socials?.telegram && (
-                      <a 
-                        href={collection.socials.telegram}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <FaTelegram size={14} />
-                      </a>
-                    )}
-                    {collection.socials?.zos && (
-                      <a 
-                        href={`https://zos.zero.tech/${collection.socials.zos}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <BiWorld size={14} />
-                      </a>
-                    )}
-                  </div>
-                </div>
+                </FuturisticCard>
               </Link>
             );
           })}
