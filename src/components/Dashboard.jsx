@@ -4,6 +4,7 @@ import { useDeployments } from '../context/DeploymentsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { getExplorerUrl } from '../utils/explorer';
 import { ipfsToHttp } from '../utils/ipfs';
+import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   const { deployments } = useDeployments();
@@ -48,6 +49,9 @@ export default function Dashboard() {
   ];
 
   function TokenCard({ deployment }) {
+    const isNFT = deployment.type === 'nft';
+    const collectionUrl = `/collection/${deployment.symbol}`;
+
     return (
       <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
         <div className="flex items-center gap-3">
@@ -65,11 +69,19 @@ export default function Dashboard() {
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 {deployment.name} ({deployment.symbol})
               </span>
-              <BiShield 
-                className="text-[#00ffbd]" 
-                size={16} 
-                title="Non-Mintable Token"
-              />
+              {isNFT ? (
+                <BiCollection 
+                  className="text-[#00ffbd]" 
+                  size={16} 
+                  title="NFT Collection"
+                />
+              ) : (
+                <BiShield 
+                  className="text-[#00ffbd]" 
+                  size={16} 
+                  title="Non-Mintable Token"
+                />
+              )}
             </div>
             <div className="text-xs text-gray-500">
               on {deployment.chainName}
@@ -80,14 +92,26 @@ export default function Dashboard() {
           <div className="text-xs text-gray-500">
             {formatDistanceToNow(deployment.timestamp, { addSuffix: true })}
           </div>
-          <a 
-            href={getExplorerUrl(deployment.chainId, deployment.address)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
-          >
-            Supply: {Number(deployment.totalSupply).toLocaleString()}
-          </a>
+          {isNFT ? (
+            <Link 
+              to={collectionUrl}
+              className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors group relative"
+            >
+              Supply: {Number(deployment.totalSupply).toLocaleString()}
+              <span className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                View Collection
+              </span>
+            </Link>
+          ) : (
+            <a 
+              href={getExplorerUrl(deployment.chainId, deployment.address)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+            >
+              Supply: {Number(deployment.totalSupply).toLocaleString()}
+            </a>
+          )}
         </div>
       </div>
     );

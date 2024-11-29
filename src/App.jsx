@@ -19,14 +19,14 @@ function App() {
   const { isDarkMode } = useTheme();
 
   return (
-    <WagmiConfig config={wagmiConfig}>
-      <Web3Modal 
-        projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-        ethereumClient={ethereumClient}
-        themeMode={isDarkMode ? 'dark' : 'light'}
-      />
-      
-      <DeploymentsProvider>
+    <DeploymentsProvider>
+      <WagmiConfig config={wagmiConfig}>
+        <Web3Modal 
+          projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+          ethereumClient={ethereumClient}
+          themeMode={isDarkMode ? 'dark' : 'light'}
+        />
+        
         <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
           <Toaster position="top-right" />
           <Sidebar 
@@ -51,8 +51,8 @@ function App() {
             onClose={setIsFAQOpen}
           />
         </div>
-      </DeploymentsProvider>
-    </WagmiConfig>
+      </WagmiConfig>
+    </DeploymentsProvider>
   );
 }
 

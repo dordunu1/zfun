@@ -156,20 +156,44 @@ export const saveTokenDeployment = async (deployment, walletAddress) => {
 
 export const getTokenDeploymentsByWallet = async (walletAddress) => {
   try {
+    // Simplified query without sorting
     const q = query(
       tokenDeploymentsRef,
-      where('creatorAddress', '==', walletAddress.toLowerCase()),
-      where('type', '==', 'token'),
-      orderBy('createdAt', 'desc')
+      where('creatorAddress', '==', walletAddress.toLowerCase())
     );
     
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
+    const deployments = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+    // Sort in memory instead
+    return deployments.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
     console.error('Error getting token deployments:', error);
+    throw error;
+  }
+};
+
+export const getCollectionsByWallet = async (walletAddress) => {
+  try {
+    // Simplified query without sorting
+    const q = query(
+      collectionsRef,
+      where('creatorAddress', '==', walletAddress.toLowerCase())
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const collections = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    // Sort in memory instead
+    const sortedCollections = collections.sort((a, b) => b.createdAt - a.createdAt);
+    console.log('Found collections:', sortedCollections);
+    return sortedCollections;
+  } catch (error) {
+    console.error('Error getting collections:', error);
     throw error;
   }
 };

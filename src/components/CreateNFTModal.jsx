@@ -252,7 +252,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         },
         whitelistAddresses: formData.whitelistAddresses,
         createdAt: Date.now(),
-        totalMinted: 0
+        totalMinted: 0,
+        creatorAddress: account.toLowerCase() // Add creator's address
       };
 
       await saveCollection(collectionData);
