@@ -459,11 +459,22 @@ export default function CollectionPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] overflow-x-hidden">
       {/* Hero Section */}
       <div className="relative h-[300px] sm:h-[400px] bg-gradient-to-br from-[#00ffbd]/5 to-[#00e6a9]/5 dark:from-[#00ffbd]/10 dark:to-[#00e6a9]/10">
-        <img 
-          src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
-          alt={collection.name}
-          className="w-full h-full object-cover opacity-20 dark:opacity-30"
-        />
+        {collection.artworkType === 'video' ? (
+          <video 
+            src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
+            className="w-full h-full object-cover opacity-20 dark:opacity-30"
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
+        ) : (
+          <img 
+            src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
+            alt={collection.name}
+            className="w-full h-full object-cover opacity-20 dark:opacity-30"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-gray-50 dark:from-[#0a0b0f] to-transparent" />
       </div>
 
@@ -473,11 +484,22 @@ export default function CollectionPage() {
           <FuturisticCard>
             <div className="overflow-y-auto">
               <div className="flex items-center gap-6 mb-6">
-                <img 
-                  src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
-                  alt={collection.name}
-                  className="w-24 h-24 rounded-xl object-cover border-2 border-[#00ffbd]"
-                />
+                {collection.artworkType === 'video' ? (
+                  <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-[#00ffbd]">
+                    <video 
+                      src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
+                      className="w-full h-full object-cover"
+                      controls
+                      playsInline
+                    />
+                  </div>
+                ) : (
+                  <img 
+                    src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
+                    alt={collection.name}
+                    className="w-24 h-24 rounded-xl object-cover border-2 border-[#00ffbd]"
+                  />
+                )}
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                     {collection.name}

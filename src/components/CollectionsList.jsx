@@ -184,11 +184,22 @@ export default function CollectionsList() {
                   <div className="flex flex-col h-[320px]">
                     {/* Image section */}
                     <div className="relative h-[160px] overflow-hidden rounded-t-lg">
-                      <img 
-                        src={collection.previewUrl}
-                        alt={collection.name}
-                        className="w-full h-full object-cover"
-                      />
+                      {collection.artworkType === 'video' ? (
+                        <video 
+                          src={collection.previewUrl}
+                          className="w-full h-full object-cover"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                        />
+                      ) : (
+                        <img 
+                          src={collection.previewUrl}
+                          alt={collection.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                       {/* Status badge */}
                       <div className="absolute top-3 right-3 z-10">
                         <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
