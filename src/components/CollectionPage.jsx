@@ -7,6 +7,7 @@ import TokenIcon from './TokenIcon';
 import { NFTCollectionABI } from '../abi/NFTCollection';
 import { ethers } from 'ethers';
 import { getCollection, updateCollectionMinted, subscribeToCollection } from '../services/firebase';
+import FuturisticCard from './FuturisticCard';
 
 function CountdownTimer({ targetDate }) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
@@ -81,48 +82,40 @@ export default function CollectionPage() {
 
           // Get contract data based on type
           if (collection.type === 'ERC1155') {
-            // For ERC1155
-            const [totalMinted, userMinted, config] = await Promise.all([
-              contract.totalSupply(),
-              contract.mintedPerWallet(account),
-              contract.config()
-            ]);
-            setTotalMinted(Number(totalMinted));
-            setUserMintedAmount(Number(userMinted));
-            setMaxSupply(Number(config.maxSupply));
-          } else {
-            // For ERC721
             const [totalMinted, userMinted] = await Promise.all([
               contract.totalSupply(),
-              contract.mintedPerWallet(account)  // Use mintedPerWallet instead of balanceOf
+              contract.mintedPerWallet(account)
             ]);
             setTotalMinted(Number(totalMinted));
             setUserMintedAmount(Number(userMinted));
-            setMaxSupply(Number(collection.maxSupply));
-
-            // Update Firebase if needed
-            if (Number(totalMinted) !== collection.totalMinted) {
-              await updateCollectionMinted(symbol, Number(totalMinted));
-              
-              // Update local collection data
-              setCollection(prev => ({
-                ...prev,
-                totalMinted: Number(totalMinted)
-              }));
-            }
+          } else {
+            const [totalMinted, userMinted] = await Promise.all([
+              contract.totalSupply(),
+              contract.mintedPerWallet(account)
+            ]);
+            setTotalMinted(Number(totalMinted));
+            setUserMintedAmount(Number(userMinted));
           }
         } catch (error) {
           console.error('Error loading contract data:', error);
-          // Use collection data as fallback
-          setTotalMinted(collection.totalMinted || 0);
+          // Reset user minted amount when there's an error or wallet disconnects
           setUserMintedAmount(0);
-          setMaxSupply(Number(collection.maxSupply));
         }
       };
 
       loadContractData();
+    } else {
+      // Reset states when no wallet is connected
+      setUserMintedAmount(0);
     }
-  }, [account, collection?.contractAddress, symbol]);
+  }, [account, collection?.contractAddress]); // Add account to dependencies
+
+  // Add this effect to reset states on disconnect
+  useEffect(() => {
+    if (!account) {
+      setUserMintedAmount(0);
+    }
+  }, [account]);
 
   // Calculate progress based on maxSupply from contract
   const progress = maxSupply > 0 ? (totalMinted / maxSupply) * 100 : 0;
@@ -430,7 +423,7 @@ export default function CollectionPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Collection Info */}
-          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-8 shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gray-800">
+          <FuturisticCard>
             <div className="flex items-center gap-6 mb-6">
               <img 
                 src={collection.previewUrl} 
@@ -516,10 +509,10 @@ export default function CollectionPage() {
                 </a>
               )}
             </div>
-          </div>
+          </FuturisticCard>
 
           {/* Minting Section */}
-          <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-8 shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gray-800">
+          <FuturisticCard>
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-500 dark:text-gray-400">Price</span>
@@ -602,14 +595,17 @@ export default function CollectionPage() {
                 </button>
               </div>
 
-              <button
-                onClick={handleMint}
-                disabled={!isLive || userMintedAmount >= collection.maxPerWallet || mintAmount === 0}
-                className="w-11/12 mx-auto py-4 bg-[#00ffbd] hover:bg-[#00e6a9] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors"
-              >
-                {!isLive ? 'Not Live Yet' : 
-                 userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' : 'Mint Now'}
-              </button>
+              {/* Updated Mint Button */}
+              <div className="flex justify-center px-4">
+                <button
+                  onClick={handleMint}
+                  disabled={!isLive || userMintedAmount >= collection.maxPerWallet || mintAmount === 0}
+                  className="w-full py-3 bg-[#00ffbd] hover:bg-[#00e6a9] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors"
+                >
+                  {!isLive ? 'Not Live Yet' : 
+                   userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' : 'Mint Now'}
+                </button>
+              </div>
 
               {/* Contract Address */}
               <div className="text-center">
@@ -651,7 +647,7 @@ export default function CollectionPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </FuturisticCard>
         </div>
       </div>
     </div>

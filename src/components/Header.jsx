@@ -16,9 +16,13 @@ export default function Header() {
   const handleDisconnect = async () => {
     try {
       await disconnect();
-      // Clear any stored connection data
+      // Clear all wallet-related data from localStorage
       localStorage.removeItem('wagmi.connected');
       localStorage.removeItem('wagmi.wallet');
+      localStorage.removeItem('wagmi.account');
+      localStorage.removeItem('wagmi.chain');
+      localStorage.removeItem('wagmi.network');
+      localStorage.removeItem('walletconnect');
     } catch (error) {
       console.error('Error disconnecting:', error);
     }
