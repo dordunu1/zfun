@@ -151,8 +151,8 @@ export default function CollectionsList() {
     
     return (
       <div className="group relative">
-        <div className="bg-[#1a1b1f] p-2 rounded-lg">
-          <iconData.icon className="w-4 h-4 text-[#00ffbd]" />
+        <div className="bg-gray-100 dark:bg-[#1a1b1f] p-2 rounded-lg border border-gray-200 dark:border-gray-800">
+          <iconData.icon className="w-4 h-4 text-gray-700 dark:text-[#00ffbd]" />
         </div>
         {/* Tooltip */}
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
