@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown } from 'react-icons/bi';
+import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown, BiWallet } from 'react-icons/bi';
 import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
 import { BiWorld } from 'react-icons/bi';
 import clsx from 'clsx';
-import { useWallet } from '../context/WalletContext';
 import { NFT_CONTRACTS, TOKEN_ADDRESSES } from '../config/contracts';
 import { ethers } from 'ethers';
 import { NFTFactoryABI } from '../abi/NFTFactory';
@@ -16,6 +15,8 @@ import { prepareAndUploadMetadata } from '../services/metadata';
 import { Contract } from 'ethers';
 import { saveCollection } from '../services/firebase';
 import FuturisticCard from './FuturisticCard';
+import { useAccount } from 'wagmi';
+import { useWeb3Modal } from '@web3modal/react';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -27,7 +28,6 @@ const STEPS = [
 
 export default function CreateNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
-  const { account, provider, signer, connectWallet } = useWallet();
   const [currentStep, setCurrentStep] = useState('type');
   const [formData, setFormData] = useState({
     type: '', // ERC721 or ERC1155
@@ -58,13 +58,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     infiniteMint: false,
   });
 
-  useEffect(() => {
-    if (isOpen && !account) {
-      connectWallet();
-    } else if (isOpen && account) {
-      setCurrentStep('type');
-    }
-  }, [isOpen, account, connectWallet]);
+  const { address: account, isConnected } = useAccount();
+  const { open: openConnectModal } = useWeb3Modal();
 
   const updateFormData = (updates) => {
     setFormData(prev => ({ ...prev, ...updates }));
@@ -123,7 +118,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   const handleSubmit = async () => {
     try {
       if (!account) {
-        connectWallet();
+        openConnectModal();
         return;
       }
 
@@ -1128,6 +1123,29 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
   };
 
+  // If wallet is not connected, show connect prompt
+  const renderConnectPrompt = () => (
+    <div className="text-center py-8">
+      <div className="mb-4">
+        <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        Connect Your Wallet
+      </h3>
+      <p className="text-gray-500 dark:text-gray-400 mb-6">
+        Please connect your wallet to create an NFT collection
+      </p>
+      <button
+        onClick={() => {
+          openConnectModal();
+        }}
+        className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
+      >
+        Connect Wallet
+      </button>
+    </div>
+  );
+
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
@@ -1137,57 +1155,48 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           <FuturisticCard>
             <div className="relative">
               <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-4">
-                  {currentStep !== 'type' && (
-                    <button 
-                      onClick={() => {
-                        const currentIndex = STEPS.findIndex(s => s.id === currentStep);
-                        setCurrentStep(STEPS[currentIndex - 1].id);
-                      }}
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-[#1a1b1f] rounded-lg transition-colors"
-                    >
-                      <BiChevronLeft size={20} className="text-gray-600 dark:text-gray-400" />
-                    </button>
-                  )}
-                  <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Create NFT Collection
-                  </Dialog.Title>
-                </div>
+                <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Create NFT Collection
+                </Dialog.Title>
                 <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
                   <BiX size={24} />
                 </button>
               </div>
 
-              {/* Progress Indicator */}
-              <div className="mb-6">
-                <div className="flex justify-between">
-                  {STEPS.map((step, index) => (
-                    <div key={step.id} className="flex items-center">
-                      <div className={clsx(
-                        'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-                        currentStep === step.id
-                          ? 'bg-[#00ffbd] text-black'
-                          : STEPS.findIndex(s => s.id === currentStep) > index
-                          ? 'bg-[#00ffbd] text-black'
-                          : 'bg-gray-100 dark:bg-[#1a1b1f] text-gray-400'
-                      )}>
-                        {index + 1}
-                      </div>
-                      {index !== STEPS.length - 1 && (
-                        <div className={clsx(
-                          'h-0.5 w-full mx-2',
-                          STEPS.findIndex(s => s.id === currentStep) > index
-                            ? 'bg-[#00ffbd]'
-                            : 'bg-gray-100 dark:bg-[#1a1b1f]'
-                        )} />
-                      )}
+              {!isConnected ? renderConnectPrompt() : (
+                <>
+                  {/* Progress Indicator */}
+                  <div className="mb-6">
+                    <div className="flex justify-between">
+                      {STEPS.map((step, index) => (
+                        <div key={step.id} className="flex items-center">
+                          <div className={clsx(
+                            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
+                            currentStep === step.id
+                              ? 'bg-[#00ffbd] text-black'
+                              : STEPS.findIndex(s => s.id === currentStep) > index
+                              ? 'bg-[#00ffbd] text-black'
+                              : 'bg-gray-100 dark:bg-[#1a1b1f] text-gray-400'
+                          )}>
+                            {index + 1}
+                          </div>
+                          {index !== STEPS.length - 1 && (
+                            <div className={clsx(
+                              'h-0.5 w-full mx-2',
+                              STEPS.findIndex(s => s.id === currentStep) > index
+                                ? 'bg-[#00ffbd]'
+                                : 'bg-gray-100 dark:bg-[#1a1b1f]'
+                            )} />
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              {/* Step Content */}
-              {renderStep()}
+                  {/* Step Content */}
+                  {renderStep()}
+                </>
+              )}
             </div>
           </FuturisticCard>
         </Dialog.Panel>

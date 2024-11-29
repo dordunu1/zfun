@@ -56,3 +56,20 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .dark {
   --is-dark: 1;
 }
+
+/* Add these styles for Web3Modal wallet options */
+.w3m-wallet-item {
+  cursor: pointer !important;
+}
+
+.w3m-button {
+  cursor: pointer !important;
+}
+
+/* Target all clickable elements in Web3Modal */
+[class*="w3m-"] button,
+[class*="w3m-"] a,
+[class*="w3m-"] [role="button"],
+[class*="w3m-"] [tabindex="0"] {
+  cursor: pointer !important;
+}
