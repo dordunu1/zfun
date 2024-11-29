@@ -14,6 +14,7 @@ import { parseEther } from 'viem';
 import { sepolia, polygon } from 'wagmi/chains';
 import { prepareAndUploadMetadata } from '../services/metadata';
 import { Contract } from 'ethers';
+import { saveCollection } from '../services/firebase';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -169,7 +170,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         { value: fee }
       );
 
-      toast.loading('Waiting for transaction...', { id: 'create' });
+      toast.loading('Waiting for confirmation...', { id: 'create' });
       console.log('Transaction sent:', tx.hash);
 
       const receipt = await tx.wait();
@@ -225,7 +226,17 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       };
 
       console.log('Storing collection data:', collectionData);
+      // Store in both places to maintain existing functionality
       localStorage.setItem(`collection_${formData.symbol}`, JSON.stringify(collectionData));
+      await saveCollection(collectionData);
+
+      // Also store in collections array for the list view
+      const collections = JSON.parse(localStorage.getItem('collections') || '[]');
+      collections.push({
+        ...collectionData,
+        type: formData.type // Ensure type is stored
+      });
+      localStorage.setItem('collections', JSON.stringify(collections));
       
       toast.success('Collection created successfully!', { id: 'create' });
       onClose();
@@ -239,7 +250,18 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
     } catch (error) {
       console.error('Creation error:', error);
-      toast.error(error.message || 'Failed to create collection', { id: 'create' });
+      
+      let errorMessage = 'Failed to create collection. Please try again.';
+      
+      if (error.message.includes('insufficient funds')) {
+        errorMessage = 'Insufficient funds to pay the creation fee';
+      } else if (error.message.includes('user rejected')) {
+        errorMessage = 'Transaction was rejected';
+      } else if (error.message.includes('network error')) {
+        errorMessage = 'Network error. Please check your connection and try again';
+      }
+      
+      toast.error(errorMessage, { id: 'create' });
     }
   };
 

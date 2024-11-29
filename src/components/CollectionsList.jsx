@@ -1,22 +1,101 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram } from 'react-icons/fa';
 import { BiTime, BiCheck, BiX, BiWorld } from 'react-icons/bi';
 import TokenIcon from './TokenIcon';
+import { getAllCollections } from '../services/firebase';
+import { useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 
 export default function CollectionsList() {
-  // Get all collections from localStorage
-  const collections = Object.keys(localStorage)
-    .filter(key => key.startsWith('collection_'))
-    .map(key => JSON.parse(localStorage.getItem(key)))
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const [collections, setCollections] = useState([]);
+  const [filters, setFilters] = useState({
+    network: 'all',    // 'all', 'sepolia', 'polygon'
+    type: 'all',       // 'all', 'ERC721', 'ERC1155'
+    sortBy: 'newest'   // 'newest', 'oldest', 'name'
+  });
+
+  // Add this useEffect to load collections
+  useEffect(() => {
+    const loadCollections = async () => {
+      try {
+        const fetchedCollections = await getAllCollections({
+          network: filters.network,
+          type: filters.type
+        });
+        setCollections(fetchedCollections);
+      } catch (error) {
+        console.error('Error loading collections:', error);
+        toast.error('Failed to load collections');
+      }
+    };
+
+    loadCollections();
+  }, [filters.network, filters.type]);
+
+  // Filtering and sorting logic
+  const filteredCollections = useMemo(() => {
+    return collections
+      .filter(collection => {
+        if (filters.network !== 'all' && collection.network !== filters.network) return false;
+        if (filters.type !== 'all' && collection.type !== filters.type) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        switch (filters.sortBy) {
+          case 'newest':
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          case 'oldest':
+            return new Date(a.createdAt) - new Date(b.createdAt);
+          case 'name':
+            return a.name.localeCompare(b.name);
+          default:
+            return 0;
+        }
+      });
+  }, [collections, filters]);
+
+  // Filter controls UI
+  const FilterControls = () => (
+    <div className="flex gap-4 mb-6">
+      <select
+        value={filters.network}
+        onChange={(e) => setFilters(f => ({ ...f, network: e.target.value }))}
+        className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2"
+      >
+        <option value="all">All Networks</option>
+        <option value="sepolia">Sepolia</option>
+        <option value="polygon">Polygon</option>
+      </select>
+
+      <select
+        value={filters.type}
+        onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
+        className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2"
+      >
+        <option value="all">All Types</option>
+        <option value="ERC721">ERC721</option>
+        <option value="ERC1155">ERC1155</option>
+      </select>
+
+      <select
+        value={filters.sortBy}
+        onChange={(e) => setFilters(f => ({ ...f, sortBy: e.target.value }))}
+        className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2"
+      >
+        <option value="newest">Newest First</option>
+        <option value="oldest">Oldest First</option>
+        <option value="name">Name A-Z</option>
+      </select>
+    </div>
+  );
 
   const getMintStatus = (collection) => {
     const now = Date.now();
     const releaseDate = new Date(collection.releaseDate);
     const timeUntil = releaseDate - now;
     
-    if (collection.totalMinted >= collection.maxSupply) {
+    if (!collection.infiniteMint && collection.totalMinted >= collection.maxSupply) {
       return {
         label: 'Ended',
         color: 'text-red-400 bg-red-400/10',
@@ -46,10 +125,13 @@ export default function CollectionsList() {
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Collections</h1>
+        <div className="flex flex-col gap-4 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Collections</h1>
+          <FilterControls />
+        </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {collections.map((collection) => {
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {filteredCollections.map((collection) => {
             const status = getMintStatus(collection);
             
             return (
@@ -72,7 +154,7 @@ export default function CollectionsList() {
                   </div>
                   <div className="absolute top-2 left-2 z-10">
                     <div className="bg-black/50 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
-                      {collection.tokenType || 'ERC721'}
+                      {collection.type || 'ERC721'}
                     </div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-[#1a1b1f] to-transparent opacity-50" />

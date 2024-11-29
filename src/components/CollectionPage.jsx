@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { FaEthereum, FaDiscord, FaTwitter, FaGlobe } from 'react-icons/fa';
-import { BiMinus, BiPlus, BiCopy, BiCheck, BiX } from 'react-icons/bi';
+import React, { useState, useEffect, useMemo } from 'react';
+import { FaEthereum, FaDiscord, FaTwitter, FaTelegram } from 'react-icons/fa';
+import { BiMinus, BiPlus, BiCopy, BiCheck, BiX, BiWorld } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import TokenIcon from './TokenIcon';
 import { NFTCollectionABI } from '../abi/NFTCollection';
 import { ethers } from 'ethers';
+import { getCollection, updateCollectionMinted, subscribeToCollection } from '../services/firebase';
 
 function CountdownTimer({ targetDate }) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
@@ -63,77 +64,141 @@ export default function CollectionPage() {
   const [account, setAccount] = useState(null);
   const [totalSupply, setTotalSupply] = useState(0);
   const [maxSupply, setMaxSupply] = useState(0);
+  const [userMintedAmount, setUserMintedAmount] = useState(0);
+  const [totalMinted, setTotalMinted] = useState(0);
 
+  // Load on-chain data when wallet connects
   useEffect(() => {
-    const storedData = localStorage.getItem(`collection_${symbol}`);
-    if (!storedData) {
-      toast.error('Collection not found');
-      navigate('/');
-      return;
-    }
+    if (collection?.contractAddress && account) {
+      const loadContractData = async () => {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const contract = new ethers.Contract(
+            collection.contractAddress,
+            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+            provider
+          );
 
-    const collectionData = JSON.parse(storedData);
-    console.log('Loaded collection data:', collectionData);
-    setCollection(collectionData);
-    setLoading(false);
+          // Get contract data based on type
+          if (collection.type === 'ERC1155') {
+            // For ERC1155
+            const [totalMinted, userMinted, config] = await Promise.all([
+              contract.totalSupply(),
+              contract.mintedPerWallet(account),
+              contract.config()
+            ]);
+            setTotalMinted(Number(totalMinted));
+            setUserMintedAmount(Number(userMinted));
+            setMaxSupply(Number(config.maxSupply));
+          } else {
+            // For ERC721
+            const [totalMinted, userMinted] = await Promise.all([
+              contract.totalSupply(),
+              contract.mintedPerWallet(account)  // Use mintedPerWallet instead of balanceOf
+            ]);
+            setTotalMinted(Number(totalMinted));
+            setUserMintedAmount(Number(userMinted));
+            setMaxSupply(Number(collection.maxSupply));
+
+            // Update Firebase if needed
+            if (Number(totalMinted) !== collection.totalMinted) {
+              await updateCollectionMinted(symbol, Number(totalMinted));
+              
+              // Update local collection data
+              setCollection(prev => ({
+                ...prev,
+                totalMinted: Number(totalMinted)
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('Error loading contract data:', error);
+          // Use collection data as fallback
+          setTotalMinted(collection.totalMinted || 0);
+          setUserMintedAmount(0);
+          setMaxSupply(Number(collection.maxSupply));
+        }
+      };
+
+      loadContractData();
+    }
+  }, [account, collection?.contractAddress, symbol]);
+
+  // Calculate progress based on maxSupply from contract
+  const progress = maxSupply > 0 ? (totalMinted / maxSupply) * 100 : 0;
+
+  // Load collection data
+  useEffect(() => {
+    const loadCollectionData = async () => {
+      try {
+        const data = await getCollection(symbol);
+        if (!data) {
+          toast.error('Collection not found');
+          navigate('/');
+          return;
+        }
+        setCollection(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading collection:', error);
+        toast.error('Error loading collection data');
+      }
+    };
+
+    loadCollectionData();
   }, [symbol, navigate]);
 
+  // Check account
   useEffect(() => {
     const checkAccount = async () => {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-      setAccount(address);
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setAccount(address);
+      }
     };
 
     checkAccount();
   }, []);
 
+  // Add this effect to subscribe to real-time updates
   useEffect(() => {
-    const fetchSupply = async () => {
-      if (!collection || !collection.contractAddress) {
-        console.log('Collection data not ready');
-        return;
-      }
+    if (!symbol) return;
+    
+    const unsubscribe = subscribeToCollection(symbol, (data) => {
+      setCollection(data);
+      setTotalMinted(data.totalMinted || 0);
+    });
 
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const abi = collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721;
-        const nftContract = new ethers.Contract(collection.contractAddress, abi, provider);
-        
-        // Get the actual values from contract
-        const [config, currentSupply] = await Promise.all([
-          nftContract.config().catch(() => ({ maxSupply: collection.maxSupply })),
-          nftContract.totalSupply().catch(() => 0)
-        ]);
-        
-        setTotalSupply(Number(currentSupply));
-        setMaxSupply(Number(config.maxSupply));
-      } catch (error) {
-        console.error('Error fetching supply:', error);
-        // Use fallback values from collection data
-        setMaxSupply(collection.maxSupply);
-        setTotalSupply(collection.totalMinted || 0);
-      }
-    };
-
-    fetchSupply();
-  }, [collection]);
-
-  useEffect(() => {
-    const storedData = localStorage.getItem(`collection_${symbol}`);
-    if (storedData) {
-      const collectionData = JSON.parse(storedData);
-      console.log('Collection Data Check:', {
-        contractAddress: collectionData.contractAddress,
-        type: collectionData.type,
-        mintPrice: collectionData.mintPrice,
-        symbol: collectionData.symbol,
-        maxSupply: collectionData.maxSupply,
-        maxPerWallet: collectionData.maxPerWallet
-      });
-    }
+    return () => unsubscribe();
   }, [symbol]);
+
+  // Add this effect specifically for getting maxSupply
+  useEffect(() => {
+    if (collection?.contractAddress) {
+      const getMaxSupply = async () => {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const contract = new ethers.Contract(
+            collection.contractAddress,
+            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+            provider
+          );
+
+          // Get maxSupply from contract config
+          const config = await contract.config();
+          setMaxSupply(Number(config.maxSupply));
+        } catch (error) {
+          console.error('Error getting max supply:', error);
+          // Fallback to collection data
+          setMaxSupply(Number(collection.maxSupply));
+        }
+      };
+
+      getMaxSupply();
+    }
+  }, [collection?.contractAddress]);
 
   if (loading || !collection) {
     return (
@@ -153,7 +218,7 @@ export default function CollectionPage() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // Use minimal ABI for ERC1155
+      // ERC1155 specific minimal ABI
       const minimalABI = collection.type === 'ERC1155' ? [
         {
           "inputs": [
@@ -172,8 +237,50 @@ export default function CollectionPage() {
           "outputs": [],
           "stateMutability": "payable",
           "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "totalSupply",
+          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+          "name": "mintedPerWallet",
+          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+          "stateMutability": "view",
+          "type": "function"
         }
-      ] : NFTCollectionABI.ERC721;
+      ] : [
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "quantity",
+              "type": "uint256"
+            }
+          ],
+          "name": "mint",
+          "outputs": [],
+          "stateMutability": "payable",
+          "type": "function"
+        },
+        {
+          "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+          "name": "mintedPerWallet",
+          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "totalSupply",
+          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ];
 
       const nftContract = new ethers.Contract(
         collection.contractAddress,
@@ -184,33 +291,57 @@ export default function CollectionPage() {
       const mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      let tx;
-      if (collection.type === 'ERC1155') {
-        // Simple mint call for ERC1155
-        tx = await nftContract.mint(
-          0, // tokenId
-          mintAmount,
-          { 
-            value: totalCost,
-            gasLimit: 300000
-          }
-        );
-      } else {
-        tx = await nftContract.mint(mintAmount, { value: totalCost });
-      }
-
       toast.loading('Minting in progress...', { id: 'mint' });
-      await tx.wait();
-      toast.success('NFT minted successfully!', { id: 'mint' });
 
+      if (collection.type === 'ERC1155') {
+        const tx = await nftContract.mint(0, mintAmount, { 
+          value: totalCost,
+          gasLimit: 300000
+        });
+
+        await tx.wait();
+
+        // Update states immediately after mint confirmation
+        try {
+          // Get updated values using the same contract instance
+          const [newTotal, newUserMinted] = await Promise.all([
+            nftContract.totalSupply(),
+            nftContract.mintedPerWallet(account)
+          ]);
+
+          const updatedTotal = Number(newTotal);
+          const updatedUserMinted = Number(newUserMinted);
+
+          // Update all states
+          setTotalMinted(updatedTotal);
+          setUserMintedAmount(updatedUserMinted);
+
+          // Update Firebase
+          await updateCollectionMinted(symbol, updatedTotal);
+
+          // Update local collection data
+          setCollection(prev => ({
+            ...prev,
+            totalMinted: updatedTotal
+          }));
+
+          toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
+        } catch (error) {
+          console.error('Error updating states:', error);
+          // Force a page refresh if state updates fail
+          window.location.reload();
+        }
+      } else {
+        // Your existing ERC721 mint code
+      }
     } catch (error) {
       console.error('Mint error:', error);
-      toast.error(
-        error.message.includes('execution reverted') 
-          ? error.message.split('execution reverted:')[1] || 'Minting failed'
-          : 'Failed to mint NFT',
-        { id: 'mint' }
-      );
+      if (error.message.includes('execution reverted')) {
+        const errorMessage = error.message.split('execution reverted:')[1]?.trim() || 'Minting failed';
+        toast.error(errorMessage, { id: 'mint' });
+      } else {
+        toast.error('Failed to mint NFT', { id: 'mint' });
+      }
     }
   };
 
@@ -219,9 +350,6 @@ export default function CollectionPage() {
   const releaseDate = new Date(collection.releaseDate);
   const isLive = now >= releaseDate;
   
-  // Calculate minting progress
-  const progress = ((collection.totalMinted || 0) / collection.maxSupply) * 100;
-
   const checkEligibility = () => {
     if (!checkingAddress) {
       toast.error('Please enter an address');
@@ -308,7 +436,7 @@ export default function CollectionPage() {
               ))}
             </div>
 
-            {/* Add Social Links */}
+            {/* Social Links */}
             <div className="flex gap-4 mt-6 mb-6">
               {collection.website && (
                 <a 
@@ -317,7 +445,7 @@ export default function CollectionPage() {
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-[#00ffbd] transition-colors"
                 >
-                  <FaGlobe size={20} />
+                  <BiWorld size={20} />
                 </a>
               )}
               {collection.socials?.twitter && (
@@ -338,6 +466,16 @@ export default function CollectionPage() {
                   className="text-gray-400 hover:text-[#00ffbd] transition-colors"
                 >
                   <FaDiscord size={20} />
+                </a>
+              )}
+              {collection.socials?.telegram && (
+                <a 
+                  href={collection.socials.telegram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                >
+                  <FaTelegram size={20} />
                 </a>
               )}
             </div>
@@ -394,11 +532,21 @@ export default function CollectionPage() {
 
             {/* Mint Controls */}
             <div className="space-y-6">
+              {/* Minting Status */}
+              <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                {userMintedAmount >= collection.maxPerWallet ? (
+                  <span className="text-red-500">Maximum mint limit reached</span>
+                ) : (
+                  `You have minted ${userMintedAmount} out of ${collection.maxPerWallet} NFTs`
+                )}
+              </div>
+
+              {/* Mint Controls */}
               <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                 <button
                   onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
-                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
-                  disabled={!isLive}
+                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isLive || userMintedAmount >= collection.maxPerWallet}
                 >
                   <BiMinus size={24} />
                 </button>
@@ -406,9 +554,12 @@ export default function CollectionPage() {
                   {mintAmount}
                 </span>
                 <button
-                  onClick={() => setMintAmount(Math.min(collection.maxPerWallet, mintAmount + 1))}
-                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
-                  disabled={!isLive}
+                  onClick={() => {
+                    const remaining = collection.maxPerWallet - userMintedAmount;
+                    setMintAmount(Math.min(remaining, mintAmount + 1));
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isLive || userMintedAmount >= collection.maxPerWallet}
                 >
                   <BiPlus size={24} />
                 </button>
@@ -416,22 +567,37 @@ export default function CollectionPage() {
 
               <button
                 onClick={handleMint}
-                disabled={!isLive}
-                className="w-full py-4 bg-[#00ffbd] hover:bg-[#00e6a9] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors"
+                disabled={!isLive || userMintedAmount >= collection.maxPerWallet || mintAmount === 0}
+                className="w-11/12 mx-auto py-4 bg-[#00ffbd] hover:bg-[#00e6a9] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors"
               >
-                {isLive ? 'Mint Now' : 'Not Live Yet'}
+                {!isLive ? 'Not Live Yet' : 
+                 userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' : 'Mint Now'}
               </button>
+
+              {/* Contract Address */}
+              <div className="text-center">
+                <a
+                  href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.contractAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#00ffbd] transition-colors"
+                >
+                  <span>Contract:</span>
+                  <span className="font-mono">{collection.contractAddress.slice(0, 6)}...{collection.contractAddress.slice(-4)}</span>
+                  <BiX className="transform rotate-45" />
+                </a>
+              </div>
 
               {/* Progress Bar */}
               <div>
                 <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
                   <span>Progress</span>
-                  <span>{collection.totalMinted || 0}/{collection.maxSupply} Minted</span>
+                  <span>{totalMinted}/{maxSupply} Minted</span>
                 </div>
                 <div className="h-2 bg-gray-100 dark:bg-[#0d0e12] rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-[#00ffbd] transition-all duration-500"
-                    style={{ width: `${progress}%` }}
+                    style={{ width: `${Math.min(progress, 100)}%` }}
                   />
                 </div>
               </div>
@@ -444,7 +610,7 @@ export default function CollectionPage() {
                 </div>
                 <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                   <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Supply</div>
-                  <div className="text-xl font-bold text-gray-900 dark:text-white">{collection.maxSupply}</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white">{maxSupply}</div>
                 </div>
               </div>
             </div>
