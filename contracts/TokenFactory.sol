@@ -40,7 +40,7 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         implementation = address(new ERC20Template());
         
         // Set initial fees for different chains
-        chainFees[11155111] = 0.02 ether;     // Sepolia
+        chainFees[11155111] = 0.01 ether;     // Sepolia
         chainFees[137] = 20 ether;            // Polygon Mainnet
         // Add Zchain when available
     }

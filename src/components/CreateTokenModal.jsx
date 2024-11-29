@@ -16,7 +16,7 @@ const FACTORY_ADDRESSES = {
   137: import.meta.env.VITE_FACTORY_ADDRESS_137
 };
 const CHAIN_FEES = {
-  11155111: "0.02",  // Sepolia fee in ETH
+  11155111: "0.01",  // Sepolia fee in ETH
   137: "20"          // Polygon fee in MATIC
 };
 
