@@ -208,7 +208,7 @@ export default function CollectionsList() {
     return collection?.network === 'polygon' ? (
       <img src="/matic.png" alt="MATIC" className="w-5 h-5" />
     ) : (
-      <FaEthereum className="w-5 h-5" />
+      <FaEthereum className="w-5 h-5 text-[#00ffbd]" />
     );
   };
 
@@ -230,10 +230,46 @@ export default function CollectionsList() {
                 to={`/collection/${collection.symbol}`}
                 className="block"
               >
-                <FuturisticCard>
-                  <div className="flex flex-col h-[340px]">
-                    {/* Image section with consistent height */}
-                    <div className="relative h-[180px] w-full overflow-hidden rounded-t-lg">
+                <div className="relative">
+                  {/* L-shaped corners */}
+                  <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+                    <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                    <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+                  </div>
+                  <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+                    <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                    <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+                  </div>
+                  <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+                    <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                    <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+                  </div>
+                  <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+                    <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                    <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+                  </div>
+
+                  {/* Glowing dots in corners */}
+                  <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                  <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                  <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                  <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+                  {/* Three dots in top right */}
+                  <div className="absolute top-3 right-3 flex gap-1 z-20">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                        style={{ animationDelay: `${i * 0.2}s` }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="relative z-10 bg-white dark:bg-[#0a0b0f] h-[340px]">
+                    {/* Image section */}
+                    <div className="relative h-[180px] w-full overflow-hidden">
                       <div className="absolute inset-0">
                         {collection.artworkType === 'video' ? (
                           <video 
@@ -252,6 +288,14 @@ export default function CollectionsList() {
                           />
                         )}
                       </div>
+
+                      {/* Type badge */}
+                      <div className="absolute top-3 left-3 z-10">
+                        <div className="bg-[#0d0e12]/80 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
+                          {collection.type || 'ERC721'}
+                        </div>
+                      </div>
+
                       {/* Status badge */}
                       <div className="absolute top-3 right-3 z-10">
                         <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
@@ -259,20 +303,22 @@ export default function CollectionsList() {
                           <span>{status.label}</span>
                         </div>
                       </div>
-                      {/* Type badge */}
-                      <div className="absolute top-3 left-3 z-10">
-                        <div className="bg-[#0d0e12]/80 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
-                          {collection.type || 'ERC721'}
-                        </div>
-                      </div>
                     </div>
 
                     {/* Content section */}
                     <div className="flex flex-col flex-1 p-4">
                       <div className="mb-3">
-                        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1 truncate">
-                          {collection.name}
-                        </h3>
+                        <div className="flex items-center justify-between gap-2 mb-1 w-full">
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate flex-shrink min-w-0">
+                            {collection.name}
+                          </h3>
+                          {collection.enableWhitelist && (
+                            <div className="flex items-center gap-1 bg-[#00ffbd]/10 px-1.5 py-0.5 rounded-full flex-shrink-0 ml-auto">
+                              <span role="img" aria-label="crown" className="text-[10px]">👑</span>
+                              <span className="text-[10px] font-medium text-[#00ffbd]">Whitelist Mint</span>
+                            </div>
+                          )}
+                        </div>
                         <p className="text-gray-500 dark:text-gray-400 text-xs truncate">
                           {collection.description}
                         </p>
@@ -280,7 +326,7 @@ export default function CollectionsList() {
 
                       <div className="flex items-center justify-between mb-3">
                         {getCategoryIcon(collection.category)}
-                        <div className="flex items-center gap-1.5 bg-white dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                           {renderCurrencyLogo(collection)}
                           <span className="text-xs font-medium text-gray-900 dark:text-white">
                             {collection.mintPrice}
@@ -288,32 +334,28 @@ export default function CollectionsList() {
                         </div>
                       </div>
 
+                      {/* Add Supply and Minted containers - horizontal layout */}
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white dark:bg-[#1a1b1f] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
-                          <div className="text-[11px] text-gray-600 dark:text-gray-400">Supply</div>
-                          <div className="text-xs text-gray-900 dark:text-white font-medium">
-                            {collection.maxSupply}
+                        <div className="bg-gray-50 dark:bg-[#1a1b1f] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-800">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">Supply</span>
+                            <span className="text-xs font-medium text-gray-900 dark:text-white">
+                              {collection.maxSupply || 0}
+                            </span>
                           </div>
                         </div>
-                        <div className="bg-white dark:bg-[#1a1b1f] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
-                          <div className="text-[11px] text-gray-600 dark:text-gray-400">Minted</div>
-                          <div className="text-xs text-gray-900 dark:text-white font-medium">
-                            {collection.totalMinted || 0}
+                        <div className="bg-gray-50 dark:bg-[#1a1b1f] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-800">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">Minted</span>
+                            <span className="text-xs font-medium text-gray-900 dark:text-white">
+                              {collection.totalMinted || 0}
+                            </span>
                           </div>
                         </div>
                       </div>
                     </div>
-
-                    {collection.enableWhitelist && (
-                      <div className="absolute bottom-4 right-4 transform rotate-[-30deg] z-10">
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00ffbd]/10 text-[#00ffbd] backdrop-blur-sm rounded-full">
-                          <span className="text-xs">👑</span>
-                          <span className="text-xs font-medium">Whitelist Only</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                </FuturisticCard>
+                </div>
               </Link>
             );
           })}
