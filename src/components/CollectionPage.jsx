@@ -328,12 +328,12 @@ export default function CollectionPage() {
       await saveMintData({
         collectionAddress: collection.contractAddress,
         minterAddress: account,
-        tokenId, // Now the tokenId should be clean without any '+' signs
+        tokenId: tokenId,
+        type: collection.type,
         quantity: mintAmount.toString(),
         hash: receipt.hash,
         image: collection.previewUrl || collection.imageIpfsUrl,
         value: totalCost.toString(),
-        type: collection.type,
         network: collection.network
       });
 

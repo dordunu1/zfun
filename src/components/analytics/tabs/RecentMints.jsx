@@ -24,20 +24,27 @@ export default function RecentMints() {
         if (collectionData?.contractAddress) {
           // Initial fetch
           const recentMints = await getRecentMints(collectionData.contractAddress);
-          setMints(recentMints.map(mint => ({
-            ...mint,
-            artworkType: collectionData.artworkType,
-            tokenName: collectionData.name
-          })));
+          console.log('Recent mints data:', recentMints);
+
+          setMints(recentMints.map(mint => {
+            console.log('Processing mint:', mint);
+            return {
+              ...mint,
+              artworkType: collectionData.artworkType,
+              tokenName: collectionData.name,
+              tokenId: mint.tokenId
+            };
+          }));
           setLoading(false);
 
           // Subscribe to real-time updates
           const unsubscribe = subscribeToMints(collectionData.contractAddress, (updatedMints) => {
-            console.log('Received mints update:', updatedMints);
+            console.log('Subscription update - mints:', updatedMints);
             setMints(updatedMints.map(mint => ({
               ...mint,
               artworkType: collectionData.artworkType,
-              tokenName: collectionData.name
+              tokenName: collectionData.name,
+              tokenId: mint.tokenId
             })));
           });
 
@@ -97,20 +104,19 @@ export default function RecentMints() {
   };
 
   const renderTokenInfo = (mint) => {
-    if (mint.type === 'ERC721') {
-      return (
+    console.log('Rendering token info for mint:', mint);
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-400">
         <a
           href={`${mint.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/token/${mint.collectionAddress}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-gray-400 hover:text-[#00ffbd] transition-colors flex items-center gap-1 mt-1"
+          className="hover:text-[#00ffbd] transition-colors"
         >
-          <span>token id</span>
-          <BiX className="transform rotate-45" size={14} />
+          token id
         </a>
-      );
-    }
-    return null;
+      </div>
+    );
   };
 
   if (loading) {
