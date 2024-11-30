@@ -6,10 +6,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import TokenIcon from './TokenIcon';
 import { NFTCollectionABI } from '../abi/NFTCollection';
 import { ethers } from 'ethers';
-import { getCollection, updateCollectionMinted, subscribeToCollection, saveMintData } from '../services/firebase';
+import { getCollection, updateCollectionMinted, subscribeToCollection, saveMintData, getTokenDeploymentByAddress } from '../services/firebase';
 import FuturisticCard from './FuturisticCard';
 import { ipfsToHttp } from '../utils/ipfs';
 import AnalyticsTabs from './analytics/AnalyticsTabs';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+
 
 const validateAddress = (address) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
@@ -77,6 +79,7 @@ export default function CollectionPage() {
   const [whitelistChecked, setWhitelistChecked] = useState(false);
   const [isWhitelisted, setIsWhitelisted] = useState(false);
   const [paymentTokenInfo, setPaymentTokenInfo] = useState(null);
+  const [tokenLogos, setTokenLogos] = useState({});
 
   // Load on-chain data when wallet connects
   useEffect(() => {
@@ -248,6 +251,59 @@ export default function CollectionPage() {
 
     fetchPaymentTokenInfo();
   }, [collection?.contractAddress, collection?.network]);
+
+  useEffect(() => {
+    const fetchTokenLogo = async () => {
+      if (collection?.mintToken?.address) {
+        try {
+          const tokenDeployment = await getTokenDeploymentByAddress(collection.mintToken.address);
+          console.log('Token Deployment Result:', tokenDeployment);
+          
+          if (tokenDeployment?.logo) {
+            setTokenLogos(prev => ({
+              ...prev,
+              [collection.mintToken.address.toLowerCase()]: tokenDeployment.logo
+            }));
+          }
+        } catch (error) {
+          console.error('Error fetching token logo:', error);
+        }
+      }
+    };
+
+    fetchTokenLogo();
+  }, [collection?.mintToken?.address]);
+
+  const renderCurrencyLogo = () => {
+    const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+    const logoUrl = tokenLogos[tokenAddress];
+    
+    console.log('Currency Logo Render:', {
+      tokenAddress,
+      hasLogo: Boolean(logoUrl),
+      logoUrl
+    });
+
+    if (tokenAddress && logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          alt="Token"
+          className="w-5 h-5 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
+    }
+    
+    return collection?.network === 'polygon' ? (
+      <img src="/matic.png" alt="MATIC" className="w-5 h-5" />
+    ) : (
+      <FaEthereum className="w-5 h-5" />
+    );
+  };
 
   if (loading || !collection) {
     return (
@@ -584,11 +640,7 @@ export default function CollectionPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-gray-500 dark:text-gray-400">Price</span>
                   <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
-                    <TokenIcon 
-                      type={paymentTokenInfo?.isNative ? 'native' : paymentTokenInfo?.address} 
-                      size="large" 
-                      network={collection?.network} 
-                    />
+                    {renderCurrencyLogo()}
                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
                       {collection?.mintPrice}
                     </span>
