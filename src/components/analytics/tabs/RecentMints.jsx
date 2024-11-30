@@ -167,7 +167,7 @@ export default function RecentMints() {
         <img 
           src={logoUrl} 
           alt="Token"
-          className="w-6 h-6 rounded-full"
+          className="w-10 h-10 rounded-full"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = '/token-default.png';
@@ -176,7 +176,7 @@ export default function RecentMints() {
       );
     }
     
-    return <FaEthereum className="w-6 h-6" />;
+    return <FaEthereum className="w-10 h-10" />;
   };
 
   if (loading) {
