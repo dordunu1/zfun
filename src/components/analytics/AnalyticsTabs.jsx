@@ -27,8 +27,9 @@ export default function AnalyticsTabs() {
               transition-all duration-200 relative group
               ${activeTab === tab.id 
                 ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
-                : 'text-gray-400 hover:text-white bg-[#1a1b1f] hover:bg-[#1a1b1f]/80'
+                : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
               }
+              border border-gray-100 dark:border-gray-800
             `}
           >
             {/* Glow Effect */}
@@ -50,7 +51,7 @@ export default function AnalyticsTabs() {
       </div>
 
       {/* Tab Content */}
-      <div className="bg-gray-50 dark:bg-[#1a1b1f] rounded-xl">
+      <div className="bg-white dark:bg-[#1a1b1f] rounded-xl">
         <div className="p-6 h-[400px] md:h-[600px]">
           {activeTab === 'recent' && <RecentMints />}
           {activeTab === 'holders' && <TopHolders />}
