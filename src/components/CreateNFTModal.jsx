@@ -203,6 +203,13 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
       const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
 
+      const paymentTokenAddress = getPaymentToken(networkChainId);
+      console.log('Payment Token being set:', {
+        type: formData.mintingToken,
+        address: paymentTokenAddress,
+        customAddress: formData.customTokenAddress
+      });
+
       const tx = await factory.createNFTCollection(
         formData.type,
         formData.name,
@@ -214,7 +221,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         BigInt(Math.floor(Date.now() / 1000)),
         BigInt(formData.infiniteMint ? 0 : Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60),
         Boolean(formData.infiniteMint),
-        getPaymentToken(networkChainId),
+        paymentTokenAddress,
         Boolean(formData.enableWhitelist),
         { value: fee }
       );

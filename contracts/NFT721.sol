@@ -25,6 +25,18 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
 
     event Minted(address indexed to, uint256 tokenId);
     event Initialized(address indexed owner, string name, string symbol);
+    event ConfigInitialized(
+        address indexed collection,
+        address indexed paymentToken,
+        uint256 mintPrice,
+        bool infiniteMint
+    );
+    event PaymentTokenUpdated(
+        address indexed collection,
+        address indexed oldToken,
+        address indexed newToken
+    );
+    event Debug(string message, uint256 value);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -45,6 +57,8 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
         require(!initialized, "Already initialized");
         require(_owner != address(0), "Invalid owner");
         
+        emit Debug("Payment Token at Init", uint256(uint160(_config.paymentToken)));
+        
         name_ = _name;
         symbol_ = _symbol;
         tokenBaseURI = _tokenURI;
@@ -52,7 +66,13 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
         owner = _owner;
         initialized = true;
         
-        // Emit an event for initialization verification
+        // Emit config initialization event
+        emit ConfigInitialized(
+            address(this),
+            config.paymentToken,
+            config.mintPrice,
+            config.infiniteMint
+        );
         emit Initialized(_owner, _name, _symbol);
     }
 
@@ -104,5 +124,11 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
 
     function _baseURI() internal view override returns (string memory) {
         return tokenBaseURI;
+    }
+
+    function setPaymentToken(address _paymentToken) external onlyOwner {
+        address oldToken = config.paymentToken;
+        config.paymentToken = _paymentToken;
+        emit PaymentTokenUpdated(address(this), oldToken, _paymentToken);
     }
 } 

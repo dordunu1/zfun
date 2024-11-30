@@ -59,6 +59,19 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
     mapping(address => string) public collectionMetadata;
 
     event CollectionCreated(CollectionData data);
+    event PaymentTokenSet(
+        address indexed collection,
+        address indexed paymentToken,
+        string collectionType,
+        uint256 mintPrice
+    );
+    event ConfigCreated(
+        address indexed collection,
+        address indexed paymentToken,
+        uint256 mintPrice,
+        bool infiniteMint
+    );
+    event Debug(string message, uint256 value);
 
     constructor(address _nft721Implementation, address _nft1155Implementation) 
         Ownable(msg.sender)
@@ -181,7 +194,9 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         bool _infiniteMint,
         address _paymentToken,
         bool _enableWhitelist
-    ) internal pure returns (CollectionConfig memory) {
+    ) internal returns (CollectionConfig memory) {
+        emit Debug("Payment Token in Config", uint256(uint160(_paymentToken)));
+        
         return _createConfig(
             _maxSupply,
             _mintPrice,
@@ -240,38 +255,37 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
             params.enableWhitelist
         );
 
-        // Initialize with try-catch
-        bool success;
-        bytes memory initData;
+        // Initialize directly instead of using low-level call
         if (keccak256(bytes(params.collectionType)) == keccak256(bytes("ERC721"))) {
-            initData = abi.encodeWithSelector(
-                NFT721(collection).initialize.selector,
+            NFT721(collection).initialize(
                 params.name,
                 params.symbol,
                 params.metadataURI,
                 config,
                 msg.sender
             );
-            (success, ) = collection.call(initData);
         } else {
-            initData = abi.encodeWithSelector(
-                NFT1155(collection).initialize.selector,
+            NFT1155(collection).initialize(
                 params.name,
                 params.symbol,
                 params.metadataURI,
                 config,
                 msg.sender
             );
-            (success, ) = collection.call(initData);
         }
-        
-        require(success, "Collection initialization failed");
 
         // Store collection data
         creatorCollections[msg.sender].push(collection);
         collectionMetadata[collection] = params.metadataURI;
 
-        // Emit event with the correct collection address
+        // Emit events
+        emit PaymentTokenSet(
+            collection,
+            params.paymentToken,
+            params.collectionType,
+            params.mintPrice
+        );
+
         emit CollectionCreated(CollectionData({
             creator: msg.sender,
             collection: collection,

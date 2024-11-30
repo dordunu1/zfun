@@ -216,40 +216,23 @@ export default function CollectionPage() {
     const fetchPaymentTokenInfo = async () => {
       if (collection?.contractAddress && window.ethereum) {
         try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          const nftContract = new ethers.Contract(
-            collection.contractAddress,
-            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
-            provider
-          );
+          // Use the payment token info directly from collection data
+          const paymentToken = collection.mintToken;
+          
+          console.log('Collection payment token:', {
+            mintToken: paymentToken,
+            customTokenAddress: collection.customTokenAddress
+          });
 
-          const config = await nftContract.config();
-          const paymentTokenAddress = config.paymentToken;
-
-          if (paymentTokenAddress !== ethers.ZeroAddress) {
-            // If it's a custom token, fetch its details
-            const tokenContract = new ethers.Contract(
-              paymentTokenAddress,
-              [
-                'function symbol() view returns (string)',
-                'function decimals() view returns (uint8)'
-              ],
-              provider
-            );
-
-            const [symbol, decimals] = await Promise.all([
-              tokenContract.symbol(),
-              tokenContract.decimals()
-            ]);
-
+          if (paymentToken && paymentToken.type === 'custom') {
             setPaymentTokenInfo({
-              address: paymentTokenAddress,
-              symbol,
-              decimals,
+              address: paymentToken.address,
+              symbol: paymentToken.symbol || collection.customTokenSymbol || 'TOKEN',
+              decimals: 18,
               isNative: false
             });
           } else {
-            // If it's native token (ETH/MATIC)
+            // Native token case
             setPaymentTokenInfo({
               address: ethers.ZeroAddress,
               symbol: collection.network === 'polygon' ? 'MATIC' : 'ETH',
@@ -258,7 +241,7 @@ export default function CollectionPage() {
             });
           }
         } catch (error) {
-          console.error('Error fetching payment token info:', error);
+          console.error('Error setting payment token info:', error);
         }
       }
     };
@@ -292,21 +275,68 @@ export default function CollectionPage() {
         signer
       );
 
-      // Get contract config
-      const config = await nftContract.config();
-      const mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
+      // Use the payment token from collection data instead of contract config
+      const paymentToken = collection.mintToken?.address;
+      const mintPriceWei = collection.mintPrice ? ethers.parseEther(collection.mintPrice.toString()) : BigInt(0);
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      // Simple mint transaction
+      console.log('Using payment token:', {
+        address: paymentToken,
+        mintToken: collection.mintToken,
+        mintPrice: mintPriceWei.toString(),
+        totalCost: totalCost.toString()
+      });
+
+      // If using custom token, approve it first
+      if (paymentToken && paymentToken !== ethers.ZeroAddress) {
+        const tokenContract = new ethers.Contract(
+          paymentToken,
+          [
+            'function approve(address spender, uint256 amount) public returns (bool)',
+            'function allowance(address owner, address spender) view returns (uint256)',
+            'function balanceOf(address account) view returns (uint256)'
+          ],
+          signer
+        );
+
+        try {
+          // Check token balance first
+          const balance = await tokenContract.balanceOf(account);
+          console.log('Token balance:', balance.toString());
+          
+          if (balance < totalCost) {
+            toast.error('Insufficient token balance', { id: 'mint' });
+            return;
+          }
+
+          // Check and approve if needed
+          const currentAllowance = await tokenContract.allowance(account, collection.contractAddress);
+          console.log('Current allowance:', currentAllowance.toString());
+
+          if (currentAllowance < totalCost) {
+            toast.loading('Approving token spend...', { id: 'approve' });
+            const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
+            await approveTx.wait();
+            toast.success('Token approved!', { id: 'approve' });
+          }
+        } catch (tokenError) {
+          console.error('Token interaction error:', tokenError);
+          toast.error('Failed to interact with payment token', { id: 'mint' });
+          return;
+        }
+      }
+
+      // Prepare mint transaction
+      const mintOptions = {
+        value: paymentToken === ethers.ZeroAddress ? totalCost : 0,
+        gasLimit: 500000
+      };
+
+      console.log('Mint options:', mintOptions);
+
       const tx = collection.type === 'ERC1155' 
-        ? await nftContract.mint(0, mintAmount, {
-            value: totalCost,
-            gasLimit: 300000
-          })
-        : await nftContract.mint(mintAmount, {
-            value: totalCost,
-            gasLimit: 300000
-          });
+        ? await nftContract.mint(0, mintAmount, mintOptions)
+        : await nftContract.mint(mintAmount, mintOptions);
 
       console.log('Mint transaction sent:', tx);
       const receipt = await tx.wait();
@@ -351,7 +381,8 @@ export default function CollectionPage() {
 
     } catch (error) {
       console.error('Mint error:', error);
-      toast.error('Failed to mint NFT', { id: 'mint' });
+      const errorMessage = error.reason || error.message || 'Failed to mint NFT';
+      toast.error(errorMessage, { id: 'mint' });
     }
   };
 

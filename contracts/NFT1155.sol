@@ -26,6 +26,17 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
     event Minted(address indexed to, uint256 indexed tokenId, uint256 amount);
     event BatchMinted(address indexed to, uint256[] tokenIds, uint256[] amounts);
     event Debug(string message, uint256 value); // Debug event for troubleshooting
+    event ConfigInitialized(
+        address indexed collection,
+        address indexed paymentToken,
+        uint256 mintPrice,
+        bool infiniteMint
+    );
+    event PaymentTokenUpdated(
+        address indexed collection,
+        address indexed oldToken,
+        address indexed newToken
+    );
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -50,6 +61,14 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
         symbol = _symbol;
         baseURI = _baseURI;
         config = _config;
+
+        // Emit config initialization event
+        emit ConfigInitialized(
+            address(this),
+            config.paymentToken,
+            config.mintPrice,
+            config.infiniteMint
+        );
 
         _setURI(_baseURI);
     }
@@ -200,5 +219,11 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
 
     function totalSupplyOf(uint256 tokenId) public view returns (uint256) {
         return tokenSupply[tokenId];
+    }
+
+    function setPaymentToken(address _paymentToken) external onlyOwner {
+        address oldToken = config.paymentToken;
+        config.paymentToken = _paymentToken;
+        emit PaymentTokenUpdated(address(this), oldToken, _paymentToken);
     }
 }

@@ -81,6 +81,19 @@ export const NFTCollectionABI = {
       "stateMutability": "nonpayable",
       "type": "function"
     },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_paymentToken",
+          "type": "address"
+        }
+      ],
+      "name": "setPaymentToken",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
     `error MaxSupplyExceeded()`,
     `error InsufficientPayment()`,
     `error MintingNotStarted()`,
@@ -186,6 +199,19 @@ export const NFTCollectionABI = {
       "name": "mintedPerWallet",
       "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_paymentToken",
+          "type": "address"
+        }
+      ],
+      "name": "setPaymentToken",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     }
   ]
