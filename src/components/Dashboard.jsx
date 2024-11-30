@@ -55,15 +55,28 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
         <div className="flex items-center gap-3">
-          <img 
-            src={deployment.logo || ipfsToHttp(deployment.logoIpfs)} 
-            alt={deployment.name}
-            className="w-8 h-8 rounded-full"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = '/token-default.png';
-            }}
-          />
+          {deployment.artworkType === 'video' ? (
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800">
+              <video 
+                src={deployment.logo || ipfsToHttp(deployment.logoIpfs)}
+                className="w-full h-full object-cover"
+                autoPlay
+                muted
+                loop
+                playsInline
+              />
+            </div>
+          ) : (
+            <img 
+              src={deployment.logo || ipfsToHttp(deployment.logoIpfs)} 
+              alt={deployment.name}
+              className="w-8 h-8 rounded-full"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/token-default.png';
+              }}
+            />
+          )}
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -88,6 +101,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
         <div className="text-right">
           <div className="text-xs text-gray-500">
             {formatDistanceToNow(deployment.timestamp, { addSuffix: true })}
@@ -104,7 +118,7 @@ export default function Dashboard() {
             </Link>
           ) : (
             <a 
-              href={getExplorerUrl(deployment.chainId, deployment.address)}
+              href={`${deployment.chainName.toLowerCase() === 'sepolia' ? 'https://sepolia.etherscan.io/token/' : 'https://polygonscan.com/token/'}${deployment.address}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
