@@ -167,7 +167,7 @@ export default function RecentMints() {
         <img 
           src={logoUrl} 
           alt="Token"
-          className="w-4 h-4 rounded-full"
+          className="w-6 h-6 rounded-full"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = '/token-default.png';
@@ -176,7 +176,7 @@ export default function RecentMints() {
       );
     }
     
-    return <FaEthereum className="w-4 h-4" />;
+    return <FaEthereum className="w-6 h-6" />;
   };
 
   if (loading) {
@@ -223,7 +223,7 @@ export default function RecentMints() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 text-[#00ffbd]">
                   {renderCurrencyLogo()}
                   <span>{formatValue(mint.value)}</span>
                 </div>
