@@ -26,7 +26,8 @@ export default function RecentMints() {
           const recentMints = await getRecentMints(collectionData.contractAddress);
           setMints(recentMints.map(mint => ({
             ...mint,
-            artworkType: collectionData.artworkType // Add artwork type to each mint
+            artworkType: collectionData.artworkType,
+            tokenName: collectionData.name
           })));
           setLoading(false);
 
@@ -35,7 +36,8 @@ export default function RecentMints() {
             console.log('Received mints update:', updatedMints);
             setMints(updatedMints.map(mint => ({
               ...mint,
-              artworkType: collectionData.artworkType
+              artworkType: collectionData.artworkType,
+              tokenName: collectionData.name
             })));
           });
 
@@ -115,7 +117,7 @@ export default function RecentMints() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-white font-medium">
-                    {mint.quantity}x Token #{mint.tokenId}
+                    {mint.quantity}x {mint.tokenName || 'Token'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-400">
