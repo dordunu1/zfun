@@ -119,6 +119,21 @@ export default function RecentMints() {
     );
   };
 
+  const renderTimeWithHash = (mint) => {
+    return (
+      <div className="text-sm text-gray-400">
+        <a
+          href={`${mint.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/tx/${mint.hash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-[#00ffbd] transition-colors"
+        >
+          {mint.timestamp ? formatDistanceToNow(mint.timestamp, { addSuffix: true }) : 'Just now'}
+        </a>
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="text-gray-400">Loading...</div>;
   }
@@ -167,9 +182,7 @@ export default function RecentMints() {
                   <FaEthereum />
                   <span>{formatValue(mint.value)}</span>
                 </div>
-                <div className="text-sm text-gray-400">
-                  {mint.timestamp ? formatDistanceToNow(mint.timestamp, { addSuffix: true }) : 'Just now'}
-                </div>
+                {renderTimeWithHash(mint)}
               </div>
             </div>
           </div>
