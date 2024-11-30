@@ -105,7 +105,7 @@ export default function RecentMints() {
           rel="noopener noreferrer"
           className="text-sm text-gray-400 hover:text-[#00ffbd] transition-colors flex items-center gap-1 mt-1"
         >
-          <span>token id: {mint.tokenId.toLowerCase()}</span>
+          <span>token id</span>
           <BiX className="transform rotate-45" size={14} />
         </a>
       );
