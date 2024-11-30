@@ -75,6 +75,7 @@ export default function CollectionPage() {
   const [provider, setProvider] = useState(null);
   const [whitelistChecked, setWhitelistChecked] = useState(false);
   const [isWhitelisted, setIsWhitelisted] = useState(false);
+  const [paymentTokenInfo, setPaymentTokenInfo] = useState(null);
 
   // Load on-chain data when wallet connects
   useEffect(() => {
@@ -208,6 +209,61 @@ export default function CollectionPage() {
       setProvider(provider);
     }
   }, []);
+
+  // Add new useEffect to fetch payment token info
+  useEffect(() => {
+    const fetchPaymentTokenInfo = async () => {
+      if (collection?.contractAddress && window.ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const nftContract = new ethers.Contract(
+            collection.contractAddress,
+            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+            provider
+          );
+
+          const config = await nftContract.config();
+          const paymentTokenAddress = config.paymentToken;
+
+          if (paymentTokenAddress !== ethers.ZeroAddress) {
+            // If it's a custom token, fetch its details
+            const tokenContract = new ethers.Contract(
+              paymentTokenAddress,
+              [
+                'function symbol() view returns (string)',
+                'function decimals() view returns (uint8)'
+              ],
+              provider
+            );
+
+            const [symbol, decimals] = await Promise.all([
+              tokenContract.symbol(),
+              tokenContract.decimals()
+            ]);
+
+            setPaymentTokenInfo({
+              address: paymentTokenAddress,
+              symbol,
+              decimals,
+              isNative: false
+            });
+          } else {
+            // If it's native token (ETH/MATIC)
+            setPaymentTokenInfo({
+              address: ethers.ZeroAddress,
+              symbol: collection.network === 'polygon' ? 'MATIC' : 'ETH',
+              decimals: 18,
+              isNative: true
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching payment token info:', error);
+        }
+      }
+    };
+
+    fetchPaymentTokenInfo();
+  }, [collection?.contractAddress, collection?.network]);
 
   if (loading || !collection) {
     return (
@@ -507,14 +563,12 @@ export default function CollectionPage() {
                   <span className="text-gray-500 dark:text-gray-400">Price</span>
                   <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
                     <TokenIcon 
-                      type={collection.paymentToken === ethers.ZeroAddress ? 'native' : collection.paymentToken} 
+                      type={paymentTokenInfo?.isNative ? 'native' : paymentTokenInfo?.address} 
                       size="large" 
-                      network={collection.network} 
+                      network={collection?.network} 
                     />
                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {collection.mintPrice} {collection.paymentToken === ethers.ZeroAddress ? 
-                        (collection.network === 'polygon' ? 'MATIC' : 'ETH') : 
-                        collection.mintToken?.symbol}
+                      {collection?.mintPrice} {paymentTokenInfo?.isNative ? paymentTokenInfo?.symbol : ''}
                     </span>
                   </div>
                 </div>
