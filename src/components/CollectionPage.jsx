@@ -6,9 +6,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import TokenIcon from './TokenIcon';
 import { NFTCollectionABI } from '../abi/NFTCollection';
 import { ethers } from 'ethers';
-import { getCollection, updateCollectionMinted, subscribeToCollection } from '../services/firebase';
+import { getCollection, updateCollectionMinted, subscribeToCollection, saveMintData } from '../services/firebase';
 import FuturisticCard from './FuturisticCard';
 import { ipfsToHttp } from '../utils/ipfs';
+import AnalyticsTabs from './analytics/AnalyticsTabs';
 
 const validateAddress = (address) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
@@ -321,7 +322,19 @@ export default function CollectionPage() {
             gasLimit: 300000
           });
 
-      await mintTx.wait();
+      const receipt = await mintTx.wait();
+
+      // Save mint data to Firebase
+      await saveMintData({
+        collectionAddress: collection.contractAddress,
+        minterAddress: account,
+        tokenId: '0', // For ERC1155, or you can get the tokenId from the event for ERC721
+        quantity: mintAmount.toString(),
+        hash: receipt.hash,
+        image: collection.previewUrl || collection.imageIpfsUrl,
+        value: totalCost.toString(),
+        type: collection.type
+      });
 
       // Update states immediately after mint confirmation
       try {
@@ -452,7 +465,7 @@ export default function CollectionPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-10 pb-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Collection Info */}
           <FuturisticCard>
             <div className="overflow-y-auto">
@@ -715,6 +728,16 @@ export default function CollectionPage() {
                 </div>
               </div>
             </div>
+          </FuturisticCard>
+        </div>
+
+        {/* Analytics Section */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+            Collection Analytics
+          </h2>
+          <FuturisticCard>
+            <AnalyticsTabs />
           </FuturisticCard>
         </div>
       </div>

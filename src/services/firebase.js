@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDoc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDoc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, onSnapshot, limit as firestoreLimit } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -15,18 +15,20 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
-const db = getFirestore(app);
+export const db = getFirestore(app);
 
-// Collection reference
-const collectionsRef = collection(db, 'collections');
-const tokenDeploymentsRef = collection(db, 'tokenDeployments');
+// Collection references
+export const collectionsRef = collection(db, 'collections');
+export const tokenDeploymentsRef = collection(db, 'tokenDeployments');
+export const mintsRef = collection(db, 'mints');
+export const holdersRef = collection(db, 'holders');
+export const mintersRef = collection(db, 'minters');
+export const volumeRef = collection(db, 'volume');
 
 export const saveCollection = async (collectionData) => {
   try {
-    // Remove the artwork File object and only save the metadata URL
     const { artwork, ...collectionDataWithoutFile } = collectionData;
     
-    // Add timestamp and id
     const dataToSave = {
       ...collectionDataWithoutFile,
       createdAt: new Date().toISOString(),
@@ -47,7 +49,6 @@ export const getCollection = async (symbol) => {
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
-      // Get first matching document
       const doc = querySnapshot.docs[0];
       return {
         id: doc.id,
@@ -65,30 +66,25 @@ export const getAllCollections = async (filters = {}) => {
   try {
     let q = collection(db, 'collections');
 
-    // Apply filters using indexes
     if (filters.network && filters.network !== 'all') {
       if (filters.type && filters.type !== 'all') {
-        // Use composite index (network + type + date)
         q = query(q, 
           where('network', '==', filters.network),
           where('type', '==', filters.type),
           orderBy('createdAt', 'desc')
         );
       } else {
-        // Use network + date index
         q = query(q, 
           where('network', '==', filters.network),
           orderBy('createdAt', 'desc')
         );
       }
     } else if (filters.type && filters.type !== 'all') {
-      // Use type + date index
       q = query(q, 
         where('type', '==', filters.type),
         orderBy('createdAt', 'desc')
       );
     } else {
-      // Just sort by date
       q = query(q, orderBy('createdAt', 'desc'));
     }
 
@@ -103,7 +99,6 @@ export const getAllCollections = async (filters = {}) => {
   }
 };
 
-// Add this to update minted amounts
 export const updateCollectionMinted = async (symbol, newTotalMinted) => {
   try {
     const q = query(collectionsRef, where('symbol', '==', symbol));
@@ -128,7 +123,6 @@ export const updateCollectionMinted = async (symbol, newTotalMinted) => {
   }
 };
 
-// Add this new function to get real-time updates
 export const subscribeToCollection = (symbol, callback) => {
   const q = query(collectionsRef, where('symbol', '==', symbol));
   return onSnapshot(q, (snapshot) => {
@@ -138,15 +132,13 @@ export const subscribeToCollection = (symbol, callback) => {
   });
 };
 
-const deploymentsRef = collection(db, 'deployments');
-
 export const saveTokenDeployment = async (deployment, walletAddress) => {
   try {
     await addDoc(tokenDeploymentsRef, {
       ...deployment,
       creatorAddress: walletAddress.toLowerCase(),
       createdAt: Date.now(),
-      type: 'token' // To distinguish from NFTs
+      type: 'token'
     });
   } catch (error) {
     console.error('Error saving token deployment:', error);
@@ -156,7 +148,6 @@ export const saveTokenDeployment = async (deployment, walletAddress) => {
 
 export const getTokenDeploymentsByWallet = async (walletAddress) => {
   try {
-    // Simplified query without sorting
     const q = query(
       tokenDeploymentsRef,
       where('creatorAddress', '==', walletAddress.toLowerCase())
@@ -167,7 +158,6 @@ export const getTokenDeploymentsByWallet = async (walletAddress) => {
       id: doc.id,
       ...doc.data()
     }));
-    // Sort in memory instead
     return deployments.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
     console.error('Error getting token deployments:', error);
@@ -177,7 +167,6 @@ export const getTokenDeploymentsByWallet = async (walletAddress) => {
 
 export const getCollectionsByWallet = async (walletAddress) => {
   try {
-    // Simplified query without sorting
     const q = query(
       collectionsRef,
       where('creatorAddress', '==', walletAddress.toLowerCase())
@@ -188,12 +177,100 @@ export const getCollectionsByWallet = async (walletAddress) => {
       id: doc.id,
       ...doc.data()
     }));
-    // Sort in memory instead
     const sortedCollections = collections.sort((a, b) => b.createdAt - a.createdAt);
     console.log('Found collections:', sortedCollections);
     return sortedCollections;
   } catch (error) {
     console.error('Error getting collections:', error);
     throw error;
+  }
+};
+
+// Analytics Functions
+export const getRecentMints = async (collectionAddress) => {
+  try {
+    const q = query(
+      mintsRef,
+      where('collectionAddress', '==', collectionAddress),
+      orderBy('timestamp', 'desc'),
+      firestoreLimit(10)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate() // Convert Firestore timestamp to JS Date
+    }));
+  } catch (error) {
+    console.error('Error getting recent mints:', error);
+    return [];
+  }
+};
+
+// Save mint data when NFT is minted
+export const saveMintData = async (mintData) => {
+  try {
+    console.log('Saving mint data:', mintData);
+    // Ensure all fields are strings or have default values
+    const sanitizedData = {
+      collectionAddress: mintData.collectionAddress || '',
+      minterAddress: mintData.minterAddress ? mintData.minterAddress.toLowerCase() : '',
+      tokenId: String(mintData.tokenId || '0'),
+      quantity: String(mintData.quantity || '1'),
+      hash: String(mintData.hash || ''),
+      image: String(mintData.image || ''),
+      value: String(mintData.value || '0'),
+      type: String(mintData.type || 'ERC1155'),
+      timestamp: serverTimestamp()
+    };
+
+    // Validate required fields
+    if (!sanitizedData.collectionAddress || !sanitizedData.minterAddress) {
+      throw new Error('Missing required fields in mint data');
+    }
+
+    const docRef = await addDoc(mintsRef, sanitizedData);
+    console.log('Mint data saved with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving mint data:', error);
+    throw error;
+  }
+};
+
+// Subscribe to real-time mints
+export const subscribeToMints = (collectionAddress, callback) => {
+  if (!collectionAddress) {
+    console.error('Collection address is required');
+    return () => {};
+  }
+
+  try {
+    console.log('Setting up mints subscription for:', collectionAddress);
+    const q = query(
+      mintsRef,
+      where('collectionAddress', '==', collectionAddress),
+      orderBy('timestamp', 'desc'),
+      firestoreLimit(10)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const mints = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate() // Convert Firestore timestamp to JS Date
+      }));
+      
+      console.log('Real-time mints update:', mints.length);
+      callback(mints);
+    }, (error) => {
+      console.error('Error in mints subscription:', error);
+      callback([]);
+    });
+  } catch (error) {
+    console.error('Error setting up mints subscription:', error);
+    callback([]);
+    return () => {};
   }
 };

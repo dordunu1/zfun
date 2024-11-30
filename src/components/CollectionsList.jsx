@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram, FaPaintBrush, FaGamepad, FaCamera, FaMusic, FaStar } from 'react-icons/fa';
+import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram, FaPaintBrush, FaGamepad, FaCamera, FaMusic, FaStar, FaCrown } from 'react-icons/fa';
 import { BiTime, BiCheck, BiX, BiWorld, BiMoviePlay } from 'react-icons/bi';
 import { IoMdPaper } from 'react-icons/io';
 import { GiCrownCoin } from 'react-icons/gi';
@@ -181,25 +181,27 @@ export default function CollectionsList() {
                 className="block"
               >
                 <FuturisticCard>
-                  <div className="flex flex-col h-[320px]">
-                    {/* Image section */}
-                    <div className="relative h-[160px] overflow-hidden rounded-t-lg">
-                      {collection.artworkType === 'video' ? (
-                        <video 
-                          src={collection.previewUrl}
-                          className="w-full h-full object-cover"
-                          autoPlay
-                          muted
-                          loop
-                          playsInline
-                        />
-                      ) : (
-                        <img 
-                          src={collection.previewUrl}
-                          alt={collection.name}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
+                  <div className="flex flex-col h-[340px]">
+                    {/* Image section with consistent height */}
+                    <div className="relative h-[180px] w-full overflow-hidden rounded-t-lg">
+                      <div className="absolute inset-0">
+                        {collection.artworkType === 'video' ? (
+                          <video 
+                            src={collection.previewUrl}
+                            className="w-full h-full object-cover"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                          />
+                        ) : (
+                          <img 
+                            src={collection.previewUrl}
+                            alt={collection.name}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
                       {/* Status badge */}
                       <div className="absolute top-3 right-3 z-10">
                         <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
@@ -221,7 +223,7 @@ export default function CollectionsList() {
                         <h3 className="text-base font-semibold text-white mb-1 truncate">
                           {collection.name}
                         </h3>
-                        <p className="text-gray-400 text-xs line-clamp-2">
+                        <p className="text-gray-400 text-xs truncate">
                           {collection.description}
                         </p>
                       </div>
@@ -240,7 +242,7 @@ export default function CollectionsList() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div className="bg-white dark:bg-[#1a1b1f] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
                           <div className="text-[11px] text-gray-600 dark:text-gray-400">Supply</div>
                           <div className="text-xs text-gray-900 dark:text-white font-medium">
@@ -254,65 +256,16 @@ export default function CollectionsList() {
                           </div>
                         </div>
                       </div>
-
-                      <div className="flex gap-2 mt-auto">
-                        {collection.socials?.zos && (
-                          <a 
-                            href={`https://zos.zero.tech/${collection.socials.zos}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <BiWorld size={14} />
-                          </a>
-                        )}
-                        {collection.website && (
-                          <a 
-                            href={collection.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FaGlobe size={14} />
-                          </a>
-                        )}
-                        {collection.socials?.twitter && (
-                          <a 
-                            href={`https://twitter.com/${collection.socials.twitter}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FaTwitter size={14} />
-                          </a>
-                        )}
-                        {collection.socials?.discord && (
-                          <a 
-                            href={collection.socials.discord}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FaDiscord size={14} />
-                          </a>
-                        )}
-                        {collection.socials?.telegram && (
-                          <a 
-                            href={collection.socials.telegram}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FaTelegram size={14} />
-                          </a>
-                        )}
-                      </div>
                     </div>
+
+                    {collection.enableWhitelist && (
+                      <div className="absolute bottom-4 right-4 transform rotate-[-30deg] z-10">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00ffbd]/10 text-[#00ffbd] backdrop-blur-sm rounded-full">
+                          <span className="text-xs">👑</span>
+                          <span className="text-xs font-medium">Whitelist Only</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </FuturisticCard>
               </Link>

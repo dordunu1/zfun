@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Collections collection
+    match /collections/{collectionId} {
+      // Anyone can read collection data
+      allow read: if true;
+      
+      // Allow creates with basic validation
+      allow create: if 
+        request.resource.data.name != null &&
+        request.resource.data.symbol != null &&
+        request.resource.data.contractAddress != null &&
+        request.resource.data.type != null &&
+        request.resource.data.maxSupply != null &&
+        request.resource.data.mintPrice != null &&
+        request.resource.data.maxPerWallet != null &&
+        request.resource.data.network != null &&
+        request.resource.data.contractAddress.matches('^0x[a-fA-F0-9]{40}$');
+      
+      // Allow updates to totalMinted field
+      allow update: if
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalMinted', 'updatedAt']) &&
+        request.resource.data.totalMinted is number;
+      
+      // No deletes allowed
+      allow delete: if false;
+    }
+
+    // Token deployments collection
+    match /tokenDeployments/{deploymentId} {
+      allow read: if true;
+      allow create: if 
+        request.resource.data.name != null &&
+        request.resource.data.symbol != null &&
+        request.resource.data.address != null &&
+        request.resource.data.chainId != null &&
+        request.resource.data.chainName != null &&
+        request.resource.data.logo != null &&
+        request.resource.data.logoIpfs != null &&
+        request.resource.data.totalSupply != null &&
+        request.resource.data.creatorAddress != null &&
+        request.resource.data.createdAt != null &&
+        request.resource.data.type == 'token' &&
+        request.resource.data.address.matches('^0x[a-fA-F0-9]{40}$');
+      
+      allow update, delete: if false;
+    }
+
+    // Analytics collections with validation
+    match /mints/{mintId} {
+      allow read: if true;
+      allow create: if 
+        request.resource.data.collectionAddress != null &&
+        request.resource.data.minterAddress != null &&
+        request.resource.data.tokenId != null;
+      allow update, delete: if false;
+    }
+    
+    match /holders/{holderId} {
+      allow read: if true;
+      allow create, update: if 
+        request.resource.data.collectionAddress != null &&
+        request.resource.data.holderAddress != null &&
+        request.resource.data.quantity is number;
+      allow delete: if false;
+    }
+    
+    match /minters/{minterId} {
+      allow read: if true;
+      allow create, update: if 
+        request.resource.data.collectionAddress != null &&
+        request.resource.data.minterAddress != null &&
+        request.resource.data.totalMinted is number;
+      allow delete: if false;
+    }
+    
+    match /volume/{volumeId} {
+      allow read: if true;
+      allow create: if 
+        request.resource.data.collectionAddress != null &&
+        request.resource.data.volume is number &&
+        request.resource.data.transactions is number;
+      allow update, delete: if false;
+    }
+  }
+}
