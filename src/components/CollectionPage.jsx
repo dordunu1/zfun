@@ -568,7 +568,7 @@ export default function CollectionPage() {
                       network={collection?.network} 
                     />
                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {collection?.mintPrice} {paymentTokenInfo?.isNative ? paymentTokenInfo?.symbol : ''}
+                      {collection?.mintPrice}
                     </span>
                   </div>
                 </div>
