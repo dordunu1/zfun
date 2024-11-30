@@ -227,158 +227,75 @@ export default function CollectionPage() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // ERC1155 specific minimal ABI
-      const minimalABI = collection.type === 'ERC1155' ? [
-        {
-          "inputs": [
-            {
-              "internalType": "uint256",
-              "name": "tokenId",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "amount",
-              "type": "uint256"
-            }
-          ],
-          "name": "mint",
-          "outputs": [],
-          "stateMutability": "payable",
-          "type": "function"
-        },
-        {
-          "inputs": [],
-          "name": "totalSupply",
-          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
-          "name": "mintedPerWallet",
-          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-          "stateMutability": "view",
-          "type": "function"
-        }
-      ] : [
-        {
-          "inputs": [
-            {
-              "internalType": "uint256",
-              "name": "quantity",
-              "type": "uint256"
-            }
-          ],
-          "name": "mint",
-          "outputs": [],
-          "stateMutability": "payable",
-          "type": "function"
-        },
-        {
-          "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
-          "name": "mintedPerWallet",
-          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-          "stateMutability": "view",
-          "type": "function"
-        },
-        {
-          "inputs": [],
-          "name": "totalSupply",
-          "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-          "stateMutability": "view",
-          "type": "function"
-        }
-      ];
-
+      // Get the contract config first to check payment token
       const nftContract = new ethers.Contract(
         collection.contractAddress,
-        minimalABI,
+        collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
         signer
       );
 
+      // Get contract config to check payment token
+      const config = await nftContract.config();
+      const paymentToken = config.paymentToken;
       const mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
       toast.loading('Minting in progress...', { id: 'mint' });
 
-      if (collection.type === 'ERC1155') {
-        const tx = await nftContract.mint(0, mintAmount, { 
-          value: totalCost,
-          gasLimit: 300000
-        });
+      // If using custom token, approve spending first
+      if (paymentToken !== ethers.ZeroAddress) {
+        const tokenContract = new ethers.Contract(
+          paymentToken,
+          ['function approve(address spender, uint256 amount) public returns (bool)'],
+          signer
+        );
 
-        await tx.wait();
+        const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
+        await approveTx.wait();
+      }
 
-        // Update states immediately after mint confirmation
-        try {
-          // Get updated values using the same contract instance
-          const [newTotal, newUserMinted] = await Promise.all([
-            nftContract.totalSupply(),
-            nftContract.mintedPerWallet(account)
-          ]);
+      // Prepare mint transaction
+      const mintTx = collection.type === 'ERC1155' 
+        ? await nftContract.mint(0, mintAmount, { 
+            value: paymentToken === ethers.ZeroAddress ? totalCost : 0,
+            gasLimit: 300000
+          })
+        : await nftContract.mint(mintAmount, { 
+            value: paymentToken === ethers.ZeroAddress ? totalCost : 0,
+            gasLimit: 300000
+          });
 
-          const updatedTotal = Number(newTotal);
-          const updatedUserMinted = Number(newUserMinted);
+      await mintTx.wait();
 
-          // Update all states
-          setTotalMinted(updatedTotal);
-          setUserMintedAmount(updatedUserMinted);
+      // Update states immediately after mint confirmation
+      try {
+        // Get updated values using the same contract instance
+        const [newTotal, newUserMinted] = await Promise.all([
+          nftContract.totalSupply(),
+          nftContract.mintedPerWallet(account)
+        ]);
 
-          // Update Firebase
-          await updateCollectionMinted(symbol, updatedTotal);
+        const updatedTotal = Number(newTotal);
+        const updatedUserMinted = Number(newUserMinted);
 
-          // Update local collection data
-          setCollection(prev => ({
-            ...prev,
-            totalMinted: updatedTotal
-          }));
+        // Update all states
+        setTotalMinted(updatedTotal);
+        setUserMintedAmount(updatedUserMinted);
 
-          toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
-        } catch (error) {
-          console.error('Error updating states:', error);
-          // Force a page refresh if state updates fail
-          window.location.reload();
-        }
-      } else {
-        // ERC721 mint
-        const tx = await nftContract.mint(mintAmount, { 
-          value: totalCost,
-          gasLimit: 300000
-        });
+        // Update Firebase
+        await updateCollectionMinted(symbol, updatedTotal);
 
-        await tx.wait();
+        // Update local collection data
+        setCollection(prev => ({
+          ...prev,
+          totalMinted: updatedTotal
+        }));
 
-        // Update states immediately after mint confirmation
-        try {
-          // Get updated values using the same contract instance
-          const [newTotal, newUserMinted] = await Promise.all([
-            nftContract.totalSupply(),
-            nftContract.mintedPerWallet(account)
-          ]);
-
-          const updatedTotal = Number(newTotal);
-          const updatedUserMinted = Number(newUserMinted);
-
-          // Update all states
-          setTotalMinted(updatedTotal);
-          setUserMintedAmount(updatedUserMinted);
-
-          // Update Firebase
-          await updateCollectionMinted(symbol, updatedTotal);
-
-          // Update local collection data
-          setCollection(prev => ({
-            ...prev,
-            totalMinted: updatedTotal
-          }));
-
-          toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
-        } catch (error) {
-          console.error('Error updating states:', error);
-          // Force a page refresh if state updates fail
-          window.location.reload();
-        }
+        toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
+      } catch (error) {
+        console.error('Error updating states:', error);
+        // Force a page refresh if state updates fail
+        window.location.reload();
       }
     } catch (error) {
       console.error('Mint error:', error);
@@ -590,12 +507,14 @@ export default function CollectionPage() {
                   <span className="text-gray-500 dark:text-gray-400">Price</span>
                   <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
                     <TokenIcon 
-                      type={collection.mintingToken} 
+                      type={collection.paymentToken === ethers.ZeroAddress ? 'native' : collection.paymentToken} 
                       size="large" 
                       network={collection.network} 
                     />
                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {collection.mintPrice} {collection.mintToken?.symbol}
+                      {collection.mintPrice} {collection.paymentToken === ethers.ZeroAddress ? 
+                        (collection.network === 'polygon' ? 'MATIC' : 'ETH') : 
+                        collection.mintToken?.symbol}
                     </span>
                   </div>
                 </div>
