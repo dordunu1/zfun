@@ -78,6 +78,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #00ffbd #1a1b1f;
+  scroll-behavior: smooth;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

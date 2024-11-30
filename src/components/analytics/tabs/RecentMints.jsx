@@ -122,12 +122,12 @@ export default function RecentMints() {
   }
 
   return (
-    <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
+    <div className="h-[400px] md:h-[600px] overflow-y-auto pr-2 custom-scrollbar">
       <div className="space-y-4">
         {mints.map((mint) => (
           <div 
             key={mint.id} 
-            className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800"
+            className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800 min-h-[100px]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

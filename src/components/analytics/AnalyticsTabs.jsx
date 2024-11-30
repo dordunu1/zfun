@@ -49,12 +49,14 @@ export default function AnalyticsTabs() {
         ))}
       </div>
 
-      {/* Tab Content with responsive height */}
-      <div className="relative h-[400px] sm:h-[500px] md:h-[600px]">
-        {activeTab === 'recent' && <RecentMints />}
-        {activeTab === 'holders' && <TopHolders />}
-        {activeTab === 'chads' && <ChadMinters />}
-        {activeTab === 'volume' && <VolumeMetrics />}
+      {/* Tab Content */}
+      <div className="bg-[#0d0e12] rounded-xl border border-gray-800 backdrop-blur-xl">
+        <div className="p-6 h-[400px] md:h-[600px]">
+          {activeTab === 'recent' && <RecentMints />}
+          {activeTab === 'holders' && <TopHolders />}
+          {activeTab === 'chads' && <ChadMinters />}
+          {activeTab === 'volume' && <VolumeMetrics />}
+        </div>
       </div>
     </div>
   );
