@@ -193,26 +193,26 @@ export default function RecentMints() {
         {mints.map((mint) => (
           <div 
             key={mint.id} 
-            className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800 min-h-[100px]"
+            className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800 min-h-[100px] hover:border-[#00ffbd] transition-colors duration-200"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {renderMedia(mint)}
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">
+                    <span className="text-gray-800 dark:text-white font-medium">
                       {mint.quantity}x {mint.tokenName || 'Token'}
                     </span>
                   </div>
                   <div className="flex flex-col">
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                       <span>by</span>
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(mint.minterAddress);
                           toast.success('Address copied!');
                         }}
-                        className="flex items-center gap-1 hover:text-[#00ffbd]"
+                        className="flex items-center gap-1 hover:text-[#00ffbd] transition-colors"
                       >
                         {mint.minterAddress.slice(0, 6)}...{mint.minterAddress.slice(-4)}
                         <BiCopy size={14} />
@@ -227,7 +227,9 @@ export default function RecentMints() {
                   {renderCurrencyLogo()}
                   <span>{formatValue(mint.value)}</span>
                 </div>
-                {renderTimeWithHash(mint)}
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {renderTimeWithHash(mint)}
+                </div>
               </div>
             </div>
           </div>

@@ -50,7 +50,7 @@ export default function AnalyticsTabs() {
       </div>
 
       {/* Tab Content */}
-      <div className="bg-[#0d0e12] rounded-xl border border-gray-800 backdrop-blur-xl">
+      <div className="bg-gray-50 dark:bg-[#1a1b1f] rounded-xl">
         <div className="p-6 h-[400px] md:h-[600px]">
           {activeTab === 'recent' && <RecentMints />}
           {activeTab === 'holders' && <TopHolders />}

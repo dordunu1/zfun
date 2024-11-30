@@ -70,7 +70,7 @@ export default function VolumeMetrics() {
             className={`px-3 py-1 rounded-lg text-sm transition-colors ${
               timeRange === range.value
                 ? 'bg-[#00ffbd] text-black font-medium'
-                : 'bg-[#1a1b1f] text-gray-400 hover:text-white'
+                : 'bg-white/10 dark:bg-[#1a1b1f] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
             {range.label}
@@ -78,164 +78,162 @@ export default function VolumeMetrics() {
         ))}
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800">
-          <div className="text-sm text-gray-400 mb-1">Total Volume</div>
-          <div className="flex items-center text-2xl font-bold text-white">
-            <FaEthereum className="mr-1" size={20} />
-            {totalVolume.toFixed(2)}
-            {ethPrice && (
-              <span className="text-sm font-normal text-gray-500 ml-2">
-                (${(totalVolume * ethPrice).toLocaleString()})
-              </span>
-            )}
+      {/* Volume Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Total Volume</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <span className="flex items-center">
+              <FaEthereum className="mr-1" /> {totalVolume.toFixed(2)}
+            </span>
+          </p>
+        </div>
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Transactions</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalTransactions}</p>
+        </div>
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Avg. Price</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <span className="flex items-center">
+              <FaEthereum className="mr-1" /> {avgPrice.toFixed(3)}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="space-y-6">
+        {/* Volume Chart */}
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+          <h3 className="text-gray-900 dark:text-white font-medium mb-4">Volume</h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
+                  stroke="#4b5563"
+                />
+                <YAxis
+                  stroke="#4b5563"
+                  tickFormatter={value => `${value.toFixed(2)} Ξ`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '0.5rem',
+                    color: '#111827'
+                  }}
+                  labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
+                  formatter={value => [`${value.toFixed(2)} Ξ`, 'Volume']}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="volume"
+                  stroke="#00ffbd"
+                  strokeWidth={2}
+                  fill="url(#volumeGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
-        <div className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800">
-          <div className="text-sm text-gray-400 mb-1">Transactions</div>
-          <div className="text-2xl font-bold text-white">{totalTransactions}</div>
-        </div>
-        <div className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800">
-          <div className="text-sm text-gray-400 mb-1">Avg. Price</div>
-          <div className="flex items-center text-2xl font-bold text-white">
-            <FaEthereum className="mr-1" size={20} />
-            {avgPrice.toFixed(3)}
-            {ethPrice && (
-              <span className="text-sm font-normal text-gray-500 ml-2">
-                (${(avgPrice * ethPrice).toLocaleString()})
-              </span>
-            )}
+
+        {/* Transactions Chart */}
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+          <h3 className="text-gray-900 dark:text-white font-medium mb-4">Transactions</h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="txGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
+                  stroke="#4b5563"
+                />
+                <YAxis stroke="#4b5563" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '0.5rem',
+                    color: '#111827'
+                  }}
+                  labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
+                  formatter={value => [value, 'Transactions']}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="transactions"
+                  stroke="#00ffbd"
+                  strokeWidth={2}
+                  fill="url(#txGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
-      </div>
 
-      {/* Volume Chart */}
-      <div className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800">
-        <h3 className="text-lg font-medium text-white mb-4">Volume</h3>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
-                stroke="#4b5563"
-              />
-              <YAxis
-                stroke="#4b5563"
-                tickFormatter={value => `${value.toFixed(2)} Ξ`}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
-                  borderRadius: '0.5rem'
-                }}
-                labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
-                formatter={value => [`${value.toFixed(2)} Ξ`, 'Volume']}
-              />
-              <Area
-                type="monotone"
-                dataKey="volume"
-                stroke="#00ffbd"
-                strokeWidth={2}
-                fill="url(#volumeGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Transactions Chart */}
-      <div className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800">
-        <h3 className="text-lg font-medium text-white mb-4">Transactions</h3>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="txGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
-                stroke="#4b5563"
-              />
-              <YAxis stroke="#4b5563" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
-                  borderRadius: '0.5rem'
-                }}
-                labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
-                formatter={value => [value, 'Transactions']}
-              />
-              <Area
-                type="monotone"
-                dataKey="transactions"
-                stroke="#00ffbd"
-                strokeWidth={2}
-                fill="url(#txGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Average Price Chart */}
-      <div className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800">
-        <h3 className="text-lg font-medium text-white mb-4">Average Price</h3>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis
-                dataKey="date"
-                tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
-                stroke="#4b5563"
-              />
-              <YAxis
-                stroke="#4b5563"
-                tickFormatter={value => `${value.toFixed(3)} Ξ`}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
-                  borderRadius: '0.5rem'
-                }}
-                labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
-                formatter={value => [`${value.toFixed(3)} Ξ`, 'Avg. Price']}
-              />
-              <Area
-                type="monotone"
-                dataKey="avgPrice"
-                stroke="#00ffbd"
-                strokeWidth={2}
-                fill="url(#priceGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+        {/* Average Price Chart */}
+        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+          <h3 className="text-gray-900 dark:text-white font-medium mb-4">Average Price</h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
+                  stroke="#4b5563"
+                />
+                <YAxis
+                  stroke="#4b5563"
+                  tickFormatter={value => `${value.toFixed(3)} Ξ`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '0.5rem',
+                    color: '#111827'
+                  }}
+                  labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
+                  formatter={value => [`${value.toFixed(3)} Ξ`, 'Avg. Price']}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="avgPrice"
+                  stroke="#00ffbd"
+                  strokeWidth={2}
+                  fill="url(#priceGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
       {metrics.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400">No volume data available</div>
+          <div className="text-gray-500 dark:text-gray-400">No volume data available</div>
         </div>
       )}
     </div>
