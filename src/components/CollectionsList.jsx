@@ -5,7 +5,7 @@ import { BiTime, BiCheck, BiX, BiWorld, BiMoviePlay } from 'react-icons/bi';
 import { IoMdPaper } from 'react-icons/io';
 import { GiCrownCoin } from 'react-icons/gi';
 import TokenIcon from './TokenIcon';
-import { getAllCollections } from '../services/firebase';
+import { getAllCollections, getTokenDeploymentByAddress } from '../services/firebase';
 import { useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import FuturisticCard from './FuturisticCard';
@@ -29,6 +29,7 @@ export default function CollectionsList() {
     type: 'all',       // 'all', 'ERC721', 'ERC1155'
     sortBy: 'newest'   // 'newest', 'oldest', 'name'
   });
+  const [tokenLogos, setTokenLogos] = useState({});
 
   // Add this useEffect to load collections
   useEffect(() => {
@@ -69,6 +70,29 @@ export default function CollectionsList() {
         }
       });
   }, [collections, filters]);
+
+  // Add this effect to fetch token logos
+  useEffect(() => {
+    const fetchTokenLogos = async () => {
+      for (const collection of filteredCollections) {
+        if (collection?.mintToken?.address) {
+          try {
+            const tokenDeployment = await getTokenDeploymentByAddress(collection.mintToken.address);
+            if (tokenDeployment?.logo) {
+              setTokenLogos(prev => ({
+                ...prev,
+                [collection.mintToken.address.toLowerCase()]: tokenDeployment.logo
+              }));
+            }
+          } catch (error) {
+            console.error('Error fetching token logo:', error);
+          }
+        }
+      }
+    };
+
+    fetchTokenLogos();
+  }, [filteredCollections]);
 
   // Filter controls UI
   const FilterControls = () => (
@@ -162,6 +186,32 @@ export default function CollectionsList() {
     );
   };
 
+  // Add this function to render currency logo
+  const renderCurrencyLogo = (collection) => {
+    const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+    const logoUrl = tokenLogos[tokenAddress];
+
+    if (tokenAddress && logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          alt="Token"
+          className="w-5 h-5 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
+    }
+    
+    return collection?.network === 'polygon' ? (
+      <img src="/matic.png" alt="MATIC" className="w-5 h-5" />
+    ) : (
+      <FaEthereum className="w-5 h-5" />
+    );
+  };
+
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
@@ -220,10 +270,10 @@ export default function CollectionsList() {
                     {/* Content section */}
                     <div className="flex flex-col flex-1 p-4">
                       <div className="mb-3">
-                        <h3 className="text-base font-semibold text-white mb-1 truncate">
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1 truncate">
                           {collection.name}
                         </h3>
-                        <p className="text-gray-400 text-xs truncate">
+                        <p className="text-gray-500 dark:text-gray-400 text-xs truncate">
                           {collection.description}
                         </p>
                       </div>
@@ -231,11 +281,7 @@ export default function CollectionsList() {
                       <div className="flex items-center justify-between mb-3">
                         {getCategoryIcon(collection.category)}
                         <div className="flex items-center gap-1.5 bg-white dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
-                          <TokenIcon 
-                            type={collection.mintingToken} 
-                            network={collection.network}
-                            size="small"
-                          />
+                          {renderCurrencyLogo(collection)}
                           <span className="text-xs font-medium text-gray-900 dark:text-white">
                             {collection.mintPrice}
                           </span>
