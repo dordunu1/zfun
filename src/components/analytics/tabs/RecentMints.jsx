@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { FaEthereum } from 'react-icons/fa';
-import { BiCopy } from 'react-icons/bi';
+import { BiCopy, BiX } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 import { getRecentMints, subscribeToMints } from '../../../services/analytics';
 import { useParams } from 'react-router-dom';
@@ -96,6 +96,23 @@ export default function RecentMints() {
     );
   };
 
+  const renderTokenInfo = (mint) => {
+    if (mint.type === 'ERC721') {
+      return (
+        <a
+          href={`${mint.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/token/${mint.collectionAddress}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-gray-400 hover:text-[#00ffbd] transition-colors flex items-center gap-1 mt-1"
+        >
+          <span>token id</span>
+          <BiX className="transform rotate-45" size={14} />
+        </a>
+      );
+    }
+    return null;
+  };
+
   if (loading) {
     return <div className="text-gray-400">Loading...</div>;
   }
@@ -105,48 +122,53 @@ export default function RecentMints() {
   }
 
   return (
-    <div className="space-y-4">
-      {mints.map((mint) => (
-        <div 
-          key={mint.id} 
-          className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {renderMedia(mint)}
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-medium">
-                    {mint.quantity}x {mint.tokenName || 'Token'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <span>by</span>
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(mint.minterAddress);
-                      toast.success('Address copied!');
-                    }}
-                    className="flex items-center gap-1 hover:text-[#00ffbd]"
-                  >
-                    {mint.minterAddress.slice(0, 6)}...{mint.minterAddress.slice(-4)}
-                    <BiCopy size={14} />
-                  </button>
+    <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
+      <div className="space-y-4">
+        {mints.map((mint) => (
+          <div 
+            key={mint.id} 
+            className="bg-[#1a1b1f] rounded-lg p-4 border border-gray-800"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {renderMedia(mint)}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-medium">
+                      {mint.quantity}x {mint.tokenName || 'Token'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <span>by</span>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(mint.minterAddress);
+                          toast.success('Address copied!');
+                        }}
+                        className="flex items-center gap-1 hover:text-[#00ffbd]"
+                      >
+                        {mint.minterAddress.slice(0, 6)}...{mint.minterAddress.slice(-4)}
+                        <BiCopy size={14} />
+                      </button>
+                    </div>
+                    {renderTokenInfo(mint)}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center gap-1 text-[#00ffbd]">
-                <FaEthereum />
-                <span>{formatValue(mint.value)}</span>
-              </div>
-              <div className="text-sm text-gray-400">
-                {mint.timestamp ? formatDistanceToNow(mint.timestamp, { addSuffix: true }) : 'Just now'}
+              <div className="text-right">
+                <div className="flex items-center gap-1 text-[#00ffbd]">
+                  <FaEthereum />
+                  <span>{formatValue(mint.value)}</span>
+                </div>
+                <div className="text-sm text-gray-400">
+                  {mint.timestamp ? formatDistanceToNow(mint.timestamp, { addSuffix: true }) : 'Just now'}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 } 

@@ -1,5 +1,5 @@
 import { mintsRef, holdersRef, mintersRef, volumeRef } from './firebase';
-import { collection, query, where, orderBy, limit as firestoreLimit, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit as firestoreLimit, onSnapshot, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 
 // Get ETH price (mock for Sepolia testnet)
 export const getEthPrice = async () => {
@@ -16,11 +16,15 @@ export const getRecentMints = async (collectionAddress) => {
     );
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate() // Convert Firestore timestamp to JS Date
-    }));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        tokenId: data.tokenId.toString().replace(/[^0-9]/g, ''), // Clean tokenId when retrieving
+        timestamp: data.timestamp?.toDate()
+      };
+    });
   } catch (error) {
     console.error('Error getting recent mints:', error);
     return [];
@@ -102,13 +106,7 @@ export const getVolumeMetrics = async (collectionAddress, timeRange = '7d') => {
 };
 
 export const subscribeToMints = (collectionAddress, callback) => {
-  if (!collectionAddress) {
-    console.error('Collection address is required');
-    return () => {};
-  }
-
   try {
-    console.log('Setting up mints subscription for:', collectionAddress);
     const q = query(
       mintsRef,
       where('collectionAddress', '==', collectionAddress),
@@ -117,22 +115,43 @@ export const subscribeToMints = (collectionAddress, callback) => {
     );
 
     return onSnapshot(q, (snapshot) => {
-      const mints = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() // Convert Firestore timestamp to JS Date
-      }));
+      const mints = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          tokenId: data.tokenId.toString().replace(/[^0-9]/g, ''), // Clean tokenId in subscription
+          timestamp: data.timestamp?.toDate()
+        };
+      });
       
       console.log('Real-time mints update:', mints.length);
       callback(mints);
-    }, (error) => {
-      console.error('Error in mints subscription:', error);
-      callback([]);
     });
   } catch (error) {
-    console.error('Error setting up mints subscription:', error);
+    console.error('Error in mints subscription:', error);
     callback([]);
     return () => {};
+  }
+};
+
+export const saveMintData = async (mintData) => {
+  try {
+    // Clean the tokenId before saving to Firebase
+    const cleanMintData = {
+      ...mintData,
+      tokenId: mintData.tokenId.toString().replace(/[^0-9]/g, '') // Remove any non-numeric characters
+    };
+    
+    const docRef = await addDoc(mintsRef, {
+      ...cleanMintData,
+      timestamp: serverTimestamp()
+    });
+    
+    return docRef;
+  } catch (error) {
+    console.error('Error saving mint data:', error);
+    throw error;
   }
 };
   

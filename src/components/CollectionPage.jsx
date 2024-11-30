@@ -283,97 +283,75 @@ export default function CollectionPage() {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      
+      toast.loading('Minting in progress...', { id: 'mint' });
 
-      // Get the contract config first to check payment token
       const nftContract = new ethers.Contract(
         collection.contractAddress,
         collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
         signer
       );
 
-      // Get contract config to check payment token
+      // Get contract config
       const config = await nftContract.config();
-      const paymentToken = config.paymentToken;
       const mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      toast.loading('Minting in progress...', { id: 'mint' });
-
-      // If using custom token, approve spending first
-      if (paymentToken !== ethers.ZeroAddress) {
-        const tokenContract = new ethers.Contract(
-          paymentToken,
-          ['function approve(address spender, uint256 amount) public returns (bool)'],
-          signer
-        );
-
-        const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
-        await approveTx.wait();
-      }
-
-      // Prepare mint transaction
-      const mintTx = collection.type === 'ERC1155' 
-        ? await nftContract.mint(0, mintAmount, { 
-            value: paymentToken === ethers.ZeroAddress ? totalCost : 0,
+      // Simple mint transaction
+      const tx = collection.type === 'ERC1155' 
+        ? await nftContract.mint(0, mintAmount, {
+            value: totalCost,
             gasLimit: 300000
           })
-        : await nftContract.mint(mintAmount, { 
-            value: paymentToken === ethers.ZeroAddress ? totalCost : 0,
+        : await nftContract.mint(mintAmount, {
+            value: totalCost,
             gasLimit: 300000
           });
 
-      const receipt = await mintTx.wait();
+      console.log('Mint transaction sent:', tx);
+      const receipt = await tx.wait();
+      console.log('Mint receipt:', receipt);
 
-      // Save mint data to Firebase
+      // Get tokenId from Transfer event for ERC721
+      let tokenId = '0';
+      if (collection.type === 'ERC721') {
+        const transferEvent = receipt.logs.find(
+          log => log.eventName === 'Transfer'
+        );
+        if (transferEvent) {
+          // Remove any '+' signs and clean the tokenId before saving
+          tokenId = transferEvent.args[2].toString().replace(/\+/g, '');
+        }
+      }
+
+      // Save mint data
       await saveMintData({
         collectionAddress: collection.contractAddress,
         minterAddress: account,
-        tokenId: '0', // For ERC1155, or you can get the tokenId from the event for ERC721
+        tokenId, // Now the tokenId should be clean without any '+' signs
         quantity: mintAmount.toString(),
         hash: receipt.hash,
         image: collection.previewUrl || collection.imageIpfsUrl,
         value: totalCost.toString(),
-        type: collection.type
+        type: collection.type,
+        network: collection.network
       });
 
-      // Update states immediately after mint confirmation
-      try {
-        // Get updated values using the same contract instance
-        const [newTotal, newUserMinted] = await Promise.all([
-          nftContract.totalSupply(),
-          nftContract.mintedPerWallet(account)
-        ]);
+      // Update states
+      const [newTotal, newUserMinted] = await Promise.all([
+        nftContract.totalSupply(),
+        nftContract.mintedPerWallet(account)
+      ]);
 
-        const updatedTotal = Number(newTotal);
-        const updatedUserMinted = Number(newUserMinted);
+      setTotalMinted(Number(newTotal));
+      setUserMintedAmount(Number(newUserMinted));
+      await updateCollectionMinted(symbol, Number(newTotal));
 
-        // Update all states
-        setTotalMinted(updatedTotal);
-        setUserMintedAmount(updatedUserMinted);
+      toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
 
-        // Update Firebase
-        await updateCollectionMinted(symbol, updatedTotal);
-
-        // Update local collection data
-        setCollection(prev => ({
-          ...prev,
-          totalMinted: updatedTotal
-        }));
-
-        toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
-      } catch (error) {
-        console.error('Error updating states:', error);
-        // Force a page refresh if state updates fail
-        window.location.reload();
-      }
     } catch (error) {
       console.error('Mint error:', error);
-      if (error.message.includes('execution reverted')) {
-        const errorMessage = error.message.split('execution reverted:')[1]?.trim() || 'Minting failed';
-        toast.error(errorMessage, { id: 'mint' });
-      } else {
-        toast.error('Failed to mint NFT', { id: 'mint' });
-      }
+      toast.error('Failed to mint NFT', { id: 'mint' });
     }
   };
 

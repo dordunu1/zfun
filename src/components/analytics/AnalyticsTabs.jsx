@@ -15,7 +15,7 @@ export default function AnalyticsTabs() {
   const [activeTab, setActiveTab] = useState('recent');
 
   return (
-    <div className="w-full mt-8">
+    <div className="w-full">
       {/* Tab Navigation */}
       <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar">
         {TABS.map(tab => (
@@ -49,14 +49,12 @@ export default function AnalyticsTabs() {
         ))}
       </div>
 
-      {/* Tab Panels */}
-      <div className="bg-[#0d0e12] rounded-xl border border-gray-800 backdrop-blur-xl">
-        <div className="p-6">
-          {activeTab === 'recent' && <RecentMints />}
-          {activeTab === 'holders' && <TopHolders />}
-          {activeTab === 'chads' && <ChadMinters />}
-          {activeTab === 'volume' && <VolumeMetrics />}
-        </div>
+      {/* Tab Content with responsive height */}
+      <div className="relative h-[400px] sm:h-[500px] md:h-[600px]">
+        {activeTab === 'recent' && <RecentMints />}
+        {activeTab === 'holders' && <TopHolders />}
+        {activeTab === 'chads' && <ChadMinters />}
+        {activeTab === 'volume' && <VolumeMetrics />}
       </div>
     </div>
   );

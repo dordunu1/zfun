@@ -80,7 +80,12 @@ export const NFTCollectionABI = {
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
-    }
+    },
+    `error MaxSupplyExceeded()`,
+    `error InsufficientPayment()`,
+    `error MintingNotStarted()`,
+    `error MaxPerWalletExceeded()`,
+    `error InvalidMintAmount()`,
   ],
   ERC1155: [
     {
