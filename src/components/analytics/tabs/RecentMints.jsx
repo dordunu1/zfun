@@ -5,7 +5,7 @@ import { BiCopy, BiX } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 import { getRecentMints, subscribeToMints } from '../../../services/analytics';
 import { useParams } from 'react-router-dom';
-import { getCollection } from '../../../services/firebase';
+import { getCollection, getTokenDeploymentByAddress } from '../../../services/firebase';
 import { ethers } from 'ethers';
 import { ipfsToHttp } from '../../../utils/ipfs';
 
@@ -14,11 +14,13 @@ export default function RecentMints() {
   const [loading, setLoading] = useState(true);
   const { symbol } = useParams();
   const [collection, setCollection] = useState(null);
+  const [tokenLogos, setTokenLogos] = useState({});  // Cache for token logos
 
   useEffect(() => {
     const loadCollection = async () => {
       try {
         const collectionData = await getCollection(symbol);
+        console.log('Collection Data:', collectionData);
         setCollection(collectionData);
         
         if (collectionData?.contractAddress) {
@@ -26,15 +28,30 @@ export default function RecentMints() {
           const recentMints = await getRecentMints(collectionData.contractAddress);
           console.log('Recent mints data:', recentMints);
 
-          setMints(recentMints.map(mint => {
-            console.log('Processing mint:', mint);
-            return {
-              ...mint,
-              artworkType: collectionData.artworkType,
-              tokenName: collectionData.name,
-              tokenId: mint.tokenId
-            };
-          }));
+          // Get token deployment data for the payment token
+          if (collectionData.mintToken?.address) {
+            const tokenAddress = collectionData.mintToken.address;
+            console.log('Looking for token deployment:', {
+              address: tokenAddress
+            });
+            
+            const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
+            console.log('Token Deployment Result:', tokenDeployment);
+            
+            if (tokenDeployment?.logo) {
+              setTokenLogos(prev => ({
+                ...prev,
+                [tokenAddress]: tokenDeployment.logo
+              }));
+            }
+          }
+
+          setMints(recentMints.map(mint => ({
+            ...mint,
+            artworkType: collectionData.artworkType,
+            tokenName: collectionData.name,
+            tokenId: mint.tokenId
+          })));
           setLoading(false);
 
           // Subscribe to real-time updates
@@ -134,6 +151,34 @@ export default function RecentMints() {
     );
   };
 
+  // Add this new function to render the currency logo
+  const renderCurrencyLogo = () => {
+    const tokenAddress = collection?.mintToken?.address;
+    const logoUrl = tokenLogos[tokenAddress];
+    
+    console.log('Currency Logo Render:', {
+      tokenAddress,
+      hasLogo: Boolean(logoUrl),
+      logoUrl
+    });
+
+    if (tokenAddress && logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          alt="Token"
+          className="w-4 h-4 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
+    }
+    
+    return <FaEthereum className="w-4 h-4" />;
+  };
+
   if (loading) {
     return <div className="text-gray-400">Loading...</div>;
   }
@@ -178,8 +223,8 @@ export default function RecentMints() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1 text-[#00ffbd]">
-                  <FaEthereum />
+                <div className="flex items-center gap-1">
+                  {renderCurrencyLogo()}
                   <span>{formatValue(mint.value)}</span>
                 </div>
                 {renderTimeWithHash(mint)}

@@ -279,3 +279,25 @@ export const subscribeToMints = (collectionAddress, callback) => {
     return () => {};
   }
 };
+
+export const getTokenDeploymentByAddress = async (address) => {
+  try {
+    console.log('Searching for token with address:', address);
+    
+    const q = query(
+      tokenDeploymentsRef, 
+      where('address', '==', address)  // Use exact address, no toLowerCase()
+    );
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const data = querySnapshot.docs[0].data();
+      console.log('Found token deployment:', data);
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting token deployment:', error);
+    return null;
+  }
+};
