@@ -530,10 +530,46 @@ export default function CollectionPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-10 pb-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Collection Info */}
-          <FuturisticCard>
-            <div className="overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Collection Info Card */}
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Three dots in top right */}
+            <div className="absolute top-3 right-3 flex gap-1 z-20">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                />
+              ))}
+            </div>
+
+            {/* Main Content - Update background */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
               <div className="flex items-center gap-6 mb-6">
                 {collection.artworkType === 'video' ? (
                   <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-[#00ffbd]">
@@ -555,7 +591,7 @@ export default function CollectionPage() {
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                     {collection.name}
                   </h1>
-                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                     <span>{collection.symbol}</span>
                     <button 
                       onClick={() => {
@@ -631,14 +667,50 @@ export default function CollectionPage() {
                 )}
               </div>
             </div>
-          </FuturisticCard>
+          </div>
 
-          {/* Minting Section */}
-          <FuturisticCard>
-            <div className="overflow-y-auto">
+          {/* Minting Section Card */}
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Three dots */}
+            <div className="absolute top-3 right-3 flex gap-1 z-20">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                />
+              ))}
+            </div>
+
+            {/* Main Content - Update background */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-500 dark:text-gray-400">Price</span>
+                  <span className="text-gray-600 dark:text-gray-400">Price</span>
                   <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
                     {renderCurrencyLogo()}
                     <span className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -724,7 +796,7 @@ export default function CollectionPage() {
                   </button>
                 </div>
 
-                {/* Updated Mint Button */}
+                {/* Mint Button */}
                 <div className="flex justify-center px-4">
                   <button
                     onClick={handleMint}
@@ -748,18 +820,37 @@ export default function CollectionPage() {
                   </button>
                 </div>
 
-                {/* Contract Address */}
-                <div className="text-center">
-                  <a
-                    href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.contractAddress}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#00ffbd] transition-colors"
-                  >
-                    <span>Contract:</span>
-                    <span className="font-mono">{collection.contractAddress.slice(0, 6)}...{collection.contractAddress.slice(-4)}</span>
-                    <BiX className="transform rotate-45" />
-                  </a>
+                {/* Contract and Creator Addresses */}
+                <div className="flex items-center justify-between text-center mt-4">
+                  {collection.creatorAddress && (
+                    <div className="group relative">
+                      <a
+                        href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.creatorAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
+                      >
+                        Creator Address
+                      </a>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        {collection.creatorAddress}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="group relative">
+                    <a
+                      href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.contractAddress}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
+                    >
+                      Contract Address
+                    </a>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                      {collection.contractAddress}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
@@ -789,7 +880,7 @@ export default function CollectionPage() {
                 </div>
               </div>
             </div>
-          </FuturisticCard>
+          </div>
         </div>
 
         {/* Analytics Section */}
