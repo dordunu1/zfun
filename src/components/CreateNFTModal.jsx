@@ -18,6 +18,8 @@ import FuturisticCard from './FuturisticCard';
 import { useAccount } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/react';
 import { NFTCollectionABI } from '../abi/NFTCollection';
+import * as XLSX from 'xlsx';
+import { createPortal } from 'react-dom';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -54,6 +56,107 @@ const setWhitelistInContract = async (collectionAddress, whitelistAddresses, sig
     toast.error('Failed to set whitelist addresses', { id: 'whitelist' });
     throw error;
   }
+};
+
+// Separate AddressModal component with isolated event handling
+const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress }) => {
+  if (!isOpen) return null;
+
+  const handleModalClick = (e) => {
+    // Prevent clicks inside the modal from closing the parent modal
+    e.stopPropagation();
+  };
+
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[100]"
+      onClick={handleModalClick}
+    >
+      <div className="fixed inset-0 bg-black/70" />
+      
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <div 
+          className="w-full max-w-2xl transform rounded-lg bg-[#0a0b0f] p-6 relative"
+          onClick={handleModalClick}
+        >
+          {/* L-shaped corners */}
+          <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+            <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+            <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+          </div>
+          <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+            <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+            <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+          </div>
+          <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+            <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+            <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+          </div>
+          <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+            <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+            <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+          </div>
+
+          {/* Glowing dots in corners */}
+          <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+          <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+          <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+          <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+          {/* Close button - Positioned absolutely in the top-right corner */}
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center bg-[#0a0b0f] border border-[#00ffbd] rounded-md hover:bg-gray-800 transition-colors z-50"
+          >
+            <BiX size={20} className="text-[#00ffbd]" />
+          </button>
+
+          {/* Main Content */}
+          <div className="mt-2">
+            <h2 className="text-xl font-semibold text-white mb-6">
+              Whitelist Addresses
+            </h2>
+
+            <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {addresses.length > 0 ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {addresses.map((addr, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-[#1a1b1f] rounded-lg hover:bg-[#2a2b2f] transition-colors"
+                    >
+                      <span className="text-sm font-mono text-gray-300">
+                        {typeof addr === 'object' ? addr.address : addr}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveAddress(index);
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <BiX size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  No addresses added yet
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 };
 
 export default function CreateNFTModal({ isOpen, onClose }) {
@@ -303,10 +406,13 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
   };
 
+  // Update the JSON import handling
   const handleFileUpload = (type) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = type === 'csv' ? '.csv' : type === 'excel' ? '.xlsx,.xls' : '.json';
+    input.accept = type === 'csv' ? '.csv' : 
+                   type === 'excel' ? '.xlsx,.xls' : 
+                   '.json';
     
     input.onchange = async (e) => {
       const file = e.target.files[0];
@@ -315,79 +421,96 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       try {
         let addresses = [];
         
-        if (type === 'csv') {
+        if (type === 'json') {
           const text = await file.text();
-          // Simple CSV parsing - one address per line
-          addresses = text
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-            .map(address => ({
-              address,
-              maxMint: 1
-            }));
-        } 
-        else if (type === 'excel') {
-          const data = await file.arrayBuffer();
-          const workbook = XLSX.read(data);
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(sheet);
-          addresses = jsonData.map(row => ({
-            address: row.address || row.wallet || row.Address || Object.values(row)[0],
-            maxMint: 1
-          }));
-        } 
-        else if (type === 'json') {
-          const text = await file.text();
-          let jsonData = JSON.parse(text);
-          
-          // Handle different possible JSON structures
-          let addressArray = [];
-          
-          // If it's a direct array of addresses
-          if (Array.isArray(jsonData)) {
-            addressArray = jsonData;
-          }
-          // If addresses are in a property
-          else if (typeof jsonData === 'object') {
-            if (jsonData.addresses) {
-              addressArray = jsonData.addresses;
-            } else if (jsonData.whitelist) {
-              addressArray = jsonData.whitelist;
-            } else {
-              // Try to extract addresses from object values
-              addressArray = Object.values(jsonData).flat();
-            }
+          let jsonData;
+          try {
+            jsonData = JSON.parse(text);
+          } catch (e) {
+            console.error('JSON parse error:', e);
+            toast.error('Invalid JSON format');
+            return;
           }
 
-          // Convert all formats to standard address objects
-          addresses = addressArray.map(item => {
-            // If item is a string (direct address)
-            if (typeof item === 'string') {
-              return {
-                address: item.trim(),
+          // Simple function to extract addresses from any string
+          const getAddressFromString = (str) => {
+            if (typeof str !== 'string') return null;
+            const match = str.match(/0x[a-fA-F0-9]{40}/);
+            return match ? match[0] : null;
+          };
+
+          // Function to process any value and extract addresses
+          const processValue = (value) => {
+            const found = new Set();
+
+            const process = (item) => {
+              // If it's a string, try to extract address
+              if (typeof item === 'string') {
+                const addr = getAddressFromString(item);
+                if (addr) found.add(addr);
+                return;
+              }
+
+              // If it's an array, process each item
+              if (Array.isArray(item)) {
+                item.forEach(process);
+                return;
+              }
+
+              // If it's an object, process each value
+              if (item && typeof item === 'object') {
+                Object.values(item).forEach(process);
+              }
+            };
+
+            process(value);
+            return Array.from(found);
+          };
+
+          // Process the JSON data
+          const foundAddresses = processValue(jsonData);
+          console.log('Found addresses:', foundAddresses);
+          addresses = foundAddresses.map(addr => ({ address: addr, maxMint: 1 }));
+        } 
+        else {
+          if (type === 'csv') {
+            const text = await file.text();
+            // Split by newline and comma to handle both formats
+            const lines = text.split(/[\r\n,]+/);
+            addresses = lines
+              .map(line => line.trim())
+              .filter(line => line.length > 0)
+              .map(address => ({
+                address: address.replace(/['"]/g, ''), // Remove quotes if present
                 maxMint: 1
-              };
-            }
-            // If item is an object with address property
-            else if (typeof item === 'object') {
-              const addr = item.address || item.wallet || '';
-              return {
-                address: addr.trim(),
-                maxMint: 1
-              };
-            }
-            return null;
-          }).filter(item => item !== null); // Remove any invalid entries
+              }));
+          } 
+          else if (type === 'excel') {
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data);
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+            
+            // Extract addresses from all cells
+            addresses = rows.flatMap(row => {
+              if (!Array.isArray(row)) return [];
+              return row.map(cell => {
+                if (!cell) return null;
+                const str = String(cell).trim();
+                return str.startsWith('0x') ? { address: str, maxMint: 1 } : null;
+              }).filter(Boolean);
+            });
+          }
         }
 
-        // Filter valid addresses
-        const validAddresses = addresses
-          .filter(item => item.address && validateAddress(item.address))
-          .map(item => ({
-            address: item.address,
-            maxMint: 1
-          }));
+        // Filter valid addresses and remove duplicates
+        const validAddresses = [...new Set(
+          addresses
+            .filter(item => item && item.address && validateAddress(item.address))
+            .map(item => item.address)
+        )].map(addr => ({ address: addr, maxMint: 1 }));
+
+        console.log('Valid addresses:', validAddresses);
 
         if (validAddresses.length === 0) {
           toast.error('No valid addresses found in file');
@@ -395,13 +518,17 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         }
 
         updateFormData({ whitelistAddresses: validAddresses });
-        toast.success(`Imported ${validAddresses.length} addresses`);
-
+        toast.success(
+          <div className="flex flex-col">
+            <span>Imported {validAddresses.length} addresses</span>
+            <span className="text-sm text-gray-400 mt-1">Click the counter to view the list</span>
+          </div>
+        );
       } catch (error) {
         console.error('Error importing file:', error);
         toast.error(`Failed to import ${type} file. Please check the format.`);
       }
-    };
+    }
 
     input.click();
   };
@@ -443,8 +570,33 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     switch (currentStep) {
       case 'type':
         return (
-          <FuturisticCard variant="nested">
-            <div className="space-y-6">
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 space-y-6">
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   Create NFT Collection
@@ -505,12 +657,37 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               </div>
               {renderButtons()}
             </div>
-          </FuturisticCard>
+          </div>
         );
       case 'basics':
         return (
-          <FuturisticCard variant="nested">
-            <div className="space-y-6">
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Collection Name *
@@ -658,12 +835,37 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               </div>
               {renderButtons()}
             </div>
-          </FuturisticCard>
+          </div>
         );
       case 'artwork':
         return (
-          <FuturisticCard variant="nested">
-            <div className="space-y-6">
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 space-y-6">
               <div className="flex justify-center">
                 <div className="w-64 h-64 relative">
                   <div 
@@ -726,12 +928,37 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               )}
               {renderButtons()}
             </div>
-          </FuturisticCard>
+          </div>
         );
       case 'properties':
         return (
-          <FuturisticCard variant="nested">
-            <div className="space-y-6">
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 space-y-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -800,12 +1027,37 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               )}
               {renderButtons()}
             </div>
-          </FuturisticCard>
+          </div>
         );
       case 'minting':
         return (
-          <FuturisticCard variant="nested">
-            <div className="space-y-6">
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 space-y-6">
               <div className="space-y-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Minting Currency
@@ -973,14 +1225,17 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               </div>
               {renderButtons()}
             </div>
-          </FuturisticCard>
+          </div>
         );
     }
   };
 
   const renderWhitelistSection = () => (
-    <div className="mt-4 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg">
-      <div className="sticky top-0 bg-gray-50 dark:bg-[#1a1b1f] z-10 pb-4">
+    <div 
+      className="mt-4 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="bg-gray-50 dark:bg-[#1a1b1f] z-10">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -990,11 +1245,24 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               Add wallet addresses for whitelist access
             </p>
           </div>
-          <div className="px-3 py-1 bg-[#00ffbd]/10 rounded-lg">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowAddressModal(true);
+              if (formData.whitelistAddresses.length > 0) {
+                toast.success('Click the X button to remove addresses', { duration: 3000 });
+              }
+            }}
+            className="px-3 py-1 bg-[#00ffbd]/10 rounded-lg hover:bg-[#00ffbd]/20 transition-colors cursor-pointer group relative"
+          >
             <span className="text-sm font-medium text-[#00ffbd]">
               {formData.whitelistAddresses.length} Addresses
             </span>
-          </div>
+            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              Click to view addresses
+            </span>
+          </button>
         </div>
 
         {/* Manual address input */}
@@ -1007,7 +1275,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             className="flex-1 bg-white dark:bg-[#0d0e12] text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
           />
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               if (validateAddress(newAddress)) {
                 updateFormData({
                   whitelistAddresses: [...formData.whitelistAddresses, newAddress]
@@ -1025,59 +1294,22 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
         {/* File import buttons */}
         <div className="flex gap-2">
-          <button
-            onClick={() => handleFileUpload('csv')}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-          >
-            <FaFileCsv size={16} />
-            Import CSV
-          </button>
-          <button
-            onClick={() => handleFileUpload('excel')}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-          >
-            <FaFileExcel size={16} />
-            Import Excel
-          </button>
-          <button
-            onClick={() => handleFileUpload('json')}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
-          >
-            <FaFileCode size={16} />
-            Import JSON
-          </button>
+          {['csv', 'excel', 'json'].map((type) => (
+            <button
+              key={type}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFileUpload(type);
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+            >
+              {type === 'csv' && <FaFileCsv size={16} />}
+              {type === 'excel' && <FaFileExcel size={16} />}
+              {type === 'json' && <FaFileCode size={16} />}
+              Import {type.toUpperCase()}
+            </button>
+          ))}
         </div>
-      </div>
-
-      {/* Scrollable addresses list */}
-      <div className="mt-4 h-[150px] overflow-y-auto custom-scrollbar">
-        {formData.whitelistAddresses.length > 0 ? (
-          <div className="space-y-2">
-            {formData.whitelistAddresses.map((addr, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-2 bg-white dark:bg-[#0d0e12] rounded-lg"
-              >
-                <span className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate">
-                  {typeof addr === 'object' ? addr.address : addr}
-                </span>
-                <button
-                  onClick={() => {
-                    const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
-                    updateFormData({ whitelistAddresses: newAddresses });
-                  }}
-                  className="ml-2 text-red-500 hover:text-red-600"
-                >
-                  <BiX size={20} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-            No addresses added yet
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1211,61 +1443,114 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     return CREATION_FEES[currentChainId] || "0.015 ETH";
   };
 
+  // Add new state for address modal
+  const [showAddressModal, setShowAddressModal] = useState(false);
+
+  const handleRemoveAddress = (index) => {
+    const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
+    updateFormData({ whitelistAddresses: newAddresses });
+  };
+
+  // Add the modal to the main render
   return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
-      
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="relative w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-[#0a0b0f] p-6">
-          <FuturisticCard>
+    <>
+      <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+        <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
+        
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="relative w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-[#0a0b0f] p-6">
             <div className="relative">
-              <div className="flex justify-between items-center mb-6">
-                <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Create NFT Collection
-                </Dialog.Title>
-                <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                  <BiX size={24} />
-                </button>
+              {/* L-shaped corners */}
+              <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
+              <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+                <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
+              <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
+              <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+                <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
               </div>
 
-              {!isConnected ? renderConnectPrompt() : (
-                <>
-                  {/* Progress Indicator */}
-                  <div className="mb-6">
-                    <div className="flex justify-between">
-                      {STEPS.map((step, index) => (
-                        <div key={step.id} className="flex items-center">
-                          <div className={clsx(
-                            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-                            currentStep === step.id
-                              ? 'bg-[#00ffbd] text-black'
-                              : STEPS.findIndex(s => s.id === currentStep) > index
-                              ? 'bg-[#00ffbd] text-black'
-                              : 'bg-gray-100 dark:bg-[#1a1b1f] text-gray-400'
-                          )}>
-                            {index + 1}
-                          </div>
-                          {index !== STEPS.length - 1 && (
-                            <div className={clsx(
-                              'h-0.5 w-full mx-2',
-                              STEPS.findIndex(s => s.id === currentStep) > index
-                                ? 'bg-[#00ffbd]'
-                                : 'bg-gray-100 dark:bg-[#1a1b1f]'
-                            )} />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              {/* Glowing dots in corners */}
+              <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
 
-                  {/* Step Content */}
-                  {renderStep()}
-                </>
-              )}
+              {/* Three dots in top right */}
+              <div className="absolute top-3 right-3 flex gap-1 z-20">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Main Content */}
+              <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Create NFT Collection
+                  </Dialog.Title>
+                  <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                    <BiX size={24} />
+                  </button>
+                </div>
+
+                {!isConnected ? renderConnectPrompt() : (
+                  <>
+                    {/* Progress Indicator */}
+                    <div className="mb-6">
+                      <div className="flex justify-between">
+                        {STEPS.map((step, index) => (
+                          <div key={step.id} className="flex items-center">
+                            <div className={clsx(
+                              'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
+                              currentStep === step.id
+                                ? 'bg-[#00ffbd] text-black'
+                                : STEPS.findIndex(s => s.id === currentStep) > index
+                                ? 'bg-[#00ffbd] text-black'
+                                : 'bg-gray-100 dark:bg-[#1a1b1f] text-gray-400'
+                            )}>
+                              {index + 1}
+                            </div>
+                            {index !== STEPS.length - 1 && (
+                              <div className={clsx(
+                                'h-0.5 w-full mx-2',
+                                STEPS.findIndex(s => s.id === currentStep) > index
+                                  ? 'bg-[#00ffbd]'
+                                  : 'bg-gray-100 dark:bg-[#1a1b1f]'
+                              )} />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Step Content */}
+                    {renderStep()}
+                  </>
+                )}
+              </div>
             </div>
-          </FuturisticCard>
-        </Dialog.Panel>
-      </div>
-    </Dialog>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
+      <AddressModal 
+        isOpen={showAddressModal} 
+        onClose={() => setShowAddressModal(false)}
+        addresses={formData.whitelistAddresses}
+        onRemoveAddress={handleRemoveAddress}
+      />
+    </>
   );
 } 

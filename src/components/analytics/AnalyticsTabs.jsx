@@ -50,13 +50,51 @@ export default function AnalyticsTabs() {
         ))}
       </div>
 
-      {/* Tab Content */}
-      <div className="bg-white dark:bg-[#1a1b1f] rounded-xl">
-        <div className="p-6 h-[400px] md:h-[600px]">
-          {activeTab === 'recent' && <RecentMints />}
-          {activeTab === 'holders' && <TopHolders />}
-          {activeTab === 'chads' && <ChadMinters />}
-          {activeTab === 'volume' && <VolumeMetrics />}
+      {/* Modified Tab Content Container with Futuristic Style */}
+      <div className="relative">
+        {/* L-shaped corners */}
+        <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+        <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+          <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+        <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+          <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+        <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+          <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+
+        {/* Glowing dots in corners */}
+        <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+        <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+        <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+        {/* Three dots in top right */}
+        <div className="absolute top-3 right-3 flex gap-1 z-20">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+              style={{ animationDelay: `${i * 0.2}s` }}
+            />
+          ))}
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 bg-white dark:bg-[#1a1b1f] rounded-xl">
+          <div className="p-6 h-[400px] md:h-[600px]">
+            {activeTab === 'recent' && <RecentMints />}
+            {activeTab === 'holders' && <TopHolders />}
+            {activeTab === 'chads' && <ChadMinters />}
+            {activeTab === 'volume' && <VolumeMetrics />}
+          </div>
         </div>
       </div>
     </div>
