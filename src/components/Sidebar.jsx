@@ -21,7 +21,7 @@ import { BsCollection, BsClockHistory } from 'react-icons/bs'
 import { HiOutlineHome } from 'react-icons/hi'
 import { MdOutlineLocalActivity } from 'react-icons/md'
 import { TbChartCandle } from 'react-icons/tb'
-import { RiPaintLine } from 'react-icons/ri'
+import { RiPaintLine, RiUserLine } from 'react-icons/ri'
 
 export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -52,6 +52,13 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       icon: BsCollection,
       label: 'Collections',
       to: '/collections',
+      isRouterLink: true,
+      noDefaultHighlight: true,
+    },
+    {
+      icon: RiUserLine,
+      label: 'Account',
+      to: '/account',
       isRouterLink: true,
       noDefaultHighlight: true,
     },

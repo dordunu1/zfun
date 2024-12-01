@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import CollectionsList from './components/CollectionsList';
 import CollectionPage from './components/CollectionPage';
 import HistoryPage from './pages/HistoryPage';
+import AccountPage from './pages/AccountPage';
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +26,10 @@ export const router = createBrowserRouter([
       {
         path: '/history',
         element: <HistoryPage />,
+      },
+      {
+        path: '/account',
+        element: <AccountPage />,
       },
     ],
   },

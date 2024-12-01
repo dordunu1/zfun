@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDoc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, onSnapshot, limit as firestoreLimit } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
+import { ethers } from 'ethers';
+import { NFTCollectionABI } from '../abi/NFTCollection';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -370,3 +372,87 @@ export const getTokenDetails = async (tokenAddress) => {
     return null;
   }
 };
+
+const ETHERSCAN_API_KEY = import.meta.env.VITE_ETHERSCAN_API_KEY;
+
+// Add function to get NFT balance from Etherscan
+const getNFTBalanceFromEtherscan = async (contractAddress, address) => {
+  try {
+    const response = await fetch(
+      `https://api-sepolia.etherscan.io/api?module=account&action=tokenbalance&contractaddress=${contractAddress}&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
+    );
+    const data = await response.json();
+    if (data.status === '1' && data.result) {
+      return Number(data.result);
+    }
+    return 0;
+  } catch (error) {
+    console.error('Error getting NFT balance from Etherscan:', error);
+    return 0;
+  }
+};
+
+export const getOwnedNFTs = async (address) => {
+  try {
+    console.log('Getting owned NFTs for address:', address);
+    
+    // Get all mints where the minter address matches
+    const mintsQuery = query(
+      mintsRef,
+      where('minterAddress', '==', address.toLowerCase())
+    );
+    
+    const mintsSnapshot = await getDocs(mintsQuery);
+    const mints = mintsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      mintedAt: doc.data().timestamp?.toDate() || new Date(),
+    }));
+
+    console.log('Found mints:', mints.length);
+
+    // Get collection details and balances
+    const uniqueCollectionAddresses = [...new Set(mints.map(mint => mint.collectionAddress))];
+    const collections = new Map();
+    const balances = new Map();
+
+    await Promise.all([
+      ...uniqueCollectionAddresses.map(async (collectionAddress) => {
+        const collectionQuery = query(
+          collectionsRef,
+          where('contractAddress', '==', collectionAddress)
+        );
+        const collectionSnapshot = await getDocs(collectionQuery);
+        if (!collectionSnapshot.empty) {
+          collections.set(collectionAddress, collectionSnapshot.docs[0].data());
+          // Get balance from Etherscan
+          const balance = await getNFTBalanceFromEtherscan(collectionAddress, address);
+          balances.set(collectionAddress, balance);
+        }
+      })
+    ]);
+
+    // Combine mint data with collection data and balances
+    const ownedNFTs = mints.map(mint => {
+      const collection = collections.get(mint.collectionAddress) || {};
+      const balance = balances.get(mint.collectionAddress) || 0;
+      return {
+        ...mint,
+        ...collection,
+        balance,
+        name: collection.name || 'Unknown Collection',
+        collectionName: collection.name,
+        type: collection.type || 'ERC721',
+        symbol: collection.symbol,
+        artworkType: collection.artworkType || 'image',
+        network: collection.network || 'sepolia'
+      };
+    });
+
+    console.log('Found owned NFTs:', ownedNFTs.length);
+    return ownedNFTs;
+  } catch (error) {
+    console.error('Error getting owned NFTs:', error);
+    return [];
+  }
+}
