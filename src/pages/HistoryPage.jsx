@@ -5,7 +5,7 @@ import { FaEthereum } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
-import { getTokenDeploymentsByWallet, getCollectionsByWallet, getRecentMints } from '../services/firebase';
+import { getTokenDeploymentsByWallet, getCollectionsByWallet, getRecentMints, getAllCollections } from '../services/firebase';
 import { ipfsToHttp } from '../utils/ipfs';
 
 export default function HistoryPage() {
@@ -23,8 +23,12 @@ export default function HistoryPage() {
       }
 
       try {
+        console.log('Loading history for address:', address);
+
         // Load token deployments
         const tokenDeployments = await getTokenDeploymentsByWallet(address);
+        console.log('Token deployments:', tokenDeployments);
+
         const formattedTokenDeployments = tokenDeployments.map(token => ({
           id: token.address,
           activityType: 'token_creation',
@@ -38,6 +42,8 @@ export default function HistoryPage() {
 
         // Load NFT collections
         const nftCollections = await getCollectionsByWallet(address);
+        console.log('NFT collections:', nftCollections);
+
         const formattedNFTDeployments = nftCollections.map(nft => ({
           id: nft.contractAddress,
           activityType: 'nft_creation',
@@ -52,23 +58,35 @@ export default function HistoryPage() {
         }));
 
         // Load NFT mints for each collection
-        const mintsPromises = nftCollections.map(async (collection) => {
+        console.log('Fetching mints for collections...');
+        
+        // First, get all collections to check for mints
+        const allCollections = await getAllCollections();
+        console.log('All collections:', allCollections);
+
+        const mintsPromises = allCollections.map(async (collection) => {
+          console.log('Checking mints for collection:', collection.name);
           const mints = await getRecentMints(collection.contractAddress);
-          return mints.map(mint => ({
-            id: mint.id || `${collection.contractAddress}-${mint.tokenId}`,
-            activityType: 'nft_mint',
-            timestamp: mint.timestamp,
-            image: mint.image || collection.previewUrl,
-            title: `Minted ${collection.name}`,
-            subtitle: `NFT Mint #${mint.tokenId}`,
-            address: collection.contractAddress,
-            network: collection.network,
-            symbol: collection.symbol,
-            artworkType: collection.artworkType
-          }));
+          console.log('Mints for collection:', collection.name, mints);
+          
+          return mints
+            .filter(mint => mint.minterAddress?.toLowerCase() === address.toLowerCase())
+            .map(mint => ({
+              id: mint.id || `${collection.contractAddress}-${mint.tokenId}`,
+              activityType: 'nft_mint',
+              timestamp: mint.timestamp,
+              image: mint.image || collection.previewUrl,
+              title: `Minted ${collection.name}`,
+              subtitle: `NFT Mint #${mint.tokenId}`,
+              address: collection.contractAddress,
+              network: collection.network,
+              symbol: collection.symbol,
+              artworkType: collection.artworkType
+            }));
         });
 
         const allMints = (await Promise.all(mintsPromises)).flat();
+        console.log('All mints for address:', allMints);
 
         // Combine and sort all activities
         const allActivities = [
@@ -81,6 +99,7 @@ export default function HistoryPage() {
           return timeB - timeA;
         });
 
+        console.log('Final activities:', allActivities);
         setActivities(allActivities);
         setLoading(false);
       } catch (error) {
