@@ -20,6 +20,7 @@ import { useWeb3Modal } from '@web3modal/react';
 import { NFTCollectionABI } from '../abi/NFTCollection';
 import * as XLSX from 'xlsx';
 import { createPortal } from 'react-dom';
+import Papa from 'papaparse';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -30,22 +31,26 @@ const STEPS = [
 ];
 
 const CREATION_FEES = {
-  137: "20 MATIC",  // Polygon
+  137: "20 POL",  // Polygon
   11155111: "0.015 ETH",  // Sepolia
   1: "0.015 ETH",  // Mainnet
 };
 
-const setWhitelistInContract = async (collectionAddress, whitelistAddresses, signer, maxPerWallet) => {
+const setWhitelistInContract = async (collectionAddress, whitelistAddresses, signer) => {
   try {
     const contract = new ethers.Contract(
       collectionAddress,
-      NFTCollectionABI.ERC721, // or ERC1155 based on type
+      NFTCollectionABI.ERC721,
       signer
     );
     
-    // Convert addresses to arrays for contract
-    const addresses = whitelistAddresses;
-    const limits = whitelistAddresses.map(() => maxPerWallet); // Each address can mint up to maxPerWallet
+    // Convert addresses and limits to separate arrays
+    const addresses = whitelistAddresses.map(item => 
+      typeof item === 'string' ? item : item.address
+    );
+    const limits = whitelistAddresses.map(item => 
+      typeof item === 'string' ? 1 : BigInt(item.maxMint)
+    );
     
     toast.loading('Setting whitelist addresses...', { id: 'whitelist' });
     const tx = await contract.setWhitelist(addresses, limits);
@@ -59,12 +64,36 @@ const setWhitelistInContract = async (collectionAddress, whitelistAddresses, sig
 };
 
 // Separate AddressModal component with isolated event handling
-const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress }) => {
+const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAddress }) => {
   if (!isOpen) return null;
 
   const handleModalClick = (e) => {
-    // Prevent clicks inside the modal from closing the parent modal
     e.stopPropagation();
+  };
+
+  const handleMintLimitChange = (index, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const newValue = e.target.value;
+    const updatedAddresses = [...addresses];
+    
+    // Allow empty string or numbers
+    const limit = newValue === '' ? '' : parseInt(newValue) || '';
+    
+    if (typeof updatedAddresses[index] === 'string') {
+      updatedAddresses[index] = { 
+        address: updatedAddresses[index], 
+        maxMint: limit 
+      };
+    } else {
+      updatedAddresses[index] = { 
+        ...updatedAddresses[index], 
+        maxMint: limit 
+      };
+    }
+    
+    onUpdateAddress({ whitelistAddresses: updatedAddresses });
   };
 
   return createPortal(
@@ -97,13 +126,7 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress }) => {
             <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
           </div>
 
-          {/* Glowing dots in corners */}
-          <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-          <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-          <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-          <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-
-          {/* Close button - Positioned absolutely in the top-right corner */}
+          {/* Close button */}
           <button 
             type="button"
             onClick={(e) => {
@@ -129,19 +152,68 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress }) => {
                       key={index}
                       className="flex items-center justify-between p-3 bg-[#1a1b1f] rounded-lg hover:bg-[#2a2b2f] transition-colors"
                     >
-                      <span className="text-sm font-mono text-gray-300">
+                      <span className="text-sm font-mono text-gray-300 flex-1">
                         {typeof addr === 'object' ? addr.address : addr}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveAddress(index);
-                        }}
-                        className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <BiX size={20} />
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-400">Mint limit:</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={typeof addr === 'object' ? (addr.maxMint === '' ? '' : addr.maxMint) : 1}
+                            onChange={(e) => handleMintLimitChange(index, e)}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              const updatedAddresses = [...addresses];
+                              const finalValue = value === '' || parseInt(value) < 1 ? 1 : parseInt(value);
+                              
+                              if (typeof updatedAddresses[index] === 'string') {
+                                updatedAddresses[index] = { 
+                                  address: updatedAddresses[index], 
+                                  maxMint: finalValue 
+                                };
+                              } else {
+                                updatedAddresses[index] = { 
+                                  ...updatedAddresses[index], 
+                                  maxMint: finalValue 
+                                };
+                              }
+                              
+                              onUpdateAddress({ whitelistAddresses: updatedAddresses });
+                            }}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              // Allow backspace, delete, and arrow keys
+                              if (e.key === 'Backspace' || e.key === 'Delete' || 
+                                  e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+                                  e.key === 'Tab') {
+                                return;
+                              }
+                              // Only allow numbers
+                              if (!/[0-9]/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                                e.preventDefault();
+                              }
+                            }}
+                            className="w-16 px-2 py-1 bg-[#0d0e12] border border-gray-700 rounded text-white text-sm focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd] focus:outline-none"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.target.select();
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveAddress(index);
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
+                        >
+                          <BiX size={20} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -240,33 +312,61 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         const text = await file.text();
         const result = Papa.parse(text, { header: true });
         addresses = result.data
-          .map(row => row.address || row.wallet || Object.values(row)[0])
-          .filter(addr => addr); // Filter out empty values
+          .map(row => {
+            const addr = row.address || row.wallet || Object.values(row)[0];
+            const limit = parseInt(row.limit || row.maxMint || 1);
+            return addr ? { address: addr, maxMint: limit } : null;
+          })
+          .filter(Boolean);
       } 
       else if (file.name.endsWith('.xlsx')) {
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        addresses = XLSX.utils.sheet_to_json(sheet).map(row => row.address || row.wallet || Object.values(row)[0]);
+        addresses = XLSX.utils.sheet_to_json(sheet)
+          .map(row => {
+            const addr = row.address || row.wallet || Object.values(row)[0];
+            const limit = parseInt(row.limit || row.maxMint || 1);
+            return addr ? { address: addr, maxMint: limit } : null;
+          });
       }
       else if (file.name.endsWith('.json')) {
         const text = await file.text();
         const data = JSON.parse(text);
         addresses = Array.isArray(data) ? data : Object.values(data);
+        addresses = addresses.map(item => {
+          if (typeof item === 'string') {
+            return { address: item, maxMint: 1 };
+          }
+          return {
+            address: item.address || item.wallet,
+            maxMint: parseInt(item.limit || item.maxMint || 1)
+          };
+        });
       }
 
-      const validAddresses = addresses
-        .map(addr => typeof addr === 'object' ? addr.address : addr)
-        .filter(validateAddress);
-      
-      if (validAddresses.length !== addresses.length) {
-        toast.warning('Some addresses were invalid and were removed');
+      // Filter valid addresses and remove duplicates
+      const validAddresses = [...new Set(
+        addresses
+          .filter(item => item && item.address && validateAddress(item.address))
+          .map(item => JSON.stringify({ address: item.address.toLowerCase(), maxMint: item.maxMint }))
+      )].map(str => JSON.parse(str));
+
+      if (validAddresses.length === 0) {
+        toast.error('No valid addresses found in file');
+        return;
       }
 
       updateFormData({ whitelistAddresses: validAddresses });
+      toast.success(
+        <div className="flex flex-col">
+          <span>Imported {validAddresses.length} addresses</span>
+          <span className="text-sm text-gray-400 mt-1">Click the counter to view the list</span>
+        </div>
+      );
     } catch (error) {
-      toast.error('Error importing whitelist');
-      console.error('Import error:', error);
+      console.error('Error importing file:', error);
+      toast.error(`Failed to import ${type} file. Please check the format.`);
     }
   };
 
@@ -313,6 +413,12 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         customAddress: formData.customTokenAddress
       });
 
+      // For whitelist collections, set a high maxPerWallet in the contract config
+      // since we'll control individual limits through the whitelist
+      const maxPerWallet = formData.enableWhitelist 
+        ? BigInt(1000000) // High number to effectively remove the general limit
+        : BigInt(formData.maxPerWallet || 1);
+
       const tx = await factory.createNFTCollection(
         formData.type,
         formData.name,
@@ -320,7 +426,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         metadataUrl,
         BigInt(formData.maxSupply || 1000),
         formData.mintPrice ? ethers.parseEther(formData.mintPrice.toString()) : BigInt(0),
-        BigInt(formData.maxPerWallet || 1),
+        BigInt(1000000), // Changed from 1 to 1000000 to allow whitelist limits to control the actual max
         BigInt(Math.floor(Date.now() / 1000)),
         BigInt(formData.infiniteMint ? 0 : Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60),
         Boolean(formData.infiniteMint),
@@ -334,23 +440,38 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
       // Get collection address from events
       let collectionAddress;
-      const creationEvent = receipt.logs.find(log => 
-        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'
-      );
-
-      if (creationEvent) {
-        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-          ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
-          creationEvent.data
-        );
-        collectionAddress = decodedData[0].collection;
+      
+      // Try to find the collection address from the events
+      for (const log of receipt.logs) {
+        try {
+          // Try to parse the log as CollectionCreated event
+          const parsedLog = factory.interface.parseLog({
+            topics: [...log.topics],
+            data: log.data
+          });
+          
+          if (parsedLog && parsedLog.name === 'CollectionCreated') {
+            collectionAddress = parsedLog.args.collection;
+            break;
+          }
+        } catch (e) {
+          // Skip logs that can't be parsed as CollectionCreated event
+          continue;
+        }
       }
 
+      // Fallback to looking for Initialized event if collection address not found
       if (!collectionAddress) {
         const initializedEvent = receipt.logs.find(log => 
           log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
         );
-        collectionAddress = initializedEvent?.address;
+        if (initializedEvent) {
+          collectionAddress = initializedEvent.address;
+        }
+      }
+
+      if (!collectionAddress) {
+        throw new Error('Failed to get collection address from transaction');
       }
 
       // Step 3: Set whitelist if enabled
@@ -362,10 +483,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           signer2
         );
         
-        const whitelistTx = await nftContract.setWhitelist(
-          formData.whitelistAddresses,
-          formData.whitelistAddresses.map(() => formData.maxPerWallet)
+        // Convert addresses and limits to separate arrays
+        const addresses = formData.whitelistAddresses.map(item => 
+          typeof item === 'string' ? item : item.address
         );
+        const limits = formData.whitelistAddresses.map(item => 
+          typeof item === 'string' ? BigInt(1) : BigInt(item.maxMint)
+        );
+        
+        const whitelistTx = await nftContract.setWhitelist(addresses, limits);
         await whitelistTx.wait();
       }
 
@@ -380,13 +506,17 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           type: formData.mintingToken || 'native',
           symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
                   formData.mintingToken === 'usdt' ? 'USDT' : 
+                  formData.mintingToken === 'custom' ? formData.customTokenSymbol :
+                  formData.mintingToken === 'native' ? (networkChainId === 137 ? 'MATIC' : 'ETH') :
                   networkChainId === 137 ? 'MATIC' : 'ETH',
-          address: getPaymentToken(networkChainId)
+          address: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
+                  formData.mintingToken === 'custom' ? formData.customTokenAddress :
+                  paymentTokenAddress || '0x0000000000000000000000000000000000000000'
         },
         whitelistAddresses: formData.whitelistAddresses,
         createdAt: Date.now(),
         totalMinted: 0,
-        creatorAddress: account.toLowerCase() // Add creator's address
+        creatorAddress: account.toLowerCase()
       };
 
       await saveCollection(collectionData);
@@ -396,13 +526,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       navigate(`/collection/${formData.symbol}`);
 
     } catch (error) {
-      console.error('Creation error:', error);
-      toast.error(
-        error.message.includes('user rejected') 
-          ? 'Transaction was cancelled'
-          : 'Failed to create collection. Please try again.',
-        { id: 'create' }
-      );
+      console.error('Error creating collection:', error);
+      toast.error('Failed to create collection. Please check the console for details.', { id: 'create' });
     }
   };
 
@@ -1068,7 +1193,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                     onChange={(e) => updateFormData({ mintingToken: e.target.value })}
                     className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 pl-10 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-none"
                   >
-                    <option value="native">Native Token (ETH/MATIC)</option>
+                    <option value="native">Native Token (ETH/POL)</option>
                     <option value="usdc">USDC</option>
                     <option value="usdt">USDT</option>
                     <option value="custom">Custom Token</option>
@@ -1155,17 +1280,35 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {/* Max Per Wallet Input */}
+                <div className="mb-6">
+                  <label className="block text-gray-200 text-sm font-medium mb-2">
                     Max Per Wallet
                   </label>
-                  <input
-                    type="number"
-                    value={formData.maxPerWallet}
-                    onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                    placeholder="Enter max per wallet"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.maxPerWallet}
+                      onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
+                      placeholder="Enter max per wallet"
+                      className={`w-full bg-[#1a1b1f] text-white border border-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-[#00ffbd] ${
+                        formData.enableWhitelist ? 'cursor-not-allowed opacity-75' : ''
+                      }`}
+                      disabled={formData.enableWhitelist}
+                    />
+                    {formData.enableWhitelist && (
+                      <div className="absolute right-3 top-2.5 text-xs text-[#00ffbd] flex items-center">
+                        <span className="mr-1">👑</span> Whitelist Mode
+                      </div>
+                    )}
+                  </div>
+                  {formData.enableWhitelist && (
+                    <div className="mt-2 text-xs text-gray-400 bg-[#1a1b1f] p-2 rounded-lg border border-gray-800">
+                      <span className="text-[#00ffbd] font-medium">Note:</span> When whitelist is enabled, this value is set high to allow individual whitelist limits to control minting. 
+                      You can set specific mint limits for each address when adding them to the whitelist.
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1181,21 +1324,22 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              {/* Whitelist Toggle */}
+              <div className="mb-6">
                 <label className="flex items-center space-x-3">
                   <input
                     type="checkbox"
                     checked={formData.enableWhitelist}
-                    onChange={(e) => updateFormData({ enableWhitelist: e.target.checked })}
+                    onChange={(e) => handleWhitelistToggle(e.target.checked)}
                     className="w-4 h-4 text-[#00ffbd] border-gray-300 rounded focus:ring-[#00ffbd]"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300">
                     Enable whitelist for early minting
                   </span>
                 </label>
-
-                {formData.enableWhitelist && renderWhitelistSection()}
               </div>
+
+              {formData.enableWhitelist && renderWhitelistSection()}
 
               <div className="flex items-center gap-4">
                 <div className="flex-1">
@@ -1277,14 +1421,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (validateAddress(newAddress)) {
-                updateFormData({
-                  whitelistAddresses: [...formData.whitelistAddresses, newAddress]
-                });
-                setNewAddress('');
-              } else {
-                toast.error('Invalid wallet address');
-              }
+              handleAddAddress(e);
             }}
             className="px-3 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg text-sm"
           >
@@ -1451,6 +1588,58 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     updateFormData({ whitelistAddresses: newAddresses });
   };
 
+  // Update the manual address addition
+  const handleAddAddress = (e) => {
+    e.stopPropagation();
+    if (validateAddress(newAddress)) {
+      updateFormData({
+        whitelistAddresses: [...formData.whitelistAddresses, { address: newAddress, maxMint: 1 }]
+      });
+      setNewAddress('');
+    } else {
+      toast.error('Invalid wallet address');
+    }
+  };
+
+  const handleUpdateWhitelist = (updates) => {
+    setFormData(prev => ({
+      ...prev,
+      whitelistAddresses: updates.whitelistAddresses
+    }));
+  };
+
+  // Add effect to handle whitelist toggle
+  const [enableWhitelist, setEnableWhitelist] = useState(false);
+  const [maxPerWallet, setMaxPerWallet] = useState('');
+
+  useEffect(() => {
+    if (formData.enableWhitelist) {
+      setMaxPerWallet('1000000');  // Set a high default for whitelist mode
+      toast('Individual whitelist addresses can have custom mint limits.', {
+        duration: 5000,
+        icon: '👑'
+      });
+    }
+  }, [formData.enableWhitelist]);
+
+  const handleWhitelistToggle = (checked) => {
+    if (checked) {
+      updateFormData({ 
+        enableWhitelist: checked,
+        maxPerWallet: '1000000'  // Set a high default for whitelist mode
+      });
+      toast('Whitelist mode enabled! Individual addresses can have custom mint limits.', {
+        duration: 5000,
+        icon: '👑'
+      });
+    } else {
+      updateFormData({ 
+        enableWhitelist: checked,
+        maxPerWallet: ''
+      });
+    }
+  };
+
   // Add the modal to the main render
   return (
     <>
@@ -1550,6 +1739,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         onClose={() => setShowAddressModal(false)}
         addresses={formData.whitelistAddresses}
         onRemoveAddress={handleRemoveAddress}
+        onUpdateAddress={handleUpdateWhitelist}
       />
     </>
   );

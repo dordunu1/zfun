@@ -78,6 +78,7 @@ export default function CollectionPage() {
   const [provider, setProvider] = useState(null);
   const [whitelistChecked, setWhitelistChecked] = useState(false);
   const [isWhitelisted, setIsWhitelisted] = useState(false);
+  const [whitelistEntry, setWhitelistEntry] = useState(null);
   const [paymentTokenInfo, setPaymentTokenInfo] = useState(null);
   const [tokenLogos, setTokenLogos] = useState({});
 
@@ -331,20 +332,20 @@ export default function CollectionPage() {
         signer
       );
 
-      // Use the payment token from collection data instead of contract config
+      // Use the payment token from collection data
       const paymentToken = collection.mintToken?.address;
       const mintPriceWei = collection.mintPrice ? ethers.parseEther(collection.mintPrice.toString()) : BigInt(0);
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      console.log('Using payment token:', {
-        address: paymentToken,
-        mintToken: collection.mintToken,
-        mintPrice: mintPriceWei.toString(),
-        totalCost: totalCost.toString()
+      console.log('Minting with parameters:', {
+        isWhitelist: collection.enableWhitelist && isWhitelisted,
+        amount: mintAmount,
+        cost: totalCost.toString(),
+        paymentToken
       });
 
       // If using custom token, approve it first
-      if (paymentToken && paymentToken !== ethers.ZeroAddress) {
+      if (paymentToken && paymentToken !== '0x0000000000000000000000000000000000000000') {
         const tokenContract = new ethers.Contract(
           paymentToken,
           [
@@ -358,8 +359,6 @@ export default function CollectionPage() {
         try {
           // Check token balance first
           const balance = await tokenContract.balanceOf(account);
-          console.log('Token balance:', balance.toString());
-          
           if (balance < totalCost) {
             toast.error('Insufficient token balance', { id: 'mint' });
             return;
@@ -367,32 +366,32 @@ export default function CollectionPage() {
 
           // Check and approve if needed
           const currentAllowance = await tokenContract.allowance(account, collection.contractAddress);
-          console.log('Current allowance:', currentAllowance.toString());
-
           if (currentAllowance < totalCost) {
             toast.loading('Approving token spend...', { id: 'approve' });
             const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
             await approveTx.wait();
             toast.success('Token approved!', { id: 'approve' });
           }
-        } catch (tokenError) {
-          console.error('Token interaction error:', tokenError);
-          toast.error('Failed to interact with payment token', { id: 'mint' });
+        } catch (error) {
+          console.error('Token approval error:', error);
+          toast.error('Failed to approve token', { id: 'mint' });
           return;
         }
       }
 
       // Prepare mint transaction
       const mintOptions = {
-        value: paymentToken === ethers.ZeroAddress ? totalCost : 0,
-        gasLimit: 500000
+        value: paymentToken === '0x0000000000000000000000000000000000000000' ? totalCost : 0,
+        gasLimit: 1000000
       };
 
-      console.log('Mint options:', mintOptions);
-
-      const tx = collection.type === 'ERC1155' 
-        ? await nftContract.mint(0, mintAmount, mintOptions)
-        : await nftContract.mint(mintAmount, mintOptions);
+      // Use the standard mint function - the contract handles whitelist checks internally
+      let tx;
+      if (collection.type === 'ERC1155') {
+        tx = await nftContract.mint(0, mintAmount, mintOptions);
+      } else {
+        tx = await nftContract.mint(mintAmount, mintOptions);
+      }
 
       console.log('Mint transaction sent:', tx);
       const receipt = await tx.wait();
@@ -405,7 +404,6 @@ export default function CollectionPage() {
           log => log.eventName === 'Transfer'
         );
         if (transferEvent) {
-          // Remove any '+' signs and clean the tokenId before saving
           tokenId = transferEvent.args[2].toString().replace(/\+/g, '');
         }
       }
@@ -458,17 +456,21 @@ export default function CollectionPage() {
       const whitelistAddresses = collection.whitelistAddresses || [];
       const checkAddress = checkingAddress.toLowerCase();
       
-      const isWhitelisted = whitelistAddresses.some(addr => {
+      const foundEntry = whitelistAddresses.find(addr => {
         if (!addr) return false;
         const addressToCheck = typeof addr === 'object' ? addr.address : addr;
         return addressToCheck && addressToCheck.toLowerCase() === checkAddress;
       });
 
+      const isWhitelisted = !!foundEntry;
+      const mintLimit = foundEntry && typeof foundEntry === 'object' ? foundEntry.maxMint : 1;
+
       setWhitelistChecked(true);
       setIsWhitelisted(isWhitelisted);
+      setWhitelistEntry(foundEntry);
 
       if (isWhitelisted) {
-        toast.success('Address is whitelisted! 🎉');
+        toast.success(`Address is whitelisted! Can mint up to ${mintLimit} NFTs 🎉`);
       } else {
         toast.error('Address is not whitelisted');
       }
@@ -482,9 +484,22 @@ export default function CollectionPage() {
         );
         
         try {
-          const onChainStatus = await contract.isWhitelisted(checkingAddress);
-          if (onChainStatus !== isWhitelisted) {
+          // Use whitelist mapping and whitelistMintLimit mapping directly
+          const [onChainWhitelist, onChainLimit] = await Promise.all([
+            contract.whitelist(checkingAddress),
+            contract.whitelistMintLimit(checkingAddress)
+          ]);
+
+          console.log('On-chain whitelist status:', {
+            isWhitelisted: onChainWhitelist,
+            mintLimit: onChainLimit.toString()
+          });
+
+          if (onChainWhitelist !== isWhitelisted) {
             console.warn('Whitelist status mismatch between local and contract');
+          }
+          if (onChainLimit.toString() !== mintLimit.toString()) {
+            console.warn('Whitelist mint limit mismatch between local and contract');
           }
         } catch (error) {
           console.warn('Contract whitelist check failed:', error);
@@ -732,7 +747,14 @@ export default function CollectionPage() {
               {/* Whitelist Checker */}
               {collection.enableWhitelist && (
                 <div className="mb-8 p-4 bg-gray-50 dark:bg-[#0d0e12] rounded-lg border border-gray-200 dark:border-gray-800">
-                  <h3 className="text-gray-900 dark:text-white font-semibold mb-3">Whitelist Checker</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-gray-900 dark:text-white font-semibold">Whitelist Checker</h3>
+                    {whitelistChecked && isWhitelisted && (
+                      <span className="text-xs bg-[#00ffbd]/10 text-[#00ffbd] px-2 py-1 rounded-full">
+                        Whitelisted ✓
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -753,130 +775,165 @@ export default function CollectionPage() {
                       Check
                     </button>
                   </div>
-                  {isEligible !== null && (
-                    <div className={`mt-2 text-sm ${isEligible ? 'text-[#00ffbd]' : 'text-red-500'}`}>
-                      {isEligible ? '✓ Address is whitelisted' : '✗ Address is not whitelisted'}
+                  {whitelistChecked && (
+                    <div className={`mt-3 p-3 rounded-lg ${
+                      isWhitelisted 
+                        ? 'bg-[#00ffbd]/10 border border-[#00ffbd]/20' 
+                        : 'bg-red-500/10 border border-red-500/20'
+                    }`}>
+                      {isWhitelisted ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center text-sm text-[#00ffbd]">
+                            <span className="mr-2">✓</span>
+                            Address is whitelisted
+                          </div>
+                          {whitelistEntry && typeof whitelistEntry === 'object' && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              You can mint up to {whitelistEntry.maxMint} NFTs during the whitelist phase
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-sm text-red-500">
+                          <span className="mr-2">✗</span>
+                          Address is not whitelisted
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
               {/* Mint Controls */}
-              <div className="space-y-6">
-                {/* Minting Status */}
-                <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                  {userMintedAmount >= collection.maxPerWallet ? (
-                    <span className="text-red-500">Maximum mint limit reached</span>
-                  ) : (
-                    `You have minted ${userMintedAmount} out of ${collection.maxPerWallet} NFTs`
+              <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                <button
+                  onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
+                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isLive || mintAmount <= 1 || (
+                    collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
                   )}
-                </div>
+                >
+                  <BiMinus size={24} />
+                </button>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white min-w-[60px] text-center">
+                  {mintAmount}
+                </span>
+                <button
+                  onClick={() => {
+                    const maxAllowed = collection.enableWhitelist && whitelistEntry
+                      ? (whitelistEntry.maxMint || 1)
+                      : collection.maxPerWallet;
+                    const remaining = maxAllowed - userMintedAmount;
+                    setMintAmount(Math.min(remaining, mintAmount + 1));
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!isLive || (
+                    collection.enableWhitelist ? (
+                      !whitelistChecked || 
+                      !isWhitelisted || 
+                      userMintedAmount >= (whitelistEntry?.maxMint || 1) ||
+                      mintAmount >= (whitelistEntry?.maxMint || 1) - userMintedAmount
+                    ) : (
+                      userMintedAmount >= collection.maxPerWallet ||
+                      mintAmount >= collection.maxPerWallet - userMintedAmount
+                    )
+                  )}
+                >
+                  <BiPlus size={24} />
+                </button>
+              </div>
 
-                {/* Mint Controls */}
-                <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                  <button
-                    onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
-                    className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!isLive || userMintedAmount >= collection.maxPerWallet}
-                  >
-                    <BiMinus size={24} />
-                  </button>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white min-w-[60px] text-center">
-                    {mintAmount}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const remaining = collection.maxPerWallet - userMintedAmount;
-                      setMintAmount(Math.min(remaining, mintAmount + 1));
-                    }}
-                    className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!isLive || userMintedAmount >= collection.maxPerWallet}
-                  >
-                    <BiPlus size={24} />
-                  </button>
-                </div>
-
-                {/* Mint Button */}
-                <div className="flex justify-center px-4">
-                  <button
-                    onClick={handleMint}
-                    disabled={
-                      !isLive || 
-                      userMintedAmount >= collection.maxPerWallet || 
-                      mintAmount === 0 ||
-                      (collection.enableWhitelist && (!whitelistChecked || !isWhitelisted))
-                    }
-                    className={`w-full py-3 ${
-                      collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
-                        ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-                        : 'bg-[#00ffbd] hover:bg-[#00e6a9]'
-                    } disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors`}
-                  >
-                    {!isLive ? 'Not Live Yet' : 
+              {/* Mint Button */}
+              <div className="flex justify-center px-4">
+                <button
+                  onClick={handleMint}
+                  disabled={
+                    !isLive || 
+                    (collection.enableWhitelist ? (
+                      !whitelistChecked || 
+                      !isWhitelisted || 
+                      userMintedAmount >= (whitelistEntry?.maxMint || 1)
+                    ) : (
+                      userMintedAmount >= collection.maxPerWallet
+                    )) || 
+                    mintAmount === 0
+                  }
+                  className={`w-full py-3 ${
+                    collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
+                      ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                      : 'bg-[#00ffbd] hover:bg-[#00e6a9]'
+                  } disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors`}
+                >
+                  {!isLive ? 'Not Live Yet' : 
+                   collection.enableWhitelist ? (
+                     !whitelistChecked ? 'Check Whitelist Status First' :
+                     !isWhitelisted ? 'Address Not Whitelisted' :
+                     userMintedAmount >= (whitelistEntry?.maxMint || 1) ? 'Whitelist Limit Reached' :
+                     'Mint Now (Whitelist)'
+                   ) : (
                      userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' :
-                     collection.enableWhitelist && !whitelistChecked ? 'Check Whitelist Status First' :
-                     collection.enableWhitelist && !isWhitelisted ? 'Address Not Whitelisted' :
-                     'Mint Now'}
-                  </button>
-                </div>
+                     'Mint Now'
+                   )
+                  }
+                </button>
+              </div>
 
-                {/* Contract and Creator Addresses */}
-                <div className="flex items-center justify-between text-center mt-4">
-                  {collection.creatorAddress && (
-                    <div className="group relative">
-                      <a
-                        href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.creatorAddress}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
-                      >
-                        Creator Address
-                      </a>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        {collection.creatorAddress}
-                      </div>
-                    </div>
-                  )}
-
+              {/* Contract and Creator Addresses */}
+              <div className="flex items-center justify-between text-center mt-4">
+                {collection.creatorAddress && (
                   <div className="group relative">
                     <a
-                      href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.contractAddress}`}
+                      href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.creatorAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
                     >
-                      Contract Address
+                      Creator Address
                     </a>
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                      {collection.contractAddress}
+                      {collection.creatorAddress}
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Progress Bar */}
-                <div>
-                  <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
-                    <span>Progress</span>
-                    <span>{totalMinted}/{maxSupply} Minted</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 dark:bg-[#0d0e12] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-[#00ffbd] transition-all duration-500"
-                      style={{ width: `${Math.min(progress, 100)}%` }}
-                    />
+                <div className="group relative">
+                  <a
+                    href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.contractAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
+                  >
+                    Contract Address
+                  </a>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    {collection.contractAddress}
                   </div>
                 </div>
+              </div>
 
-                {/* Additional Stats */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Max Per Wallet</div>
-                    <div className="text-xl font-bold text-gray-900 dark:text-white">{collection.maxPerWallet}</div>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Supply</div>
-                    <div className="text-xl font-bold text-gray-900 dark:text-white">{maxSupply}</div>
-                  </div>
+              {/* Progress Bar */}
+              <div>
+                <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+                  <span>Progress</span>
+                  <span>{totalMinted}/{maxSupply} Minted</span>
+                </div>
+                <div className="h-2 bg-gray-100 dark:bg-[#0d0e12] rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[#00ffbd] transition-all duration-500"
+                    style={{ width: `${Math.min(progress, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Additional Stats */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Max Per Wallet</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white">{collection.maxPerWallet}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Supply</div>
+                  <div className="text-xl font-bold text-gray-900 dark:text-white">{maxSupply}</div>
                 </div>
               </div>
             </div>

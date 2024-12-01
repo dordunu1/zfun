@@ -31,11 +31,6 @@ export const saveCollection = async (collectionData) => {
     
     const dataToSave = {
       ...collectionDataWithoutFile,
-      mintToken: {
-        type: collectionDataWithoutFile.mintingToken,
-        symbol: collectionDataWithoutFile.customTokenSymbol || 'TOKEN',
-        address: collectionDataWithoutFile.customTokenAddress
-      },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
