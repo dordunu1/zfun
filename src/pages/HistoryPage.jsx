@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { FaEthereum } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
+import { Link, useNavigate } from 'react-router-dom';
 import { getTokenDeploymentsByWallet, getCollectionsByWallet, getRecentMints } from '../services/firebase';
 import { ipfsToHttp } from '../utils/ipfs';
 
@@ -11,6 +12,7 @@ export default function HistoryPage() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const { address } = useAccount();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -44,7 +46,9 @@ export default function HistoryPage() {
           title: `Created ${nft.name}`,
           subtitle: 'Collection Creation',
           address: nft.contractAddress,
-          network: nft.network
+          network: nft.network,
+          symbol: nft.symbol,
+          artworkType: nft.artworkType
         }));
 
         // Load NFT mints for each collection
@@ -58,7 +62,9 @@ export default function HistoryPage() {
             title: `Minted ${collection.name}`,
             subtitle: `NFT Mint #${mint.tokenId}`,
             address: collection.contractAddress,
-            network: collection.network
+            network: collection.network,
+            symbol: collection.symbol,
+            artworkType: collection.artworkType
           }));
         });
 
@@ -86,9 +92,42 @@ export default function HistoryPage() {
     loadHistory();
   }, [address]);
 
-  const renderActivityCard = (activity) => {
+  const renderMedia = (activity) => {
     const imageUrl = ipfsToHttp(activity.image);
+
+    if (activity.artworkType === 'video') {
+      return (
+        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/5 dark:bg-black/20">
+          <video
+            src={imageUrl}
+            className="w-full h-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/5 dark:bg-black/20">
+        <img
+          src={imageUrl}
+          alt={activity.title}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/placeholder.png';
+          }}
+        />
+      </div>
+    );
+  };
+
+  const renderActivityCard = (activity) => {
     const timestamp = activity.timestamp instanceof Date ? activity.timestamp : new Date(activity.timestamp);
+    const isNFTActivity = activity.activityType === 'nft_creation' || activity.activityType === 'nft_mint';
 
     return (
       <div 
@@ -97,24 +136,23 @@ export default function HistoryPage() {
       >
         <div className="flex items-center gap-3">
           {/* Image/Logo */}
-          <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/5 dark:bg-black/20">
-            <img
-              src={imageUrl}
-              alt={activity.title}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = '/placeholder.png';
-              }}
-            />
-          </div>
+          {renderMedia(activity)}
 
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {activity.title}
-              </h3>
+              {isNFTActivity ? (
+                <button
+                  onClick={() => navigate(`/collection/${activity.symbol}`)}
+                  className="text-sm font-medium text-gray-900 dark:text-white hover:text-[#00ffbd] dark:hover:text-[#00ffbd] transition-colors truncate"
+                >
+                  {activity.title}
+                </button>
+              ) : (
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  {activity.title}
+                </h3>
+              )}
               <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                 {formatDistanceToNow(timestamp, { addSuffix: true })}
               </span>
@@ -169,9 +207,13 @@ export default function HistoryPage() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          Loading history...
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-12 h-12 border-4 border-[#00ffbd] rounded-full animate-spin border-t-transparent"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-[#00ffbd] rounded-full opacity-30"></div>
+          </div>
+          <span className="text-gray-500 dark:text-gray-400">Loading history...</span>
         </div>
       </div>
     );
