@@ -5,8 +5,17 @@ import { FaEthereum } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
-import { getTokenDeploymentsByWallet, getCollectionsByWallet, getRecentMints, getAllCollections } from '../services/firebase';
+import { 
+  getTokenDeploymentsByWallet, 
+  getCollectionsByWallet, 
+  getRecentMints, 
+  getAllCollections,
+  getCollection,
+  getTokenDetails
+} from '../services/firebase';
+import { getTokenTransfersForAddress, trackTokenTransfers, getNFTTransfersForAddress, trackNFTTransfers } from '../services/tokenTransfers';
 import { ipfsToHttp } from '../utils/ipfs';
+import { ethers } from 'ethers';
 
 export default function HistoryPage() {
   const [activities, setActivities] = useState([]);
@@ -25,9 +34,64 @@ export default function HistoryPage() {
       try {
         console.log('Loading history for address:', address);
 
-        // Load token deployments
+        // Load token deployments and get their details
         const tokenDeployments = await getTokenDeploymentsByWallet(address);
-        console.log('Token deployments:', tokenDeployments);
+        console.log('Token deployments loaded:', tokenDeployments);
+        
+        // Initialize token transfer tracking for all tokens
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        console.log('Initializing transfer tracking for tokens:', tokenDeployments.map(t => t.address));
+        await Promise.all(tokenDeployments.map(token => 
+          trackTokenTransfers(token.address, provider).catch(error => 
+            console.error(`Error tracking transfers for token ${token.address}:`, error)
+          )
+        ));
+        console.log('Transfer tracking initialized for all tokens');
+        
+        // Load token transfers first
+        const tokenTransfers = await getTokenTransfersForAddress(address);
+        console.log('Token transfers loaded:', tokenTransfers);
+
+        // Get unique token addresses from both deployments and transfers
+        const uniqueTokenAddresses = new Set([
+          ...tokenDeployments.map(t => t.address.toLowerCase()),
+          ...tokenTransfers.map(t => t.tokenAddress.toLowerCase())
+        ]);
+        
+        // Create a map of token addresses to their details
+        const tokenDetailsMap = {};
+        
+        // Add deployed tokens to the map
+        tokenDeployments.forEach(token => {
+          tokenDetailsMap[token.address.toLowerCase()] = {
+            name: token.name,
+            symbol: token.symbol,
+            logo: token.logo,
+            decimals: token.decimals || 18
+          };
+        });
+
+        // Fetch details for tokens that weren't deployed by this wallet
+        const missingTokenAddresses = Array.from(uniqueTokenAddresses)
+          .filter(address => !tokenDetailsMap[address]);
+
+        await Promise.all(missingTokenAddresses.map(async (tokenAddress) => {
+          try {
+            const tokenDetails = await getTokenDetails(tokenAddress);
+            if (tokenDetails) {
+              tokenDetailsMap[tokenAddress] = {
+                name: tokenDetails.name,
+                symbol: tokenDetails.symbol,
+                logo: tokenDetails.logo,
+                decimals: tokenDetails.decimals || 18
+              };
+            }
+          } catch (error) {
+            console.error(`Error fetching details for token ${tokenAddress}:`, error);
+          }
+        }));
+
+        console.log('Token details map created:', tokenDetailsMap);
 
         const formattedTokenDeployments = tokenDeployments.map(token => ({
           id: token.address,
@@ -39,10 +103,50 @@ export default function HistoryPage() {
           address: token.address,
           network: token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia'
         }));
+        console.log('Formatted token deployments:', formattedTokenDeployments);
+
+        const formattedTokenTransfers = tokenTransfers.map(tx => {
+          const tokenDetails = tokenDetailsMap[tx.tokenAddress.toLowerCase()] || {
+            name: 'Unknown Token',
+            symbol: 'TOKEN',
+            decimals: 18
+          };
+          
+          const formattedAmount = ethers.formatUnits(tx.amount, tokenDetails.decimals);
+          
+          return {
+            id: tx.transactionHash,
+            activityType: 'token_transaction',
+            timestamp: tx.timestamp,
+            image: tokenDetails.logo,
+            title: tx.type === 'sent' 
+              ? `Sent ${formattedAmount} ${tokenDetails.symbol}`
+              : `Received ${formattedAmount} ${tokenDetails.symbol}`,
+            subtitle: tx.type === 'sent'
+              ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
+              : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
+            address: tx.tokenAddress,
+            network: 'sepolia', // Update based on your network
+            transactionHash: tx.transactionHash,
+            amount: formattedAmount,
+            tokenSymbol: tokenDetails.symbol,
+            fromAddress: tx.fromAddress,
+            toAddress: tx.toAddress
+          };
+        });
+        console.log('Formatted token transfers:', formattedTokenTransfers);
 
         // Load NFT collections
         const nftCollections = await getCollectionsByWallet(address);
-        console.log('NFT collections:', nftCollections);
+        console.log('NFT collections loaded:', nftCollections);
+
+        // Initialize NFT transfer tracking
+        await Promise.all(nftCollections.map(nft => 
+          trackNFTTransfers(nft.contractAddress, nft.type, provider).catch(error => 
+            console.error(`Error tracking transfers for NFT ${nft.contractAddress}:`, error)
+          )
+        ));
+        console.log('NFT transfer tracking initialized');
 
         const formattedNFTDeployments = nftCollections.map(nft => ({
           id: nft.contractAddress,
@@ -57,10 +161,58 @@ export default function HistoryPage() {
           artworkType: nft.artworkType
         }));
 
-        // Load NFT mints for each collection
-        console.log('Fetching mints for collections...');
+        // Load NFT transfers
+        const nftTransfers = await getNFTTransfersForAddress(address);
+        console.log('NFT transfers loaded:', nftTransfers);
+
+        // Create a map of collection addresses to their details
+        const collectionsMap = new Map();
+        for (const nft of nftCollections) {
+          collectionsMap.set(nft.contractAddress.toLowerCase(), nft);
+        }
+
+        // Load any missing collections for NFT transfers
+        const missingCollections = nftTransfers
+          .filter(tx => !collectionsMap.has(tx.contractAddress.toLowerCase()))
+          .map(tx => tx.contractAddress.toLowerCase());
         
-        // First, get all collections to check for mints
+        const uniqueMissingCollections = [...new Set(missingCollections)];
+        
+        await Promise.all(uniqueMissingCollections.map(async (contractAddress) => {
+          try {
+            const collection = await getCollection(contractAddress);
+            if (collection) {
+              collectionsMap.set(contractAddress, collection);
+            }
+          } catch (error) {
+            console.error(`Error loading collection ${contractAddress}:`, error);
+          }
+        }));
+
+        const formattedNFTTransfers = nftTransfers.map(tx => {
+          const collection = collectionsMap.get(tx.contractAddress.toLowerCase());
+          return {
+            id: `${tx.transactionHash}-${tx.tokenId}`,
+            activityType: 'nft_transfer',
+            timestamp: tx.timestamp,
+            image: collection?.previewUrl || '/placeholder.png',
+            title: tx.type === 'sent'
+              ? `Sent ${collection?.name || 'NFT'} #${tx.tokenId}`
+              : `Received ${collection?.name || 'NFT'} #${tx.tokenId}`,
+            subtitle: tx.type === 'sent'
+              ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
+              : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
+            address: tx.contractAddress,
+            network: collection?.network || 'sepolia',
+            symbol: collection?.symbol,
+            artworkType: collection?.artworkType,
+            tokenId: tx.tokenId,
+            amount: tx.amount,
+            transactionHash: tx.transactionHash
+          };
+        });
+
+        // Load NFT mints
         const allCollections = await getAllCollections();
         console.log('All collections:', allCollections);
 
@@ -91,11 +243,25 @@ export default function HistoryPage() {
         // Combine and sort all activities
         const allActivities = [
           ...formattedTokenDeployments,
+          ...formattedTokenTransfers,
           ...formattedNFTDeployments,
+          ...formattedNFTTransfers,
           ...allMints,
         ].sort((a, b) => {
-          const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
-          const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+          const timeA = a.timestamp instanceof Date ? 
+            a.timestamp.getTime() : 
+            typeof a.timestamp === 'number' ?
+              a.timestamp :
+              typeof a.timestamp === 'string' ? 
+                new Date(a.timestamp).getTime() : 
+                0;
+          const timeB = b.timestamp instanceof Date ? 
+            b.timestamp.getTime() : 
+            typeof b.timestamp === 'number' ?
+              b.timestamp :
+              typeof b.timestamp === 'string' ? 
+                new Date(b.timestamp).getTime() : 
+                0;
           return timeB - timeA;
         });
 
@@ -145,8 +311,18 @@ export default function HistoryPage() {
   };
 
   const renderActivityCard = (activity) => {
-    const timestamp = activity.timestamp instanceof Date ? activity.timestamp : new Date(activity.timestamp);
+    // Parse the timestamp, handling all possible formats
+    const getTimestamp = (timestamp) => {
+      if (timestamp instanceof Date) return timestamp;
+      if (typeof timestamp === 'number') return new Date(timestamp);
+      if (timestamp?.seconds) return new Date(timestamp.seconds * 1000);
+      if (typeof timestamp === 'string') return new Date(timestamp);
+      return new Date();
+    };
+
+    const timestamp = getTimestamp(activity.timestamp);
     const isNFTActivity = activity.activityType === 'nft_creation' || activity.activityType === 'nft_mint';
+    const isTokenTransaction = activity.activityType === 'token_transaction';
 
     return (
       <div 
@@ -187,27 +363,28 @@ export default function HistoryPage() {
                   on {activity.network === 'polygon' ? 'Polygon' : 'Sepolia'}
                 </span>
               )}
-            </div>
 
-            {/* Contract Address */}
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(activity.address);
-                  toast.success('Address copied!');
-                }}
-                className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-[#00ffbd] transition-colors"
-              >
-                {activity.address.slice(0, 6)}...{activity.address.slice(-4)}
-                <BiCopy size={12} />
-              </button>
+              {/* Add transaction link */}
+              {isTokenTransaction && activity.transactionHash && (
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${activity.transactionHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-[#00ffbd] transition-colors"
+                >
+                  <span>View Transaction</span>
+                  <BiCopy 
+                    size={12} 
+                    className="ml-1 cursor-pointer" 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigator.clipboard.writeText(activity.transactionHash);
+                      toast.success('Transaction hash copied!');
+                    }} 
+                  />
+                </a>
+              )}
             </div>
-          </div>
-
-          {/* Activity Type Badge */}
-          <div className="px-2 py-1 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-            {activity.activityType === 'token_creation' ? 'Token' : 
-             activity.activityType === 'nft_creation' ? 'NFT' : 'Mint'}
           </div>
         </div>
       </div>

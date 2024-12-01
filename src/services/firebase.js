@@ -24,6 +24,7 @@ export const mintsRef = collection(db, 'mints');
 export const holdersRef = collection(db, 'holders');
 export const mintersRef = collection(db, 'minters');
 export const volumeRef = collection(db, 'volume');
+export const tokenTransfersRef = collection(db, 'tokenTransfers');
 
 export const saveCollection = async (collectionData) => {
   try {
@@ -294,5 +295,90 @@ export const getTokenDeploymentByAddress = async (address) => {
   } catch (error) {
     console.error('Error getting token deployment:', error);
     return null;
+  }
+};
+
+// Save token transaction
+export const saveTokenTransaction = async (transactionData) => {
+  try {
+    const sanitizedData = {
+      fromAddress: transactionData.fromAddress.toLowerCase(),
+      toAddress: transactionData.toAddress.toLowerCase(),
+      tokenAddress: transactionData.tokenAddress,
+      tokenName: transactionData.tokenName,
+      tokenSymbol: transactionData.tokenSymbol,
+      tokenLogo: transactionData.tokenLogo,
+      amount: transactionData.amount,
+      network: transactionData.network,
+      hash: transactionData.hash,
+      timestamp: serverTimestamp()
+    };
+
+    const docRef = await addDoc(tokenTransactionsRef, sanitizedData);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving token transaction:', error);
+    throw error;
+  }
+};
+
+// Get token transactions for an address (both sent and received)
+export const getTokenTransactions = async (address) => {
+  try {
+    const sentQuery = query(
+      tokenTransactionsRef,
+      where('fromAddress', '==', address.toLowerCase()),
+      orderBy('timestamp', 'desc')
+    );
+
+    const receivedQuery = query(
+      tokenTransactionsRef,
+      where('toAddress', '==', address.toLowerCase()),
+      orderBy('timestamp', 'desc')
+    );
+
+    const [sentSnapshot, receivedSnapshot] = await Promise.all([
+      getDocs(sentQuery),
+      getDocs(receivedQuery)
+    ]);
+
+    const sentTransactions = sentSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      type: 'sent'
+    }));
+
+    const receivedTransactions = receivedSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      type: 'received'
+    }));
+
+    return [...sentTransactions, ...receivedTransactions];
+  } catch (error) {
+    console.error('Error getting token transactions:', error);
+    return [];
+  }
+};
+
+export const getTokenDetails = async (tokenAddress) => {
+  try {
+    const q = query(
+      tokenDeploymentsRef,
+      where('address', '==', tokenAddress.toLowerCase())
+    );
+    
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return {
+        id: doc.id,
+        ...doc.data()
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting token details:', error);
+    throw error;
   }
 };

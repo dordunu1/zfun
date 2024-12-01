@@ -47,6 +47,23 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Token transfers collection
+    match /tokenTransfers/{transferId} {
+      allow read: if true;
+      allow create: if 
+        request.resource.data.fromAddress != null &&
+        request.resource.data.toAddress != null &&
+        request.resource.data.tokenAddress != null &&
+        request.resource.data.amount != null &&
+        request.resource.data.transactionHash != null &&
+        request.resource.data.timestamp != null &&
+        request.resource.data.fromAddress.matches('^0x[a-fA-F0-9]{40}$') &&
+        request.resource.data.toAddress.matches('^0x[a-fA-F0-9]{40}$') &&
+        request.resource.data.tokenAddress.matches('^0x[a-fA-F0-9]{40}$');
+      
+      allow update, delete: if false;
+    }
+
     // Analytics collections with validation
     match /mints/{mintId} {
       allow read: if true;

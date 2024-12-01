@@ -8,6 +8,7 @@ import TokenFactoryABI from '../contracts/TokenFactory.json';
 import { uploadTokenLogo } from '../services/storage';
 import { useDeployments } from '../context/DeploymentsContext';
 import { ipfsToHttp } from '../utils/ipfs';
+import { trackTokenTransfers } from '../services/tokenTransfers';
 
 
 const SUPPORTED_CHAINS = import.meta.env.VITE_SUPPORTED_CHAINS.split(',').map(Number);
@@ -94,6 +95,20 @@ export default function CreateTokenModal({ isOpen, onClose }) {
   // Update the handleSuccess function
   const handleSuccess = async (deployedAddress, eventData, logoUrls) => {
     try {
+      console.log('Saving token deployment with data:', {
+        name: eventData.name,
+        symbol: eventData.symbol,
+        address: deployedAddress,
+        chainId: currentChainId,
+        chainName: currentChainId === 137 ? 'Polygon' : 'Sepolia',
+        logo: logoUrls.httpUrl,
+        logoIpfs: logoUrls.ipfsUrl,
+        description: formData.description,
+        totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
+        timestamp: Date.now(),
+        creatorAddress: account.toLowerCase()
+      });
+
       await addDeployment({
         name: eventData.name,
         symbol: eventData.symbol,
@@ -104,8 +119,17 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         logoIpfs: logoUrls.ipfsUrl,
         description: formData.description,
         totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        creatorAddress: account.toLowerCase()
       });
+
+      console.log('Token deployment saved successfully');
+
+      // Initialize token transfer tracking
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      console.log('Initializing transfer tracking for token:', deployedAddress);
+      await trackTokenTransfers(deployedAddress, provider);
+      console.log('Transfer tracking initialized');
 
       // Clear any existing toasts
       toast.dismiss();

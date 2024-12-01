@@ -24,6 +24,22 @@
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "tokenTransfers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fromAddress", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tokenTransfers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "toAddress", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
     }
   ]
 } 
