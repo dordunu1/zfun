@@ -15,7 +15,13 @@ import {
   FaTwitter,
   FaChartBar 
 } from 'react-icons/fa';
-import { BiHome, BiCollection } from 'react-icons/bi';
+import { BiHome, BiCollection, BiHistory, BiHomeAlt } from 'react-icons/bi';
+import { AiOutlinePlus } from 'react-icons/ai'
+import { BsCollection, BsClockHistory } from 'react-icons/bs'
+import { HiOutlineHome } from 'react-icons/hi'
+import { MdOutlineLocalActivity } from 'react-icons/md'
+import { TbChartCandle } from 'react-icons/tb'
+import { RiPaintLine } from 'react-icons/ri'
 
 export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -25,14 +31,54 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const isActive = (path) => location.pathname === path;
 
   const menuItems = [
-    { icon: FaPlus, label: 'Create Token', action: onOpenModal, primary: true },
-    { icon: FaFileAlt, label: 'Create NFT', action: onOpenNFTModal },
-    { icon: BiHome, label: 'Dashboard', to: '/', isRouterLink: true },
-    { icon: BiCollection, label: 'Collections', to: '/collections', isRouterLink: true },
-    { icon: FaChartLine, label: 'Trending Tokens', href: '#' },
-    { icon: FaChartBar, label: 'Activity', href: '#' },
-    { icon: FaClock, label: 'Recent Tokens', href: '#' },
-    { icon: FaHistory, label: 'History', href: '#' },
+    {
+      icon: AiOutlinePlus,
+      label: 'Create Token',
+      action: onOpenModal,
+      primary: true,
+    },
+    {
+      icon: RiPaintLine,
+      label: 'Create NFT',
+      action: onOpenNFTModal,
+    },
+    {
+      icon: HiOutlineHome,
+      label: 'Dashboard',
+      to: '/',
+      isRouterLink: true,
+    },
+    {
+      icon: BsCollection,
+      label: 'Collections',
+      to: '/collections',
+      isRouterLink: true,
+      noDefaultHighlight: true,
+    },
+    {
+      icon: TbChartCandle,
+      label: 'Trending Tokens',
+      to: '/trending',
+      isRouterLink: true,
+    },
+    {
+      icon: MdOutlineLocalActivity,
+      label: 'Activity',
+      to: '/activity',
+      isRouterLink: true,
+    },
+    {
+      icon: BsClockHistory,
+      label: 'Recent Tokens',
+      to: '/recent',
+      isRouterLink: true,
+    },
+    {
+      icon: BiHistory,
+      label: 'History',
+      to: '/history',
+      isRouterLink: true,
+    },
   ];
 
   const socialLinks = [
@@ -45,10 +91,10 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const renderMenuItem = (item, index) => {
     const commonClasses = `w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200
       ${item.primary 
-        ? 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold' 
-        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#1a1b1f]'}
+        ? 'text-gray-800 dark:text-gray-200 hover:text-black dark:hover:text-black hover:bg-[#00ffbd] font-semibold' 
+        : `text-gray-800 dark:text-gray-200 hover:text-black dark:hover:text-black hover:bg-[#00ffbd] 
+           ${item.isRouterLink && isActive(item.to) && !item.noDefaultHighlight ? 'text-[#00ffbd]' : ''}`}
       ${isCollapsed ? 'justify-center' : ''}
-      ${item.isRouterLink && isActive(item.to) ? 'bg-[#00ffbd] text-black' : ''}
     `;
 
     if (item.isRouterLink) {
@@ -58,7 +104,7 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
           to={item.to}
           className={commonClasses}
         >
-          <item.icon size={20} className="flex-shrink-0" />
+          <item.icon size={20} className={`flex-shrink-0 ${item.isRouterLink && isActive(item.to) && !item.noDefaultHighlight ? 'text-[#00ffbd]' : ''}`} />
           {!isCollapsed && (
             <span className="truncate">{item.label}</span>
           )}

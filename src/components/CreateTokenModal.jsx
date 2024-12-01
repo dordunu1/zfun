@@ -299,15 +299,40 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
         
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white dark:bg-[#0d0e12] rounded-xl p-6 max-w-md w-full">
+          <Dialog.Panel className="w-full max-w-md transform rounded-lg bg-white dark:bg-[#0a0b0f] p-6 relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Header */}
             <div className="flex justify-between items-center mb-6">
               <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
                 Create New Token
               </Dialog.Title>
-              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                <BiX size={24} />
+              <button 
+                onClick={onClose} 
+                className="w-8 h-8 flex items-center justify-center bg-white dark:bg-[#0a0b0f] border border-[#00ffbd] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <BiX size={20} className="text-[#00ffbd]" />
               </button>
             </div>
+            
+            {/* Glowing dot indicator */}
+            <div className="absolute top-6 right-20 w-2 h-2 rounded-full bg-[#00ffbd] animate-pulse" />
             
             <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
               Launch your own token. Fee: {getFee() || '...'} {currentChainId === 137 ? 'POL' : 'ETH'}
