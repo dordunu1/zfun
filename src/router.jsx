@@ -3,6 +3,7 @@ import App from './App';
 import Dashboard from './components/Dashboard';
 import CollectionsList from './components/CollectionsList';
 import CollectionPage from './components/CollectionPage';
+import HistoryPage from './pages/HistoryPage';
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
       {
         path: '/collection/:symbol',
         element: <CollectionPage />,
+      },
+      {
+        path: '/history',
+        element: <HistoryPage />,
       },
     ],
   },
