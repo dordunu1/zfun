@@ -363,22 +363,10 @@ export const getTokenTransactions = async (address) => {
 
 export const getTokenDetails = async (tokenAddress) => {
   try {
-    const q = query(
-      tokenDeploymentsRef,
-      where('address', '==', tokenAddress.toLowerCase())
-    );
-    
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      const doc = querySnapshot.docs[0];
-      return {
-        id: doc.id,
-        ...doc.data()
-      };
-    }
-    return null;
+    console.log('Getting token details for:', tokenAddress);
+    return await getTokenDeploymentByAddress(tokenAddress);
   } catch (error) {
     console.error('Error getting token details:', error);
-    throw error;
+    return null;
   }
 };

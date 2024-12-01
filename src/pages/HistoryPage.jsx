@@ -38,6 +38,17 @@ export default function HistoryPage() {
         const tokenDeployments = await getTokenDeploymentsByWallet(address);
         console.log('Token deployments loaded:', tokenDeployments);
         
+        // Create token details map first
+        const tokenDetailsMap = tokenDeployments.reduce((acc, token) => {
+          acc[token.address.toLowerCase()] = {
+            name: token.name,
+            symbol: token.symbol,
+            logo: token.logo,
+            decimals: token.decimals || 18
+          };
+          return acc;
+        }, {});
+        
         // Initialize token transfer tracking for all tokens
         const provider = new ethers.BrowserProvider(window.ethereum);
         console.log('Initializing transfer tracking for tokens:', tokenDeployments.map(t => t.address));
@@ -48,9 +59,69 @@ export default function HistoryPage() {
         ));
         console.log('Transfer tracking initialized for all tokens');
         
-        // Load token transfers first
+        // Load token transfers
         const tokenTransfers = await getTokenTransfersForAddress(address);
         console.log('Token transfers loaded:', tokenTransfers);
+        
+        const formattedTokenTransfers = await Promise.all(tokenTransfers.map(async tx => {
+          // First check if token details exist in the map (for deployed tokens)
+          let tokenDetails = tokenDetailsMap[tx.tokenAddress.toLowerCase()];
+          
+          // If not in map, fetch from Firebase (for non-deployed tokens)
+          if (!tokenDetails) {
+            const fetchedDetails = await getTokenDetails(tx.tokenAddress);
+            if (fetchedDetails) {
+              tokenDetails = {
+                name: fetchedDetails.name,
+                symbol: fetchedDetails.symbol,
+                logo: fetchedDetails.logo,
+                decimals: fetchedDetails.decimals || 18
+              };
+            }
+          }
+
+          // Fallback if still no details
+          tokenDetails = tokenDetails || {
+            name: 'Unknown Token',
+            symbol: 'TOKEN',
+            decimals: 18
+          };
+          
+          const formattedAmount = ethers.formatUnits(tx.amount, tokenDetails.decimals);
+          
+          return {
+            id: tx.transactionHash,
+            activityType: 'token_transaction',
+            timestamp: tx.timestamp,
+            image: tokenDetails.logo,
+            title: tx.type === 'sent' 
+              ? `Sent ${formattedAmount} ${tokenDetails.symbol}`
+              : `Received ${formattedAmount} ${tokenDetails.symbol}`,
+            subtitle: tx.type === 'sent'
+              ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
+              : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
+            address: tx.tokenAddress,
+            network: 'sepolia',
+            transactionHash: tx.transactionHash,
+            amount: formattedAmount,
+            tokenSymbol: tokenDetails.symbol,
+            fromAddress: tx.fromAddress,
+            toAddress: tx.toAddress
+          };
+        }));
+        console.log('Formatted token transfers:', formattedTokenTransfers);
+
+        const formattedTokenDeployments = tokenDeployments.map(token => ({
+          id: token.address,
+          activityType: 'token_creation',
+          timestamp: token.createdAt,
+          image: token.logo,
+          title: `Created ${token.name}`,
+          subtitle: 'Token Creation',
+          address: token.address,
+          network: token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia'
+        }));
+        console.log('Formatted token deployments:', formattedTokenDeployments);
 
         // Get unique token addresses from both deployments and transfers
         const uniqueTokenAddresses = new Set([
@@ -58,19 +129,6 @@ export default function HistoryPage() {
           ...tokenTransfers.map(t => t.tokenAddress.toLowerCase())
         ]);
         
-        // Create a map of token addresses to their details
-        const tokenDetailsMap = {};
-        
-        // Add deployed tokens to the map
-        tokenDeployments.forEach(token => {
-          tokenDetailsMap[token.address.toLowerCase()] = {
-            name: token.name,
-            symbol: token.symbol,
-            logo: token.logo,
-            decimals: token.decimals || 18
-          };
-        });
-
         // Fetch details for tokens that weren't deployed by this wallet
         const missingTokenAddresses = Array.from(uniqueTokenAddresses)
           .filter(address => !tokenDetailsMap[address]);
@@ -92,49 +150,6 @@ export default function HistoryPage() {
         }));
 
         console.log('Token details map created:', tokenDetailsMap);
-
-        const formattedTokenDeployments = tokenDeployments.map(token => ({
-          id: token.address,
-          activityType: 'token_creation',
-          timestamp: token.createdAt,
-          image: token.logo,
-          title: `Created ${token.name}`,
-          subtitle: 'Token Creation',
-          address: token.address,
-          network: token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia'
-        }));
-        console.log('Formatted token deployments:', formattedTokenDeployments);
-
-        const formattedTokenTransfers = tokenTransfers.map(tx => {
-          const tokenDetails = tokenDetailsMap[tx.tokenAddress.toLowerCase()] || {
-            name: 'Unknown Token',
-            symbol: 'TOKEN',
-            decimals: 18
-          };
-          
-          const formattedAmount = ethers.formatUnits(tx.amount, tokenDetails.decimals);
-          
-          return {
-            id: tx.transactionHash,
-            activityType: 'token_transaction',
-            timestamp: tx.timestamp,
-            image: tokenDetails.logo,
-            title: tx.type === 'sent' 
-              ? `Sent ${formattedAmount} ${tokenDetails.symbol}`
-              : `Received ${formattedAmount} ${tokenDetails.symbol}`,
-            subtitle: tx.type === 'sent'
-              ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
-              : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
-            address: tx.tokenAddress,
-            network: 'sepolia', // Update based on your network
-            transactionHash: tx.transactionHash,
-            amount: formattedAmount,
-            tokenSymbol: tokenDetails.symbol,
-            fromAddress: tx.fromAddress,
-            toAddress: tx.toAddress
-          };
-        });
-        console.log('Formatted token transfers:', formattedTokenTransfers);
 
         // Load NFT collections
         const nftCollections = await getCollectionsByWallet(address);
