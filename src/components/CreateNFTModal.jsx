@@ -144,7 +144,7 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
               Whitelist Addresses
             </h2>
 
-            <div className="max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-white dark:[&::-webkit-scrollbar-track]:bg-[#0d0e12] [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
+            <div className="max-h-[60vh] overflow-y-auto custom-scrollbar [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
               {addresses.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
                   {addresses.map((addr, index) => (
@@ -1415,7 +1415,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                           Whitelist Addresses
                         </h2>
 
-                        <div className="max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-white dark:[&::-webkit-scrollbar-track]:bg-[#0d0e12] [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
+                        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
                           {formData.whitelistAddresses.length > 0 ? (
                             <div className="grid grid-cols-1 gap-2">
                               {formData.whitelistAddresses.map((addr, index) => (

@@ -723,26 +723,24 @@ export default function CollectionPage() {
 
             {/* Main Content - Update background */}
             <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600 dark:text-gray-400">Price</span>
-                  <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0d0e12] px-3 py-2 rounded-lg">
-                    {renderCurrencyLogo()}
-                    <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {collection?.mintPrice}
-                    </span>
-                  </div>
+              <div className="flex items-center justify-between mb-6">
+                <span className="text-gray-700 dark:text-gray-300">Price</span>
+                <div className="flex items-center gap-1">
+                  <FaEthereum className="text-[#00ffbd] text-xl" />
+                  <span className="text-xl font-bold text-gray-900 dark:text-white">
+                    {collection.mintToken.type === 'native' ? '0.015' : collection.mintPrice}
+                  </span>
                 </div>
-                
-                {!isLive && (
-                  <>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-3 border border-gray-200 dark:border-gray-800 mb-4">
-                      Starts {releaseDate.toLocaleDateString()} at {releaseDate.toLocaleTimeString()}
-                    </div>
-                    <CountdownTimer targetDate={releaseDate} />
-                  </>
-                )}
               </div>
+              
+              {!isLive && (
+                <>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-3 border border-gray-200 dark:border-gray-800 mb-4">
+                    Starts {releaseDate.toLocaleDateString()} at {releaseDate.toLocaleTimeString()}
+                  </div>
+                  <CountdownTimer targetDate={releaseDate} />
+                </>
+              )}
 
               {/* Whitelist Checker */}
               {collection.enableWhitelist && (
@@ -805,7 +803,7 @@ export default function CollectionPage() {
               )}
 
               {/* Mint Controls */}
-              <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+              <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800 mt-6">
                 <button
                   onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
                   className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -844,7 +842,7 @@ export default function CollectionPage() {
               </div>
 
               {/* Mint Button */}
-              <div className="flex justify-center px-4">
+              <div className="flex justify-center px-4 mt-4">
                 <button
                   onClick={handleMint}
                   disabled={
@@ -860,9 +858,9 @@ export default function CollectionPage() {
                   }
                   className={`w-full py-3 ${
                     collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
-                      ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-                      : 'bg-[#00ffbd] hover:bg-[#00e6a9]'
-                  } disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold rounded-lg text-lg transition-colors`}
+                      ? 'bg-gray-200 dark:bg-[#1a1b1f] text-gray-900 dark:text-white'
+                      : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
+                  } disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-lg transition-colors`}
                 >
                   {!isLive ? 'Not Live Yet' : 
                    collection.enableWhitelist ? (
@@ -929,7 +927,13 @@ export default function CollectionPage() {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                   <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Max Per Wallet</div>
-                  <div className="text-xl font-bold text-gray-900 dark:text-white">{collection.maxPerWallet}</div>
+                  <div className="text-lg font-medium text-gray-900 dark:text-white">
+                    {collection.enableWhitelist ? (
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Check your mint cap in whitelist checker above</span>
+                    ) : (
+                      collection.maxPerWallet
+                    )}
+                  </div>
                 </div>
                 <div className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
                   <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Supply</div>
