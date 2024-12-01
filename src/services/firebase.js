@@ -375,7 +375,22 @@ export const getTokenDetails = async (tokenAddress) => {
 
 const ETHERSCAN_API_KEY = import.meta.env.VITE_ETHERSCAN_API_KEY;
 
-// Add function to get NFT balance from Etherscan
+const getNFTBalanceFromContract = async (contractAddress, address) => {
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const contract = new ethers.Contract(
+      contractAddress,
+      ['function balanceOf(address) view returns (uint256)'],
+      provider
+    );
+    const balance = await contract.balanceOf(address);
+    return Number(balance);
+  } catch (error) {
+    console.error('Error getting NFT balance from contract:', error);
+    return 0;
+  }
+};
+
 const getNFTBalanceFromEtherscan = async (contractAddress, address) => {
   try {
     const response = await fetch(
@@ -415,6 +430,7 @@ export const getOwnedNFTs = async (address) => {
     const uniqueCollectionAddresses = [...new Set(mints.map(mint => mint.collectionAddress))];
     const collections = new Map();
     const balances = new Map();
+    const nftCounts = new Map(); // Track NFT counts per collection
 
     await Promise.all([
       ...uniqueCollectionAddresses.map(async (collectionAddress) => {
@@ -424,32 +440,67 @@ export const getOwnedNFTs = async (address) => {
         );
         const collectionSnapshot = await getDocs(collectionQuery);
         if (!collectionSnapshot.empty) {
-          collections.set(collectionAddress, collectionSnapshot.docs[0].data());
-          // Get balance from Etherscan
-          const balance = await getNFTBalanceFromEtherscan(collectionAddress, address);
+          const collectionData = collectionSnapshot.docs[0].data();
+          collections.set(collectionAddress, collectionData);
+          
+          // Get balance from contract
+          let balance = await getNFTBalanceFromContract(collectionAddress, address);
+          console.log(`Balance from contract for ${collectionData.name}:`, balance);
+          
+          // If contract balance is 0, try Etherscan
+          if (balance === 0) {
+            balance = await getNFTBalanceFromEtherscan(collectionAddress, address);
+            console.log(`Balance from Etherscan for ${collectionData.name}:`, balance);
+          }
+          
           balances.set(collectionAddress, balance);
+          nftCounts.set(collectionAddress, balance); // Store the actual NFT count
         }
       })
     ]);
 
-    // Combine mint data with collection data and balances
-    const ownedNFTs = mints.map(mint => {
-      const collection = collections.get(mint.collectionAddress) || {};
-      const balance = balances.get(mint.collectionAddress) || 0;
-      return {
-        ...mint,
-        ...collection,
-        balance,
-        name: collection.name || 'Unknown Collection',
-        collectionName: collection.name,
-        type: collection.type || 'ERC721',
-        symbol: collection.symbol,
-        artworkType: collection.artworkType || 'image',
-        network: collection.network || 'sepolia'
-      };
-    });
+    // Group mints by collection address
+    const mintsByCollection = mints.reduce((acc, mint) => {
+      if (!acc[mint.collectionAddress]) {
+        acc[mint.collectionAddress] = [];
+      }
+      acc[mint.collectionAddress].push(mint);
+      return acc;
+    }, {});
 
-    console.log('Found owned NFTs:', ownedNFTs.length);
+    // Create NFT entries based on actual balances
+    const ownedNFTs = [];
+    for (const [collectionAddress, collectionMints] of Object.entries(mintsByCollection)) {
+      const collection = collections.get(collectionAddress);
+      const balance = nftCounts.get(collectionAddress) || 0;
+      
+      if (balance > 0 && collection) {
+        // Use the most recent mint as template
+        const recentMint = collectionMints.sort((a, b) => b.mintedAt - a.mintedAt)[0];
+        
+        // Create multiple entries based on balance
+        for (let i = 0; i < balance; i++) {
+          ownedNFTs.push({
+            ...recentMint,
+            ...collection,
+            balance: 1, // Each card represents 1 NFT
+            tokenId: i + 1, // Add sequential token IDs
+            name: collection.name || 'Unknown Collection',
+            collectionName: collection.name,
+            type: collection.type || 'ERC721',
+            symbol: collection.symbol,
+            artworkType: collection.artworkType || 'image',
+            network: collection.network || 'sepolia'
+          });
+        }
+      }
+    }
+
+    console.log('Found owned NFTs with balances:', ownedNFTs.map(nft => ({
+      collection: nft.name,
+      tokenId: nft.tokenId
+    })));
+    
     return ownedNFTs;
   } catch (error) {
     console.error('Error getting owned NFTs:', error);
