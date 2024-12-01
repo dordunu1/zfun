@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown, BiWallet, BiVideo } from 'react-icons/bi';
+import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown, BiWallet, BiVideo, BiListUl, BiTrash } from 'react-icons/bi';
 import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
 import { BiWorld } from 'react-icons/bi';
 import clsx from 'clsx';
@@ -105,7 +105,7 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
       
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <div 
-          className="w-full max-w-2xl transform rounded-lg bg-[#0a0b0f] p-6 relative"
+          className="w-full max-w-2xl transform rounded-lg bg-white dark:bg-[#0a0b0f] p-6 relative"
           onClick={handleModalClick}
         >
           {/* L-shaped corners */}
@@ -133,31 +133,31 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
               e.stopPropagation();
               onClose();
             }}
-            className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center bg-[#0a0b0f] border border-[#00ffbd] rounded-md hover:bg-gray-800 transition-colors z-50"
+            className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center bg-white dark:bg-[#0a0b0f] border border-[#00ffbd] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors z-50"
           >
             <BiX size={20} className="text-[#00ffbd]" />
           </button>
 
           {/* Main Content */}
           <div className="mt-2">
-            <h2 className="text-xl font-semibold text-white mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
               Whitelist Addresses
             </h2>
 
-            <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+            <div className="max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-white dark:[&::-webkit-scrollbar-track]:bg-[#0d0e12] [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
               {addresses.length > 0 ? (
                 <div className="grid grid-cols-1 gap-2">
                   {addresses.map((addr, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-[#1a1b1f] rounded-lg hover:bg-[#2a2b2f] transition-colors"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a2b2f] transition-colors"
                     >
-                      <span className="text-sm font-mono text-gray-300 flex-1">
+                      <span className="text-sm font-mono text-gray-700 dark:text-gray-300 flex-1">
                         {typeof addr === 'object' ? addr.address : addr}
                       </span>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-400">Mint limit:</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Mint limit:</span>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -196,7 +196,7 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
                                 e.preventDefault();
                               }
                             }}
-                            className="w-16 px-2 py-1 bg-[#0d0e12] border border-gray-700 rounded text-white text-sm focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd] focus:outline-none"
+                            className="w-16 px-2 py-1 bg-white dark:bg-[#0d0e12] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded text-sm focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd] focus:outline-none"
                             onClick={(e) => {
                               e.stopPropagation();
                               e.target.select();
@@ -209,16 +209,16 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
                             e.stopPropagation();
                             onRemoveAddress(index);
                           }}
-                          className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
+                          className="p-2 text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20 rounded-lg transition-colors"
                         >
-                          <BiX size={20} />
+                          <BiTrash size={18} />
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   No addresses added yet
                 </div>
               )}
@@ -372,6 +372,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
   const handleSubmit = async () => {
     try {
+      // Dismiss the whitelist info toast when creating collection
+      toast.dismiss('whitelist-info');
+      
       if (!account) {
         openConnectModal();
         return;
@@ -1217,9 +1220,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               </div>
 
               {formData.mintingToken === 'custom' && (
-                <div className="space-y-4 mt-4">
+                <div className="space-y-3 mt-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                       Token Contract Address
                     </label>
                     <input
@@ -1227,11 +1230,11 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       placeholder="0x..."
                       value={formData.customTokenAddress}
                       onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                       Token Symbol
                     </label>
                     <input
@@ -1239,15 +1242,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       placeholder="Enter token symbol"
                       value={formData.customTokenSymbol}
                       onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Mint Price
                   </label>
                   <div className="relative">
@@ -1256,7 +1259,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       step="0.000000000000000001"
                       value={formData.mintPrice}
                       onChange={(e) => updateFormData({ mintPrice: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-16 p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-16 p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                       placeholder="0.00"
                     />
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -1268,21 +1271,21 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Max Supply
                   </label>
                   <input
                     type="number"
                     value={formData.maxSupply}
                     onChange={(e) => updateFormData({ maxSupply: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                     placeholder="Enter max supply"
                   />
                 </div>
 
                 {/* Max Per Wallet Input */}
-                <div className="mb-6">
-                  <label className="block text-gray-200 text-sm font-medium mb-2">
+                <div className="mb-4">
+                  <label className="block text-gray-700 dark:text-gray-200 text-sm font-medium mb-2">
                     Max Per Wallet
                   </label>
                   <div className="relative">
@@ -1292,41 +1295,36 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       value={formData.maxPerWallet}
                       onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
                       placeholder="Enter max per wallet"
-                      className={`w-full bg-[#1a1b1f] text-white border border-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-[#00ffbd] ${
-                        formData.enableWhitelist ? 'cursor-not-allowed opacity-75' : ''
+                      className={`w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-[#00ffbd] ${
+                        formData.enableWhitelist ? 'cursor-not-allowed bg-gray-100 dark:bg-[#1a1b1f] opacity-75' : ''
                       }`}
                       disabled={formData.enableWhitelist}
                     />
                     {formData.enableWhitelist && (
                       <div className="absolute right-3 top-2.5 text-xs text-[#00ffbd] flex items-center">
-                        <span className="mr-1">👑</span> Whitelist Mode
+                        <span className="mr-1">👑</span> 
+                        <span className="text-gray-600 dark:text-[#00ffbd]">Whitelist Mode</span>
                       </div>
                     )}
                   </div>
-                  {formData.enableWhitelist && (
-                    <div className="mt-2 text-xs text-gray-400 bg-[#1a1b1f] p-2 rounded-lg border border-gray-800">
-                      <span className="text-[#00ffbd] font-medium">Note:</span> When whitelist is enabled, this value is set high to allow individual whitelist limits to control minting. 
-                      You can set specific mint limits for each address when adding them to the whitelist.
-                    </div>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Release Date
                   </label>
                   <input
                     type="datetime-local"
                     value={formData.releaseDate}
                     onChange={(e) => updateFormData({ releaseDate: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-auto"
+                    className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-auto"
                   />
                 </div>
               </div>
 
               {/* Whitelist Toggle */}
-              <div className="mb-6">
-                <label className="flex items-center space-x-3">
+              <div className="mb-4">
+                <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={formData.enableWhitelist}
@@ -1339,7 +1337,128 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                 </label>
               </div>
 
-              {formData.enableWhitelist && renderWhitelistSection()}
+              {formData.enableWhitelist && (
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Import Whitelist
+                    </h3>
+                    <button
+                      onClick={() => setShowAddressModal(true)}
+                      className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors flex items-center gap-1"
+                    >
+                      <span>{formData.whitelistAddresses.length} Addresses</span>
+                      <BiListUl size={16} />
+                    </button>
+                  </div>
+
+                  {/* Manual address input */}
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      placeholder="Enter wallet address (0x...)"
+                      value={newAddress}
+                      onChange={(e) => setNewAddress(e.target.value)}
+                      className="flex-1 bg-white dark:bg-[#0d0e12] text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    />
+                    <button
+                      onClick={handleAddAddress}
+                      className="px-3 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg text-sm"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* File import buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleFileUpload('csv')}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+                    >
+                      <FaFileCsv size={16} />
+                      Import CSV
+                    </button>
+                    <button
+                      onClick={() => handleFileUpload('excel')}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+                    >
+                      <FaFileExcel size={16} />
+                      Import EXCEL
+                    </button>
+                    <button
+                      onClick={() => handleFileUpload('json')}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1a1b1f]"
+                    >
+                      <FaFileCode size={16} />
+                      Import JSON
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Address List Modal */}
+              {showAddressModal && (
+                <div 
+                  className="fixed inset-0 z-[100]"
+                  onClick={() => setShowAddressModal(false)}
+                >
+                  <div className="fixed inset-0 bg-black/70" />
+                  
+                  <div className="fixed inset-0 flex items-center justify-center p-4">
+                    <div 
+                      className="w-full max-w-2xl transform rounded-lg bg-white dark:bg-[#0a0b0f] p-6 relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Main Content */}
+                      <div className="mt-2">
+                        <h2 className="text-xl font-semibold text-white mb-6">
+                          Whitelist Addresses
+                        </h2>
+
+                        <div className="max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-white dark:[&::-webkit-scrollbar-track]:bg-[#0d0e12] [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
+                          {formData.whitelistAddresses.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-2">
+                              {formData.whitelistAddresses.map((addr, index) => (
+                                <div
+                                  key={index}
+                                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a2b2f] transition-colors"
+                                >
+                                  <span className="text-sm font-mono text-gray-700 dark:text-gray-300 flex-1">
+                                    {typeof addr === 'object' ? addr.address : addr}
+                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-gray-600 dark:text-gray-400">Mint limit:</span>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={typeof addr === 'object' ? (addr.maxMint === '' ? '' : addr.maxMint) : 1}
+                                        onChange={(e) => handleMintLimitChange(index, e)}
+                                        className="w-16 text-center bg-white dark:bg-[#0d0e12] text-gray-900 dark:text-white rounded-lg px-2 py-1 text-sm border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => handleRemoveAddress(index)}
+                                      className="p-1.5 text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20 rounded-lg transition-colors"
+                                    >
+                                      <BiTrash size={18} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                              No addresses added yet
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-4">
                 <div className="flex-1">
@@ -1615,10 +1734,6 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   useEffect(() => {
     if (formData.enableWhitelist) {
       setMaxPerWallet('1000000');  // Set a high default for whitelist mode
-      toast('Individual whitelist addresses can have custom mint limits.', {
-        duration: 5000,
-        icon: '👑'
-      });
     }
   }, [formData.enableWhitelist]);
 
@@ -1628,15 +1743,18 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         enableWhitelist: checked,
         maxPerWallet: '1000000'  // Set a high default for whitelist mode
       });
-      toast('Whitelist mode enabled! Individual addresses can have custom mint limits.', {
-        duration: 5000,
-        icon: '👑'
+      // Show persistent toast
+      toast('When whitelist is enabled, max per wallet is set high to allow individual whitelist limits to control minting. You can set specific mint limits for each address when adding them to the whitelist.', {
+        duration: Infinity,
+        id: 'whitelist-info'
       });
     } else {
       updateFormData({ 
         enableWhitelist: checked,
         maxPerWallet: ''
       });
+      // Dismiss the persistent toast
+      toast.dismiss('whitelist-info');
     }
   };
 
