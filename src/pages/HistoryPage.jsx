@@ -339,6 +339,38 @@ export default function HistoryPage() {
     const isNFTActivity = activity.activityType === 'nft_creation' || activity.activityType === 'nft_mint';
     const isTokenTransaction = activity.activityType === 'token_transaction';
 
+    // Get tag color based on activity type
+    const getTagColor = () => {
+      switch (activity.activityType) {
+        case 'token_creation':
+          return 'bg-purple-500/10 text-purple-500';
+        case 'token_transaction':
+          return 'bg-blue-500/10 text-blue-500';
+        case 'nft_creation':
+          return 'bg-pink-500/10 text-pink-500';
+        case 'nft_mint':
+          return 'bg-green-500/10 text-green-500';
+        default:
+          return 'bg-gray-500/10 text-gray-500';
+      }
+    };
+
+    // Get tag text based on activity type
+    const getTagText = () => {
+      switch (activity.activityType) {
+        case 'token_creation':
+          return 'Token Creation';
+        case 'token_transaction':
+          return 'Token Transfer';
+        case 'nft_creation':
+          return 'NFT Collection';
+        case 'nft_mint':
+          return 'NFT Mint';
+        default:
+          return 'Transaction';
+      }
+    };
+
     return (
       <div 
         key={activity.id} 
@@ -351,18 +383,23 @@ export default function HistoryPage() {
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              {isNFTActivity ? (
-                <button
-                  onClick={() => navigate(`/collection/${activity.symbol}`)}
-                  className="text-sm font-medium text-gray-900 dark:text-white hover:text-[#00ffbd] dark:hover:text-[#00ffbd] transition-colors truncate"
-                >
-                  {activity.title}
-                </button>
-              ) : (
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {activity.title}
-                </h3>
-              )}
+              <div className="flex items-center gap-2">
+                {isNFTActivity ? (
+                  <button
+                    onClick={() => navigate(`/collection/${activity.symbol}`)}
+                    className="text-sm font-medium text-gray-900 dark:text-white hover:text-[#00ffbd] dark:hover:text-[#00ffbd] transition-colors truncate"
+                  >
+                    {activity.title}
+                  </button>
+                ) : (
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {activity.title}
+                  </h3>
+                )}
+                <span className={`text-xs px-2 py-1 rounded-full ${getTagColor()}`}>
+                  {getTagText()}
+                </span>
+              </div>
               <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                 {formatDistanceToNow(timestamp, { addSuffix: true })}
               </span>
