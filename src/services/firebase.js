@@ -523,20 +523,23 @@ export const getOwnedNFTs = async (address) => {
     }
 
     // Create NFT entries
-    const ownedNFTs = mints.map(mint => {
+    const ownedNFTs = [];
+    
+    for (const mint of mints) {
       const collection = collections.get(mint.collectionAddress?.toLowerCase());
       console.log('Processing mint for NFT entry:', {
         name: mint.name,
         collection: collection?.name,
         mintPrice: mint.mintPrice || collection?.mintPrice,
-        type: mint.type
+        type: mint.type,
+        balance: mint.balance,
+        tokenId: mint.tokenId
       });
       
       if (collection || mint.type === 'ERC1155') {
-        const nftEntry = {
+        const baseEntry = {
           ...mint,
           ...(collection || {}),
-          balance: mint.balance || 1,
           tokenId: mint.tokenId || 1,
           name: mint.name || collection?.name || 'Unknown Collection',
           collectionName: collection?.name || mint.name,
@@ -547,11 +550,55 @@ export const getOwnedNFTs = async (address) => {
           mintPrice: mint.mintPrice || collection?.mintPrice || '0',
           paymentToken: mint.paymentToken || collection?.paymentToken || null
         };
-        console.log('Created NFT entry:', nftEntry);
-        return nftEntry;
+
+        if (mint.type === 'ERC1155' && mint.balance > 1) {
+          // For ERC1155 with balance > 1, create multiple entries
+          for (let i = 0; i < mint.balance; i++) {
+            ownedNFTs.push({
+              ...baseEntry,
+              balance: 1,
+              uniqueId: `${baseEntry.collectionAddress}-${baseEntry.tokenId}-${i}` // Add unique ID for React keys
+            });
+          }
+        } else if (mint.type === 'ERC721') {
+          // For ERC721, create entries based on contract balance
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          try {
+            const contract = new ethers.Contract(
+              mint.collectionAddress,
+              ['function balanceOf(address) view returns (uint256)'],
+              provider
+            );
+            const balance = await contract.balanceOf(address);
+            console.log(`ERC721 balance for ${mint.name}:`, Number(balance));
+            
+            if (Number(balance) > 0) {
+              // Create an entry for each token
+              for (let i = 0; i < Number(balance); i++) {
+                ownedNFTs.push({
+                  ...baseEntry,
+                  balance: 1,
+                  uniqueId: `${baseEntry.collectionAddress}-${i}` // Add unique ID for React keys
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error getting ERC721 balance for ${mint.name}:`, error);
+            // Fallback to single entry if balance check fails
+            ownedNFTs.push({
+              ...baseEntry,
+              balance: 1
+            });
+          }
+        } else {
+          // Single entry for ERC1155 with balance 1
+          ownedNFTs.push({
+            ...baseEntry,
+            balance: mint.balance || 1
+          });
+        }
       }
-      return null;
-    }).filter(Boolean);
+    }
 
     console.log('Final owned NFTs:', ownedNFTs);
     return ownedNFTs;
