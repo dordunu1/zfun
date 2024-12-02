@@ -133,15 +133,21 @@ export default function CollectionsList() {
   const getMintStatus = (collection) => {
     const now = Date.now();
     const releaseDate = new Date(collection.releaseDate);
+    const mintEndDate = new Date(collection.mintEndDate || Date.now() + 86400000); // Default 24h if not set
     const timeUntil = releaseDate - now;
+    const timeUntilEnd = mintEndDate - now;
     
-    if (!collection.infiniteMint && collection.totalMinted >= collection.maxSupply) {
+    // Check if mint has ended
+    if (timeUntilEnd <= 0 || (!collection.infiniteMint && collection.totalMinted >= collection.maxSupply)) {
       return {
         label: 'Ended',
         color: 'text-red-400 bg-red-400/10',
         icon: BiX
       };
-    } else if (timeUntil > 0) {
+    }
+    
+    // Check if mint hasn't started yet
+    if (timeUntil > 0) {
       if (timeUntil < 3600000) { // Less than 1 hour
         return {
           label: `Starts in ${Math.ceil(timeUntil / 60000)}m`,
@@ -155,6 +161,8 @@ export default function CollectionsList() {
         icon: BiTime
       };
     }
+
+    // Mint is live
     return {
       label: 'Live',
       color: 'text-green-400 bg-green-400/10',
