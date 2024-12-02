@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAccount, useNetwork } from 'wagmi';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -15,6 +15,9 @@ export default function AccountPage() {
   const { address } = useAccount();
   const { chain } = useNetwork();
   const [tokenLogos, setTokenLogos] = useState({});
+  const [filters, setFilters] = useState({
+    type: 'all',       // 'all', 'ERC721', 'ERC1155'
+  });
 
   // Function to get token details from Firebase
   const getTokenDetails = async (tokenAddress) => {
@@ -94,6 +97,37 @@ export default function AccountPage() {
       console.error('Error formatting price:', error);
       return '0';
     }
+  };
+
+  // Filter NFTs based on type
+  const filteredNFTs = useMemo(() => {
+    return nfts.filter(nft => {
+      if (filters.type !== 'all' && nft.type !== filters.type) return false;
+      return true;
+    });
+  }, [nfts, filters]);
+
+  // Filter controls UI
+  const FilterControls = () => {
+    const typeCount = {
+      all: nfts.length,
+      ERC721: nfts.filter(nft => nft.type === 'ERC721').length,
+      ERC1155: nfts.filter(nft => nft.type === 'ERC1155').length
+    };
+
+    return (
+      <div className="flex gap-4 mb-6">
+        <select
+          value={filters.type}
+          onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
+          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+        >
+          <option value="all">All Types ({typeCount.all})</option>
+          <option value="ERC721">ERC721 ({typeCount.ERC721})</option>
+          <option value="ERC1155">ERC1155 ({typeCount.ERC1155})</option>
+        </select>
+      </div>
+    );
   };
 
   const renderNFTCard = (nft) => {
@@ -251,9 +285,10 @@ export default function AccountPage() {
           <h1 className="text-3xl font-bold text-white">My NFTs</h1>
           <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
         </div>
-        {nfts.length > 0 ? (
+        <FilterControls />
+        {filteredNFTs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {nfts.map(renderNFTCard)}
+            {filteredNFTs.map(renderNFTCard)}
           </div>
         ) : (
           <div className="text-center py-12">

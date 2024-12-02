@@ -443,34 +443,23 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
       // Get collection address from events
       let collectionAddress;
-      
-      // Try to find the collection address from the events
-      for (const log of receipt.logs) {
-        try {
-          // Try to parse the log as CollectionCreated event
-          const parsedLog = factory.interface.parseLog({
-            topics: [...log.topics],
-            data: log.data
-          });
-          
-          if (parsedLog && parsedLog.name === 'CollectionCreated') {
-            collectionAddress = parsedLog.args.collection;
-            break;
-          }
-        } catch (e) {
-          // Skip logs that can't be parsed as CollectionCreated event
-          continue;
-        }
+      const creationEvent = receipt.logs.find(log => 
+        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'
+      );
+
+      if (creationEvent) {
+        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+          ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
+          creationEvent.data
+        );
+        collectionAddress = decodedData[0].collection;
       }
 
-      // Fallback to looking for Initialized event if collection address not found
       if (!collectionAddress) {
         const initializedEvent = receipt.logs.find(log => 
           log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
         );
-        if (initializedEvent) {
-          collectionAddress = initializedEvent.address;
-        }
+        collectionAddress = initializedEvent?.address;
       }
 
       if (!collectionAddress) {

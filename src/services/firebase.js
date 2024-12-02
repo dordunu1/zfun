@@ -378,13 +378,32 @@ const ETHERSCAN_API_KEY = import.meta.env.VITE_ETHERSCAN_API_KEY;
 const getNFTBalanceFromContract = async (contractAddress, address) => {
   try {
     const provider = new ethers.BrowserProvider(window.ethereum);
-    const contract = new ethers.Contract(
-      contractAddress,
-      ['function balanceOf(address) view returns (uint256)'],
-      provider
+    const collectionQuery = query(
+      collection(db, 'collections'),
+      where('contractAddress', '==', contractAddress)
     );
-    const balance = await contract.balanceOf(address);
-    return Number(balance);
+    const collectionSnapshot = await getDocs(collectionQuery);
+    const collectionData = collectionSnapshot.docs[0]?.data();
+    
+    if (collectionData?.type === 'ERC1155') {
+      // For ERC1155, check balance of token ID 1
+      const contract = new ethers.Contract(
+        contractAddress,
+        ['function balanceOf(address account, uint256 id) view returns (uint256)'],
+        provider
+      );
+      const balance = await contract.balanceOf(address, 1); // Just check token ID 1
+      return Number(balance);
+    } else {
+      // For ERC721, use standard balanceOf
+      const contract = new ethers.Contract(
+        contractAddress,
+        ['function balanceOf(address) view returns (uint256)'],
+        provider
+      );
+      const balance = await contract.balanceOf(address);
+      return Number(balance);
+    }
   } catch (error) {
     console.error('Error getting NFT balance from contract:', error);
     return 0;
@@ -413,7 +432,7 @@ export const getOwnedNFTs = async (address) => {
     
     // Get all mints where the minter address matches
     const mintsQuery = query(
-      mintsRef,
+      collection(db, 'mints'),
       where('minterAddress', '==', address.toLowerCase())
     );
     
@@ -426,84 +445,119 @@ export const getOwnedNFTs = async (address) => {
 
     console.log('Found mints:', mints.length);
 
-    // Get collection details and balances
-    const uniqueCollectionAddresses = [...new Set(mints.map(mint => mint.collectionAddress))];
+    // Get all collections first
+    const collectionsSnapshot = await getDocs(collection(db, 'collections'));
     const collections = new Map();
-    const balances = new Map();
-    const nftCounts = new Map(); // Track NFT counts per collection
-
-    await Promise.all([
-      ...uniqueCollectionAddresses.map(async (collectionAddress) => {
-        const collectionQuery = query(
-          collectionsRef,
-          where('contractAddress', '==', collectionAddress)
-        );
-        const collectionSnapshot = await getDocs(collectionQuery);
-        if (!collectionSnapshot.empty) {
-          const collectionData = collectionSnapshot.docs[0].data();
-          collections.set(collectionAddress, collectionData);
-          
-          // Get balance from contract
-          let balance = await getNFTBalanceFromContract(collectionAddress, address);
-          console.log(`Balance from contract for ${collectionData.name}:`, balance);
-          
-          // If contract balance is 0, try Etherscan
-          if (balance === 0) {
-            balance = await getNFTBalanceFromEtherscan(collectionAddress, address);
-            console.log(`Balance from Etherscan for ${collectionData.name}:`, balance);
-          }
-          
-          balances.set(collectionAddress, balance);
-          nftCounts.set(collectionAddress, balance); // Store the actual NFT count
-        }
-      })
-    ]);
-
-    // Group mints by collection address
-    const mintsByCollection = mints.reduce((acc, mint) => {
-      if (!acc[mint.collectionAddress]) {
-        acc[mint.collectionAddress] = [];
+    
+    collectionsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.contractAddress) {
+        console.log('Collection data from Firebase:', {
+          name: data.name,
+          address: data.contractAddress,
+          mintPrice: data.mintPrice,
+          type: data.type
+        });
+        collections.set(data.contractAddress.toLowerCase(), data);
       }
-      acc[mint.collectionAddress].push(mint);
-      return acc;
-    }, {});
+    });
 
-    // Create NFT entries based on actual balances
-    const ownedNFTs = [];
-    for (const [collectionAddress, collectionMints] of Object.entries(mintsByCollection)) {
-      const collection = collections.get(collectionAddress);
-      const balance = nftCounts.get(collectionAddress) || 0;
-      
-      if (balance > 0 && collection) {
-        // Use the most recent mint as template
-        const recentMint = collectionMints.sort((a, b) => b.mintedAt - a.mintedAt)[0];
-        
-        // Create multiple entries based on balance
-        for (let i = 0; i < balance; i++) {
-          ownedNFTs.push({
-            ...recentMint,
-            ...collection,
-            balance: 1, // Each card represents 1 NFT
-            tokenId: i + 1, // Add sequential token IDs
-            name: collection.name || 'Unknown Collection',
-            collectionName: collection.name,
-            type: collection.type || 'ERC721',
-            symbol: collection.symbol,
-            artworkType: collection.artworkType || 'image',
-            network: collection.network || 'sepolia'
-          });
+    // Check balances for all ERC1155 collections
+    for (const [contractAddress, collectionData] of collections) {
+      if (collectionData.type === 'ERC1155') {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const erc1155ABI = [
+            'function balanceOf(address account, uint256 id) view returns (uint256)',
+            'function uri(uint256 id) view returns (string)'
+          ];
+          const contract = new ethers.Contract(contractAddress, erc1155ABI, provider);
+          
+          // Try both token ID 0 and 1
+          console.log(`Checking ERC1155 balance for ${collectionData.name}:`, address);
+          const balance0 = await contract.balanceOf(address, 0);
+          console.log('Balance for token 0:', Number(balance0));
+          const balance1 = await contract.balanceOf(address, 1);
+          console.log('Balance for token 1:', Number(balance1));
+
+          // Use whichever balance is greater than 0
+          const balance = Number(balance0) > 0 ? balance0 : balance1;
+          const tokenId = Number(balance0) > 0 ? 0 : 1;
+          
+          if (Number(balance) > 0) {
+            // Check if we already have this NFT in mints
+            const existingMint = mints.find(m => 
+              m.collectionAddress?.toLowerCase() === contractAddress.toLowerCase() &&
+              m.type === 'ERC1155'
+            );
+
+            if (!existingMint) {
+              console.log(`Adding new ERC1155 entry for ${collectionData.name}`);
+              mints.push({
+                collectionAddress: contractAddress,
+                mintedAt: new Date(),
+                tokenId: tokenId,
+                type: 'ERC1155',
+                name: collectionData.name,
+                symbol: collectionData.symbol,
+                artworkType: collectionData.artworkType || 'image',
+                network: collectionData.network || 'sepolia',
+                balance: Number(balance),
+                mintPrice: collectionData.mintPrice || '0',
+                paymentToken: collectionData.paymentToken || null
+              });
+            } else {
+              console.log(`Updating existing ERC1155 entry for ${collectionData.name}`);
+              // Update the balance of the existing entry
+              existingMint.balance = Number(balance);
+              // Ensure mint price is set
+              if (!existingMint.mintPrice) {
+                existingMint.mintPrice = collectionData.mintPrice || '0';
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking ERC1155 balance for ${collectionData.name}:`, error);
         }
       }
     }
 
-    console.log('Found owned NFTs with balances:', ownedNFTs.map(nft => ({
-      collection: nft.name,
-      tokenId: nft.tokenId
-    })));
-    
+    // Create NFT entries
+    const ownedNFTs = mints.map(mint => {
+      const collection = collections.get(mint.collectionAddress?.toLowerCase());
+      console.log('Processing mint for NFT entry:', {
+        name: mint.name,
+        collection: collection?.name,
+        mintPrice: mint.mintPrice || collection?.mintPrice,
+        type: mint.type
+      });
+      
+      if (collection || mint.type === 'ERC1155') {
+        const nftEntry = {
+          ...mint,
+          ...(collection || {}),
+          balance: mint.balance || 1,
+          tokenId: mint.tokenId || 1,
+          name: mint.name || collection?.name || 'Unknown Collection',
+          collectionName: collection?.name || mint.name,
+          type: mint.type || collection?.type || 'ERC721',
+          symbol: collection?.symbol || mint.symbol,
+          artworkType: collection?.artworkType || mint.artworkType || 'image',
+          network: collection?.network || mint.network || 'sepolia',
+          mintPrice: mint.mintPrice || collection?.mintPrice || '0',
+          paymentToken: mint.paymentToken || collection?.paymentToken || null
+        };
+        console.log('Created NFT entry:', nftEntry);
+        return nftEntry;
+      }
+      return null;
+    }).filter(Boolean);
+
+    console.log('Final owned NFTs:', ownedNFTs);
     return ownedNFTs;
+    
   } catch (error) {
     console.error('Error getting owned NFTs:', error);
     return [];
   }
-}
+};
