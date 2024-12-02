@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { db } from './firebase';
-import { collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
 const tokenTransfersRef = collection(db, 'tokenTransfers');
 
@@ -269,20 +269,31 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
 
 const saveNFTTransfer = async (transfer) => {
   try {
-    // Check if this transfer is already recorded
+    // Check if this transfer is already recorded using a more efficient query
     const existingQuery = query(
       collection(db, 'nftTransfers'),
       where('transactionHash', '==', transfer.transactionHash),
-      where('tokenId', '==', transfer.tokenId)
+      where('tokenId', '==', transfer.tokenId),
+      limit(1) // Limit to 1 since we only need to know if it exists
     );
-    const existingDocs = await getDocs(existingQuery);
     
-    if (existingDocs.empty) {
-      await addDoc(collection(db, 'nftTransfers'), transfer);
-      console.log('Saved NFT transfer:', transfer);
+    const existingDoc = await getDocs(existingQuery)
+      .catch(err => {
+        console.log('Error checking existing transfer, skipping save');
+        return { empty: false }; // Prevent save attempt on error
+      });
+    
+    if (existingDoc.empty) {
+      await addDoc(collection(db, 'nftTransfers'), {
+        ...transfer,
+        timestamp: transfer.timestamp || new Date().getTime() // Ensure timestamp exists
+      }).catch(err => {
+        console.log('Error saving transfer, will be retried next time');
+      });
     }
   } catch (error) {
-    console.error('Error saving NFT transfer:', error);
+    // Log error but don't throw - this allows the app to continue functioning
+    console.error('Error in saveNFTTransfer:', error);
   }
 };
 
@@ -343,53 +354,66 @@ export const getTokenTransfersForAddress = async (address) => {
 export const getNFTTransfersForAddress = async (address) => {
   try {
     console.log('Getting NFT transfers for address:', address);
-    // Query for NFT transfers where address is either sender or receiver
+    
+    // Create batch queries with limits to improve performance
     const sentQuery = query(
       collection(db, 'nftTransfers'),
       where('fromAddress', '==', address.toLowerCase()),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(50) // Limit to most recent 50 transfers
     );
 
     const receivedQuery = query(
       collection(db, 'nftTransfers'),
       where('toAddress', '==', address.toLowerCase()),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(50) // Limit to most recent 50 transfers
     );
 
+    // Load transfers in parallel
     const [sentSnapshot, receivedSnapshot] = await Promise.all([
-      getDocs(sentQuery),
-      getDocs(receivedQuery)
+      getDocs(sentQuery).catch(err => {
+        console.log('Error fetching sent transfers, continuing with empty result');
+        return { docs: [] };
+      }),
+      getDocs(receivedQuery).catch(err => {
+        console.log('Error fetching received transfers, continuing with empty result');
+        return { docs: [] };
+      })
     ]);
 
-    const sentTransfers = sentSnapshot.docs.map(doc => {
+    // Process results
+    const transfers = [];
+
+    // Add sent transfers
+    sentSnapshot.docs.forEach(doc => {
       const data = doc.data();
-      return {
+      transfers.push({
         id: doc.id,
         ...data,
         type: 'sent',
         timestamp: new Date(data.timestamp)
-      };
+      });
     });
 
-    const receivedTransfers = receivedSnapshot.docs.map(doc => {
+    // Add received transfers
+    receivedSnapshot.docs.forEach(doc => {
       const data = doc.data();
-      return {
+      transfers.push({
         id: doc.id,
         ...data,
         type: 'received',
         timestamp: new Date(data.timestamp)
-      };
+      });
     });
 
-    // Combine and sort by timestamp
-    const allTransfers = [...sentTransfers, ...receivedTransfers].sort(
-      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-    );
+    // Sort by timestamp
+    transfers.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-    console.log('Found NFT transfers:', allTransfers);
-    return allTransfers;
+    console.log(`Loaded ${transfers.length} NFT transfers`);
+    return transfers;
   } catch (error) {
     console.error('Error getting NFT transfers:', error);
-    return [];
+    return []; // Return empty array on error
   }
 }; 
