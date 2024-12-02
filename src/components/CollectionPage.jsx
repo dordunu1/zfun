@@ -62,6 +62,49 @@ function CountdownTimer({ targetDate }) {
   );
 }
 
+// Add this new countdown component for mint end
+function MintEndCountdown({ endDate }) {
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+  function calculateTimeLeft() {
+    const difference = +new Date(endDate) - +new Date();
+    let timeLeft = {};
+
+    if (difference > 0) {
+      timeLeft = {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+      };
+    }
+
+    return timeLeft;
+  }
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endDate]);
+
+  const isMintEnded = Object.keys(timeLeft).length === 0;
+
+  return (
+    <div className="text-center">
+      {!isMintEnded ? (
+        <div className="text-sm text-gray-500">
+          Mint ends in: {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
+        </div>
+      ) : (
+        <div className="text-sm text-red-500">Mint Ended</div>
+      )}
+    </div>
+  );
+}
+
 export default function CollectionPage() {
   const { symbol } = useParams();
   const navigate = useNavigate();
@@ -276,34 +319,28 @@ export default function CollectionPage() {
   }, [collection?.mintToken?.address]);
 
   const renderCurrencyLogo = () => {
-    const tokenAddress = collection?.mintToken?.address?.toLowerCase();
-    const logoUrl = tokenLogos[tokenAddress];
-    
-    console.log('Currency Logo Render:', {
-      tokenAddress,
-      hasLogo: Boolean(logoUrl),
-      logoUrl
-    });
-
-    if (tokenAddress && logoUrl) {
-      return (
-        <img 
-          src={logoUrl} 
-          alt="Token"
-          className="w-5 h-5 rounded-full"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = '/token-default.png';
-          }}
-        />
-      );
+    // For custom token mints
+    if (collection?.mintToken?.type === 'custom') {
+      const tokenAddress = collection.mintToken.address?.toLowerCase();
+      const logoUrl = tokenLogos[tokenAddress];
+      
+      if (logoUrl) {
+        return (
+          <img 
+            src={logoUrl}
+            alt={collection.mintToken.symbol || 'Token'}
+            className="w-5 h-5 rounded-full"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = '/token-default.png';
+            }}
+          />
+        );
+      }
     }
     
-    return collection?.network === 'polygon' ? (
-      <img src="/matic.png" alt="MATIC" className="w-5 h-5" />
-    ) : (
-      <FaEthereum className="w-5 h-5" />
-    );
+    // For ETH mints, use the green ETH logo
+    return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
   };
 
   if (loading || !collection) {
@@ -521,6 +558,70 @@ export default function CollectionPage() {
     console.log('Local collection data:', collection);
   };
 
+  // Update the price display section to show correct price
+  const renderPrice = () => {
+    if (!collection?.mintPrice) return null;
+
+    return (
+      <div className="flex items-center justify-between mb-6">
+        <span className="text-gray-700 dark:text-gray-300">Price</span>
+        <div className="flex items-center gap-1">
+          {renderCurrencyLogo()}
+          <span className="text-xl font-bold text-gray-900 dark:text-white">
+            {collection.mintPrice}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // Update the mint button section to include end time check
+  const renderMintButton = () => {
+    const now = Date.now();
+    const mintEndDate = new Date(collection.mintEndDate || Date.now() + 86400000); // Default 24h if not set
+    const isMintEnded = now >= mintEndDate;
+
+    return (
+      <div className="flex flex-col gap-2">
+        <MintEndCountdown endDate={mintEndDate} />
+        <button
+          onClick={handleMint}
+          disabled={
+            !isLive || 
+            isMintEnded ||
+            (collection.enableWhitelist ? (
+              !whitelistChecked || 
+              !isWhitelisted || 
+              userMintedAmount >= (whitelistEntry?.maxMint || 1)
+            ) : (
+              userMintedAmount >= collection.maxPerWallet
+            )) || 
+            mintAmount === 0
+          }
+          className={`w-full py-3 ${
+            isMintEnded ? 'bg-gray-400 cursor-not-allowed' :
+            collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
+              ? 'bg-gray-200 dark:bg-[#1a1b1f] text-gray-900 dark:text-white'
+              : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
+          } disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-lg transition-colors`}
+        >
+          {isMintEnded ? 'Mint Ended' :
+           !isLive ? 'Not Live Yet' : 
+           collection.enableWhitelist ? (
+             !whitelistChecked ? 'Check Whitelist Status First' :
+             !isWhitelisted ? 'Address Not Whitelisted' :
+             userMintedAmount >= (whitelistEntry?.maxMint || 1) ? 'Whitelist Limit Reached' :
+             'Mint Now (Whitelist)'
+           ) : (
+             userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' :
+             'Mint Now'
+           )
+          }
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] overflow-x-hidden">
       {/* Hero Section */}
@@ -723,24 +824,7 @@ export default function CollectionPage() {
 
             {/* Main Content - Update background */}
             <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
-              <div className="flex items-center justify-between mb-6">
-                <span className="text-gray-700 dark:text-gray-300">Price</span>
-                <div className="flex items-center gap-1">
-                  <FaEthereum className="text-[#00ffbd] text-xl" />
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">
-                    {collection.mintToken.type === 'native' ? '0.015' : collection.mintPrice}
-                  </span>
-                </div>
-              </div>
-              
-              {!isLive && (
-                <>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-3 border border-gray-200 dark:border-gray-800 mb-4">
-                    Starts {releaseDate.toLocaleDateString()} at {releaseDate.toLocaleTimeString()}
-                  </div>
-                  <CountdownTimer targetDate={releaseDate} />
-                </>
-              )}
+              {renderPrice()}
 
               {/* Whitelist Checker */}
               {collection.enableWhitelist && (
@@ -841,40 +925,7 @@ export default function CollectionPage() {
                 </button>
               </div>
 
-              {/* Mint Button */}
-              <div className="flex justify-center px-4 mt-4">
-                <button
-                  onClick={handleMint}
-                  disabled={
-                    !isLive || 
-                    (collection.enableWhitelist ? (
-                      !whitelistChecked || 
-                      !isWhitelisted || 
-                      userMintedAmount >= (whitelistEntry?.maxMint || 1)
-                    ) : (
-                      userMintedAmount >= collection.maxPerWallet
-                    )) || 
-                    mintAmount === 0
-                  }
-                  className={`w-full py-3 ${
-                    collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
-                      ? 'bg-gray-200 dark:bg-[#1a1b1f] text-gray-900 dark:text-white'
-                      : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
-                  } disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-lg transition-colors`}
-                >
-                  {!isLive ? 'Not Live Yet' : 
-                   collection.enableWhitelist ? (
-                     !whitelistChecked ? 'Check Whitelist Status First' :
-                     !isWhitelisted ? 'Address Not Whitelisted' :
-                     userMintedAmount >= (whitelistEntry?.maxMint || 1) ? 'Whitelist Limit Reached' :
-                     'Mint Now (Whitelist)'
-                   ) : (
-                     userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' :
-                     'Mint Now'
-                   )
-                  }
-                </button>
-              </div>
+              {renderMintButton()}
 
               {/* Contract and Creator Addresses */}
               <div className="flex items-center justify-between text-center mt-4">
