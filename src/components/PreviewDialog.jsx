@@ -89,42 +89,42 @@ const PreviewDialog = ({ isOpen, onClose, data }) => {
 
               <div className="bg-gray-100 dark:bg-[#151619] rounded-lg p-4">
                 <div className="space-y-6">
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Collection Info</h4>
-                    <div className="bg-white dark:bg-[#1a1b1f] p-4 rounded">
-                      <p className="mb-2">
-                        <span className="font-medium">Name:</span> {data.metadata?.name || 'Untitled Collection'}
+                  <div className="bg-white dark:bg-gray-800/50 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Collection Info</h3>
+                    <div className="space-y-2">
+                      <p className="text-gray-900 dark:text-gray-100">
+                        <span className="font-semibold">Name:</span> {data?.metadata?.name || 'Untitled Collection'}
                       </p>
-                      <p>
-                        <span className="font-medium">Description:</span> {data.metadata?.description || 'No description provided'}
+                      <p className="text-gray-900 dark:text-gray-100">
+                        <span className="font-semibold">Description:</span> {data?.metadata?.description || 'No description'}
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white dark:bg-[#1a1b1f] p-4 rounded">
-                      <h4 className="text-base font-medium mb-1">Collection Stats</h4>
-                      <p>
-                        <span className="font-medium">Total NFTs:</span>{' '}
-                        {totalNFTs}
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="bg-white dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">Collection Stats</h3>
+                      <p className="text-gray-900 dark:text-gray-100">
+                        <span className="font-semibold">Total NFTs:</span> {totalNFTs}
                       </p>
                     </div>
-                    <div className="bg-white dark:bg-[#1a1b1f] p-4 rounded">
-                      <h4 className="text-base font-medium mb-1">Prefix Groups</h4>
-                      <p>
-                        <span className="font-medium">Count:</span>{' '}
-                        {prefixGroupsCount}
+                    <div className="bg-white dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">Prefix Groups</h3>
+                      <p className="text-gray-900 dark:text-gray-100">
+                        <span className="font-semibold">Count:</span> {Object.keys(prefixCounts || {}).length}
                       </p>
                     </div>
                   </div>
 
                   {Object.keys(prefixCounts).length > 0 && (
-                    <div>
-                      <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Prefix Distribution</h4>
-                      <div className="grid grid-cols-3 gap-2">
+                    <div className="mt-4">
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Prefix Distribution</h3>
+                      <div className="grid grid-cols-3 gap-4">
                         {Object.entries(prefixCounts).map(([prefix, count]) => (
-                          <div key={prefix} className="bg-white dark:bg-[#1a1b1f] p-3 rounded">
-                            <span className="font-medium">{prefix}-:</span> {count}
+                          <div key={prefix} className="bg-white dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <p className="text-gray-900 dark:text-gray-100">
+                              <span className="font-semibold">{prefix}-:</span> {count}
+                            </p>
                           </div>
                         ))}
                       </div>
@@ -132,59 +132,53 @@ const PreviewDialog = ({ isOpen, onClose, data }) => {
                   )}
 
                   {nfts.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-lg font-medium text-gray-900 dark:text-white">Sample NFTs</h4>
-                        <div className="flex items-center gap-4">
-                          <span className="text-sm text-gray-500">
-                            Showing {startIndex + 1}-{Math.min(endIndex, nfts.length)} of {nfts.length} NFTs
-                          </span>
+                    <div className="mt-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sample NFTs</h3>
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <span>Showing {startIndex + 1}-{Math.min(endIndex, nfts.length)} of {nfts.length} NFTs</span>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={handlePrevPage}
                               disabled={currentPage === 1}
-                              className={`p-1 rounded ${
-                                currentPage === 1
-                                  ? 'text-gray-400 cursor-not-allowed'
-                                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1a1b1f]'
-                              }`}
+                              className="p-1 disabled:opacity-50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 disabled:hover:text-gray-600 dark:disabled:hover:text-gray-400"
                             >
-                              <BiChevronLeft size={20} />
+                              <BiChevronLeft className="h-5 w-5" />
                             </button>
-                            <span className="text-sm text-gray-600 dark:text-gray-300">
-                              Page {currentPage} of {totalPages}
-                            </span>
+                            <span>Page {currentPage} of {totalPages}</span>
                             <button
                               onClick={handleNextPage}
                               disabled={currentPage === totalPages}
-                              className={`p-1 rounded ${
-                                currentPage === totalPages
-                                  ? 'text-gray-400 cursor-not-allowed'
-                                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1a1b1f]'
-                              }`}
+                              className="p-1 disabled:opacity-50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 disabled:hover:text-gray-600 dark:disabled:hover:text-gray-400"
                             >
-                              <BiChevronRight size={20} />
+                              <BiChevronRight className="h-5 w-5" />
                             </button>
                           </div>
                         </div>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {nfts.slice(startIndex, endIndex).map((nft, index) => (
-                          <div key={index} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <div key={index} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                             <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <p className="mb-1"><span className="font-semibold">ID:</span> {nft.id}</p>
-                                <p className="mb-1"><span className="font-semibold">Name:</span> {nft.name}</p>
-                                <p className="mb-1"><span className="font-semibold">Description:</span> {nft.description}</p>
+                                <p className="mb-1 text-gray-900 dark:text-gray-100">
+                                  <span className="font-semibold">ID:</span> {nft.id}
+                                </p>
+                                <p className="mb-1 text-gray-900 dark:text-gray-100">
+                                  <span className="font-semibold">Name:</span> {nft.name}
+                                </p>
+                                <p className="mb-1 text-gray-900 dark:text-gray-100">
+                                  <span className="font-semibold">Description:</span> {nft.description}
+                                </p>
                               </div>
                               <div>
                                 <div>
-                                  <p className="font-semibold mb-2">Properties:</p>
+                                  <p className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Properties:</p>
                                   <div className="grid grid-cols-1 gap-1">
                                     {Object.entries(nft).map(([key, value]) => {
                                       if (!['id', 'name', 'description', 'image', 'animation_url', 'attributes'].includes(key)) {
                                         return (
-                                          <p key={key} className="text-sm">
+                                          <p key={key} className="text-sm text-gray-700 dark:text-gray-300">
                                             <span className="font-medium">{key}:</span> {value}
                                           </p>
                                         );
@@ -192,7 +186,7 @@ const PreviewDialog = ({ isOpen, onClose, data }) => {
                                       return null;
                                     })}
                                     {nft.attributes && nft.attributes.map((attr, idx) => (
-                                      <p key={`attr-${idx}`} className="text-sm">
+                                      <p key={`attr-${idx}`} className="text-sm text-gray-700 dark:text-gray-300">
                                         <span className="font-medium">{attr.trait_type}:</span> {attr.value}
                                       </p>
                                     ))}

@@ -594,172 +594,111 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
   };
 
   const handleDownloadJson = () => {
-    if (!previewData) return;
-
     try {
-      const jsonString = JSON.stringify(previewData, null, 2);
+      if (!previewData) {
+        toast.error('No data to download');
+        return;
+      }
+
+      // Check which format was imported
+      const isNestedFormat = previewData.nfts[0]?.metadata;
+      let downloadData;
+
+      if (isNestedFormat) {
+        // Convert to nested metadata format
+        downloadData = {
+          nfts: previewData.nfts.map(nft => ({
+            tag: nft.id.split('-')[1],
+            metadata: {
+              name: nft.name,
+              description: nft.description,
+              image: nft.image,
+              animation_url: nft.animation_url,
+              attributes: nft.attributes
+            }
+          }))
+        };
+      } else {
+        // Use original flat format
+        downloadData = {
+          nfts: previewData.nfts,
+          metadata: previewData.metadata
+        };
+      }
+
+      const jsonString = JSON.stringify(downloadData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'collection-metadata.json';
+      a.download = 'collection.json';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success('JSON file downloaded successfully!');
+      toast.success('JSON file downloaded successfully');
     } catch (error) {
       console.error('Error downloading JSON:', error);
-      toast.error('Failed to download JSON file');
+      toast.error('Error downloading JSON file');
     }
   };
 
-  const handleExcelUpload = async (e) => {
+  const handleDownloadExcel = () => {
     try {
-      const file = e.target.files[0];
-      if (!file) return;
+      if (!previewData) {
+        toast.error('No data to download');
+        return;
+      }
 
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const data = new Uint8Array(event.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      // Convert NFTs to flat structure for Excel
+      const flatNFTs = previewData.nfts.map(nft => {
+        const isNestedFormat = nft.metadata;
+        let baseNft;
 
-          if (jsonData && jsonData.length > 0) {
-            // Transform the flat properties into attributes array
-            const nftsWithAttributes = jsonData.map(nft => {
-              const baseFields = ['id', 'name', 'description', 'image', 'animation_url'];
-              const attributes = [];
-              
-              // Convert non-base fields to attributes
-              Object.entries(nft).forEach(([key, value]) => {
-                if (!baseFields.includes(key)) {
-                  attributes.push({
-                    trait_type: key,
-                    value: value
-                  });
-                }
-              });
+        if (isNestedFormat) {
+          // Convert from nested format
+          baseNft = {
+            id: nft.metadata.name,
+            name: nft.metadata.name,
+            description: nft.metadata.description,
+            image: nft.metadata.image,
+            animation_url: nft.metadata.animation_url || ''
+          };
 
-              return {
-                id: nft.id,
-                name: nft.name,
-                description: nft.description,
-                image: nft.image,
-                animation_url: nft.animation_url,
-                attributes
-              };
+          // Add attributes as columns
+          nft.metadata.attributes.forEach(attr => {
+            baseNft[attr.trait_type] = attr.value;
+          });
+        } else {
+          // Already in flat format
+          baseNft = { ...nft };
+          if (Array.isArray(nft.attributes)) {
+            nft.attributes.forEach(attr => {
+              baseNft[attr.trait_type] = attr.value;
             });
-
-            // Extract prefix counts
-            const prefixCounts = {};
-            nftsWithAttributes.forEach(nft => {
-              const prefix = nft.id.split('-')[0];
-              prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
-            });
-
-            // Extract traits
-            const traits = {};
-            nftsWithAttributes.forEach(nft => {
-              nft.attributes.forEach(attr => {
-                if (!traits[attr.trait_type]) {
-                  traits[attr.trait_type] = new Set();
-                }
-                traits[attr.trait_type].add(attr.value);
-              });
-            });
-
-            // Convert Set to Array for each trait
-            Object.keys(traits).forEach(key => {
-              traits[key] = Array.from(traits[key]);
-            });
-
-            const previewData = {
-              nfts: nftsWithAttributes,
-              metadata: {
-                name: "My Collection",
-                description: "A unique NFT collection",
-                prefix_counts: prefixCounts,
-                traits
-              }
-            };
-
-            setPreviewData(previewData);
-            toast.success('Excel file imported successfully');
-
-            // Update form data
-            updateFormData({
-              name: previewData.metadata.name,
-              description: previewData.metadata.description,
-              prefixes: Object.entries(prefixCounts).map(([prefix, count]) => ({
-                prefix,
-                count: count.toString(),
-                useLeadingZeros: true,
-                numberDigits: 3
-              }))
-            });
-          } else {
-            toast.error('No data found in Excel file');
+            delete baseNft.attributes;
           }
-        } catch (error) {
-          console.error('Error processing Excel:', error);
-          toast.error('Error processing Excel file: ' + error.message);
         }
-      };
 
-      reader.onerror = () => {
-        toast.error('Error reading Excel file');
-      };
+        return baseNft;
+      });
 
-      reader.readAsArrayBuffer(file);
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(flatNFTs);
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Collection');
+
+      // Save workbook
+      XLSX.writeFile(wb, 'collection.xlsx');
+      
+      toast.success('Excel file downloaded successfully');
     } catch (error) {
-      console.error('Error handling Excel upload:', error);
-      toast.error('Error processing Excel file: ' + error.message);
+      console.error('Error downloading Excel:', error);
+      toast.error('Error downloading Excel file');
     }
-  };
-
-  // Whitelist management functions
-  const validateAddress = (address) => {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
-  };
-
-  const handleWhitelistToggle = (checked) => {
-    if (checked) {
-      updateFormData({ 
-        enableWhitelist: checked,
-        maxPerWallet: '1000000'
-      });
-      toast('When whitelist is enabled, max per wallet is set high to allow individual whitelist limits to control minting. You can set specific mint limits for each address when adding them to the whitelist.', {
-        duration: Infinity,
-        id: 'whitelist-info'
-      });
-    } else {
-      updateFormData({ 
-        enableWhitelist: checked,
-        maxPerWallet: ''
-      });
-      toast.dismiss('whitelist-info');
-    }
-  };
-
-  const handleAddAddress = (e) => {
-    e.stopPropagation();
-    if (validateAddress(newAddress)) {
-      updateFormData({
-        whitelistAddresses: [...formData.whitelistAddresses, { address: newAddress, maxMint: 1 }]
-      });
-      setNewAddress('');
-    } else {
-      toast.error('Invalid wallet address');
-    }
-  };
-
-  const handleRemoveAddress = (index) => {
-    const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
-    updateFormData({ whitelistAddresses: newAddresses });
   };
 
   // Handle contract interaction
@@ -1404,15 +1343,20 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
                   </svg>
                   Preview
                 </button>
-                <button
-                  onClick={handleDownloadJson}
-                  className="px-3 py-1.5 text-sm bg-[#00ffbd] text-black rounded-lg hover:bg-[#00e6a9] transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download JSON
-                </button>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={handleDownloadJson}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    Download JSON
+                  </button>
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                  >
+                    Download Excel
+                  </button>
+                </div>
               </div>
             </div>
             <div className="text-gray-400">
@@ -1747,6 +1691,47 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     } else if (direction === 'back' && currentIndex > 0) {
       setCurrentStep(STEPS[currentIndex - 1].id);
     }
+  };
+
+  // Whitelist management functions
+  const validateAddress = (address) => {
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  };
+
+  const handleWhitelistToggle = (checked) => {
+    if (checked) {
+      updateFormData({ 
+        enableWhitelist: checked,
+        maxPerWallet: '1000000'
+      });
+      toast('When whitelist is enabled, max per wallet is set high to allow individual whitelist limits to control minting. You can set specific mint limits for each address when adding them to the whitelist.', {
+        duration: Infinity,
+        id: 'whitelist-info'
+      });
+    } else {
+      updateFormData({ 
+        enableWhitelist: checked,
+        maxPerWallet: ''
+      });
+      toast.dismiss('whitelist-info');
+    }
+  };
+
+  const handleAddAddress = (e) => {
+    e.stopPropagation();
+    if (validateAddress(newAddress)) {
+      updateFormData({
+        whitelistAddresses: [...formData.whitelistAddresses, { address: newAddress, maxMint: 1 }]
+      });
+      setNewAddress('');
+    } else {
+      toast.error('Invalid wallet address');
+    }
+  };
+
+  const handleRemoveAddress = (index) => {
+    const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
+    updateFormData({ whitelistAddresses: newAddresses });
   };
 
   // Add the main modal structure
