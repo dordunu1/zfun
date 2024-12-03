@@ -651,33 +651,48 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
         return;
       }
 
-      // Convert NFTs to flat structure for Excel
-      const flatNFTs = previewData.nfts.map(nft => {
+      // Create a properly structured array for Excel
+      const excelData = previewData.nfts.map(nft => {
         const isNestedFormat = nft.metadata;
         let baseNft;
 
         if (isNestedFormat) {
-          // Convert from nested format
+          // Handle nested format
+          const metadata = nft.metadata;
           baseNft = {
-            id: nft.metadata.name,
-            name: nft.metadata.name,
-            description: nft.metadata.description,
-            image: nft.metadata.image,
-            animation_url: nft.metadata.animation_url || ''
+            id: metadata.name,
+            name: metadata.name,
+            description: metadata.description,
+            image: metadata.image,
+            animation_url: metadata.animation_url || '',
           };
 
-          // Add attributes as columns
-          nft.metadata.attributes.forEach(attr => {
+          // Add attributes as direct columns
+          metadata.attributes.forEach(attr => {
             baseNft[attr.trait_type] = attr.value;
           });
         } else {
-          // Already in flat format
-          baseNft = { ...nft };
+          // Handle flat format - copy all properties directly
+          baseNft = {
+            id: nft.id,
+            name: nft.name,
+            description: nft.description,
+            image: nft.image,
+            animation_url: nft.animation_url || ''
+          };
+
+          // Add all other properties as columns
+          Object.entries(nft).forEach(([key, value]) => {
+            if (!['id', 'name', 'description', 'image', 'animation_url', 'attributes'].includes(key)) {
+              baseNft[key] = value;
+            }
+          });
+
+          // If there are attributes, add them as columns too
           if (Array.isArray(nft.attributes)) {
             nft.attributes.forEach(attr => {
               baseNft[attr.trait_type] = attr.value;
             });
-            delete baseNft.attributes;
           }
         }
 
@@ -686,7 +701,20 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
 
       // Create workbook and worksheet
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(flatNFTs);
+      
+      // Convert the data to worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData, {
+        header: [
+          'id',
+          'name',
+          'description',
+          'image',
+          'animation_url',
+          ...new Set(excelData.flatMap(nft => Object.keys(nft).filter(key => 
+            !['id', 'name', 'description', 'image', 'animation_url'].includes(key)
+          )))
+        ]
+      });
 
       // Add worksheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Collection');
@@ -1224,20 +1252,127 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
                       Download Template
                     </button>
                   </div>
-                  <button
-                    onClick={() => document.getElementById('excel-upload').click()}
-                    className="w-full h-12 flex items-center justify-center gap-2 px-4 bg-gray-100 dark:bg-[#151619] text-black dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-[#2a2b2f] transition-colors"
+                  <label
+                    htmlFor="excel-upload"
+                    className="w-full h-12 flex items-center justify-center gap-2 px-4 bg-gray-100 dark:bg-[#151619] text-black dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-[#2a2b2f] transition-colors cursor-pointer"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                     Import Excel
-                  </button>
+                  </label>
                   <input
                     type="file"
                     id="excel-upload"
                     accept=".xlsx,.xls"
-                    onChange={handleExcelUpload}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          try {
+                            const data = new Uint8Array(event.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rawData = XLSX.utils.sheet_to_json(firstSheet);
+
+                            if (!rawData || rawData.length === 0) {
+                              throw new Error('No data found in Excel file');
+                            }
+
+                            // Convert data to NFTs with attributes
+                            const nfts = rawData.map(row => {
+                              const baseFields = ['id', 'name', 'description', 'image', 'animation_url'];
+                              const nft = {
+                                id: row.id || row.ID || row.name || row.Name || '',
+                                name: row.name || row.Name || row.id || row.ID || '',
+                                description: row.description || row.Description || '',
+                                image: row.image || row.Image || '',
+                                animation_url: row.animation_url || row['animation_url'] || row.animationUrl || row.AnimationUrl || '',
+                              };
+
+                              // Convert all non-base fields to attributes
+                              const attributes = [];
+                              Object.entries(row).forEach(([key, value]) => {
+                                if (!baseFields.includes(key.toLowerCase()) && value !== undefined && value !== '') {
+                                  attributes.push({
+                                    trait_type: key,
+                                    value: value.toString()
+                                  });
+                                }
+                              });
+
+                              if (attributes.length > 0) {
+                                nft.attributes = attributes;
+                              }
+
+                              return nft;
+                            });
+
+                            // Extract prefix counts
+                            const prefix_counts = {};
+                            nfts.forEach(nft => {
+                              const prefix = nft.id.split('-')[0];
+                              if (prefix) {
+                                prefix_counts[prefix] = (prefix_counts[prefix] || 0) + 1;
+                              }
+                            });
+
+                            // Extract traits from attributes
+                            const traits = {};
+                            nfts.forEach(nft => {
+                              if (nft.attributes) {
+                                nft.attributes.forEach(attr => {
+                                  if (!traits[attr.trait_type]) {
+                                    traits[attr.trait_type] = new Set();
+                                  }
+                                  traits[attr.trait_type].add(attr.value);
+                                });
+                              }
+                            });
+
+                            // Convert Set to Array for each trait
+                            Object.keys(traits).forEach(key => {
+                              traits[key] = Array.from(traits[key]);
+                            });
+
+                            const previewData = {
+                              nfts,
+                              metadata: {
+                                name: "My Collection",
+                                description: "A unique NFT collection",
+                                prefix_counts,
+                                traits
+                              }
+                            };
+
+                            setPreviewData(previewData);
+                            setShowPreview(true);
+
+                            // Update form data
+                            updateFormData({
+                              name: previewData.metadata.name,
+                              description: previewData.metadata.description,
+                              prefixes: Object.entries(prefix_counts).map(([prefix, count]) => ({
+                                prefix,
+                                count: count.toString(),
+                                useLeadingZeros: true,
+                                numberDigits: 3
+                              }))
+                            });
+
+                            toast.success('Excel file imported successfully');
+                          } catch (error) {
+                            console.error('Error importing Excel:', error);
+                            toast.error('Failed to import Excel file: ' + error.message);
+                          }
+                        };
+                        reader.onerror = () => {
+                          toast.error('Error reading Excel file');
+                        };
+                        reader.readAsArrayBuffer(file);
+                      }
+                    }}
                     className="hidden"
                   />
                 </div>
