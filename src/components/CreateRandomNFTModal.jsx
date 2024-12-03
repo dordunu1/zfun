@@ -21,6 +21,8 @@ import Papa from 'papaparse';
 import { convertExcelToMetadataJson, handleExcelUpload } from '../utils/excelToJson';
 import MetadataExampleModal from './MetadataExampleModal';
 import PreviewDialog from './PreviewDialog';
+import { ipfsToHttp } from '../utils/ipfs';
+import axios from 'axios';
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -321,6 +323,34 @@ const GuidelinesModal = ({ isOpen, onClose }) => {
   );
 };
 
+// Add these utility functions at the top of the component
+const validateIpfsUri = (uri) => {
+  if (!uri) return false;
+  // Check basic IPFS URI format
+  if (!uri.startsWith('ipfs://')) return false;
+  // Check if hash is present and valid length (CIDv0 or CIDv1)
+  const hash = uri.replace('ipfs://', '');
+  return hash.length === 46 || hash.length === 59;
+};
+
+const formatIpfsUri = (uri) => {
+  if (!uri) return '';
+  // Remove any whitespace
+  uri = uri.trim();
+  // Add ipfs:// prefix if missing
+  if (!uri.startsWith('ipfs://') && !uri.startsWith('http')) {
+    uri = `ipfs://${uri}`;
+  }
+  // Convert HTTP gateway URLs to IPFS URI
+  if (uri.includes('ipfs.io/ipfs/')) {
+    uri = 'ipfs://' + uri.split('ipfs.io/ipfs/')[1];
+  }
+  if (uri.includes('gateway.pinata.cloud/ipfs/')) {
+    uri = 'ipfs://' + uri.split('gateway.pinata.cloud/ipfs/')[1];
+  }
+  return uri;
+};
+
 export default function CreateRandomNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState('type');
@@ -358,7 +388,8 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     traits: {},
     prefixes: [],
     isRandomMint: true,
-    metadataFile: null
+    metadataFile: null,
+    metadataUri: '', // Add this line if not present
   });
 
   const { address: account, isConnected } = useAccount();
@@ -373,6 +404,10 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [showGuidelinesModal, setShowGuidelinesModal] = useState(false);
+  const [isCheckingUri, setIsCheckingUri] = useState(false);
+  const [uriStatus, setUriStatus] = useState({ valid: false, message: '' });
+  const [showUriPreview, setShowUriPreview] = useState(false);
+  const [previewMetadata, setPreviewMetadata] = useState(null);
 
   // Add template handling functions
   const handleDownloadTemplate = (type) => {
@@ -732,6 +767,20 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
   // Handle contract interaction
   const handleSubmit = async () => {
     try {
+      // Add validation for metadataUri
+      if (!formData.metadataUri) {
+        toast.error('Please enter the metadata IPFS URI');
+        return;
+      }
+      if (!validateIpfsUri(formData.metadataUri)) {
+        toast.error('Invalid IPFS URI format');
+        return;
+      }
+      if (!uriStatus.valid) {
+        toast.error('Please ensure the metadata URI is valid and accessible');
+        return;
+      }
+
       if (!account) {
         openConnectModal();
         return;
@@ -1815,6 +1864,69 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
           </label>
         </div>
       </div>
+
+      {/* Add IPFS URI field before the payment settings */}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Metadata IPFS URI
+          </label>
+          <div className="mt-1 relative rounded-md shadow-sm">
+            <input
+              type="text"
+              value={formData.metadataUri}
+              onChange={handleUriChange}
+              onBlur={() => {
+                const formatted = formatIpfsUri(formData.metadataUri);
+                updateFormData({ metadataUri: formatted });
+              }}
+              placeholder="ipfs://..."
+              className={clsx(
+                "block w-full px-4 py-3 bg-white dark:bg-[#1a1b1f] border rounded-lg focus:ring-[#00ffbd] focus:border-[#00ffbd] sm:text-sm",
+                uriStatus.valid 
+                  ? "border-green-500 dark:border-green-500" 
+                  : "border-gray-300 dark:border-gray-700"
+              )}
+            />
+            {isCheckingUri && (
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+            )}
+            {!isCheckingUri && uriStatus.valid && (
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+            )}
+          </div>
+          <div className="mt-1 flex justify-between items-center">
+            <p className={clsx(
+              "text-sm",
+              uriStatus.valid ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+            )}>
+              {uriStatus.message || "Enter the IPFS URI where your metadata JSON is stored"}
+            </p>
+            {uriStatus.valid && (
+              <button
+                type="button"
+                onClick={() => setShowUriPreview(true)}
+                className="text-sm text-[#00ffbd] hover:text-[#00e6a9]"
+              >
+                Preview Metadata
+              </button>
+            )}
+          </div>
+        </div>
+        
+        {showUriPreview && previewMetadata && (
+          <MetadataPreview metadata={previewMetadata} />
+        )}
+      </div>
     </div>
   );
 
@@ -1867,6 +1979,206 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
   const handleRemoveAddress = (index) => {
     const newAddresses = formData.whitelistAddresses.filter((_, i) => i !== index);
     updateFormData({ whitelistAddresses: newAddresses });
+  };
+
+  const handleUriChange = (e) => {
+    const uri = formatIpfsUri(e.target.value);
+    updateFormData({ metadataUri: uri });
+    
+    // Reset status
+    setUriStatus({ valid: false, message: '' });
+    setPreviewMetadata(null);
+    
+    if (validateIpfsUri(uri)) {
+      checkUri(uri);
+    }
+  };
+
+  const checkUri = async (uri) => {
+    setIsCheckingUri(true);
+    try {
+      const httpUrl = ipfsToHttp(uri);
+      const response = await axios.get(httpUrl);
+      
+      if (response.data) {
+        setUriStatus({ 
+          valid: true, 
+          message: 'Valid metadata JSON found' 
+        });
+        setPreviewMetadata(response.data);
+      } else {
+        setUriStatus({ 
+          valid: false, 
+          message: 'Invalid metadata format' 
+        });
+      }
+    } catch (error) {
+      setUriStatus({ 
+        valid: false, 
+        message: 'Failed to fetch metadata' 
+      });
+    } finally {
+      setIsCheckingUri(false);
+    }
+  };
+
+  // Add this component for metadata preview
+  const MetadataPreview = ({ metadata }) => {
+    if (!metadata) return null;
+    
+    return (
+      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Metadata Preview</h4>
+          <button
+            onClick={() => setShowUriPreview(false)}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <BiX size={20} />
+          </button>
+        </div>
+        <div className="space-y-2 text-sm">
+          <p className="text-gray-700 dark:text-gray-300">
+            <span className="font-medium">Name:</span> {metadata.name || 'N/A'}
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            <span className="font-medium">Description:</span> {metadata.description || 'N/A'}
+          </p>
+          {metadata.attributes && (
+            <div>
+              <p className="font-medium text-gray-700 dark:text-gray-300">Attributes:</p>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {metadata.attributes.map((attr, idx) => (
+                  <p key={idx} className="text-gray-600 dark:text-gray-400">
+                    {attr.trait_type}: {attr.value}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Add this function for handling file uploads
+  const handleFileUpload = (type) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = type === 'csv' ? '.csv' : 
+                   type === 'excel' ? '.xlsx,.xls' : 
+                   '.json';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        let addresses = [];
+        
+        if (type === 'json') {
+          const text = await file.text();
+          let jsonData;
+          try {
+            jsonData = JSON.parse(text);
+          } catch (e) {
+            console.error('JSON parse error:', e);
+            toast.error('Invalid JSON format');
+            return;
+          }
+
+          // Simple function to extract addresses from any string
+          const getAddressFromString = (str) => {
+            if (typeof str !== 'string') return null;
+            const match = str.match(/0x[a-fA-F0-9]{40}/);
+            return match ? match[0] : null;
+          };
+
+          // Function to process any value and extract addresses
+          const processValue = (value) => {
+            const found = new Set();
+
+            const process = (item) => {
+              // If it's a string, try to extract address
+              if (typeof item === 'string') {
+                const addr = getAddressFromString(item);
+                if (addr) found.add(addr);
+                return;
+              }
+
+              // If it's an array, process each item
+              if (Array.isArray(item)) {
+                item.forEach(process);
+                return;
+              }
+
+              // If it's an object, process each value
+              if (item && typeof item === 'object') {
+                Object.values(item).forEach(process);
+              }
+            };
+
+            process(value);
+            return Array.from(found);
+          };
+
+          // Process the JSON data
+          const foundAddresses = processValue(jsonData);
+          console.log('Found addresses:', foundAddresses);
+          addresses = foundAddresses.map(addr => ({ address: addr, maxMint: 1 }));
+        } 
+        else if (type === 'csv') {
+          const text = await file.text();
+          const result = Papa.parse(text, { header: true });
+          addresses = result.data
+            .map(row => {
+              const addr = row.address || row.wallet || Object.values(row)[0];
+              const limit = parseInt(row.limit || row.maxMint || 1);
+              return addr ? { address: addr, maxMint: limit } : null;
+            })
+            .filter(Boolean);
+        } 
+        else if (type === 'excel') {
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data);
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          addresses = XLSX.utils.sheet_to_json(sheet)
+            .map(row => {
+              const addr = row.address || row.wallet || Object.values(row)[0];
+              const limit = parseInt(row.limit || row.maxMint || 1);
+              return addr ? { address: addr, maxMint: limit } : null;
+            })
+            .filter(Boolean);
+        }
+
+        // Filter valid addresses and remove duplicates
+        const validAddresses = [...new Set(
+          addresses
+            .filter(item => item && item.address && validateAddress(item.address))
+            .map(item => item.address)
+        )].map(addr => ({ address: addr, maxMint: 1 }));
+
+        console.log('Valid addresses:', validAddresses);
+
+        if (validAddresses.length === 0) {
+          toast.error('No valid addresses found in file');
+          return;
+        }
+
+        updateFormData({ whitelistAddresses: validAddresses });
+        toast.success(
+          <div className="flex flex-col">
+            <span>Imported {validAddresses.length} addresses</span>
+            <span className="text-sm text-gray-400 mt-1">Click the counter to view the list</span>
+          </div>
+        );
+      } catch (error) {
+        console.error('Error importing file:', error);
+        toast.error(`Failed to import ${type} file. Please check the format.`);
+      }
+    };
+
+    input.click();
   };
 
   // Add the main modal structure
