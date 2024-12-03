@@ -12,4 +12,6 @@ interface ICollectionTypes {
         address paymentToken;
         bool enableWhitelist;
     }
+
+    event PaymentTokenUpdated(address indexed collection, address indexed oldToken, address indexed newToken);
 } 

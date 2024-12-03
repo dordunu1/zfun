@@ -1,0 +1,28 @@
+[{
+    "collectionType": "ERC721",
+    "name": "My NFT Collection",
+    "symbol": "MNFT",
+    "metadataURI": "ipfs://your-metadata-uri/",
+    "maxSupply": 1000,
+    "mintPrice": "100000000000000000",
+    "maxPerWallet": 5,
+    "releaseDate": 1704067200,
+    "mintEndDate": 1704585600,
+    "infiniteMint": false,
+    "paymentToken": "0x0000000000000000000000000000000000000000",
+    "enableWhitelist": false,
+    "prefixes": [
+        {
+            "prefix": "NS-",
+            "count": 400,
+            "useLeadingZeros": true,
+            "numberDigits": 3
+        },
+        {
+            "prefix": "TG-",
+            "count": 600,
+            "useLeadingZeros": true,
+            "numberDigits": 3
+        }
+    ]
+}] 

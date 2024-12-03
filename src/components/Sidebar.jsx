@@ -21,11 +21,12 @@ import { BsCollection, BsClockHistory } from 'react-icons/bs'
 import { HiOutlineHome } from 'react-icons/hi'
 import { MdOutlineLocalActivity } from 'react-icons/md'
 import { TbChartCandle } from 'react-icons/tb'
-import { RiPaintLine, RiUserLine } from 'react-icons/ri'
+import { RiPaintLine, RiUserLine, RiArrowDownSLine } from 'react-icons/ri'
 
 export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isNFTDropdownOpen, setIsNFTDropdownOpen] = useState(false);
   const location = useLocation();
   
   const isActive = (path) => location.pathname === path;
@@ -40,7 +41,17 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
     {
       icon: RiPaintLine,
       label: 'Create NFT',
-      action: onOpenNFTModal,
+      isDropdown: true,
+      dropdownItems: [
+        {
+          label: 'Standard NFT',
+          action: () => onOpenNFTModal('standard'),
+        },
+        {
+          label: 'Random NFT',
+          action: () => onOpenNFTModal('random'),
+        }
+      ]
     },
     {
       icon: HiOutlineHome,
@@ -116,6 +127,43 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
             <span className="truncate">{item.label}</span>
           )}
         </Link>
+      );
+    }
+
+    if (item.isDropdown) {
+      return (
+        <div key={index} className="relative">
+          <button
+            onClick={() => !isCollapsed && setIsNFTDropdownOpen(!isNFTDropdownOpen)}
+            className={commonClasses}
+          >
+            <item.icon size={20} className="flex-shrink-0" />
+            {!isCollapsed && (
+              <div className="flex items-center justify-between w-full min-w-0">
+                <span className="truncate">{item.label}</span>
+                <RiArrowDownSLine
+                  className={`transform transition-transform ${isNFTDropdownOpen ? 'rotate-180' : ''}`}
+                />
+              </div>
+            )}
+          </button>
+          {!isCollapsed && isNFTDropdownOpen && (
+            <div className="absolute left-0 w-full mt-1 py-1 bg-white dark:bg-[#1a1b1f] rounded-lg shadow-lg border border-gray-200 dark:border-gray-800">
+              {item.dropdownItems.map((dropdownItem, dropdownIndex) => (
+                <button
+                  key={dropdownIndex}
+                  onClick={() => {
+                    dropdownItem.action();
+                    setIsNFTDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-200 hover:bg-[#00ffbd] hover:text-black transition-colors"
+                >
+                  {dropdownItem.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       );
     }
 
