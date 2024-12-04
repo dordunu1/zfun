@@ -29,6 +29,7 @@ const STEPS = [
   { id: 'basics', title: 'Basic Info' },
   { id: 'media', title: 'Collection Media' },
   { id: 'artwork', title: 'Artwork & Traits' },
+  { id: 'advanced', title: 'Advanced' },
   { id: 'minting', title: 'Minting' }
 ];
 
@@ -980,6 +981,8 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
         return renderMediaStep();
       case 'artwork':
         return renderArtworkStep();
+      case 'advanced':
+        return renderAdvancedStep();
       case 'minting':
         return renderMintingStep();
       default:
@@ -1554,74 +1557,137 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     </div>
   );
 
-  const renderPropertiesStep = () => (
+  const renderAdvancedStep = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Properties
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Add custom properties to your collection
-          </p>
+      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+        Advanced Minting Options
+      </h2>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        Configure advanced minting features for your collection
+      </p>
+
+      {/* Reserved Minting */}
+      <div className="mb-8 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={formData.enableReserved || false}
+              onChange={(e) => {
+                updateFormData({ 
+                  enableReserved: e.target.checked,
+                  enableFreeMint: e.target.checked // Automatically enable free minting when reserved is enabled
+                });
+              }}
+              className="w-4 h-4 text-[#00ffbd] bg-gray-100 border-gray-300 rounded focus:ring-[#00ffbd] dark:focus:ring-[#00ffbd] dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Reserved Team Minting</span>
+          </label>
         </div>
-        <button
-          onClick={() => updateFormData({
-            properties: [...formData.properties, { trait_type: '', value: '' }]
-          })}
-          className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
-        >
-          Add Property
-        </button>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Reserve a portion of your collection for team allocation, marketing, partnerships, and giveaways. 
+          These tokens will be set aside from the total supply and can be minted for free by the designated address.
+        </p>
+        {formData.enableReserved && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Team Minter Address
+              </label>
+              <input
+                type="text"
+                value={formData.reservedMinterAddress || ''}
+                onChange={(e) => updateFormData({ reservedMinterAddress: e.target.value })}
+                placeholder="0x..."
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Address that will be able to mint the reserved tokens for free (team, marketing, partnerships)
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Reserved Amount
+              </label>
+              <input
+                type="number"
+                value={formData.reservedAmount || ''}
+                onChange={(e) => updateFormData({ reservedAmount: e.target.value })}
+                placeholder="Number of tokens to reserve"
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Number of tokens to reserve for free team minting
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {formData.properties.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-          <p className="text-sm text-gray-500">
-            No properties added yet
-          </p>
+      {/* Free Minting */}
+      <div className="mb-8 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={formData.enableFreeMint || false}
+              onChange={(e) => updateFormData({ enableFreeMint: e.target.checked })}
+              className="w-4 h-4 text-[#00ffbd] bg-gray-100 border-gray-300 rounded focus:ring-[#00ffbd] dark:focus:ring-[#00ffbd] dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Free Reserved Minting</span>
+          </label>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {formData.properties.map((prop, index) => (
-            <div key={index} className="flex gap-3 items-start">
-              <div className="flex-1">
-                <input
-                  placeholder="Property name"
-                  value={prop.trait_type}
-                  onChange={(e) => {
-                    const newProps = [...formData.properties];
-                    newProps[index].trait_type = e.target.value;
-                    updateFormData({ properties: newProps });
-                  }}
-                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
-                />
-              </div>
-              <div className="flex-1">
-                <input
-                  placeholder="Value"
-                  value={prop.value}
-                  onChange={(e) => {
-                    const newProps = [...formData.properties];
-                    newProps[index].value = e.target.value;
-                    updateFormData({ properties: newProps });
-                  }}
-                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  const newProps = formData.properties.filter((_, i) => i !== index);
-                  updateFormData({ properties: newProps });
-                }}
-                className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-              >
-                <BiX size={20} />
-              </button>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Allow the reserved minter address to mint their allocation without paying the mint price. 
+          This only applies to the reserved allocation set above.
+        </p>
+      </div>
+
+      {/* Post-Whitelist Claims */}
+      <div className="mb-8 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={formData.enablePostWhitelist || false}
+              onChange={(e) => updateFormData({ enablePostWhitelist: e.target.checked })}
+              className="w-4 h-4 text-[#00ffbd] bg-gray-100 border-gray-300 rounded focus:ring-[#00ffbd] dark:focus:ring-[#00ffbd] dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable Post-Whitelist Claims</span>
+          </label>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Allow designated addresses to claim any unminted tokens after the whitelist period ends. 
+          This feature must be explicitly enabled and can only be used after the whitelist phase is complete.
+        </p>
+        {formData.enablePostWhitelist && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Claim-Enabled Address
+              </label>
+              <input
+                type="text"
+                value={formData.claimEnabledAddress || ''}
+                onChange={(e) => updateFormData({ claimEnabledAddress: e.target.value })}
+                placeholder="0x..."
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              />
             </div>
-          ))}
-        </div>
-      )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Whitelist End Time
+              </label>
+              <input
+                type="datetime-local"
+                value={formData.whitelistEndTime || ''}
+                onChange={(e) => updateFormData({ whitelistEndTime: e.target.value })}
+                className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
