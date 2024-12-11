@@ -46,9 +46,11 @@ abstract contract RoyaltyEnforcer is IERC2981, ERC165, Ownable {
 
     /**
      * @inheritdoc IERC2981
+     * @dev Returns royalty info for a given sale. The tokenId parameter is included
+     * for compatibility with ERC2981 but is not used in this implementation.
      */
     function royaltyInfo(
-        uint256 tokenId,
+        uint256 /* tokenId */,
         uint256 salePrice
     ) external view override returns (
         address receiver,
@@ -117,6 +119,8 @@ abstract contract RoyaltyEnforcer is IERC2981, ERC165, Ownable {
 
     /**
      * @dev Returns the current royalty info
+     * @return receiver The address receiving royalties
+     * @return feeNumerator The royalty fee in basis points
      */
     function getRoyaltyInfo() external view returns (
         address receiver,

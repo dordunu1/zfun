@@ -6,7 +6,6 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CreateTokenModal from './components/CreateTokenModal';
 import CreateNFTModal from './components/CreateNFTModal';
-import CreateRandomNFTModal from './components/CreateRandomNFTModal';
 import FAQ from './components/FAQ';
 import { useTheme } from './context/ThemeContext';
 import { config as wagmiConfig, ethereumClient } from './config/wagmi';
@@ -16,17 +15,8 @@ import { WagmiConfig } from 'wagmi';
 function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
-  const [isRandomNFTModalOpen, setIsRandomNFTModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   const { isDarkMode } = useTheme();
-
-  const handleOpenNFTModal = (type) => {
-    if (type === 'random') {
-      setIsRandomNFTModalOpen(true);
-    } else {
-      setIsNFTModalOpen(true);
-    }
-  };
 
   return (
     <DeploymentsProvider>
@@ -41,7 +31,7 @@ function App() {
           <Toaster position="top-right" />
           <Sidebar 
             onOpenModal={() => setIsModalOpen(true)}
-            onOpenNFTModal={handleOpenNFTModal}
+            onOpenNFTModal={() => setIsNFTModalOpen(true)}
           />
           <div className="flex-1">
             <Header />
@@ -55,10 +45,6 @@ function App() {
           <CreateNFTModal 
             isOpen={isNFTModalOpen}
             onClose={() => setIsNFTModalOpen(false)}
-          />
-          <CreateRandomNFTModal 
-            isOpen={isRandomNFTModalOpen}
-            onClose={() => setIsRandomNFTModalOpen(false)}
           />
           <FAQ 
             isOpen={isFAQOpen}

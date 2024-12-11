@@ -5,7 +5,7 @@ import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode } from 'react-icons/fa';
 import clsx from 'clsx';
 import { NFT_CONTRACTS, TOKEN_ADDRESSES } from '../config/contracts';
 import { ethers } from 'ethers';
-import { NFTFactoryABI } from '../abi/NFTFactory';
+import { RandomNFTFactoryABI } from '../abi/RandomNFTFactory';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { parseEther } from 'viem';
@@ -327,29 +327,71 @@ const GuidelinesModal = ({ isOpen, onClose }) => {
 // Add these utility functions at the top of the component
 const validateIpfsUri = (uri) => {
   if (!uri) return false;
+  
   // Check basic IPFS URI format
-  if (!uri.startsWith('ipfs://')) return false;
-  // Check if hash is present and valid length (CIDv0 or CIDv1)
-  const hash = uri.replace('ipfs://', '');
-  return hash.length === 46 || hash.length === 59;
+  if (!uri.startsWith('ipfs://')) {
+    return false;
+  }
+  
+  // Get the CID part
+  const cid = uri.replace('ipfs://', '').split('/')[0];
+  
+  // Basic CID validation (this is a simplified check)
+  // CIDv0: Qm... (46 chars)
+  // CIDv1: bafy... or bafk... (59 chars)
+  return (
+    (cid.startsWith('Qm') && cid.length === 46) ||
+    (cid.startsWith('baf') && cid.length === 59)
+  );
 };
 
 const formatIpfsUri = (uri) => {
   if (!uri) return '';
+  
   // Remove any whitespace
   uri = uri.trim();
+  
+  // Remove trailing slash if present
+  if (uri.endsWith('/')) {
+    uri = uri.slice(0, -1);
+  }
+  
   // Add ipfs:// prefix if missing
-  if (!uri.startsWith('ipfs://') && !uri.startsWith('http')) {
-    uri = `ipfs://${uri}`;
+  if (!uri.startsWith('ipfs://')) {
+    // Handle various gateway URLs
+    if (uri.includes('ipfs.io/ipfs/')) {
+      uri = 'ipfs://' + uri.split('ipfs.io/ipfs/')[1];
+    } else if (uri.includes('gateway.pinata.cloud/ipfs/')) {
+      uri = 'ipfs://' + uri.split('gateway.pinata.cloud/ipfs/')[1];
+    } else if (uri.includes('/ipfs/')) {
+      uri = 'ipfs://' + uri.split('/ipfs/')[1];
+    } else {
+      uri = 'ipfs://' + uri;
+    }
   }
-  // Convert HTTP gateway URLs to IPFS URI
-  if (uri.includes('ipfs.io/ipfs/')) {
-    uri = 'ipfs://' + uri.split('ipfs.io/ipfs/')[1];
-  }
-  if (uri.includes('gateway.pinata.cloud/ipfs/')) {
-    uri = 'ipfs://' + uri.split('gateway.pinata.cloud/ipfs/')[1];
-  }
+  
   return uri;
+};
+
+// Helper functions for URL validation
+const getValidImageUrl = (url) => {
+  if (!url) return '';
+  // Check if it's a valid IPFS or HTTP URL
+  if (url.startsWith('ipfs://') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // Use placeholder if URL is invalid
+  return 'https://placeholder.com/nft-image-placeholder.png';
+};
+
+const getValidBaseUri = (uri) => {
+  if (!uri) return '';
+  // Check if it's a valid IPFS or HTTP URL
+  if (uri.startsWith('ipfs://') || uri.startsWith('http://') || uri.startsWith('https://')) {
+    return uri;
+  }
+  // Use placeholder if URI is invalid
+  return 'ipfs://placeholder/';
 };
 
 export default function CreateRandomNFTModal({ isOpen, onClose }) {
@@ -390,7 +432,10 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     prefixes: [],
     isRandomMint: true,
     metadataFile: null,
-    metadataUri: '', // Add this line if not present
+    metadataUri: '',
+    // Royalty settings
+    royaltyFee: 2.5,
+    royaltyRecipient: '',
   });
 
   const { address: account, isConnected } = useAccount();
@@ -538,6 +583,14 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
 
       // Check if it's the nested metadata format
       if (jsonData.nfts && jsonData.nfts[0]?.metadata) {
+        // Detect metadata format
+        let metadataFormat = {
+          format: 2, // NESTED_NAME since we're in the nested format case
+          idField: '',
+          isNested: true,
+          totalMetadata: jsonData.nfts.length
+        };
+
         // Transform nested metadata format to standard format
         const transformedNFTs = jsonData.nfts.map(nft => ({
           id: nft.metadata.name,
@@ -547,6 +600,26 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
           animation_url: nft.metadata.animation_url || "",
           attributes: nft.metadata.attributes
         }));
+
+        // Rest of your existing nested format handling...
+        // Extract traits from NFT attributes
+        const traits = {};
+        transformedNFTs.forEach(nft => {
+          if (nft.attributes) {
+            nft.attributes.forEach(attr => {
+              if (!traits[attr.trait_type]) {
+                traits[attr.trait_type] = new Set();
+              }
+              traits[attr.trait_type].add(attr.value);
+            });
+          }
+        });
+
+        // Convert Set to Array for each trait
+        const processedTraits = {};
+        Object.entries(traits).forEach(([key, values]) => {
+          processedTraits[key] = Array.from(values);
+        });
 
         // Extract prefix counts
         const prefixCounts = {};
@@ -561,14 +634,14 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
             name: "My Collection",
             description: "A unique NFT collection",
             prefix_counts: prefixCounts,
-            traits: {}
+            traits: processedTraits
           }
         };
 
         setPreviewData(previewData);
         setShowPreview(true);
         
-        // Update form data
+        // Update form data with metadata format
         const prefixes = Object.entries(prefixCounts).map(([prefix, count]) => ({
           prefix: prefix,
           count: count.toString(),
@@ -579,13 +652,17 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
         updateFormData({
           name: previewData.metadata.name,
           description: previewData.metadata.description,
-          prefixes
+          prefixes,
+          traits: processedTraits,
+          metadataFormat // Add metadata format to form data
         });
 
         toast.success(
           <div>
             <p>JSON file imported successfully!</p>
             <p className="text-sm">✓ Form fields updated</p>
+            <p className="text-sm">✓ {Object.keys(processedTraits).length} trait types extracted</p>
+            <p className="text-sm">✓ Metadata format detected</p>
             <p className="text-sm">✓ Preview available</p>
           </div>,
           { duration: 4000 }
@@ -596,36 +673,95 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
           throw new Error('Invalid JSON format');
         }
 
+        // Detect metadata format for non-nested case
+        let metadataFormat = {
+          format: 0, // Default to ID_FIELD
+          idField: '',
+          isNested: false,
+          totalMetadata: jsonData.nfts.length
+        };
+
+        const sampleNft = jsonData.nfts[0];
+        if (sampleNft.id) {
+          metadataFormat.format = 0; // ID_FIELD
+        } else if (sampleNft.name && sampleNft.name.includes('-')) {
+          metadataFormat.format = 1; // NAME_FIELD
+        } else if (sampleNft.tag) {
+          metadataFormat.format = 3; // TAG_FIELD
+          metadataFormat.idField = 'tag';
+        }
+
+        // Extract traits from NFT attributes
+        const traits = {};
+        jsonData.nfts.forEach(nft => {
+          // Handle attributes array format
+          if (nft.attributes) {
+            nft.attributes.forEach(attr => {
+              if (!traits[attr.trait_type]) {
+                traits[attr.trait_type] = new Set();
+              }
+              traits[attr.trait_type].add(attr.value);
+            });
+          } else {
+            // Handle direct properties format
+            const excludedProps = ['id', 'name', 'description', 'image', 'animation_url'];
+            Object.entries(nft).forEach(([key, value]) => {
+              if (!excludedProps.includes(key.toLowerCase()) && value !== undefined && value !== '') {
+                if (!traits[key]) {
+                  traits[key] = new Set();
+                }
+                traits[key].add(value);
+              }
+            });
+          }
+        });
+
+        // Convert Set to Array for each trait
+        const processedTraits = {};
+        Object.entries(traits).forEach(([key, values]) => {
+          processedTraits[key] = Array.from(values);
+        });
+
         // Auto-fill form fields
         const prefixes = Object.entries(jsonData.metadata.prefix_counts).map(([prefix, count]) => ({
           prefix: `${prefix}-`,
           count: count.toString(),
-          baseUri: ''  // This will need to be set by the user
+          useLeadingZeros: true,
+          numberDigits: 3
         }));
 
         updateFormData({
           name: jsonData.metadata.name || formData.name,
           description: jsonData.metadata.description || formData.description,
           prefixes,
-          traits: jsonData.metadata.traits || {}
+          traits: processedTraits,
+          metadataFormat // Add metadata format to form data
         });
 
         // Store JSON for preview
-        setPreviewData(jsonData);
+        setPreviewData({
+          ...jsonData,
+          metadata: {
+            ...jsonData.metadata,
+            traits: processedTraits
+          }
+        });
         setShowPreview(true);
 
         toast.success(
           <div>
             <p>JSON file imported successfully!</p>
             <p className="text-sm">✓ Form fields updated</p>
+            <p className="text-sm">✓ {Object.keys(processedTraits).length} trait types extracted</p>
+            <p className="text-sm">✓ Metadata format detected</p>
             <p className="text-sm">✓ Preview available</p>
           </div>,
           { duration: 4000 }
         );
       }
     } catch (error) {
-      console.error('Error processing JSON:', error);
-      toast.error('Invalid JSON format. Please check the example format.');
+      console.error('Error importing JSON:', error);
+      toast.error('Failed to import JSON file. Please check the format.');
     }
   };
 
@@ -739,7 +875,7 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
       const wb = XLSX.utils.book_new();
       
       // Convert the data to worksheet
-      const ws = XLSX.utils.json_to_sheet(excelData, {
+           const ws = XLSX.utils.json_to_sheet(excelData, {
         header: [
           'id',
           'name',
@@ -766,7 +902,9 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
   };
 
   // Handle contract interaction
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
     try {
       // Add validation for metadataUri
       if (!formData.metadataUri) {
@@ -787,84 +925,159 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
         return;
       }
 
-      // Validate form data
-      if (!formData.type || !formData.name || !formData.symbol || !formData.artwork || !formData.metadataFile) {
-        toast.error('Please fill in all required fields and upload metadata');
-        return;
-      }
-
-      toast.loading('Creating your random mint collection...', { id: 'create' });
+      // Step 1: Initial setup
+      toast.loading('1/3 - Preparing deployment...', { id: 'create' });
+      console.log('Starting collection creation...');
 
       // Initialize provider and signer
       const provider = new ethers.BrowserProvider(window.ethereum);
+      console.log('Provider initialized');
+      
       const signer = await provider.getSigner();
+      console.log('Signer obtained:', await signer.getAddress());
+      
       const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
       const networkChainId = parseInt(currentChainId, 16);
+      console.log('Current chain ID:', networkChainId);
       
-      const factoryAddress = NFT_CONTRACTS[networkChainId]?.NFT_FACTORY;
+      // Get factory address from environment
+      const factoryAddress = import.meta.env.VITE_RANDOM_NFT_FACTORY_ADDRESS;
+      console.log('Factory address:', factoryAddress);
+      
       if (!factoryAddress) {
-        toast.error('Unsupported network');
+        toast.error('Factory address not found in environment variables');
         return;
       }
 
-      // Step 1: Upload metadata
-      toast.loading('1/3 - Uploading metadata...', { id: 'create' });
-      const { metadataUrl, imageHttpUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
+      // Step 2: Contract setup
+      toast.loading('2/3 - Setting up contract...', { id: 'create' });
 
-      // Step 2: Create collection
-      toast.loading('2/3 - Creating collection...', { id: 'create' });
-      const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer);
-      const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
+      // Create factory instance and get network fee
+      const factory = new ethers.Contract(factoryAddress, RandomNFTFactoryABI, signer);
+      console.log('Factory contract instance created');
+      
+      // Get the network fee for the current chain
+      const networkFee = await factory.chainFees(networkChainId);
+      console.log('Network fee:', ethers.formatEther(networkFee), 'ETH');
+      
+      if (networkFee === BigInt(0)) {
+        throw new Error('Chain not supported');
+      }
 
-      const paymentTokenAddress = getPaymentToken(networkChainId);
+      // Add these debug logs
+      console.log('Network fee (raw):', networkFee.toString());
+      console.log('Chain ID:', networkChainId);
+      console.log('Sender balance:', ethers.formatEther(await provider.getBalance(account)), 'ETH');
 
-      // For whitelist collections, set a high maxPerWallet
-      const maxPerWallet = formData.enableWhitelist 
-        ? BigInt(1000000)
-        : BigInt(formData.maxPerWallet || 1);
-
-      // Convert prefixes to contract format
-      const prefixData = formData.prefixes.map(p => ({
-        prefix: p.prefix,
-        count: BigInt(p.count),
-        useLeadingZeros: p.useLeadingZeros,
-        numberDigits: BigInt(p.numberDigits)
-      }));
-
-      const tx = await factory.createRandomNFTCollection(
-        formData.name,
-        formData.symbol,
-        metadataUrl,
-        BigInt(formData.maxSupply || 1000),
-        formData.mintPrice ? ethers.parseEther(formData.mintPrice.toString()) : BigInt(0),
-        maxPerWallet,
-        BigInt(Math.floor(new Date(formData.releaseDate).getTime() / 1000)),
-        formData.infiniteMint ? BigInt(0) : BigInt(Math.floor(new Date(formData.mintEndDate).getTime() / 1000)),
-        Boolean(formData.infiniteMint),
-        paymentTokenAddress,
-        Boolean(formData.enableWhitelist),
-        prefixData,
-        { value: fee }
+      // Convert royalty fee from percentage to basis points (e.g., 2.5% -> 250)
+      const royaltyBasisPoints = Math.floor(parseFloat(formData.royaltyFee || '0') * 100);
+      
+      // Create collection parameters
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Get the IPFS URI from the form's metadataUri field
+      const baseURI = formData.metadataUri;
+      if (!baseURI) {
+        throw new Error('No metadata URL found. Please upload your metadata first.');
+      }
+      
+      // Make sure the URI ends with a trailing slash
+      const formattedBaseURI = baseURI.endsWith('/') ? baseURI : baseURI + '/';
+      
+      console.log('Using base URI:', formattedBaseURI);
+      
+      // Validate the IPFS URI format
+      if (!validateIpfsUri(formattedBaseURI)) {
+        throw new Error('Invalid IPFS URI format. Must start with ipfs:// and contain a valid CID.');
+      }
+      
+      // Call the contract with parameters matching the initialize function
+      const tx = await factory.createRandomCollection(
+        {
+          name: formData.name,
+          symbol: formData.symbol,
+          baseURI: formattedBaseURI,
+          collectionType: "ERC721",
+          maxSupply: BigInt(formData.maxSupply),
+          mintPrice: ethers.parseEther(formData.mintPrice?.toString() || '0.005'),
+          maxPerWallet: BigInt(formData.maxPerWallet || 1),
+          releaseDate: BigInt(now),
+          mintEndDate: BigInt(now + 7 * 24 * 60 * 60),
+          infiniteMint: false,
+          paymentToken: '0x0000000000000000000000000000000000000000',
+          enableWhitelist: false,
+          royaltyFee: BigInt(royaltyBasisPoints),
+          royaltyRecipient: formData.royaltyRecipient || account,
+          advancedConfig: {
+            reservedMinter: account,
+            reservedAmount: BigInt(0),
+            isFreeMint: false,
+            canClaimUnminted: false,
+            whitelistEndTime: BigInt(0)
+          },
+          metadataConfig: {
+            format: 0, // MetadataFormat.ID_FIELD
+            idField: formData.metadataConfig?.idField || '',
+            isNested: formData.metadataConfig?.isNested || false,
+            totalMetadata: BigInt(formData.maxSupply)
+          }
+        },
+        {
+          value: networkFee
+        }
       );
+      
+      // Add transaction debug log
+      console.log('Transaction parameters:', {
+        value: ethers.formatEther(networkFee),
+        gasLimit: 5000000,
+        from: account,
+        to: factoryAddress
+      });
 
-      toast.loading('2/3 - Confirming transaction...', { id: 'create' });
+      console.log('Transaction sent:', tx.hash);
+      toast.loading('Waiting for confirmation...', { id: 'create' });
       const receipt = await tx.wait();
 
+      console.log('Transaction receipt:', receipt);
+      console.log('All logs:', receipt.logs);
+      
       // Get collection address from events
       let collectionAddress;
-      const creationEvent = receipt.logs.find(log => 
-        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'
-      );
+      const creationEvent = receipt.logs.find((log) => {
+        return log.topics?.[0] === '0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2';
+      });
 
       if (creationEvent) {
-        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-          ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
-          creationEvent.data
-        );
-        collectionAddress = decodedData[0].collection;
+        console.log('Found creation event with data:', creationEvent.data);
+        try {
+          // Try to decode the full event data which should contain all parameters
+          const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            ['address', 'address', 'string', 'string', 'string', 'uint256'],
+            creationEvent.data
+          );
+          
+          // The collection address should be the second parameter
+          collectionAddress = decodedData[1];
+          console.log('Full decoded data:', decodedData);
+          console.log('Extracted collection address:', collectionAddress);
+          
+          // Verify it's a valid address
+          if (!ethers.isAddress(collectionAddress)) {
+            throw new Error('Decoded address is not valid');
+          }
+        } catch (decodeError) {
+          console.error('Error decoding event data:', decodeError);
+          // Try to get address from the event address field
+          if (creationEvent.address && ethers.isAddress(creationEvent.address)) {
+            collectionAddress = creationEvent.address;
+            console.log('Using event address as collection address:', collectionAddress);
+          }
+        }
       }
 
       if (!collectionAddress) {
+        console.error('Failed to extract collection address from event:', creationEvent);
         throw new Error('Failed to get collection address from transaction');
       }
 
@@ -893,8 +1106,8 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
         ...formData,
         contractAddress: collectionAddress,
         network: networkChainId === 137 ? 'polygon' : 'sepolia',
-        previewUrl: imageHttpUrl,
-        imageIpfsUrl: metadataUrl,
+        previewUrl: formData.previewUrl || '', // Use empty string if no preview URL
+        imageIpfsUrl: formData.baseURI || '', // Use baseURI if no specific IPFS URL
         mintToken: {
           type: formData.mintingToken || 'native',
           symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
@@ -906,15 +1119,16 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
                   formData.mintingToken === 'custom' ? formData.customTokenAddress :
                   paymentTokenAddress || '0x0000000000000000000000000000000000000000'
         },
-        whitelistAddresses: formData.whitelistAddresses,
+        whitelistAddresses: formData.whitelistAddresses || [],
         createdAt: Date.now(),
         totalMinted: 0,
         creatorAddress: account.toLowerCase(),
         isRandomMint: true
       };
 
+      console.log('Saving collection data:', collectionData);
       await saveCollection(collectionData);
-      
+
       toast.success('Collection created successfully!', { id: 'create' });
       onClose();
       navigate(`/collection/${formData.symbol}`);
@@ -1491,7 +1705,7 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
               >
-                → NFT.Storage
+                 NFT.Storage
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -1559,15 +1773,57 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
 
   const renderAdvancedStep = () => (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      <h2 className="text-xl font-semibold text-white mb-2">
         Advanced Minting Options
       </h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+      <p className="text-sm text-gray-400 mb-6">
         Configure advanced minting features for your collection
       </p>
 
+      {/* Royalty Settings */}
+      <div className="mb-8 border border-[#1a1b1f] rounded-lg p-4 bg-[#0a0b0f]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-white">Royalty Settings</h3>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Royalty Fee (%)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+              value={formData.royaltyFee || 2.5}
+              onChange={(e) => updateFormData({ royaltyFee: parseFloat(e.target.value) })}
+              className="w-full bg-[#1a1b1f] text-white rounded-lg p-3 border border-[#2a2b2f] focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              placeholder="Enter royalty percentage (0-10%)"
+            />
+            <p className="mt-1 text-sm text-gray-400">
+              Royalties you'll receive from secondary sales (max 10%)
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Royalty Recipient
+            </label>
+            <input
+              type="text"
+              value={formData.royaltyRecipient || account}
+              onChange={(e) => updateFormData({ royaltyRecipient: e.target.value })}
+              className="w-full bg-[#1a1b1f] text-white rounded-lg p-3 border border-[#2a2b2f] focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+              placeholder="Enter royalty recipient address"
+            />
+            <p className="mt-1 text-sm text-gray-400">
+              Address that will receive the royalties (defaults to your address)
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Reserved Minting */}
-      <div className="mb-8 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="mb-8 border border-[#1a1b1f] rounded-lg p-4 bg-[#0a0b0f]">
         <div className="flex items-center justify-between mb-2">
           <label className="flex items-center">
             <input
@@ -1802,7 +2058,6 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
               min="1"
               value={formData.maxPerWallet}
               onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
-              placeholder="Enter max per wallet"
               className={`w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:border-[#00ffbd] ${
                 formData.enableWhitelist ? 'cursor-not-allowed bg-gray-100 dark:bg-[#1a1b1f] opacity-75' : ''
               }`}
@@ -1945,10 +2200,13 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
               onBlur={() => {
                 const formatted = formatIpfsUri(formData.metadataUri);
                 updateFormData({ metadataUri: formatted });
+                if (formatted) {
+                  checkUri(formatted);
+                }
               }}
               placeholder="ipfs://..."
               className={clsx(
-                "block w-full px-4 py-3 bg-white dark:bg-[#1a1b1f] border rounded-lg focus:ring-[#00ffbd] focus:border-[#00ffbd] sm:text-sm",
+                "block w-full px-4 py-3 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-gray-100 border rounded-lg focus:ring-2 focus:ring-[#00ffbd] focus:border-[#00ffbd] sm:text-sm transition-colors",
                 uriStatus.valid 
                   ? "border-green-500 dark:border-green-500" 
                   : "border-gray-300 dark:border-gray-700"
@@ -1956,7 +2214,7 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
             />
             {isCheckingUri && (
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-5 w-5 text-gray-400 dark:text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -1981,7 +2239,7 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={() => setShowUriPreview(true)}
-                className="text-sm text-[#00ffbd] hover:text-[#00e6a9]"
+                className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
               >
                 Preview Metadata
               </button>
@@ -2047,16 +2305,51 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     updateFormData({ whitelistAddresses: newAddresses });
   };
 
-  const handleUriChange = (e) => {
-    const uri = formatIpfsUri(e.target.value);
+  const handleUriChange = async (e) => {
+    const uri = e.target.value;
     updateFormData({ metadataUri: uri });
     
-    // Reset status
-    setUriStatus({ valid: false, message: '' });
-    setPreviewMetadata(null);
+    // Don't validate empty URIs
+    if (!uri) {
+      setUriStatus({ valid: false, message: '' });
+      return;
+    }
     
-    if (validateIpfsUri(uri)) {
-      checkUri(uri);
+    // Format and validate the URI
+    const formattedUri = formatIpfsUri(uri);
+    const isValid = validateIpfsUri(formattedUri);
+    
+    if (!isValid) {
+      setUriStatus({ 
+        valid: false, 
+        message: 'Invalid IPFS URI format. Must start with ipfs:// and contain a valid CID.' 
+      });
+      return;
+    }
+    
+    // If valid, try to fetch metadata
+    setIsCheckingUri(true);
+    try {
+      const response = await fetch(formattedUri.replace('ipfs://', 'https://ipfs.io/ipfs/'));
+      if (!response.ok) throw new Error('Failed to fetch metadata');
+      
+      const metadata = await response.json();
+      setUriStatus({ 
+        valid: true, 
+        message: 'Valid IPFS URI - metadata found' 
+      });
+      
+      // Update preview data if available
+      if (metadata) {
+        setPreviewData(metadata);
+      }
+    } catch (error) {
+      setUriStatus({ 
+        valid: false, 
+        message: 'Could not fetch metadata from IPFS. Please verify the URI.' 
+      });
+    } finally {
+      setIsCheckingUri(false);
     }
   };
 
@@ -2064,21 +2357,26 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     setIsCheckingUri(true);
     try {
       const httpUrl = ipfsToHttp(uri);
+      console.log('Fetching metadata from:', httpUrl);
       const response = await axios.get(httpUrl);
       
-      if (response.data) {
+      if (response.data && response.data.nfts && Array.isArray(response.data.nfts)) {
+        console.log('Metadata response:', response.data);
+        
         setUriStatus({ 
           valid: true, 
           message: 'Valid metadata JSON found' 
         });
         setPreviewMetadata(response.data);
+        setShowUriPreview(true);
       } else {
         setUriStatus({ 
           valid: false, 
-          message: 'Invalid metadata format' 
+          message: 'Invalid metadata format - missing nfts array' 
         });
       }
     } catch (error) {
+      console.error('Metadata fetch error:', error);
       setUriStatus({ 
         valid: false, 
         message: 'Failed to fetch metadata' 
@@ -2090,35 +2388,98 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
 
   // Add this component for metadata preview
   const MetadataPreview = ({ metadata }) => {
-    if (!metadata) return null;
+    if (!metadata?.nfts?.length) return null;
+    
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const selectedNFT = metadata.nfts[selectedIndex];
+    
+    // Convert IPFS image URL to HTTP URL for preview
+    const imageUrl = selectedNFT.image ? ipfsToHttp(selectedNFT.image) : null;
+    console.log('Preview image URL:', imageUrl);
     
     return (
-      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-        <div className="flex justify-between items-center mb-2">
-          <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Metadata Preview</h4>
+      <div className="mt-4 p-6 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-4">
+            <h4 className="text-base font-medium text-gray-900 dark:text-gray-100">Metadata Preview</h4>
+            <select
+              value={selectedIndex}
+              onChange={(e) => setSelectedIndex(Number(e.target.value))}
+              className="text-sm bg-gray-100 dark:bg-[#151619] border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-gray-900 dark:text-gray-100"
+            >
+              {metadata.nfts.map((nft, idx) => (
+                <option key={idx} value={idx}>{nft.name || `NFT #${idx + 1}`}</option>
+              ))}
+            </select>
+          </div>
           <button
             onClick={() => setShowUriPreview(false)}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
           >
             <BiX size={20} />
           </button>
         </div>
-        <div className="space-y-2 text-sm">
-          <p className="text-gray-700 dark:text-gray-300">
-            <span className="font-medium">Name:</span> {metadata.name || 'N/A'}
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            <span className="font-medium">Description:</span> {metadata.description || 'N/A'}
-          </p>
-          {metadata.attributes && (
+        <div className="space-y-4">
+          {imageUrl && (
+            <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-[#151619]">
+              <img 
+                src={imageUrl} 
+                alt={selectedNFT.name || 'NFT Preview'} 
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  console.log('Image load error');
+                  e.target.onerror = null;
+                  e.target.src = 'https://placehold.co/400x400?text=Image+Not+Found';
+                }}
+              />
+            </div>
+          )}
+          <div className="space-y-3">
             <div>
-              <p className="font-medium text-gray-700 dark:text-gray-300">Attributes:</p>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {metadata.attributes.map((attr, idx) => (
-                  <p key={idx} className="text-gray-600 dark:text-gray-400">
-                    {attr.trait_type}: {attr.value}
-                  </p>
-                ))}
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-400">ID</label>
+              <p className="mt-1 text-gray-900 dark:text-gray-100">{selectedNFT.id || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Name</label>
+              <p className="mt-1 text-gray-900 dark:text-gray-100">{selectedNFT.name || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Description</label>
+              <p className="mt-1 text-gray-900 dark:text-gray-100">{selectedNFT.description || 'N/A'}</p>
+            </div>
+            {selectedNFT.attributes && selectedNFT.attributes.length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-400 block mb-2">Attributes</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedNFT.attributes.map((attr, idx) => (
+                    <div key={idx} className="bg-gray-100 dark:bg-[#151619] p-2 rounded-lg">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{attr.trait_type}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{attr.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {metadata.metadata && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h5 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Collection Info</h5>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="font-medium">Name:</span> {metadata.metadata.name}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="font-medium">Description:</span> {metadata.metadata.description}
+                </p>
+                {metadata.metadata.prefix_counts && (
+                  <div className="flex gap-2">
+                    {Object.entries(metadata.metadata.prefix_counts).map(([prefix, count]) => (
+                      <span key={prefix} className="text-xs bg-gray-100 dark:bg-[#151619] text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                        {prefix}: {count}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2245,6 +2606,279 @@ export default function CreateRandomNFTModal({ isOpen, onClose }) {
     };
 
     input.click();
+  };
+
+  const handleDeployment = async () => {
+    try {
+      // Step 1: Initial setup
+      toast.loading('1/3 - Preparing deployment...', { id: 'create' });
+      console.log('Starting collection creation...');
+
+      // Initialize provider and signer
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      console.log('Provider initialized');
+      
+      const signer = await provider.getSigner();
+      console.log('Signer obtained:', await signer.getAddress());
+      
+      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+      const networkChainId = parseInt(currentChainId, 16);
+      console.log('Current chain ID:', networkChainId);
+      
+      // Get factory address from environment
+      const factoryAddress = import.meta.env.VITE_RANDOM_NFT_FACTORY_ADDRESS;
+      console.log('Factory address:', factoryAddress);
+      
+      if (!factoryAddress) {
+        toast.error('Factory address not found in environment variables');
+        return;
+      }
+
+      // Step 2: Contract setup
+      toast.loading('2/3 - Setting up contract...', { id: 'create' });
+
+      // Create factory instance and get network fee
+      const factory = new ethers.Contract(factoryAddress, RandomNFTFactoryABI, signer);
+      console.log('Factory contract instance created');
+      
+      // Get the network fee for the current chain
+      const networkFee = await factory.chainFees(networkChainId);
+      console.log('Network fee:', ethers.formatEther(networkFee), 'ETH');
+      
+      if (networkFee === BigInt(0)) {
+        throw new Error('Chain not supported');
+      }
+
+      // Add these debug logs
+      console.log('Network fee (raw):', networkFee.toString());
+      console.log('Chain ID:', networkChainId);
+      console.log('Sender balance:', ethers.formatEther(await provider.getBalance(account)), 'ETH');
+
+      // Convert royalty fee from percentage to basis points (e.g., 2.5% -> 250)
+      const royaltyBasisPoints = Math.floor(parseFloat(formData.royaltyFee || '0') * 100);
+      
+      // Create collection parameters
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Get the IPFS URI from the form's metadataUri field
+      const baseURI = formData.metadataUri;
+      if (!baseURI) {
+        throw new Error('No metadata URL found. Please upload your metadata first.');
+      }
+      
+      // Make sure the URI ends with a trailing slash
+      const formattedBaseURI = baseURI.endsWith('/') ? baseURI : baseURI + '/';
+      
+      console.log('Using base URI:', formattedBaseURI);
+      
+      // Validate the IPFS URI format
+      if (!validateIpfsUri(formattedBaseURI)) {
+        throw new Error('Invalid IPFS URI format. Must start with ipfs:// and contain a valid CID.');
+      }
+      
+     
+      
+      // Prepare deployment parameters with all required fields
+      const deploymentParams = {
+        name: formData.name,
+        symbol: formData.symbol,
+        baseURI: formattedBaseURI,
+        collectionType: 'ERC721',
+        maxSupply: BigInt(formData.maxSupply),
+        mintPrice: ethers.parseEther(formData.mintPrice?.toString() || '0.005'),
+        maxPerWallet: BigInt(formData.maxPerWallet || 1),
+        releaseDate: BigInt(now),
+        mintEndDate: BigInt(now + 7 * 24 * 60 * 60),  // 7 days from now
+        infiniteMint: false,
+        paymentToken: '0x0000000000000000000000000000000000000000',
+        enableWhitelist: false,
+        royaltyFee: BigInt(royaltyBasisPoints),
+        royaltyRecipient: formData.royaltyRecipient || account,
+        advancedConfig: {
+          reservedMinter: account,
+          reservedAmount: BigInt(0),
+          isFreeMint: false,
+          canClaimUnminted: false,
+          whitelistEndTime: BigInt(0)
+        },
+        metadataConfig: {
+          format: 0,  // MetadataFormat.ID_FIELD
+          idField: formData.metadataConfig?.idField || '',
+          isNested: formData.metadataConfig?.isNested || false,
+          totalMetadata: BigInt(formData.metadataConfig?.totalMetadata || formData.maxSupply)
+        }
+      };
+      
+      // Log the complete parameters for debugging
+      console.log('Full deployment parameters:', {
+        ...deploymentParams,
+        maxSupply: deploymentParams.maxSupply.toString(),
+        mintPrice: ethers.formatEther(deploymentParams.mintPrice),
+        maxPerWallet: deploymentParams.maxPerWallet.toString(),
+        royaltyFee: deploymentParams.royaltyFee.toString(),
+        advancedConfig: {
+          ...deploymentParams.advancedConfig,
+          reservedAmount: deploymentParams.advancedConfig.reservedAmount.toString(),
+          whitelistEndTime: deploymentParams.advancedConfig.whitelistEndTime.toString()
+        },
+        metadataConfig: {
+          ...deploymentParams.metadataConfig,
+          format: deploymentParams.metadataConfig.format.toString(),
+          totalMetadata: deploymentParams.metadataConfig.totalMetadata.toString()
+        }
+      });
+
+      // Step 3: Deploy collection
+      toast.loading('3/3 - Deploying collection...', { id: 'create' });
+      console.log('Calling createRandomCollection...');
+
+      // Use a fixed high gas limit for complex contract deployment
+      const tx = await factory.createRandomCollection(
+        {
+          name: deploymentParams.name,
+          symbol: deploymentParams.symbol,
+          baseURI: deploymentParams.baseURI,
+          collectionType: deploymentParams.collectionType,
+          maxSupply: deploymentParams.maxSupply,
+          mintPrice: deploymentParams.mintPrice,
+          maxPerWallet: deploymentParams.maxPerWallet,
+          releaseDate: deploymentParams.releaseDate,
+          mintEndDate: deploymentParams.mintEndDate,
+          infiniteMint: deploymentParams.infiniteMint,
+          paymentToken: deploymentParams.paymentToken,
+          enableWhitelist: deploymentParams.enableWhitelist,
+          royaltyFee: deploymentParams.royaltyFee,
+          royaltyRecipient: deploymentParams.royaltyRecipient,
+          advancedConfig: {
+            reservedMinter: deploymentParams.advancedConfig.reservedMinter,
+            reservedAmount: deploymentParams.advancedConfig.reservedAmount,
+            isFreeMint: deploymentParams.advancedConfig.isFreeMint,
+            canClaimUnminted: deploymentParams.advancedConfig.canClaimUnminted,
+            whitelistEndTime: deploymentParams.advancedConfig.whitelistEndTime
+          },
+          metadataConfig: deploymentParams.metadataConfig
+        },
+        { 
+          value: networkFee,
+          gasLimit: BigInt(5000000)  // Use a high gas limit for complex deployment
+        }
+      );
+      
+      // Add transaction debug log
+      console.log('Transaction parameters:', {
+        value: ethers.formatEther(networkFee),
+        gasLimit: 5000000,
+        from: account,
+        to: factoryAddress
+      });
+
+      console.log('Transaction sent:', tx.hash);
+      toast.loading('Waiting for confirmation...', { id: 'create' });
+      const receipt = await tx.wait();
+
+      console.log('Transaction receipt:', receipt);
+      console.log('All logs:', receipt.logs);
+      
+      // Get collection address from events
+      let collectionAddress;
+      const creationEvent = receipt.logs.find((log) => {
+        return log.topics?.[0] === '0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2';
+      });
+
+      if (creationEvent) {
+        console.log('Found creation event with data:', creationEvent.data);
+        try {
+          // Try to decode the full event data which should contain all parameters
+          const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            ['address', 'address', 'string', 'string', 'string', 'uint256'],
+            creationEvent.data
+          );
+          
+          // The collection address should be the second parameter
+          collectionAddress = decodedData[1];
+          console.log('Full decoded data:', decodedData);
+          console.log('Extracted collection address:', collectionAddress);
+          
+          // Verify it's a valid address
+          if (!ethers.isAddress(collectionAddress)) {
+            throw new Error('Decoded address is not valid');
+          }
+        } catch (decodeError) {
+          console.error('Error decoding event data:', decodeError);
+          // Try to get address from the event address field
+          if (creationEvent.address && ethers.isAddress(creationEvent.address)) {
+            collectionAddress = creationEvent.address;
+            console.log('Using event address as collection address:', collectionAddress);
+          }
+        }
+      }
+
+      if (!collectionAddress) {
+        console.error('Failed to extract collection address from event:', creationEvent);
+        throw new Error('Failed to get collection address from transaction');
+      }
+
+      // Step 3: Set whitelist if enabled
+      if (formData.enableWhitelist && formData.whitelistAddresses.length > 0) {
+        toast.loading('3/3 - Setting whitelist...', { id: 'create' });
+        const nftContract = new ethers.Contract(
+          collectionAddress,
+          NFTCollectionABI.ERC721,
+          signer
+        );
+        
+        const addresses = formData.whitelistAddresses.map(item => 
+          typeof item === 'string' ? item : item.address
+        );
+        const limits = formData.whitelistAddresses.map(item => 
+          typeof item === 'string' ? BigInt(1) : BigInt(item.maxMint)
+        );
+        
+        const whitelistTx = await nftContract.setWhitelist(addresses, limits);
+        await whitelistTx.wait();
+      }
+
+      // Save collection data
+      const collectionData = {
+        ...formData,
+        contractAddress: collectionAddress,
+        network: networkChainId === 137 ? 'polygon' : 'sepolia',
+        previewUrl: formData.previewUrl || '', // Use empty string if no preview URL
+        imageIpfsUrl: formData.baseURI || '', // Use baseURI if no specific IPFS URL
+        mintToken: {
+          type: formData.mintingToken || 'native',
+          symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
+                  formData.mintingToken === 'usdt' ? 'USDT' : 
+                  formData.mintingToken === 'custom' ? formData.customTokenSymbol :
+                  formData.mintingToken === 'native' ? (networkChainId === 137 ? 'MATIC' : 'ETH') :
+                  networkChainId === 137 ? 'MATIC' : 'ETH',
+          address: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
+                  formData.mintingToken === 'custom' ? formData.customTokenAddress :
+                  paymentTokenAddress || '0x0000000000000000000000000000000000000000'
+        },
+        whitelistAddresses: formData.whitelistAddresses || [],
+        createdAt: Date.now(),
+        totalMinted: 0,
+        creatorAddress: account.toLowerCase(),
+        isRandomMint: true
+      };
+
+      console.log('Saving collection data:', collectionData);
+      await saveCollection(collectionData);
+
+      toast.success('Collection created successfully!', { id: 'create' });
+      onClose();
+      navigate(`/collection/${formData.symbol}`);
+
+    } catch (error) {
+      console.error('Error creating collection:', error);
+      toast.error('Failed to create collection. Please check the console for details.', { id: 'create' });
+    }
+  };
+
+  // Whitelist management functions
+  const handleAddressesChange = (addresses) => {
+    updateFormData({ whitelistAddresses: addresses });
   };
 
   // Add the main modal structure
