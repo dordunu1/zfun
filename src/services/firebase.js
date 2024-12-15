@@ -462,75 +462,16 @@ export const getOwnedNFTs = async (address) => {
       }
     });
 
-    // Check balances for all ERC1155 collections
-    for (const [contractAddress, collectionData] of collections) {
-      if (collectionData.type === 'ERC1155') {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          const erc1155ABI = [
-            'function balanceOf(address account, uint256 id) view returns (uint256)',
-            'function uri(uint256 id) view returns (string)'
-          ];
-          const contract = new ethers.Contract(contractAddress, erc1155ABI, provider);
-          
-          // Try both token ID 0 and 1
-          console.log(`Checking ERC1155 balance for ${collectionData.name}:`, address);
-          const balance0 = await contract.balanceOf(address, 0);
-          console.log('Balance for token 0:', Number(balance0));
-          const balance1 = await contract.balanceOf(address, 1);
-          console.log('Balance for token 1:', Number(balance1));
-
-          // Use whichever balance is greater than 0
-          const balance = Number(balance0) > 0 ? balance0 : balance1;
-          const tokenId = Number(balance0) > 0 ? 0 : 1;
-          
-          if (Number(balance) > 0) {
-            // Check if we already have this NFT in mints
-            const existingMint = mints.find(m => 
-              m.collectionAddress?.toLowerCase() === contractAddress.toLowerCase() &&
-              m.type === 'ERC1155'
-            );
-
-            if (!existingMint) {
-              console.log(`Adding new ERC1155 entry for ${collectionData.name}`);
-              mints.push({
-                collectionAddress: contractAddress,
-                mintedAt: new Date(),
-                tokenId: tokenId,
-                type: 'ERC1155',
-                name: collectionData.name,
-                symbol: collectionData.symbol,
-                artworkType: collectionData.artworkType || 'image',
-                network: collectionData.network || 'sepolia',
-                balance: Number(balance),
-                mintPrice: collectionData.mintPrice || '0',
-                paymentToken: collectionData.paymentToken || null
-              });
-            } else {
-              console.log(`Updating existing ERC1155 entry for ${collectionData.name}`);
-              // Update the balance of the existing entry
-              existingMint.balance = Number(balance);
-              // Ensure mint price is set
-              if (!existingMint.mintPrice) {
-                existingMint.mintPrice = collectionData.mintPrice || '0';
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`Error checking ERC1155 balance for ${collectionData.name}:`, error);
-        }
-      }
-    }
-
     // Create NFT entries
     const ownedNFTs = [];
+    const processedTokens = new Set(); // Track processed tokens to avoid duplicates
     
     for (const mint of mints) {
       const collection = collections.get(mint.collectionAddress?.toLowerCase());
       console.log('Processing mint for NFT entry:', {
         name: mint.name,
         collection: collection?.name,
-        mintPrice: mint.mintPrice || collection?.mintPrice,
+        mintPrice: mint.value || collection?.mintPrice,
         type: mint.type,
         balance: mint.balance,
         tokenId: mint.tokenId
@@ -547,55 +488,31 @@ export const getOwnedNFTs = async (address) => {
           symbol: collection?.symbol || mint.symbol,
           artworkType: collection?.artworkType || mint.artworkType || 'image',
           network: collection?.network || mint.network || 'sepolia',
-          mintPrice: mint.mintPrice || collection?.mintPrice || '0',
+          value: mint.value || collection?.mintPrice || '0', // Use mint.value first
           paymentToken: mint.paymentToken || collection?.paymentToken || null
         };
 
-        if (mint.type === 'ERC1155' && mint.balance > 1) {
-          // For ERC1155 with balance > 1, create multiple entries
-          for (let i = 0; i < mint.balance; i++) {
-            ownedNFTs.push({
-              ...baseEntry,
-              balance: 1,
-              uniqueId: `${baseEntry.collectionAddress}-${baseEntry.tokenId}-${i}` // Add unique ID for React keys
-            });
-          }
-        } else if (mint.type === 'ERC721') {
-          // For ERC721, create entries based on contract balance
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          try {
-            const contract = new ethers.Contract(
-              mint.collectionAddress,
-              ['function balanceOf(address) view returns (uint256)'],
-              provider
-            );
-            const balance = await contract.balanceOf(address);
-            console.log(`ERC721 balance for ${mint.name}:`, Number(balance));
-            
-            if (Number(balance) > 0) {
-              // Create an entry for each token
-              for (let i = 0; i < Number(balance); i++) {
-                ownedNFTs.push({
-                  ...baseEntry,
-                  balance: 1,
-                  uniqueId: `${baseEntry.collectionAddress}-${i}` // Add unique ID for React keys
-                });
-              }
+        const tokenKey = `${baseEntry.collectionAddress}-${baseEntry.tokenId}`;
+        
+        if (!processedTokens.has(tokenKey)) {
+          processedTokens.add(tokenKey);
+          if (mint.type === 'ERC1155' && mint.balance > 1) {
+            // For ERC1155 with balance > 1, create multiple entries
+            for (let i = 0; i < mint.balance; i++) {
+              ownedNFTs.push({
+                ...baseEntry,
+                balance: 1,
+                uniqueId: `${tokenKey}-${i}`
+              });
             }
-          } catch (error) {
-            console.error(`Error getting ERC721 balance for ${mint.name}:`, error);
-            // Fallback to single entry if balance check fails
+          } else {
+            // Single entry for ERC721 or ERC1155 with balance 1
             ownedNFTs.push({
               ...baseEntry,
-              balance: 1
+              balance: mint.balance || 1,
+              uniqueId: tokenKey
             });
           }
-        } else {
-          // Single entry for ERC1155 with balance 1
-          ownedNFTs.push({
-            ...baseEntry,
-            balance: mint.balance || 1
-          });
         }
       }
     }

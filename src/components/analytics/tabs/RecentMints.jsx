@@ -78,11 +78,35 @@ export default function RecentMints() {
 
   const formatValue = (value) => {
     try {
-      return ethers.formatEther(
-        typeof value === 'string' ? value : value.toString()
-      );
+      if (!value) return '0';
+      
+      // Convert string to BigNumber if needed
+      let valueInWei;
+      if (typeof value === 'string') {
+        // Remove any commas from the string
+        const cleanValue = value.replace(/,/g, '');
+        try {
+          valueInWei = ethers.parseUnits(cleanValue, 'wei');
+        } catch {
+          // If parsing as wei fails, try parsing as ether
+          valueInWei = ethers.parseEther(cleanValue);
+        }
+      } else {
+        valueInWei = BigInt(value.toString());
+      }
+
+      // Convert Wei to ETH
+      const ethValue = ethers.formatEther(valueInWei);
+      const floatValue = parseFloat(ethValue);
+
+      if (isNaN(floatValue)) return '0';
+      
+      return floatValue.toLocaleString('en-US', {
+        maximumFractionDigits: 6,
+        minimumFractionDigits: 0
+      });
     } catch (error) {
-      console.error('Error formatting value:', error);
+      console.error('Error formatting value:', error, typeof value, value);
       return '0';
     }
   };
@@ -113,7 +137,7 @@ export default function RecentMints() {
           className="w-full h-full object-cover"
           onError={(e) => {
             e.target.onerror = null;
-            e.target.src = '/placeholder.png'; // Add a placeholder image in your public folder
+            e.target.src = '/placeholder.png';
           }}
         />
       </div>
@@ -151,7 +175,6 @@ export default function RecentMints() {
     );
   };
 
-  // Add this new function to render the currency logo
   const renderCurrencyLogo = () => {
     const tokenAddress = collection?.mintToken?.address;
     const logoUrl = tokenLogos[tokenAddress];

@@ -91,11 +91,20 @@ export default function AccountPage() {
   const formatMintPrice = (price) => {
     if (!price) return '0';
     try {
-      // Convert wei to ETH
-      return ethers.formatEther(price);
+      let formattedPrice;
+      // If price is already in ETH format (e.g. "0.002"), parse it
+      if (typeof price === 'string' && !price.includes('e')) {
+        formattedPrice = parseFloat(price);
+      } else {
+        // If it's a hex string or needs to be formatted from wei
+        formattedPrice = parseFloat(ethers.formatEther(price.toString()));
+      }
+
+      // Return the number with up to 6 decimal places, removing trailing zeros
+      return formattedPrice.toString().replace(/\.?0+$/, '');
     } catch (error) {
       console.error('Error formatting price:', error);
-      return '0';
+      return price?.toString() || '0';
     }
   };
 

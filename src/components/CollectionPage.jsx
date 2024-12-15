@@ -395,7 +395,13 @@ export default function CollectionPage() {
 
       // Use the payment token from collection data
       const paymentToken = collection.mintToken?.address;
-      const mintPriceWei = collection.mintPrice ? ethers.parseEther(collection.mintPrice.toString()) : BigInt(0);
+      let mintPriceWei;
+      try {
+        mintPriceWei = collection.mintPrice ? ethers.parseEther(collection.mintPrice.toString()) : BigInt(0);
+      } catch (error) {
+        console.error('Error parsing mint price:', error);
+        mintPriceWei = BigInt(0);
+      }
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
       // Handle token approvals if needed
@@ -435,7 +441,7 @@ export default function CollectionPage() {
 
       // Mint with metadata in a single transaction
       const mintOptions = {
-        value: paymentToken === '0x0000000000000000000000000000000000000000' ? totalCost : 0,
+        value: paymentToken === '0x0000000000000000000000000000000000000000' ? totalCost : BigInt(0),
         gasLimit: 1000000
       };
 
@@ -461,7 +467,21 @@ export default function CollectionPage() {
       setUserMintedAmount(Number(newUserMinted));
       await updateCollectionMinted(symbol, Number(newTotal));
 
-      // Save mint data to Firebase
+      // Format values for Firebase
+      let formattedValue = '0';
+      let formattedMintPrice = '0';
+      
+      try {
+        if (collection.mintPrice) {
+          formattedMintPrice = parseFloat(collection.mintPrice).toFixed(6);
+          const ethValue = ethers.formatEther(totalCost);
+          formattedValue = parseFloat(ethValue).toFixed(6);
+        }
+      } catch (error) {
+        console.error('Error formatting values:', error);
+      }
+
+      // Save mint data to Firebase with proper ETH value formatting
       await saveMintData({
         collectionAddress: collection.contractAddress,
         minterAddress: account,
@@ -469,13 +489,13 @@ export default function CollectionPage() {
         quantity: String(mintAmount),
         hash: receipt.hash,
         image: collection.previewUrl,
-        value: collection.mintPrice ? ethers.formatEther(totalCost) : '0',
+        value: formattedValue,
         type: collection.type,
         name: collection.name,
         symbol: collection.symbol,
         artworkType: collection.artworkType || 'image',
         network: collection.network || 'sepolia',
-        mintPrice: collection.mintPrice || '0',
+        mintPrice: formattedMintPrice,
         paymentToken: collection.mintToken || null
       });
 
