@@ -1,6 +1,9 @@
 import { NFTMetadata, Property } from '../types/nft';
 import { uploadFileToIPFS, uploadMetadataToIPFS, ipfsToHttp } from '../utils/ipfs';
 
+// List of trait types that should be displayed as stats
+const STAT_TRAITS = ['level', 'strength', 'power', 'speed', 'health', 'mana', 'stamina'];
+
 export async function prepareAndUploadMetadata(
   formData: any,
   artworkFile: File,
@@ -16,11 +19,13 @@ export async function prepareAndUploadMetadata(
       const value = attr.value?.toString() || '';
       const numericValue = Number(value);
       const isNumeric = !isNaN(numericValue) && value !== '';
+      const trait_type = attr.trait_type?.toLowerCase();
 
+      // Only set display_type: "number" for specific stat traits
       return {
         trait_type: attr.trait_type,
         value: isNumeric ? numericValue : value,
-        display_type: isNumeric ? 'number' : undefined
+        display_type: isNumeric && STAT_TRAITS.includes(trait_type) ? 'number' : undefined
       };
     }).filter(attr => attr.trait_type && attr.value !== '') || [];
 

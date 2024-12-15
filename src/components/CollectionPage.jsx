@@ -461,6 +461,24 @@ export default function CollectionPage() {
       setUserMintedAmount(Number(newUserMinted));
       await updateCollectionMinted(symbol, Number(newTotal));
 
+      // Save mint data to Firebase
+      await saveMintData({
+        collectionAddress: collection.contractAddress,
+        minterAddress: account,
+        tokenId: collection.type === 'ERC1155' ? '0' : String(newTotal),
+        quantity: String(mintAmount),
+        hash: receipt.hash,
+        image: collection.previewUrl,
+        value: collection.mintPrice ? ethers.formatEther(totalCost) : '0',
+        type: collection.type,
+        name: collection.name,
+        symbol: collection.symbol,
+        artworkType: collection.artworkType || 'image',
+        network: collection.network || 'sepolia',
+        mintPrice: collection.mintPrice || '0',
+        paymentToken: collection.mintToken || null
+      });
+
       toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
 
     } catch (error) {
