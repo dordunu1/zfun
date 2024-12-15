@@ -22,6 +22,7 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
     mapping(address => bool) public whitelist;
     mapping(address => uint256) public whitelistMintLimit;
     mapping(uint256 => uint256) public tokenSupply;
+    mapping(uint256 => string) private _tokenURIs;
 
     event Minted(address indexed to, uint256 indexed tokenId, uint256 amount);
     event BatchMinted(address indexed to, uint256[] tokenIds, uint256[] amounts);
@@ -73,61 +74,35 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
         _setURI(_baseURI);
     }
 
-    function mint(uint256 tokenId, uint256 amount) external payable nonReentrant {
-        // Mint start and end checks
+    function mint(uint256 tokenId, uint256 amount, string memory _tokenURI) external payable nonReentrant {
         require(block.timestamp >= config.releaseDate, "Minting not started");
-        emit Debug("Release Date", config.releaseDate);
-        require(
-            config.infiniteMint || block.timestamp <= config.mintEndDate,
-            "Minting ended"
-        );
-        emit Debug("Mint End Date", config.mintEndDate);
-
-        // Max supply and wallet limit checks
+        require(config.infiniteMint || block.timestamp <= config.mintEndDate, "Minting ended");
         require(totalSupply + amount <= config.maxSupply, "Exceeds max supply");
-        emit Debug("Total Supply", totalSupply);
-        emit Debug("Max Supply", config.maxSupply);
-        require(
-            mintedPerWallet[msg.sender] + amount <= config.maxPerWallet,
-            "Exceeds wallet limit"
-        );
-        emit Debug("Minted Per Wallet", mintedPerWallet[msg.sender]);
+        require(mintedPerWallet[msg.sender] + amount <= config.maxPerWallet, "Exceeds wallet limit");
 
-        // Whitelist check
         if (config.enableWhitelist) {
             require(whitelist[msg.sender], "Not whitelisted");
-            emit Debug("Whitelist Check", 1);
-            require(
-                mintedPerWallet[msg.sender] + amount <=
-                    whitelistMintLimit[msg.sender],
-                "Exceeds whitelist limit"
-            );
-            emit Debug("Whitelist Mint Limit", whitelistMintLimit[msg.sender]);
+            require(mintedPerWallet[msg.sender] + amount <= whitelistMintLimit[msg.sender], "Exceeds whitelist limit");
         }
 
-        // Payment processing
         uint256 payment = config.mintPrice * amount;
-        emit Debug("Mint Price", config.mintPrice);
-        emit Debug("Payment Amount", payment);
         if (config.paymentToken == address(0)) {
             require(msg.value >= payment, "Insufficient payment");
-            emit Debug("Msg Value", msg.value);
-
-            // Safe ETH transfer
             (bool success, ) = owner.call{value: payment}("");
             require(success, "Transfer failed");
         } else {
-            // ERC-20 token transfer
-            bool tokenTransferSuccess = IERC20(config.paymentToken)
-                .transferFrom(msg.sender, owner, payment);
-            require(tokenTransferSuccess, "Payment failed");
+            require(IERC20(config.paymentToken).transferFrom(msg.sender, owner, payment), "Payment failed");
         }
 
-        // Mint the NFT
         _mint(msg.sender, tokenId, amount, "");
         mintedPerWallet[msg.sender] += amount;
         tokenSupply[tokenId] += amount;
         totalSupply += amount;
+
+        // Set token URI if provided
+        if (bytes(_tokenURI).length > 0) {
+            _tokenURIs[tokenId] = _tokenURI;
+        }
 
         emit Minted(msg.sender, tokenId, amount);
     }
@@ -209,7 +184,25 @@ contract NFT1155 is ERC1155, ReentrancyGuard, ICollectionTypes {
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
-        return string(abi.encodePacked(baseURI, tokenId.toString()));
+        string memory _tokenURI = _tokenURIs[tokenId];
+        
+        // If there's no individual URI, use the base URI with tokenId
+        if (bytes(_tokenURI).length == 0) {
+            return string(abi.encodePacked(baseURI, tokenId.toString()));
+        }
+        
+        // If both baseURI and tokenURI are set, concatenate them
+        if (bytes(baseURI).length > 0) {
+            return string(abi.encodePacked(baseURI, _tokenURI));
+        }
+        
+        return _tokenURI;
+    }
+
+    function setTokenURI(uint256 tokenId, string memory _tokenURI) external onlyOwner {
+        require(tokenSupply[tokenId] > 0, "ERC1155: URI set of nonexistent token");
+        _tokenURIs[tokenId] = _tokenURI;
+        emit URI(_tokenURI, tokenId);
     }
 
     // View functions

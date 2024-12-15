@@ -19,6 +19,7 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
     mapping(address => uint256) public mintedPerWallet;
     mapping(address => bool) public whitelist;
     mapping(address => uint256) public whitelistMintLimit;
+    mapping(uint256 => string) private _tokenURIs;
 
     string public name_;
     string public symbol_;
@@ -84,7 +85,7 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
         return symbol_;
     }
 
-    function mint(uint256 quantity) external payable nonReentrant {
+    function mint(uint256 quantity, string memory _tokenURI) external payable nonReentrant {
         require(block.timestamp >= config.releaseDate, "Minting not started");
         require(config.infiniteMint || block.timestamp <= config.mintEndDate, "Minting ended");
         require(totalSupply + quantity <= config.maxSupply, "Exceeds max supply");
@@ -107,6 +108,9 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
         for (uint256 i = 0; i < quantity; i++) {
             uint256 tokenId = totalSupply + 1;
             _safeMint(msg.sender, tokenId);
+            if (bytes(_tokenURI).length > 0) {
+                _tokenURIs[tokenId] = _tokenURI;
+            }
             totalSupply++;
             emit Minted(msg.sender, tokenId);
         }
@@ -124,6 +128,32 @@ contract NFT721 is ERC721, ReentrancyGuard, ICollectionTypes {
 
     function _baseURI() internal view override returns (string memory) {
         return tokenBaseURI;
+    }
+
+    function exists(uint256 tokenId) public view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+
+    function setTokenURI(uint256 tokenId, string memory _tokenURI) external onlyOwner {
+        require(exists(tokenId), "ERC721: URI set of nonexistent token");
+        _tokenURIs[tokenId] = _tokenURI;
+    }
+
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(exists(tokenId), "ERC721: URI query for nonexistent token");
+        string memory _tokenURI = _tokenURIs[tokenId];
+        
+        // If there's no individual URI, use the base URI with tokenId
+        if (bytes(_tokenURI).length == 0) {
+            return string(abi.encodePacked(tokenBaseURI, tokenId.toString()));
+        }
+        
+        // If both baseURI and tokenURI are set, concatenate them
+        if (bytes(tokenBaseURI).length > 0) {
+            return string(abi.encodePacked(tokenBaseURI, _tokenURI));
+        }
+        
+        return _tokenURI;
     }
 
     function setPaymentToken(address _paymentToken) external onlyOwner {

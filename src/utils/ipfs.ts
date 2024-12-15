@@ -3,6 +3,7 @@ import { NFTMetadata } from '../types/nft';
 
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
 const PINATA_API = 'https://api.pinata.cloud/pinning';
+const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
 
 export async function uploadFileToIPFS(file: File): Promise<string> {
   const formData = new FormData();
@@ -16,13 +17,18 @@ export async function uploadFileToIPFS(file: File): Promise<string> {
     maxBodyLength: Infinity,
   });
 
-  return `ipfs://${response.data.IpfsHash}`;
+  const ipfsHash = response.data.IpfsHash;
+  return `ipfs://${ipfsHash}`;
 }
 
 export async function uploadMetadataToIPFS(metadata: NFTMetadata): Promise<string> {
+  const metadataCopy = { ...metadata };
+  
+  console.log('Uploading metadata to IPFS:', metadataCopy);
+
   const response = await axios.post(
     `${PINATA_API}/pinJSONToIPFS`,
-    metadata,
+    metadataCopy,
     {
       headers: {
         'Content-Type': 'application/json',
@@ -31,10 +37,12 @@ export async function uploadMetadataToIPFS(metadata: NFTMetadata): Promise<strin
     }
   );
 
+  console.log('IPFS upload response:', response.data);
   return `ipfs://${response.data.IpfsHash}`;
 }
 
 export function ipfsToHttp(ipfsUrl: string): string {
   if (!ipfsUrl) return '';
-  return ipfsUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
+  if (ipfsUrl.startsWith('http')) return ipfsUrl;
+  return ipfsUrl.replace('ipfs://', IPFS_GATEWAY);
 } 

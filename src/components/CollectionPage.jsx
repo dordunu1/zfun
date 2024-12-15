@@ -11,6 +11,7 @@ import FuturisticCard from './FuturisticCard';
 import { ipfsToHttp } from '../utils/ipfs';
 import AnalyticsTabs from './analytics/AnalyticsTabs';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { prepareAndUploadMetadata } from '../services/metadata';
 
 
 const validateAddress = (address) => {
@@ -361,6 +362,29 @@ export default function CollectionPage() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
+      toast.loading('Preparing metadata...', { id: 'mint' });
+
+      // Create a File object from the image URL
+      const imageResponse = await fetch(collection.previewUrl);
+      const imageBlob = await imageResponse.blob();
+      const artworkFile = new File([imageBlob], 'artwork.png', { type: 'image/png' });
+      
+      // Prepare metadata before minting
+      const { metadataUrl } = await prepareAndUploadMetadata(
+        {
+          ...collection,
+          name: collection.name,
+          description: collection.description,
+          attributes: collection.attributes || [],
+          website: collection.website,
+          background_color: collection.background_color
+        },
+        artworkFile
+      );
+
+      // Extract IPFS hash
+      const ipfsHash = metadataUrl.replace('ipfs://', '');
+      
       toast.loading('Minting in progress...', { id: 'mint' });
 
       const nftContract = new ethers.Contract(
@@ -374,14 +398,7 @@ export default function CollectionPage() {
       const mintPriceWei = collection.mintPrice ? ethers.parseEther(collection.mintPrice.toString()) : BigInt(0);
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      console.log('Minting with parameters:', {
-        isWhitelist: collection.enableWhitelist && isWhitelisted,
-        amount: mintAmount,
-        cost: totalCost.toString(),
-        paymentToken
-      });
-
-      // If using custom token, approve it first
+      // Handle token approvals if needed
       if (paymentToken && paymentToken !== '0x0000000000000000000000000000000000000000') {
         const tokenContract = new ethers.Contract(
           paymentToken,
@@ -416,47 +433,23 @@ export default function CollectionPage() {
         }
       }
 
-      // Prepare mint transaction
+      // Mint with metadata in a single transaction
       const mintOptions = {
         value: paymentToken === '0x0000000000000000000000000000000000000000' ? totalCost : 0,
         gasLimit: 1000000
       };
 
-      // Use the standard mint function - the contract handles whitelist checks internally
       let tx;
       if (collection.type === 'ERC1155') {
-        tx = await nftContract.mint(0, mintAmount, mintOptions);
+        const tokenId = 0;
+        tx = await nftContract.mint(tokenId, mintAmount, ipfsHash, mintOptions);
       } else {
-        tx = await nftContract.mint(mintAmount, mintOptions);
+        tx = await nftContract.mint(mintAmount, ipfsHash, mintOptions);
       }
 
       console.log('Mint transaction sent:', tx);
       const receipt = await tx.wait();
       console.log('Mint receipt:', receipt);
-
-      // Get tokenId from Transfer event for ERC721
-      let tokenId = '0';
-      if (collection.type === 'ERC721') {
-        const transferEvent = receipt.logs.find(
-          log => log.eventName === 'Transfer'
-        );
-        if (transferEvent) {
-          tokenId = transferEvent.args[2].toString().replace(/\+/g, '');
-        }
-      }
-
-      // Save mint data
-      await saveMintData({
-        collectionAddress: collection.contractAddress,
-        minterAddress: account,
-        tokenId: tokenId,
-        type: collection.type,
-        quantity: mintAmount.toString(),
-        hash: receipt.hash,
-        image: collection.previewUrl || collection.imageIpfsUrl,
-        value: totalCost.toString(),
-        network: collection.network
-      });
 
       // Update states
       const [newTotal, newUserMinted] = await Promise.all([
@@ -472,8 +465,7 @@ export default function CollectionPage() {
 
     } catch (error) {
       console.error('Mint error:', error);
-      const errorMessage = error.reason || error.message || 'Failed to mint NFT';
-      toast.error(errorMessage, { id: 'mint' });
+      toast.error('Failed to mint NFT: ' + error.message);
     }
   };
 
@@ -728,13 +720,15 @@ export default function CollectionPage() {
 
               {/* Properties Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {collection.properties?.map((prop, index) => (
+                {collection.attributes?.map((attr, index) => (
                   <div 
                     key={index}
                     className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800"
                   >
-                    <p className="text-sm text-gray-500 mb-1">{prop.trait_type}</p>
-                    <p className="text-lg font-medium text-[#00ffbd]">{prop.value}</p>
+                    <p className="text-sm text-gray-500 mb-1">{attr.trait_type}</p>
+                    <p className="text-lg font-medium text-[#00ffbd]">
+                      {typeof attr.value === 'number' ? attr.value.toString() : attr.value}
+                    </p>
                   </div>
                 ))}
               </div>

@@ -3,35 +3,49 @@ import { uploadFileToIPFS, uploadMetadataToIPFS, ipfsToHttp } from '../utils/ipf
 
 export async function prepareAndUploadMetadata(
   formData: any,
-  artworkFile: File
-): Promise<{ metadataUrl: string, imageHttpUrl: string }> {
+  artworkFile: File,
+  tokenId?: string
+): Promise<{ metadataUrl: string, imageHttpUrl: string, imageIpfsUrl: string }> {
   try {
     // 1. Upload artwork first
     const imageIpfsUrl = await uploadFileToIPFS(artworkFile);
-    const imageHttpUrl = ipfsToHttp(imageIpfsUrl); // Convert IPFS URL to HTTP URL
+    const imageHttpUrl = ipfsToHttp(imageIpfsUrl);
 
-    // 2. Prepare metadata
+    // Format attributes to ensure proper structure
+    const attributes = formData.attributes?.map((attr: any) => {
+      const value = attr.value?.toString() || '';
+      const numericValue = Number(value);
+      const isNumeric = !isNaN(numericValue) && value !== '';
+
+      return {
+        trait_type: attr.trait_type,
+        value: isNumeric ? numericValue : value,
+        display_type: isNumeric ? 'number' : undefined
+      };
+    }).filter(attr => attr.trait_type && attr.value !== '') || [];
+
+    console.log('Formatted attributes:', JSON.stringify(attributes, null, 2));
+
+    // 2. Prepare metadata exactly matching OpenSea's format
     const metadata: NFTMetadata = {
-      name: formData.name,
+      name: formData.name + (tokenId ? ` #${tokenId}` : ''),
       description: formData.description || '',
-      image: imageIpfsUrl, // Store the IPFS URL in metadata
+      image: imageIpfsUrl,
       external_url: formData.website || '',
-      category: formData.category || '',
-      properties: formData.properties || [],
-      socials: {
-        twitter: formData.socials?.twitter || '',
-        discord: formData.socials?.discord || '',
-        telegram: formData.socials?.telegram || '',
-        zos: formData.socials?.zos || ''
-      }
+      attributes: attributes,
+      background_color: formData.background_color || '000000'
     };
+
+    console.log('Final metadata being uploaded:', JSON.stringify(metadata, null, 2));
 
     // 3. Upload metadata to IPFS
     const metadataUrl = await uploadMetadataToIPFS(metadata);
-    
+    console.log('Metadata URL:', metadataUrl);
+
     return {
       metadataUrl,
-      imageHttpUrl // Return the HTTP URL for immediate display
+      imageHttpUrl,
+      imageIpfsUrl
     };
   } catch (error) {
     console.error('Error preparing metadata:', error);

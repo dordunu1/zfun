@@ -6,11 +6,34 @@ export const NFTCollectionABI = {
           "internalType": "uint256",
           "name": "quantity",
           "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "_tokenURI",
+          "type": "string"
         }
       ],
       "name": "mint",
       "outputs": [],
       "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "_tokenURI",
+          "type": "string"
+        }
+      ],
+      "name": "setTokenURI",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -43,9 +66,34 @@ export const NFTCollectionABI = {
               "type": "uint256"
             },
             {
+              "internalType": "uint256",
+              "name": "maxPerWallet",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "releaseDate",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "mintEndDate",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "infiniteMint",
+              "type": "bool"
+            },
+            {
               "internalType": "address",
               "name": "paymentToken",
               "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "enableWhitelist",
+              "type": "bool"
             }
           ],
           "internalType": "struct ICollectionTypes.CollectionConfig",
@@ -112,6 +160,11 @@ export const NFTCollectionABI = {
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "_tokenURI",
+          "type": "string"
         }
       ],
       "name": "mint",

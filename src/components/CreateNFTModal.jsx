@@ -251,7 +251,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     category: '',
     artwork: null,
     previewUrl: null,
-    properties: [],
+    attributes: [], // Changed from properties to attributes
     mintPrice: '',
     maxSupply: '',
     maxPerWallet: '',
@@ -402,12 +402,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
       // Step 1: Upload metadata
       toast.loading('1/3 - Uploading metadata...', { id: 'create' });
-      const { metadataUrl, imageHttpUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
+      const { metadataUrl, imageHttpUrl, imageIpfsUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
 
       // Step 2: Create collection
       toast.loading('2/3 - Creating collection...', { id: 'create' });
       const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
       const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
+
+      // Extract the base URL from the metadata URL (everything up to the last slash)
+      const baseURI = metadataUrl.substring(0, metadataUrl.lastIndexOf('/') + 1);
 
       const paymentTokenAddress = getPaymentToken(networkChainId);
       console.log('Payment Token being set:', {
@@ -426,7 +429,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         formData.type,
         formData.name,
         formData.symbol,
-        metadataUrl,
+        baseURI, // Use baseURI instead of full metadata URL
         BigInt(formData.maxSupply || 1000),
         formData.mintPrice ? ethers.parseEther(formData.mintPrice.toString()) : BigInt(0),
         BigInt(1000000), // Changed from 1 to 1000000 to allow whitelist limits to control the actual max
@@ -493,7 +496,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         contractAddress: collectionAddress,
         network: networkChainId === 137 ? 'polygon' : 'sepolia',
         previewUrl: imageHttpUrl,
-        imageIpfsUrl: metadataUrl,
+        imageIpfsUrl: imageIpfsUrl, // Store the actual image IPFS URL
+        metadataUrl: metadataUrl,   // Store the metadata URL separately
         mintToken: {
           type: formData.mintingToken || 'native',
           symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
@@ -1079,7 +1083,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Properties
+                    Attributes/traits
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Add traits that make your NFTs unique
@@ -1087,32 +1091,32 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                 </div>
                 <button
                   onClick={() => updateFormData({
-                    properties: [...formData.properties, { trait_type: '', value: '' }]
+                    attributes: [...formData.attributes, { trait_type: '', value: '' }]
                   })}
                   className="px-3 py-1.5 text-sm bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-lg"
                 >
-                  Add Property
+                  Add Attribute
                 </button>
               </div>
 
-              {formData.properties.length === 0 ? (
+              {formData.attributes.length === 0 ? (
                 <div className="text-center py-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
                   <p className="text-sm text-gray-500">
-                    No properties added yet
+                    No attributes added yet
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {formData.properties.map((prop, index) => (
+                  {formData.attributes.map((prop, index) => (
                     <div key={index} className="flex gap-3 items-start">
                       <div className="flex-1">
                         <input
-                          placeholder="Property name"
+                          placeholder="Attribute name"
                           value={prop.trait_type}
                           onChange={(e) => {
-                            const newProps = [...formData.properties];
+                            const newProps = [...formData.attributes];
                             newProps[index].trait_type = e.target.value;
-                            updateFormData({ properties: newProps });
+                            updateFormData({ attributes: newProps });
                           }}
                           className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
                         />
@@ -1122,17 +1126,17 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                           placeholder="Value"
                           value={prop.value}
                           onChange={(e) => {
-                            const newProps = [...formData.properties];
+                            const newProps = [...formData.attributes];
                             newProps[index].value = e.target.value;
-                            updateFormData({ properties: newProps });
+                            updateFormData({ attributes: newProps });
                           }}
                           className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none text-sm"
                         />
                       </div>
                       <button
                         onClick={() => {
-                          const newProps = formData.properties.filter((_, i) => i !== index);
-                          updateFormData({ properties: newProps });
+                          const newProps = formData.attributes.filter((_, i) => i !== index);
+                          updateFormData({ attributes: newProps });
                         }}
                         className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                       >

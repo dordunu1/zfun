@@ -120,7 +120,7 @@ export const subscribeToMints = (collectionAddress, callback) => {
         return {
           id: doc.id,
           ...data,
-          tokenId: data.tokenId.toString().replace(/[^0-9]/g, ''), // Clean tokenId in subscription
+          tokenId: data.tokenId?.toString() || '0', // Preserve the original token ID
           timestamp: data.timestamp?.toDate()
         };
       });
@@ -137,14 +137,9 @@ export const subscribeToMints = (collectionAddress, callback) => {
 
 export const saveMintData = async (mintData) => {
   try {
-    // Clean the tokenId before saving to Firebase
-    const cleanMintData = {
-      ...mintData,
-      tokenId: mintData.tokenId.toString().replace(/[^0-9]/g, '') // Remove any non-numeric characters
-    };
-    
+    // Store the tokenId as-is without cleaning
     const docRef = await addDoc(mintsRef, {
-      ...cleanMintData,
+      ...mintData,
       timestamp: serverTimestamp()
     });
     
