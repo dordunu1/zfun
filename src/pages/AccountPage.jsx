@@ -88,20 +88,41 @@ export default function AccountPage() {
     loadNFTs();
   }, [address, chain]);
 
-  const formatMintPrice = (price) => {
+  const formatMintPrice = (price, nft) => {
     if (!price) return '0';
     try {
-      let formattedPrice;
-      // If price is already in ETH format (e.g. "0.002"), parse it
-      if (typeof price === 'string' && !price.includes('e')) {
-        formattedPrice = parseFloat(price);
-      } else {
-        // If it's a hex string or needs to be formatted from wei
-        formattedPrice = parseFloat(ethers.formatEther(price.toString()));
+      // For custom tokens, we don't need to convert from Wei
+      if (nft?.mintToken?.type === 'custom' || 
+          nft?.mintToken?.type === 'usdc' || 
+          nft?.mintToken?.type === 'usdt') {
+        return parseFloat(price).toLocaleString('en-US', {
+          maximumFractionDigits: 6,
+          minimumFractionDigits: 0
+        });
       }
 
-      // Return the number with up to 6 decimal places, removing trailing zeros
-      return formattedPrice.toString().replace(/\.?0+$/, '');
+      // For native tokens (ETH/MATIC), convert from Wei
+      let valueInWei;
+      if (typeof price === 'string') {
+        const cleanValue = price.replace(/,/g, '');
+        try {
+          valueInWei = ethers.parseUnits(cleanValue, 'wei');
+        } catch {
+          valueInWei = ethers.parseEther(cleanValue);
+        }
+      } else {
+        valueInWei = BigInt(price.toString());
+      }
+
+      const ethValue = ethers.formatEther(valueInWei);
+      const floatValue = parseFloat(ethValue);
+
+      if (isNaN(floatValue)) return '0';
+      
+      return floatValue.toLocaleString('en-US', {
+        maximumFractionDigits: 6,
+        minimumFractionDigits: 0
+      });
     } catch (error) {
       console.error('Error formatting price:', error);
       return price?.toString() || '0';
@@ -237,7 +258,7 @@ export default function AccountPage() {
                     <div className="flex items-center gap-1">
                       {nft.mintToken?.address && tokenLogos[nft.mintToken.address] ? (
                         <img 
-                          src={ipfsToHttp(tokenLogos[nft.mintToken.address])} 
+                          src={tokenLogos[nft.mintToken.address]} 
                           alt={nft.mintToken.symbol || 'Token'} 
                           className="w-4 h-4 rounded-full"
                           onError={(e) => {
@@ -248,9 +269,7 @@ export default function AccountPage() {
                       ) : (
                         <FaEthereum className="text-[#00ffbd]" />
                       )}
-                      <span>
-                        {formatMintPrice(nft.value)} {nft.mintToken?.symbol || 'ETH'}
-                      </span>
+                      <span>{formatMintPrice(nft.value, nft)} {nft.mintToken?.symbol}</span>
                     </div>
                   </div>
                 )}
