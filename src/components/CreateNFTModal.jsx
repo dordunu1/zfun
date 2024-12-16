@@ -279,11 +279,11 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     const file = e.target.files[0];
     if (file) {
       // Check file type
-      const isVideo = file.type.startsWith('video/');
+      const isVideo = file.type === 'video/mp4';
       const isImage = file.type.startsWith('image/');
       
       if (!isVideo && !isImage) {
-        toast.error('Please upload an image or video file');
+        toast.error('Please upload an image or MP4 video file');
         return;
       }
 
@@ -1027,7 +1027,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                           Drop your file here, or click to browse
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                          Supported: Images (2MB) or Videos (5MB)
+                          Supported: Images (2MB) or MP4 Videos (5MB)
                         </p>
                       </div>
                     )}
@@ -1035,7 +1035,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   <input
                     type="file"
                     onChange={handleFileChange}
-                    accept="image/*,video/*"
+                    accept="image/*,video/mp4"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                 </div>
@@ -1341,7 +1341,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                     />
                     {formData.enableWhitelist && (
                       <div className="absolute right-3 top-2.5 text-xs text-[#00ffbd] flex items-center">
-                        <span className="mr-1">👑</span> 
+                        <span className="mr-1">���</span> 
                         <span className="text-gray-600 dark:text-[#00ffbd]">Whitelist Mode</span>
                       </div>
                     )}
