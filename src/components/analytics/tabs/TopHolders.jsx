@@ -302,45 +302,67 @@ export default function TopHolders({ collection }) {
       {/* Holders List */}
       <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
         <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-4">Top Holders</h3>
-        <div className="space-y-4 overflow-y-auto max-h-[400px]">
+        <div className="space-y-4">
           {holders.length === 0 ? (
             <div className="text-center text-gray-500 dark:text-gray-400">
               No holders data yet
             </div>
           ) : (
-            holders.map((holder, index) => (
-              <div 
-                key={holder.holderAddress} 
-                className="flex items-center justify-between text-sm border-b border-gray-100 dark:border-gray-800 last:border-0 pb-3 last:pb-0"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 min-w-[40px]">
-                    <span className="text-gray-500 dark:text-gray-400">#{index + 1}</span>
-                    {getBadgeIcon(index)}
+            <div 
+              className="overflow-y-auto" 
+              style={{ 
+                maxHeight: holders.length > 5 ? '250px' : 'auto',
+                paddingRight: holders.length > 5 ? '8px' : '0',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#00ffbd transparent',
+              }}
+              css={`
+                &::-webkit-scrollbar {
+                  width: 4px;
+                }
+                &::-webkit-scrollbar-track {
+                  background: transparent;
+                }
+                &::-webkit-scrollbar-thumb {
+                  background-color: #00ffbd;
+                  border-radius: 20px;
+                }
+              `}
+            >
+              {holders.map((holder, index) => (
+                <div 
+                  key={holder.holderAddress} 
+                  className="flex items-center justify-between text-sm border-b border-gray-100 dark:border-gray-800 last:border-0 pb-3 last:pb-0 mb-3 last:mb-0"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 min-w-[40px]">
+                      <span className="text-gray-500 dark:text-gray-400">#{index + 1}</span>
+                      {getBadgeIcon(index)}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-900 dark:text-white font-medium">
+                        {formatAddress(holder.holderAddress)}
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(holder.holderAddress);
+                          toast.success('Address copied!');
+                        }}
+                        className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                      >
+                        <BiCopy size={16} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-900 dark:text-white font-medium">
-                      {formatAddress(holder.holderAddress)}
+                  <div className="flex items-center gap-4">
+                    <span className="text-gray-500 dark:text-gray-400">{holder.quantity} NFTs</span>
+                    <span className="text-[#00ffbd] w-16 text-right">
+                      {((holder.quantity / totalQuantity) * 100).toFixed(1)}%
                     </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(holder.holderAddress);
-                        toast.success('Address copied!');
-                      }}
-                      className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                    >
-                      <BiCopy size={16} />
-                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">{holder.quantity} NFTs</span>
-                  <span className="text-[#00ffbd] w-16 text-right">
-                    {((holder.quantity / totalQuantity) * 100).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </div>
