@@ -2,7 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 
+// Get API key from environment variables
 const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+
+// Add error checking for API key
+if (!ALCHEMY_API_KEY) {
+  console.error('VITE_ALCHEMY_API_KEY is not set in environment variables');
+}
+
 const ALCHEMY_URLS = {
   'ethereum': 'https://eth-mainnet.g.alchemy.com/v2/',
   'sepolia': 'https://eth-sepolia.g.alchemy.com/v2/',
@@ -20,20 +27,23 @@ const formatAddress = (address) => {
 export default function TopHolders({ collection }) {
   const [holders, setHolders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [rawData, setRawData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Check for API key first
+        if (!ALCHEMY_API_KEY) {
+          throw new Error('Alchemy API key is not configured');
+        }
+
         if (!collection?.contractAddress) {
-          console.error('No contract address available');
-          return;
+          throw new Error('No contract address available');
         }
 
         const baseUrl = ALCHEMY_URLS[collection.network || 'sepolia'];
         if (!baseUrl) {
-          console.warn('Unsupported network for Alchemy:', collection.network);
-          return;
+          throw new Error(`Unsupported network: ${collection.network}`);
         }
 
         const contractAddress = collection.contractAddress;
@@ -41,27 +51,35 @@ export default function TopHolders({ collection }) {
 
         const alchemyUrl = `${baseUrl}${ALCHEMY_API_KEY}/getOwnersForCollection?contractAddress=${contractAddress}&withTokenBalances=true`;
         const response = await fetch(alchemyUrl);
-        const data = await response.json();
-        console.log('Alchemy response:', data);
         
-        setRawData(data);
-
-        if (data?.ownerAddresses && Array.isArray(data.ownerAddresses)) {
-          const holdersData = data.ownerAddresses
-            .filter(owner => owner && typeof owner === 'object' && owner.ownerAddress)
-            .map(owner => ({
-              holderAddress: owner.ownerAddress,
-              quantity: Array.isArray(owner.tokenBalances) 
-                ? owner.tokenBalances.reduce((sum, token) => sum + Number(token.balance || 0), 0)
-                : 0
-            }))
-            .filter(holder => holder.quantity > 0)
-            .sort((a, b) => b.quantity - a.quantity);
-          setHolders(holdersData);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Alchemy API error (${response.status}): ${errorText}`);
         }
+
+        const data = await response.json();
+        
+        if (!data?.ownerAddresses) {
+          throw new Error('Invalid response format from Alchemy API');
+        }
+
+        const holdersData = data.ownerAddresses
+          .filter(owner => owner && typeof owner === 'object' && owner.ownerAddress)
+          .map(owner => ({
+            holderAddress: owner.ownerAddress,
+            quantity: Array.isArray(owner.tokenBalances) 
+              ? owner.tokenBalances.reduce((sum, token) => sum + Number(token.balance || 0), 0)
+              : 0
+          }))
+          .filter(holder => holder.quantity > 0)
+          .sort((a, b) => b.quantity - a.quantity);
+
+        setHolders(holdersData);
+        setError(null);
       } catch (error) {
         console.error('Error loading holders:', error);
-        toast.error('Failed to load top holders');
+        setError(error.message);
+        toast.error(`Failed to load top holders: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -76,6 +94,15 @@ export default function TopHolders({ collection }) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 dark:text-red-400 mb-2">Error loading holders data</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">{error}</div>
       </div>
     );
   }
