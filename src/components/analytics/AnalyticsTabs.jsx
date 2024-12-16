@@ -11,8 +11,13 @@ const TABS = [
   { id: 'volume', label: '📈 Volume' },
 ];
 
-export default function AnalyticsTabs() {
+export default function AnalyticsTabs({ collection }) {
   const [activeTab, setActiveTab] = useState('recent');
+
+  // Make collection data available globally for child components
+  if (collection?.contractAddress) {
+    window.collectionData = collection;
+  }
 
   return (
     <div className="w-full">
@@ -91,7 +96,7 @@ export default function AnalyticsTabs() {
         <div className="relative z-10 bg-white dark:bg-[#1a1b1f] rounded-xl">
           <div className="p-6 h-[400px] md:h-[600px]">
             {activeTab === 'recent' && <RecentMints />}
-            {activeTab === 'holders' && <TopHolders />}
+            {activeTab === 'holders' && <TopHolders collection={collection} />}
             {activeTab === 'chads' && <ChadMinters />}
             {activeTab === 'volume' && <VolumeMetrics />}
           </div>

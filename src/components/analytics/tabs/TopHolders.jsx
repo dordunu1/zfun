@@ -1,32 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { FaEthereum, FaCrown } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
-import { getTopHolders, getEthPrice } from '../../../services/analytics';
-import { useParams } from 'react-router-dom';
 
-const RANK_COLORS = {
-  1: 'from-yellow-500/20 to-yellow-500/5 border-yellow-500/50',
-  2: 'from-gray-400/20 to-gray-400/5 border-gray-400/50',
-  3: 'from-orange-500/20 to-orange-500/5 border-orange-500/50',
-  default: 'from-[#00ffbd]/20 to-[#00ffbd]/5 border-[#00ffbd]/50'
+const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+const ALCHEMY_URLS = {
+  'ethereum': 'https://eth-mainnet.g.alchemy.com/v2/',
+  'sepolia': 'https://eth-sepolia.g.alchemy.com/v2/',
+  'polygon': 'https://polygon-mainnet.g.alchemy.com/v2/',
+  'mumbai': 'https://polygon-mumbai.g.alchemy.com/v2/',
+  'arbitrum': 'https://arb-mainnet.g.alchemy.com/v2/',
+  'optimism': 'https://opt-mainnet.g.alchemy.com/v2/',
 };
 
-export default function TopHolders() {
-  const { symbol } = useParams();
+const formatAddress = (address) => {
+  if (typeof address !== 'string') return 'Invalid Address';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
+
+export default function TopHolders({ collection }) {
   const [holders, setHolders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [ethPrice, setEthPrice] = useState(null);
+  const [rawData, setRawData] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [holdersData, usdPrice] = await Promise.all([
-          getTopHolders(symbol),
-          getEthPrice()
-        ]);
-        setHolders(holdersData);
-        setEthPrice(usdPrice);
+        if (!collection?.contractAddress) {
+          console.error('No contract address available');
+          return;
+        }
+
+        const baseUrl = ALCHEMY_URLS[collection.network || 'sepolia'];
+        if (!baseUrl) {
+          console.warn('Unsupported network for Alchemy:', collection.network);
+          return;
+        }
+
+        const contractAddress = collection.contractAddress;
+        console.log('Using contract address:', contractAddress);
+
+        const alchemyUrl = `${baseUrl}${ALCHEMY_API_KEY}/getOwnersForCollection?contractAddress=${contractAddress}&withTokenBalances=true`;
+        const response = await fetch(alchemyUrl);
+        const data = await response.json();
+        console.log('Alchemy response:', data);
+        
+        setRawData(data);
+
+        if (data?.ownerAddresses && Array.isArray(data.ownerAddresses)) {
+          const holdersData = data.ownerAddresses
+            .filter(owner => owner && typeof owner === 'object' && owner.ownerAddress)
+            .map(owner => ({
+              holderAddress: owner.ownerAddress,
+              quantity: Array.isArray(owner.tokenBalances) 
+                ? owner.tokenBalances.reduce((sum, token) => sum + Number(token.balance || 0), 0)
+                : 0
+            }))
+            .filter(holder => holder.quantity > 0)
+            .sort((a, b) => b.quantity - a.quantity);
+          setHolders(holdersData);
+        }
       } catch (error) {
         console.error('Error loading holders:', error);
         toast.error('Failed to load top holders');
@@ -35,22 +67,10 @@ export default function TopHolders() {
       }
     };
 
-    loadData();
-  }, [symbol]);
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard!');
-  };
-
-  const getBadgeText = (rank) => {
-    switch (rank) {
-      case 1: return 'GIGACHAD';
-      case 2: return 'CHAD';
-      case 3: return 'BASED';
-      default: return 'HOLDER';
+    if (collection) {
+      loadData();
     }
-  };
+  }, [collection]);
 
   if (loading) {
     return (
@@ -73,44 +93,60 @@ export default function TopHolders() {
         <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Top 10 Hold</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {((holders.slice(0, 10).reduce((sum, h) => sum + h.quantity, 0) / totalQuantity) * 100).toFixed(1)}%
+            {totalQuantity > 0 ? 
+              ((holders.slice(0, 10).reduce((sum, h) => sum + h.quantity, 0) / totalQuantity) * 100).toFixed(1) 
+              : '0'}%
           </p>
         </div>
         <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Avg. Per Holder</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {(totalQuantity / holders.length).toFixed(1)}
+            {holders.length > 0 ? (totalQuantity / holders.length).toFixed(1) : '0'}
           </p>
         </div>
       </div>
 
       {/* Holders List */}
-      <div className="space-y-4">
-        {holders.length === 0 ? (
-          <div className="text-center text-gray-500 dark:text-gray-400">
-            No holders data yet
-          </div>
-        ) : (
-          holders.map((holder, index) => (
-            <div 
-              key={holder.address} 
-              className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
-                <span className="text-gray-500 dark:text-gray-400">#{index + 1}</span>
-                <div>
-                  <div className="text-gray-900 dark:text-white font-medium">
-                    {holder.address.slice(0, 6)}...{holder.address.slice(-4)}
-                  </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {holder.quantity} NFTs
+      <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+        <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-4">Top Holders</h3>
+        <div className="space-y-4 overflow-y-auto max-h-[400px]">
+          {holders.length === 0 ? (
+            <div className="text-center text-gray-500 dark:text-gray-400">
+              No holders data yet
+            </div>
+          ) : (
+            holders.map((holder, index) => (
+              <div 
+                key={holder.holderAddress} 
+                className="flex items-center justify-between text-sm border-b border-gray-100 dark:border-gray-800 last:border-0 pb-2 last:pb-0"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-gray-500 dark:text-gray-400 w-8">#{index + 1}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {formatAddress(holder.holderAddress)}
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(holder.holderAddress);
+                        toast.success('Address copied!');
+                      }}
+                      className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                    >
+                      <BiCopy size={14} />
+                    </button>
                   </div>
                 </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">{holder.quantity} NFTs</span>
+                  <span className="text-[#00ffbd] w-16 text-right">
+                    {((holder.quantity / totalQuantity) * 100).toFixed(1)}%
+                  </span>
+                </div>
               </div>
-              <div className="text-[#00ffbd]">{holder.percentage}%</div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

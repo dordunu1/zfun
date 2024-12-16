@@ -242,8 +242,38 @@ export const saveMintData = async (mintData) => {
       throw new Error('Missing required fields in mint data');
     }
 
+    // Save mint data
     const docRef = await addDoc(mintsRef, cleanData);
     console.log('Mint data saved with ID:', docRef.id);
+
+    // Update holders data
+    const holderRef = query(
+      holdersRef,
+      where('collectionAddress', '==', cleanData.collectionAddress),
+      where('holderAddress', '==', cleanData.minterAddress)
+    );
+    
+    const holderSnapshot = await getDocs(holderRef);
+    const quantity = Number(cleanData.quantity);
+
+    if (holderSnapshot.empty) {
+      // Create new holder entry
+      await addDoc(holdersRef, {
+        collectionAddress: cleanData.collectionAddress,
+        holderAddress: cleanData.minterAddress,
+        quantity: quantity,
+        lastUpdated: serverTimestamp()
+      });
+    } else {
+      // Update existing holder entry
+      const holderDoc = holderSnapshot.docs[0];
+      const currentQuantity = Number(holderDoc.data().quantity) || 0;
+      await updateDoc(holderDoc.ref, {
+        quantity: currentQuantity + quantity,
+        lastUpdated: serverTimestamp()
+      });
+    }
+
     return docRef.id;
   } catch (error) {
     console.error('Error saving mint data:', error);

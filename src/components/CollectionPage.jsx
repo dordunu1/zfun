@@ -1059,7 +1059,7 @@ export default function CollectionPage() {
             Collection Analytics
           </h2>
           <FuturisticCard>
-            <AnalyticsTabs />
+            <AnalyticsTabs collection={collection} />
           </FuturisticCard>
         </div>
       </div>
