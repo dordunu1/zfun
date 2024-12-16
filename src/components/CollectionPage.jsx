@@ -64,7 +64,11 @@ function CountdownTimer({ targetDate }) {
 }
 
 // Add this new countdown component for mint end
-function MintEndCountdown({ endDate }) {
+function MintEndCountdown({ endDate, infiniteMint }) {
+  if (infiniteMint) {
+    return null; // Don't show countdown for infinite mint
+  }
+
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
   function calculateTimeLeft() {
@@ -102,6 +106,16 @@ function MintEndCountdown({ endDate }) {
       ) : (
         <div className="text-sm text-red-500">Mint Ended</div>
       )}
+    </div>
+  );
+}
+
+function RemainingMintAmount({ userMintedAmount, maxPerWallet }) {
+  const remaining = maxPerWallet - userMintedAmount;
+  
+  return (
+    <div className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
+      You can mint {remaining} more NFT{remaining !== 1 ? 's' : ''}
     </div>
   );
 }
@@ -608,12 +622,63 @@ export default function CollectionPage() {
   // Update the mint button section to include end time check
   const renderMintButton = () => {
     const now = Date.now();
-    const mintEndDate = new Date(collection.mintEndDate || Date.now() + 86400000); // Default 24h if not set
-    const isMintEnded = now >= mintEndDate;
+    const mintEndDate = collection.mintEndDate ? new Date(collection.mintEndDate) : null;
+    const isMintEnded = !collection.infiniteMint && mintEndDate && now >= mintEndDate;
 
     return (
       <div className="flex flex-col gap-2">
-        <MintEndCountdown endDate={mintEndDate} />
+        {!collection.infiniteMint && (
+          <MintEndCountdown 
+            endDate={collection.mintEndDate} 
+            infiniteMint={collection.infiniteMint}
+          />
+        )}
+
+        <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800">
+          <button
+            onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
+            className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isLive || mintAmount <= 1 || (
+              collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
+            )}
+          >
+            <BiMinus size={24} />
+          </button>
+          <span className="text-2xl font-bold text-gray-900 dark:text-white min-w-[60px] text-center">
+            {mintAmount}
+          </span>
+          <button
+            onClick={() => {
+              const maxAllowed = collection.enableWhitelist && whitelistEntry
+                ? (whitelistEntry.maxMint || 1)
+                : collection.maxPerWallet;
+              const remaining = maxAllowed - userMintedAmount;
+              setMintAmount(Math.min(remaining, mintAmount + 1));
+            }}
+            className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isLive || (
+              collection.enableWhitelist ? (
+                !whitelistChecked || 
+                !isWhitelisted || 
+                userMintedAmount >= (whitelistEntry?.maxMint || 1) ||
+                mintAmount >= (whitelistEntry?.maxMint || 1) - userMintedAmount
+              ) : (
+                userMintedAmount >= collection.maxPerWallet ||
+                mintAmount >= collection.maxPerWallet - userMintedAmount
+              )
+            )}
+          >
+            <BiPlus size={24} />
+          </button>
+        </div>
+
+        {account && (
+          <RemainingMintAmount 
+            userMintedAmount={userMintedAmount} 
+            maxPerWallet={collection.enableWhitelist ? (whitelistEntry?.maxMint || 1) : collection.maxPerWallet}
+          />
+        )}
+
         <button
           onClick={handleMint}
           disabled={
@@ -917,45 +982,6 @@ export default function CollectionPage() {
                   )}
                 </div>
               )}
-
-              {/* Mint Controls */}
-              <div className="flex items-center justify-between bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800 mt-6">
-                <button
-                  onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
-                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!isLive || mintAmount <= 1 || (
-                    collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
-                  )}
-                >
-                  <BiMinus size={24} />
-                </button>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white min-w-[60px] text-center">
-                  {mintAmount}
-                </span>
-                <button
-                  onClick={() => {
-                    const maxAllowed = collection.enableWhitelist && whitelistEntry
-                      ? (whitelistEntry.maxMint || 1)
-                      : collection.maxPerWallet;
-                    const remaining = maxAllowed - userMintedAmount;
-                    setMintAmount(Math.min(remaining, mintAmount + 1));
-                  }}
-                  className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!isLive || (
-                    collection.enableWhitelist ? (
-                      !whitelistChecked || 
-                      !isWhitelisted || 
-                      userMintedAmount >= (whitelistEntry?.maxMint || 1) ||
-                      mintAmount >= (whitelistEntry?.maxMint || 1) - userMintedAmount
-                    ) : (
-                      userMintedAmount >= collection.maxPerWallet ||
-                      mintAmount >= collection.maxPerWallet - userMintedAmount
-                    )
-                  )}
-                >
-                  <BiPlus size={24} />
-                </button>
-              </div>
 
               {renderMintButton()}
 
