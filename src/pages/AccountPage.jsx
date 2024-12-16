@@ -3,7 +3,7 @@ import { useAccount, useNetwork } from 'wagmi';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { ethers } from 'ethers';
-import { getOwnedNFTs } from '../services/firebase';
+import { getOwnedNFTs, getTokenDeploymentByAddress } from '../services/firebase';
 import { ipfsToHttp } from '../utils/ipfs';
 import { FaEthereum } from 'react-icons/fa';
 import { query, collection, where, getDocs } from 'firebase/firestore';
@@ -26,17 +26,11 @@ export default function AccountPage() {
     }
 
     try {
-      const tokenQuery = query(
-        collection(db, 'tokenDeployments'),
-        where('address', '==', tokenAddress.toLowerCase())
-      );
-      const tokenSnapshot = await getDocs(tokenQuery);
-      
-      if (!tokenSnapshot.empty) {
-        const tokenData = tokenSnapshot.docs[0].data();
+      const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
+      if (tokenDeployment?.logo) {
         return {
-          symbol: tokenData.symbol || 'Unknown',
-          logo: tokenData.logo || null
+          symbol: tokenDeployment.symbol || 'Unknown',
+          logo: tokenDeployment.logo
         };
       }
       return { symbol: 'ETH', logo: null };
@@ -69,9 +63,9 @@ export default function AccountPage() {
         await Promise.all(
           filteredNFTs.map(async (nft) => {
             if (nft.mintToken?.address) {
-              const tokenDetails = await getTokenDetails(nft.mintToken.address);
-              if (tokenDetails.logo) {
-                logos[nft.mintToken.address] = tokenDetails.logo;
+              const tokenDeployment = await getTokenDeploymentByAddress(nft.mintToken.address);
+              if (tokenDeployment?.logo) {
+                logos[nft.mintToken.address.toLowerCase()] = tokenDeployment.logo;
               }
             }
           })
@@ -158,6 +152,28 @@ export default function AccountPage() {
         </select>
       </div>
     );
+  };
+
+  // Add renderCurrencyLogo function
+  const renderCurrencyLogo = (nft) => {
+    const tokenAddress = nft?.mintToken?.address?.toLowerCase();
+    const logoUrl = tokenLogos[tokenAddress];
+    
+    if (tokenAddress && logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          alt="Token"
+          className="w-4 h-4 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
+    }
+    
+    return <FaEthereum className="w-4 h-4 text-[#00ffbd]" />;
   };
 
   const renderNFTCard = (nft) => {
@@ -255,21 +271,9 @@ export default function AccountPage() {
                 {nft.value && (
                   <div className="flex justify-between items-center">
                     <span>Mint Price:</span>
-                    <div className="flex items-center gap-1">
-                      {nft.mintToken?.address && tokenLogos[nft.mintToken.address] ? (
-                        <img 
-                          src={tokenLogos[nft.mintToken.address]} 
-                          alt={nft.mintToken.symbol || 'Token'} 
-                          className="w-4 h-4 rounded-full"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = '/token-default.png';
-                          }}
-                        />
-                      ) : (
-                        <FaEthereum className="text-[#00ffbd]" />
-                      )}
-                      <span>{formatMintPrice(nft.value, nft)} {nft.mintToken?.symbol}</span>
+                    <div className="flex items-center gap-1 text-[#00ffbd]">
+                      {renderCurrencyLogo(nft)}
+                      <span className="font-medium">{formatMintPrice(nft.value, nft)} {nft.mintToken?.symbol}</span>
                     </div>
                   </div>
                 )}
