@@ -134,16 +134,42 @@ export default function TopHolders({ collection }) {
 
   const prepareChartData = (holdersData) => {
     const totalNFTs = holdersData.reduce((sum, h) => sum + h.quantity, 0);
+    const maxNFTs = Math.max(...holdersData.map(h => h.quantity));
+    
+    // Create dynamic ranges based on the maximum NFT count
+    const createDynamicRanges = (max) => {
+      if (max <= 5) {
+        return [
+          { min: 1, max: 1, label: '1 NFT' },
+          { min: 2, max: 3, label: '2-3 NFTs' },
+          { min: 4, max: 5, label: '4-5 NFTs' }
+        ];
+      } else if (max <= 10) {
+        return [
+          { min: 1, max: 2, label: '1-2 NFTs' },
+          { min: 3, max: 5, label: '3-5 NFTs' },
+          { min: 6, max: 10, label: '6-10 NFTs' }
+        ];
+      } else if (max <= 20) {
+        return [
+          { min: 1, max: 5, label: '1-5 NFTs' },
+          { min: 6, max: 10, label: '6-10 NFTs' },
+          { min: 11, max: 20, label: '11-20 NFTs' }
+        ];
+      } else {
+        const step = Math.ceil(max / 4); // Split into 4 ranges
+        return [
+          { min: 1, max: step, label: `1-${step} NFTs` },
+          { min: step + 1, max: step * 2, label: `${step + 1}-${step * 2} NFTs` },
+          { min: step * 2 + 1, max: step * 3, label: `${step * 2 + 1}-${step * 3} NFTs` },
+          { min: step * 3 + 1, max: max, label: `${step * 3 + 1}+ NFTs` }
+        ];
+      }
+    };
+
+    const ranges = createDynamicRanges(maxNFTs);
     
     // Distribution data for unique holders (bar chart)
-    const ranges = [
-      { min: 1, max: 2, label: '1-2 NFTs' },
-      { min: 3, max: 5, label: '3-5 NFTs' },
-      { min: 6, max: 10, label: '6-10 NFTs' },
-      { min: 11, max: 20, label: '11-20 NFTs' },
-      { min: 21, max: Infinity, label: '21+ NFTs' }
-    ];
-
     const distributionData = ranges.map(range => ({
       name: range.label,
       label: range.label,
