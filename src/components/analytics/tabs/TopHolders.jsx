@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
-import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { FaCrown } from 'react-icons/fa';
 import { RiMedalFill } from 'react-icons/ri';
 
@@ -45,7 +45,12 @@ const CustomTooltip = ({ active, payload, type }) => {
     return (
       <div className="bg-[#1a1b1f] p-2 rounded-lg border border-gray-800">
         {type === 'pie' ? (
-          <p className="text-[#00ffbd] text-xs">{`${payload[0].name}: ${payload[0].value} NFTs (${(payload[0].percent * 100).toFixed(1)}%)`}</p>
+          <p className="text-[#00ffbd] text-xs">{`${payload[0].name}: ${payload[0].value} NFTs`}</p>
+        ) : type === 'bar' ? (
+          <div className="text-xs">
+            <p className="text-white">{payload[0].payload.label}</p>
+            <p className="text-[#00ffbd]">{payload[0].value} holders</p>
+          </div>
         ) : (
           <p className="text-[#00ffbd] text-xs">{`${payload[0].value} NFTs`}</p>
         )}
@@ -128,13 +133,23 @@ export default function TopHolders({ collection }) {
   }, [collection]);
 
   const prepareChartData = (holdersData) => {
+    const totalNFTs = holdersData.reduce((sum, h) => sum + h.quantity, 0);
+    
     // Distribution data for unique holders (bar chart)
-    const distributionData = Array(10).fill(0).map((_, i) => ({
-      name: `${i * 10}-${(i + 1) * 10}%`,
-      value: holdersData.filter(h => {
-        const percent = (h.quantity / holdersData.reduce((sum, h) => sum + h.quantity, 0)) * 100;
-        return percent >= i * 10 && percent < (i + 1) * 10;
-      }).length
+    const ranges = [
+      { min: 1, max: 2, label: '1-2 NFTs' },
+      { min: 3, max: 5, label: '3-5 NFTs' },
+      { min: 6, max: 10, label: '6-10 NFTs' },
+      { min: 11, max: 20, label: '11-20 NFTs' },
+      { min: 21, max: Infinity, label: '21+ NFTs' }
+    ];
+
+    const distributionData = ranges.map(range => ({
+      name: range.label,
+      label: range.label,
+      value: holdersData.filter(h => 
+        h.quantity >= range.min && h.quantity <= range.max
+      ).length
     })).filter(d => d.value > 0);
 
     // Top 10 holders data (pie chart)
@@ -181,13 +196,28 @@ export default function TopHolders({ collection }) {
           <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{holders.length}</p>
           <div className="h-32">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={distributionData}>
-                <Tooltip content={props => <CustomTooltip {...props} />} />
-                <Bar dataKey="value" fill="#00ffbd" />
+              <BarChart 
+                data={distributionData} 
+                barSize={24}
+                margin={{ top: 5, right: 5, bottom: 5, left: 5 }}
+              >
+                <XAxis 
+                  dataKey="name" 
+                  tick={false}
+                />
+                <Tooltip 
+                  content={props => <CustomTooltip {...props} type="bar" />}
+                  cursor={{ fill: 'rgba(0, 255, 189, 0.1)' }}
+                />
+                <Bar 
+                  dataKey="value" 
+                  fill="#00ffbd"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Distribution of holders by ownership %</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Holder distribution by NFT count</p>
         </div>
 
         <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
@@ -217,7 +247,7 @@ export default function TopHolders({ collection }) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Top 10 holders distribution</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Top 10 holders by NFT count</p>
         </div>
 
         <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
