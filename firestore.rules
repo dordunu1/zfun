@@ -20,8 +20,8 @@ service cloud.firestore {
       
       // Allow updates to totalMinted field
       allow update: if
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalMinted', 'updatedAt']) &&
-        request.resource.data.totalMinted is number;
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalMinted', 'updatedAt', 'tokenURI']) &&
+        (request.resource.data.totalMinted is number || request.resource.data.tokenURI is string);
       
       // No deletes allowed
       allow delete: if false;

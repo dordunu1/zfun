@@ -267,5 +267,178 @@ export const NFTCollectionABI = {
       "stateMutability": "nonpayable",
       "type": "function"
     }
+  ],
+  ERC721Royalty: [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "quantity",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "_tokenURI",
+          "type": "string"
+        }
+      ],
+      "name": "mint",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalSupply",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+      "name": "mintedPerWallet",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "config",
+      "outputs": [{
+        "components": [
+          { "internalType": "uint256", "name": "maxSupply", "type": "uint256" },
+          { "internalType": "uint256", "name": "mintPrice", "type": "uint256" },
+          { "internalType": "uint256", "name": "maxPerWallet", "type": "uint256" },
+          { "internalType": "uint256", "name": "releaseDate", "type": "uint256" },
+          { "internalType": "uint256", "name": "mintEndDate", "type": "uint256" },
+          { "internalType": "bool", "name": "infiniteMint", "type": "bool" },
+          { "internalType": "address", "name": "paymentToken", "type": "address" },
+          { "internalType": "bool", "name": "enableWhitelist", "type": "bool" }
+        ],
+        "internalType": "struct ICollectionTypes.CollectionConfig",
+        "name": "",
+        "type": "tuple"
+      }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "salePrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "royaltyInfo",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "royaltyAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  ERC1155Royalty: [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "_tokenURI",
+          "type": "string"
+        }
+      ],
+      "name": "mint",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalSupply",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+      "name": "mintedPerWallet",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "config",
+      "outputs": [{
+        "components": [
+          { "internalType": "uint256", "name": "maxSupply", "type": "uint256" },
+          { "internalType": "uint256", "name": "mintPrice", "type": "uint256" },
+          { "internalType": "uint256", "name": "maxPerWallet", "type": "uint256" },
+          { "internalType": "uint256", "name": "releaseDate", "type": "uint256" },
+          { "internalType": "uint256", "name": "mintEndDate", "type": "uint256" },
+          { "internalType": "bool", "name": "infiniteMint", "type": "bool" },
+          { "internalType": "address", "name": "paymentToken", "type": "address" },
+          { "internalType": "bool", "name": "enableWhitelist", "type": "bool" }
+        ],
+        "internalType": "struct ICollectionTypes.CollectionConfig",
+        "name": "",
+        "type": "tuple"
+      }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "salePrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "royaltyInfo",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "royaltyAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
   ]
 }; 

@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
-import "../tokens/NFT721.sol";
-import "../tokens/NFT1155.sol";
+import "../tokens/NFT721Royalty.sol";
+import "../tokens/NFT1155Royalty.sol";
 import "../interfaces/ICollectionTypes.sol";
 
 struct CollectionData {
@@ -44,6 +44,25 @@ struct CreateCollectionParams {
     bool infiniteMint;
     address paymentToken;
     bool enableWhitelist;
+    address royaltyReceiver;
+    uint96 royaltyFeeNumerator;
+}
+
+struct CreateNFTCollectionParams {
+    string collectionType;
+    string name;
+    string symbol;
+    string metadataURI;
+    uint256 maxSupply;
+    uint256 mintPrice;
+    uint256 maxPerWallet;
+    uint256 releaseDate;
+    uint256 mintEndDate;
+    bool infiniteMint;
+    address paymentToken;
+    bool enableWhitelist;
+    address royaltyReceiver;
+    uint96 royaltyFeeNumerator;
 }
 
 contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
@@ -106,7 +125,7 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
 
     function _initializeCollection(InitParams memory params) internal {
         if (keccak256(bytes(params.collectionType)) == keccak256(bytes("ERC721"))) {
-            NFT721(params.collection).initialize(
+            NFT721Royalty(params.collection).initialize(
                 params.name,
                 params.symbol,
                 params.metadataURI,
@@ -114,7 +133,7 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
                 msg.sender
             );
         } else {
-            NFT1155(params.collection).initialize(
+            NFT1155Royalty(params.collection).initialize(
                 params.name,
                 params.symbol,
                 params.metadataURI,
@@ -124,36 +143,25 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         }
     }
 
-    function createNFTCollection(
-        string memory _type,
-        string memory _name,
-        string memory _symbol,
-        string memory _metadataURI,
-        uint256 _maxSupply,
-        uint256 _mintPrice,
-        uint256 _maxPerWallet,
-        uint256 _releaseDate,
-        uint256 _mintEndDate,
-        bool _infiniteMint,
-        address _paymentToken,
-        bool _enableWhitelist
-    ) external payable {
-        CreateCollectionParams memory params = CreateCollectionParams({
-            collectionType: _type,
-            name: _name,
-            symbol: _symbol,
-            metadataURI: _metadataURI,
-            maxSupply: _maxSupply,
-            mintPrice: _mintPrice,
-            maxPerWallet: _maxPerWallet,
-            releaseDate: _releaseDate,
-            mintEndDate: _mintEndDate,
-            infiniteMint: _infiniteMint,
-            paymentToken: _paymentToken,
-            enableWhitelist: _enableWhitelist
+    function createNFTCollection(CreateNFTCollectionParams calldata params) external payable {
+        CreateCollectionParams memory collectionParams = CreateCollectionParams({
+            collectionType: params.collectionType,
+            name: params.name,
+            symbol: params.symbol,
+            metadataURI: params.metadataURI,
+            maxSupply: params.maxSupply,
+            mintPrice: params.mintPrice,
+            maxPerWallet: params.maxPerWallet,
+            releaseDate: params.releaseDate,
+            mintEndDate: params.mintEndDate,
+            infiniteMint: params.infiniteMint,
+            paymentToken: params.paymentToken,
+            enableWhitelist: params.enableWhitelist,
+            royaltyReceiver: params.royaltyReceiver,
+            royaltyFeeNumerator: params.royaltyFeeNumerator
         });
 
-        _createNFTCollection(params);
+        _createNFTCollection(collectionParams);
     }
 
     function _handleFees() internal view {
@@ -257,20 +265,24 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
 
         // Initialize directly instead of using low-level call
         if (keccak256(bytes(params.collectionType)) == keccak256(bytes("ERC721"))) {
-            NFT721(collection).initialize(
+            NFT721Royalty(collection).initialize(
                 params.name,
                 params.symbol,
                 params.metadataURI,
                 config,
-                msg.sender
+                msg.sender,
+                params.royaltyReceiver == address(0) ? msg.sender : params.royaltyReceiver,
+                params.royaltyFeeNumerator
             );
         } else {
-            NFT1155(collection).initialize(
+            NFT1155Royalty(collection).initialize(
                 params.name,
                 params.symbol,
                 params.metadataURI,
                 config,
-                msg.sender
+                msg.sender,
+                params.royaltyReceiver == address(0) ? msg.sender : params.royaltyReceiver,
+                params.royaltyFeeNumerator
             );
         }
 

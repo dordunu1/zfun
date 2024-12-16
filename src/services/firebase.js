@@ -215,25 +215,34 @@ export const getRecentMints = async (collectionAddress) => {
 export const saveMintData = async (mintData) => {
   try {
     console.log('Saving mint data:', mintData);
+    // Extract metadataUrl from mintData and remove it from the object
+    const { metadataUrl, ...sanitizedData } = mintData;
+
     // Ensure all fields are strings or have default values
-    const sanitizedData = {
-      collectionAddress: mintData.collectionAddress || '',
-      minterAddress: mintData.minterAddress ? mintData.minterAddress.toLowerCase() : '',
-      tokenId: String(mintData.tokenId || '0'),
-      quantity: String(mintData.quantity || '1'),
-      hash: String(mintData.hash || ''),
-      image: String(mintData.image || ''),
-      value: String(mintData.value || '0'),
-      type: String(mintData.type || 'ERC1155'),
+    const cleanData = {
+      collectionAddress: sanitizedData.collectionAddress || '',
+      minterAddress: sanitizedData.minterAddress ? sanitizedData.minterAddress.toLowerCase() : '',
+      tokenId: String(sanitizedData.tokenId || '0'),
+      quantity: String(sanitizedData.quantity || '1'),
+      hash: String(sanitizedData.hash || ''),
+      image: String(sanitizedData.image || ''),
+      value: String(sanitizedData.value || '0'),
+      type: String(sanitizedData.type || 'ERC1155'),
+      name: sanitizedData.name || '',
+      symbol: sanitizedData.symbol || '',
+      artworkType: sanitizedData.artworkType || 'image',
+      network: sanitizedData.network || 'sepolia',
+      mintPrice: sanitizedData.mintPrice || '0',
+      paymentToken: sanitizedData.paymentToken || null,
       timestamp: serverTimestamp()
     };
 
     // Validate required fields
-    if (!sanitizedData.collectionAddress || !sanitizedData.minterAddress) {
+    if (!cleanData.collectionAddress || !cleanData.minterAddress) {
       throw new Error('Missing required fields in mint data');
     }
 
-    const docRef = await addDoc(mintsRef, sanitizedData);
+    const docRef = await addDoc(mintsRef, cleanData);
     console.log('Mint data saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {

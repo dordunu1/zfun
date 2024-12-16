@@ -263,6 +263,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     customTokenSymbol: '',
     mintEndDate: '',
     infiniteMint: false,
+    royaltyFeePercent: '',
+    royaltyFeeNumerator: '',
+    royaltyReceiver: '',
   });
 
   const { address: account, isConnected } = useAccount();
@@ -400,6 +403,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         return;
       }
 
+      // Calculate fee based on network
+      const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
+
       // Step 1: Upload metadata
       toast.loading('1/3 - Uploading metadata...', { id: 'create' });
       const { metadataUrl, imageHttpUrl, imageIpfsUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
@@ -407,10 +413,6 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       // Step 2: Create collection
       toast.loading('2/3 - Creating collection...', { id: 'create' });
       const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
-      const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
-
-      // Extract the base URL from the metadata URL (everything up to the last slash)
-      const baseURI = metadataUrl.substring(0, metadataUrl.lastIndexOf('/') + 1);
 
       const paymentTokenAddress = getPaymentToken(networkChainId);
       console.log('Payment Token being set:', {
@@ -426,18 +428,24 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         : BigInt(formData.maxPerWallet || 1);
 
       const tx = await factory.createNFTCollection(
-        formData.type,
-        formData.name,
-        formData.symbol,
-        baseURI, // Use baseURI instead of full metadata URL
-        BigInt(formData.maxSupply || 1000),
-        formData.mintPrice ? ethers.parseEther(formData.mintPrice.toString()) : BigInt(0),
-        BigInt(1000000), // Changed from 1 to 1000000 to allow whitelist limits to control the actual max
-        BigInt(Math.floor(Date.now() / 1000)),
-        BigInt(formData.infiniteMint ? 0 : Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60),
-        Boolean(formData.infiniteMint),
-        paymentTokenAddress,
-        Boolean(formData.enableWhitelist),
+        {
+          collectionType: formData.type === 'ERC721' ? 'ERC721' : 'ERC1155',
+          name: formData.name,
+          symbol: formData.symbol,
+          metadataURI: 'ipfs://', // Set base URI as ipfs:// protocol
+          maxSupply: BigInt(formData.maxSupply || 10000),
+          mintPrice: parseEther(formData.mintPrice || '0'),
+          maxPerWallet: maxPerWallet,
+          releaseDate: BigInt(formData.releaseDate ? Math.floor(new Date(formData.releaseDate).getTime() / 1000) : Math.floor(Date.now() / 1000)),
+          mintEndDate: BigInt(formData.mintEndDate ? Math.floor(new Date(formData.mintEndDate).getTime() / 1000) : 0),
+          infiniteMint: Boolean(formData.infiniteMint),
+          paymentToken: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
+            formData.mintingToken === 'custom' ? formData.customTokenAddress :
+            paymentTokenAddress || '0x0000000000000000000000000000000000000000',
+          enableWhitelist: Boolean(formData.enableWhitelist),
+          royaltyReceiver: formData.royaltyReceiver || account,
+          royaltyFeeNumerator: BigInt(formData.royaltyFeeNumerator || 0)
+        },
         { value: fee }
       );
 
@@ -1263,6 +1271,44 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   </div>
                 </div>
 
+                {/* Royalty Settings */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Royalty Fee (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.royaltyFeePercent || ''}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (value >= 0 && value <= 100) {
+                        updateFormData({ 
+                          royaltyFeePercent: value,
+                          royaltyFeeNumerator: Math.floor(value * 100) // Convert percent to basis points
+                        });
+                      }
+                    }}
+                    className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    placeholder="Enter royalty percentage (0-100)"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Royalty Receiver Address
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.royaltyReceiver || ''}
+                    onChange={(e) => updateFormData({ royaltyReceiver: e.target.value })}
+                    className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    placeholder="Enter address (leave empty to use creator address)"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Max Supply
@@ -1385,70 +1431,6 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       <FaFileCode size={16} />
                       Import JSON
                     </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Address List Modal */}
-              {showAddressModal && (
-                <div 
-                  className="fixed inset-0 z-[100]"
-                  onClick={() => setShowAddressModal(false)}
-                >
-                  <div className="fixed inset-0 bg-black/70" />
-                  
-                  <div className="fixed inset-0 flex items-center justify-center p-4">
-                    <div 
-                      className="w-full max-w-2xl transform rounded-lg bg-white dark:bg-[#0a0b0f] p-6 relative"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Main Content */}
-                      <div className="mt-2">
-                        <h2 className="text-xl font-semibold text-white mb-6">
-                          Whitelist Addresses
-                        </h2>
-
-                        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar [&::-webkit-scrollbar-thumb]:bg-[#00ffbd] hover:[&::-webkit-scrollbar-thumb]:bg-[#00e6a9]">
-                          {formData.whitelistAddresses.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-2">
-                              {formData.whitelistAddresses.map((addr, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#1a1b1f] rounded-lg hover:bg-gray-100 dark:hover:bg-[#2a2b2f] transition-colors"
-                                >
-                                  <span className="text-sm font-mono text-gray-700 dark:text-gray-300 flex-1">
-                                    {typeof addr === 'object' ? addr.address : addr}
-                                  </span>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm text-gray-600 dark:text-gray-400">Mint limit:</span>
-                                      <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        value={typeof addr === 'object' ? (addr.maxMint === '' ? '' : addr.maxMint) : 1}
-                                        onChange={(e) => handleMintLimitChange(index, e)}
-                                        className="w-16 text-center bg-white dark:bg-[#0d0e12] text-gray-900 dark:text-white rounded-lg px-2 py-1 text-sm border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                                      />
-                                    </div>
-                                    <button
-                                      onClick={() => handleRemoveAddress(index)}
-                                      className="p-1.5 text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20 rounded-lg transition-colors"
-                                    >
-                                      <BiTrash size={18} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                              No addresses added yet
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}

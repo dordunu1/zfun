@@ -134,7 +134,7 @@ export default function CollectionPage() {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const contract = new ethers.Contract(
             collection.contractAddress,
-            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155Royalty : NFTCollectionABI.ERC721Royalty,
             provider
           );
 
@@ -233,7 +233,7 @@ export default function CollectionPage() {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const contract = new ethers.Contract(
             collection.contractAddress,
-            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+            collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155Royalty : NFTCollectionABI.ERC721Royalty,
             provider
           );
 
@@ -382,14 +382,14 @@ export default function CollectionPage() {
         artworkFile
       );
 
-      // Extract IPFS hash
-      const ipfsHash = metadataUrl.replace('ipfs://', '');
+      // Extract IPFS hash without the protocol prefix
+      const ipfsHash = metadataUrl.replace('ipfs://', '').trim();
       
       toast.loading('Minting in progress...', { id: 'mint' });
 
       const nftContract = new ethers.Contract(
         collection.contractAddress,
-        collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+        collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155Royalty : NFTCollectionABI.ERC721Royalty,
         signer
       );
 
@@ -546,7 +546,7 @@ export default function CollectionPage() {
       if (collection.contractAddress && provider) {
         const contract = new ethers.Contract(
           collection.contractAddress, 
-          collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155 : NFTCollectionABI.ERC721,
+          collection.type === 'ERC1155' ? NFTCollectionABI.ERC1155Royalty : NFTCollectionABI.ERC721Royalty,
           provider
         );
         
