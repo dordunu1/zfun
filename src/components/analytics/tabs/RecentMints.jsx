@@ -134,22 +134,29 @@ export default function RecentMints() {
     try {
       if (!value) return '0';
       
-      // Convert string to BigNumber if needed
+      // For custom tokens, we don't need to convert from Wei
+      if (collection?.mintToken?.type === 'custom' || 
+          collection?.mintToken?.type === 'usdc' || 
+          collection?.mintToken?.type === 'usdt') {
+        return parseFloat(value).toLocaleString('en-US', {
+          maximumFractionDigits: 6,
+          minimumFractionDigits: 0
+        });
+      }
+      
+      // For native tokens (ETH/MATIC), convert from Wei
       let valueInWei;
       if (typeof value === 'string') {
-        // Remove any commas from the string
         const cleanValue = value.replace(/,/g, '');
         try {
           valueInWei = ethers.parseUnits(cleanValue, 'wei');
         } catch {
-          // If parsing as wei fails, try parsing as ether
           valueInWei = ethers.parseEther(cleanValue);
         }
       } else {
         valueInWei = BigInt(value.toString());
       }
 
-      // Convert Wei to ETH
       const ethValue = ethers.formatEther(valueInWei);
       const floatValue = parseFloat(ethValue);
 
