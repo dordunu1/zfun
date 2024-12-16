@@ -265,61 +265,85 @@ export default function RecentMints() {
   }
 
   return (
-    <div className="h-[400px] md:h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+    <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
       <div className="space-y-4">
-        {mints.map((mint) => (
-          <div 
-            key={mint.id} 
-            className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800 min-h-[100px] hover:border-[#00ffbd] transition-colors duration-200"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {renderMedia(mint)}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-800 dark:text-white font-medium">
-                      {mint.quantity}x {mint.tokenName || 'Token'}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                      <span>by</span>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(mint.minterAddress);
-                          toast.success('Address copied!');
-                        }}
-                        className="flex items-center gap-1 hover:text-[#00ffbd] transition-colors"
-                      >
-                        {mint.minterAddress.slice(0, 6)}...{mint.minterAddress.slice(-4)}
-                        <BiCopy size={14} />
-                      </button>
+        <div 
+          className="overflow-y-auto" 
+          style={{ 
+            height: '600px',
+            paddingRight: '8px',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#00ffbd transparent',
+            marginBottom: '-16px'
+          }}
+          css={`
+            &::-webkit-scrollbar {
+              width: 4px;
+            }
+            &::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            &::-webkit-scrollbar-thumb {
+              background-color: #00ffbd;
+              border-radius: 20px;
+            }
+          `}
+        >
+          {mints.map((mint) => (
+            <div 
+              key={mint.id} 
+              className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800 min-h-[100px] hover:border-[#00ffbd] transition-colors duration-200 mb-4 last:mb-0"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {renderMedia(mint)}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-800 dark:text-white font-medium">
+                        {mint.quantity}x {mint.tokenName || 'Token'}
+                      </span>
                     </div>
-                    {renderTokenInfo(mint)}
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span>by</span>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(mint.minterAddress);
+                            toast.success('Address copied!');
+                          }}
+                          className="flex items-center gap-1 hover:text-[#00ffbd] transition-colors"
+                        >
+                          {mint.minterAddress.slice(0, 6)}...{mint.minterAddress.slice(-4)}
+                          <BiCopy size={14} />
+                        </button>
+                      </div>
+                      {renderTokenInfo(mint)}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-1 text-[#00ffbd]">
-                  {renderCurrencyLogo()}
-                  <span className="font-medium">{formatValue(mint.value)}</span>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-1 text-[#00ffbd]">
+                    {renderCurrencyLogo()}
+                    <span className="font-medium">{formatValue(mint.value)}</span>
+                  </div>
+                  {renderTimeWithHash(mint)}
                 </div>
-                {renderTimeWithHash(mint)}
               </div>
             </div>
-          </div>
-        ))}
-        
-        {/* Loading Spinner */}
-        <div 
-          ref={loaderRef}
-          className="flex justify-center py-4"
-        >
+          ))}
+          
+          {/* Hidden loader for infinite scroll */}
+          <div 
+            ref={loaderRef}
+            className="h-0 opacity-0"
+            aria-hidden="true"
+          />
+
+          {/* Loading Spinner - Moved inside the scroll container */}
           {loadingMore && (
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]" />
-          )}
-          {!hasMore && mints.length > 0 && (
-            <div className="text-gray-400 text-sm">No more mints to load</div>
+            <div className="flex justify-center py-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]" />
+            </div>
           )}
         </div>
       </div>
