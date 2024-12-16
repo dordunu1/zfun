@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { FaEthereum } from 'react-icons/fa';
-import { BiCopy, BiX } from 'react-icons/bi';
+import { BiCopy } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 import { getRecentMints, subscribeToMints } from '../../../services/analytics';
 import { useParams } from 'react-router-dom';
@@ -12,9 +12,11 @@ import { ipfsToHttp } from '../../../utils/ipfs';
 export default function RecentMints() {
   const [mints, setMints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { symbol } = useParams();
   const [collection, setCollection] = useState(null);
-  const [tokenLogos, setTokenLogos] = useState({});  // Cache for token logos
+  const [tokenLogos, setTokenLogos] = useState({});
+  const [displayLimit, setDisplayLimit] = useState(50);
 
   useEffect(() => {
     const loadCollection = async () => {
@@ -25,7 +27,7 @@ export default function RecentMints() {
         
         if (collectionData?.contractAddress) {
           // Initial fetch
-          const recentMints = await getRecentMints(collectionData.contractAddress);
+          const recentMints = await getRecentMints(collectionData.contractAddress, displayLimit);
           console.log('Recent mints data:', recentMints);
 
           // Get token deployment data for the payment token
@@ -57,12 +59,12 @@ export default function RecentMints() {
           // Subscribe to real-time updates
           const unsubscribe = subscribeToMints(collectionData.contractAddress, (updatedMints) => {
             console.log('Subscription update - mints:', updatedMints);
-            setMints(updatedMints.map(mint => ({
-              ...mint,
-              artworkType: collectionData.artworkType,
-              tokenName: collectionData.name,
-              tokenId: mint.tokenId
-            })));
+            setMints(prevMints => {
+              // Merge new mints with existing ones, avoiding duplicates
+              const existingIds = new Set(prevMints.map(m => m.id));
+              const newMints = updatedMints.filter(m => !existingIds.has(m.id));
+              return [...newMints, ...prevMints].slice(0, displayLimit);
+            });
           });
 
           return () => unsubscribe();
@@ -74,7 +76,31 @@ export default function RecentMints() {
     };
 
     loadCollection();
-  }, [symbol]);
+  }, [symbol, displayLimit]);
+
+  const handleLoadMore = async () => {
+    if (!collection?.contractAddress || loadingMore) return;
+
+    setLoadingMore(true);
+    try {
+      const newLimit = displayLimit + 50;
+      const moreMints = await getRecentMints(collection.contractAddress, newLimit);
+      
+      setMints(moreMints.map(mint => ({
+        ...mint,
+        artworkType: collection.artworkType,
+        tokenName: collection.name,
+        tokenId: mint.tokenId
+      })));
+      
+      setDisplayLimit(newLimit);
+    } catch (error) {
+      console.error('Error loading more mints:', error);
+      toast.error('Failed to load more mints');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const formatValue = (value) => {
     try {
@@ -199,7 +225,7 @@ export default function RecentMints() {
       );
     }
     
-    return <FaEthereum className="w-6 h-6" />;
+    return <FaEthereum className="w-6 h-6 text-[#00ffbd]" />;
   };
 
   if (loading) {
@@ -245,18 +271,31 @@ export default function RecentMints() {
                   </div>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="flex flex-col items-end gap-2">
                 <div className="flex items-center gap-1 text-[#00ffbd]">
                   {renderCurrencyLogo()}
-                  <span>{formatValue(mint.value)}</span>
+                  <span className="font-medium">{formatValue(mint.value)}</span>
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {renderTimeWithHash(mint)}
-                </div>
+                {renderTimeWithHash(mint)}
               </div>
             </div>
           </div>
         ))}
+        
+        {/* Load More Button */}
+        <div className="flex justify-center mt-4 pb-4">
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              loadingMore
+                ? 'bg-gray-200 dark:bg-gray-800 text-gray-500 cursor-not-allowed'
+                : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
+            }`}
+          >
+            {loadingMore ? 'Loading...' : 'Load More'}
+          </button>
+        </div>
       </div>
     </div>
   );

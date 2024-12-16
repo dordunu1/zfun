@@ -6,13 +6,13 @@ export const getEthPrice = async () => {
   return 2000; // Mock price for testing
 };
 
-export const getRecentMints = async (collectionAddress) => {
+export const getRecentMints = async (collectionAddress, maxResults = 50) => {
   try {
     const q = query(
       mintsRef,
       where('collectionAddress', '==', collectionAddress),
       orderBy('timestamp', 'desc'),
-      firestoreLimit(10)
+      firestoreLimit(maxResults)
     );
 
     const querySnapshot = await getDocs(q);
@@ -111,7 +111,7 @@ export const subscribeToMints = (collectionAddress, callback) => {
       mintsRef,
       where('collectionAddress', '==', collectionAddress),
       orderBy('timestamp', 'desc'),
-      firestoreLimit(10)
+      firestoreLimit(50)
     );
 
     return onSnapshot(q, (snapshot) => {

@@ -196,7 +196,7 @@ export const getRecentMints = async (collectionAddress) => {
       mintsRef,
       where('collectionAddress', '==', collectionAddress),
       orderBy('timestamp', 'desc'),
-      firestoreLimit(10)
+      firestoreLimit(50)
     );
 
     const querySnapshot = await getDocs(q);
@@ -264,7 +264,7 @@ export const subscribeToMints = (collectionAddress, callback) => {
       mintsRef,
       where('collectionAddress', '==', collectionAddress),
       orderBy('timestamp', 'desc'),
-      firestoreLimit(10)
+      firestoreLimit(50)
     );
 
     return onSnapshot(q, (snapshot) => {
