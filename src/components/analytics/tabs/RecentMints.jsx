@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { FaEthereum } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
@@ -13,10 +13,35 @@ export default function RecentMints() {
   const [mints, setMints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const { symbol } = useParams();
   const [collection, setCollection] = useState(null);
   const [tokenLogos, setTokenLogos] = useState({});
   const [displayLimit, setDisplayLimit] = useState(50);
+  const loaderRef = useRef(null);
+
+  // Intersection Observer callback
+  const handleObserver = useCallback((entries) => {
+    const target = entries[0];
+    if (target.isIntersecting && !loadingMore && hasMore) {
+      handleLoadMore();
+    }
+  }, [loadingMore, hasMore]);
+
+  // Set up the intersection observer
+  useEffect(() => {
+    const option = {
+      root: null,
+      rootMargin: "20px",
+      threshold: 0
+    };
+    const observer = new IntersectionObserver(handleObserver, option);
+    if (loaderRef.current) observer.observe(loaderRef.current);
+    
+    return () => {
+      if (loaderRef.current) observer.unobserve(loaderRef.current);
+    };
+  }, [handleObserver]);
 
   useEffect(() => {
     const loadCollection = async () => {
@@ -79,21 +104,24 @@ export default function RecentMints() {
   }, [symbol, displayLimit]);
 
   const handleLoadMore = async () => {
-    if (!collection?.contractAddress || loadingMore) return;
+    if (!collection?.contractAddress || loadingMore || !hasMore) return;
 
     setLoadingMore(true);
     try {
       const newLimit = displayLimit + 50;
       const moreMints = await getRecentMints(collection.contractAddress, newLimit);
       
-      setMints(moreMints.map(mint => ({
-        ...mint,
-        artworkType: collection.artworkType,
-        tokenName: collection.name,
-        tokenId: mint.tokenId
-      })));
-      
-      setDisplayLimit(newLimit);
+      if (moreMints.length === mints.length) {
+        setHasMore(false);
+      } else {
+        setMints(moreMints.map(mint => ({
+          ...mint,
+          artworkType: collection.artworkType,
+          tokenName: collection.name,
+          tokenId: mint.tokenId
+        })));
+        setDisplayLimit(newLimit);
+      }
     } catch (error) {
       console.error('Error loading more mints:', error);
       toast.error('Failed to load more mints');
@@ -282,19 +310,17 @@ export default function RecentMints() {
           </div>
         ))}
         
-        {/* Load More Button */}
-        <div className="flex justify-center mt-4 pb-4">
-          <button
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-            className={`px-6 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              loadingMore
-                ? 'bg-gray-200 dark:bg-gray-800 text-gray-500 cursor-not-allowed'
-                : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
-            }`}
-          >
-            {loadingMore ? 'Loading...' : 'Load More'}
-          </button>
+        {/* Loading Spinner */}
+        <div 
+          ref={loaderRef}
+          className="flex justify-center py-4"
+        >
+          {loadingMore && (
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]" />
+          )}
+          {!hasMore && mints.length > 0 && (
+            <div className="text-gray-400 text-sm">No more mints to load</div>
+          )}
         </div>
       </div>
     </div>
