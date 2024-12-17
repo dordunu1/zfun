@@ -30,13 +30,15 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   const [customToken, setCustomToken] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Reset search when modal opens
+  // Reset search and force refresh when modal opens
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
       setCustomToken(null);
       setError('');
+      setRefreshTrigger(prev => prev + 1); // Force refresh of balances
     }
   }, [isOpen]);
 
@@ -149,11 +151,12 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
             <div className="space-y-2">
               {filteredTokens.map((token) => (
                 <TokenRow
-                  key={token.address}
+                  key={`${token.address}-${refreshTrigger}`}
                   token={token}
                   userAddress={userAddress}
                   onSelect={handleTokenSelect}
                   isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                  forceRefresh={refreshTrigger}
                 />
               ))}
             </div>
@@ -176,6 +179,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                 userAddress={userAddress}
                 onSelect={handleTokenSelect}
                 isSelected={selectedTokenAddress === customToken.address}
+                forceRefresh={refreshTrigger}
               />
             </div>
           )}
@@ -185,25 +189,24 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   );
 }
 
-function TokenRow({ token, userAddress, onSelect, isSelected }) {
-  const [directBalance, setDirectBalance] = useState(null);
-  
-  // Use useBalance hook for ETH
-  const { data: balance, isError, isLoading } = useBalance({
-    address: userAddress,
-    token: token.symbol === 'ETH' ? undefined : token.address,
-    chainId: 11155111,
-    enabled: Boolean(userAddress) && token.symbol === 'ETH',
-    watch: true,
-  });
+function TokenRow({ token, userAddress, onSelect, isSelected, forceRefresh }) {
+  const [walletBalance, setWalletBalance] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  // Fetch balance directly for tokens using contract call
-  useEffect(() => {
-    async function fetchTokenBalance() {
-      if (!userAddress || token.symbol === 'ETH' || !window.ethereum) return;
-      
-      try {
-        // Use ethers v6 syntax
+  // Direct wallet balance reading for ETH
+  const updateWalletBalance = async () => {
+    if (!userAddress || !window.ethereum) return;
+    
+    try {
+      setIsUpdating(true);
+      if (token.symbol === 'ETH') {
+        // For ETH, directly read from wallet
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const balance = await provider.getBalance(userAddress);
+        const formatted = ethers.formatEther(balance);
+        setWalletBalance(formatted);
+      } else {
+        // For other tokens
         const provider = new ethers.BrowserProvider(window.ethereum);
         const tokenContract = new ethers.Contract(
           token.address,
@@ -217,32 +220,49 @@ function TokenRow({ token, userAddress, onSelect, isSelected }) {
         ]);
 
         const formatted = ethers.formatUnits(rawBalance, decimals);
-        setDirectBalance(formatted);
-      } catch (error) {
-        console.error('Error fetching token balance:', error);
-        setDirectBalance(null);
+        setWalletBalance(formatted);
       }
+    } catch (error) {
+      console.error('Error fetching wallet balance:', error);
+    } finally {
+      setIsUpdating(false);
     }
+  };
 
-    fetchTokenBalance();
-    const interval = setInterval(fetchTokenBalance, 10000);
-    return () => clearInterval(interval);
+  // Update balance immediately when component mounts or modal opens
+  useEffect(() => {
+    updateWalletBalance();
+  }, [userAddress, token.address, token.symbol, forceRefresh]);
+
+  // Set up blockchain event listeners for real-time updates
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleNewBlock = () => {
+      updateWalletBalance();
+    };
+
+    const handleAccountsChanged = () => {
+      updateWalletBalance();
+    };
+
+    window.ethereum.on('block', handleNewBlock);
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
+
+    // Poll every second as backup
+    const interval = setInterval(updateWalletBalance, 1000);
+
+    return () => {
+      window.ethereum.removeListener('block', handleNewBlock);
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      clearInterval(interval);
+    };
   }, [userAddress, token.address, token.symbol]);
 
   const displayBalance = React.useMemo(() => {
-    if (!userAddress) return '0.0000';
-    
-    // For ETH, use wagmi's useBalance hook result
-    if (token.symbol === 'ETH') {
-      if (isLoading) return 'Loading...';
-      if (isError || !balance) return '0.0000';
-      return Number(balance.formatted).toFixed(4);
-    }
-    
-    // For other tokens, use direct contract call result
-    if (directBalance === null) return 'Loading...';
-    return Number(directBalance).toFixed(4);
-  }, [balance, isError, isLoading, userAddress, token.symbol, directBalance]);
+    if (!userAddress || walletBalance === null) return '0.0000';
+    return Number(walletBalance).toFixed(4);
+  }, [walletBalance, userAddress]);
 
   const handleClick = () => {
     if (token.symbol === 'ETH') {
