@@ -6,6 +6,8 @@ import { ethers } from 'ethers';
 import TokenSelectionModal from './TokenSelectionModal';
 import { useUniswap } from '../../hooks/useUniswap';
 import { UNISWAP_ADDRESSES } from '../../services/uniswap';
+import axios from 'axios';
+import { ERC20_ABI } from '../../services/erc20';
 
 export default function TokenSwap() {
   const { address } = useAccount();
@@ -19,6 +21,20 @@ export default function TokenSwap() {
   const [route, setRoute] = useState(null);
   const [showFromTokenModal, setShowFromTokenModal] = useState(false);
   const [showToTokenModal, setShowToTokenModal] = useState(false);
+  
+  // New state for liquidity amounts
+  const [liquidityAmount0, setLiquidityAmount0] = useState('');
+  const [liquidityAmount1, setLiquidityAmount1] = useState('');
+  const [showLiquidityInputs, setShowLiquidityInputs] = useState(false);
+
+  const [poolCreationState, setPoolCreationState] = useState({
+    showInputs: false,
+    token0Amount: '',
+    token1Amount: '',
+    loading: false,
+    priceRatio: null,
+    error: null
+  });
 
   // Get quote when amount or tokens change
   useEffect(() => {
@@ -31,27 +47,43 @@ export default function TokenSwap() {
       }
 
       try {
+        // Check if pool exists
+        const poolInfo = await uniswap.getPoolInfo(fromToken.address, toToken.address);
+        console.log('Pool info:', poolInfo);
+        
+        if (!poolInfo) {
+          console.log('No liquidity pool exists for this pair');
+          setToAmount('');
+          setPriceImpact(null);
+          setRoute('No liquidity pool exists');
+          return;
+        }
+
         // Convert amount to wei based on token decimals
-        const amountIn = ethers.utils.parseUnits(fromAmount, fromToken.decimals);
+        const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
         const path = [fromToken.address, toToken.address];
 
-        // Get quote from Uniswap
-        const amountOut = await uniswap.getAmountOut(amountIn, path);
-        setToAmount(ethers.utils.formatUnits(amountOut, toToken.decimals));
+        try {
+          // Get quote from Uniswap
+          const amountOut = await uniswap.getAmountOut(amountIn, path);
+          const formattedAmount = ethers.formatUnits(amountOut, toToken.decimals);
+          setToAmount(formattedAmount);
 
-        // Get pool info for price impact
-        const poolInfo = await uniswap.getPoolInfo(fromToken.address, toToken.address);
-        if (poolInfo) {
           // Calculate price impact
           const impact = calculatePriceImpact(amountIn, amountOut, poolInfo);
           setPriceImpact(impact);
           setRoute(`${fromToken.symbol} → ${toToken.symbol}`);
+        } catch (quoteError) {
+          console.error('Error getting quote:', quoteError);
+          setToAmount('');
+          setPriceImpact(null);
+          setRoute('Error: Failed to get quote');
         }
       } catch (error) {
-        console.error('Error getting quote:', error);
+        console.error('Error checking pool:', error);
         setToAmount('');
         setPriceImpact(null);
-        setRoute(null);
+        setRoute('Error: ' + (error.reason || 'Failed to check pool'));
       }
     }
 
@@ -59,18 +91,23 @@ export default function TokenSwap() {
   }, [uniswap, fromToken, toToken, fromAmount]);
 
   const calculatePriceImpact = (amountIn, amountOut, poolInfo) => {
-    const { reserve0, reserve1 } = poolInfo;
-    const isToken0 = fromToken.address.toLowerCase() === poolInfo.token0.toLowerCase();
-    
-    const reserveIn = isToken0 ? reserve0 : reserve1;
-    const reserveOut = isToken0 ? reserve1 : reserve0;
-    
-    // Calculate price impact using reserves
-    const priceBeforeSwap = reserveOut.mul(ethers.constants.WeiPerEther).div(reserveIn);
-    const priceAfterSwap = amountOut.mul(ethers.constants.WeiPerEther).div(amountIn);
-    const impact = priceBeforeSwap.sub(priceAfterSwap).mul(100).div(priceBeforeSwap);
-    
-    return Number(ethers.utils.formatUnits(impact, 2)); // Return as percentage
+    try {
+      const { reserve0, reserve1 } = poolInfo;
+      const isToken0 = fromToken.address.toLowerCase() === poolInfo.token0.toLowerCase();
+      
+      const reserveIn = isToken0 ? reserve0 : reserve1;
+      const reserveOut = isToken0 ? reserve1 : reserve0;
+      
+      // Calculate price impact using reserves
+      const priceBeforeSwap = reserveOut * BigInt(1e18) / reserveIn;
+      const priceAfterSwap = amountOut * BigInt(1e18) / amountIn;
+      const impact = ((priceBeforeSwap - priceAfterSwap) * BigInt(100)) / priceBeforeSwap;
+      
+      return Number(ethers.formatUnits(impact.toString(), 2));
+    } catch (error) {
+      console.error('Error calculating price impact:', error);
+      return null;
+    }
   };
 
   const handleSwap = async () => {
@@ -86,26 +123,51 @@ export default function TokenSwap() {
     
     setLoading(true);
     try {
-      const amountIn = ethers.utils.parseUnits(fromAmount, fromToken.decimals);
-      const amountOutMin = ethers.utils.parseUnits(toAmount, toToken.decimals)
-        .mul(95) // 5% slippage tolerance
-        .div(100);
+      const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
+      const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
+      // Calculate 5% slippage tolerance using BigInt arithmetic
+      const amountOutMin = (amountOutMinRaw * BigInt(95)) / BigInt(100);
 
       const path = [fromToken.address, toToken.address];
       
-      const receipt = await uniswap.swapExactTokensForTokens(
-        amountIn,
-        amountOutMin,
-        path,
-        address
-      );
+      let receipt;
+      // Check if we're swapping from ETH
+      if (fromToken.symbol === 'ETH') {
+        receipt = await uniswap.swapExactETHForTokens(
+          amountIn,
+          amountOutMin,
+          path,
+          address
+        );
+      } else {
+        receipt = await uniswap.swapExactTokensForTokens(
+          amountIn,
+          amountOutMin,
+          path,
+          address
+        );
+      }
 
       toast.success('Swap successful!');
       setFromAmount('');
       setToAmount('');
     } catch (error) {
       console.error('Swap error:', error);
-      toast.error(error.reason || 'Failed to swap tokens');
+      
+      // Handle specific error messages
+      if (error.message.includes('Ledger')) {
+        toast.error('Please make sure your Ledger is connected and the Ethereum app is open');
+      } else if (error.message.includes('insufficient')) {
+        toast.error('Insufficient balance for swap');
+      } else if (error.message.includes('INSUFFICIENT_INPUT_AMOUNT')) {
+        toast.error('The input amount is too small for this swap');
+      } else if (error.message.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
+        toast.error('The output amount is too small due to slippage or price impact');
+      } else if (error.message.includes('user rejected')) {
+        toast.error('Transaction was rejected');
+      } else {
+        toast.error(error.reason || 'Failed to swap tokens');
+      }
     } finally {
       setLoading(false);
     }
@@ -141,6 +203,234 @@ export default function TokenSwap() {
       setToToken({ ...token, ...tokenInfo });
     }
     setShowToTokenModal(false);
+  };
+
+  // Fetch price ratio from CoinGecko when tokens are selected
+  useEffect(() => {
+    async function fetchPriceRatio() {
+      if (!fromToken || !toToken) return;
+
+      try {
+        // Get token addresses in lowercase
+        const token0Address = fromToken.address.toLowerCase();
+        const token1Address = toToken.address.toLowerCase();
+
+        // Fetch token info from CoinGecko using contract addresses
+        const response = await axios.get(
+          `https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=${token0Address},${token1Address}&vs_currencies=usd`
+        );
+
+        // If token is ETH, use ETH price endpoint
+        let token0Price = response.data[token0Address]?.usd;
+        let token1Price = response.data[token1Address]?.usd;
+
+        // If either token is ETH (WETH), fetch ETH price
+        if (fromToken.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+          const ethResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+          token0Price = ethResponse.data.ethereum.usd;
+        }
+        if (toToken.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+          const ethResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+          token1Price = ethResponse.data.ethereum.usd;
+        }
+
+        if (!token0Price || !token1Price) {
+          console.log('Could not fetch prices for tokens');
+          return;
+        }
+
+        const ratio = token0Price / token1Price;
+        console.log('Price ratio:', ratio);
+
+        setPoolCreationState(prev => ({
+          ...prev,
+          priceRatio: ratio
+        }));
+      } catch (error) {
+        console.error('Error fetching prices:', error);
+        setPoolCreationState(prev => ({
+          ...prev,
+          error: 'Failed to fetch token prices'
+        }));
+      }
+    }
+
+    if (route === 'No liquidity pool exists') {
+      fetchPriceRatio();
+    }
+  }, [fromToken, toToken, route]);
+
+  // Calculate other token amount based on price ratio
+  const calculateOtherAmount = (amount, isToken0) => {
+    if (!poolCreationState.priceRatio || !amount) return '';
+    const ratio = poolCreationState.priceRatio;
+    return isToken0 
+      ? (Number(amount) * ratio).toFixed(6)
+      : (Number(amount) / ratio).toFixed(6);
+  };
+
+  // Update pool creation UI
+  const renderPoolCreation = () => {
+    if (route !== 'No liquidity pool exists') return null;
+
+    return (
+      <div className="mt-4 space-y-4">
+        {!poolCreationState.showInputs ? (
+          <button
+            onClick={() => setPoolCreationState(prev => ({ ...prev, showInputs: true }))}
+            className="w-full px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black rounded-xl font-medium transition-colors"
+          >
+            Create Pool & Add Liquidity
+          </button>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <label className="block text-sm text-gray-500">
+                {fromToken?.symbol} Amount
+              </label>
+              <input
+                type="text"
+                value={poolCreationState.token0Amount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                    setPoolCreationState(prev => ({
+                      ...prev,
+                      token0Amount: value,
+                      token1Amount: calculateOtherAmount(value, true)
+                    }));
+                  }
+                }}
+                placeholder={`Enter ${fromToken?.symbol} amount`}
+                className="w-full px-3 py-2 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-white"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm text-gray-500">
+                {toToken?.symbol} Amount
+              </label>
+              <input
+                type="text"
+                value={poolCreationState.token1Amount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                    setPoolCreationState(prev => ({
+                      ...prev,
+                      token1Amount: value,
+                      token0Amount: calculateOtherAmount(value, false)
+                    }));
+                  }
+                }}
+                placeholder={`Enter ${toToken?.symbol} amount`}
+                className="w-full px-3 py-2 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-white"
+              />
+            </div>
+            {poolCreationState.error && (
+              <div className="text-red-500 text-sm">
+                {poolCreationState.error}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => createPoolAndAddLiquidity(
+                  poolCreationState.token0Amount,
+                  poolCreationState.token1Amount
+                )}
+                disabled={poolCreationState.loading || !poolCreationState.token0Amount || !poolCreationState.token1Amount}
+                className="flex-1 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {poolCreationState.loading ? 'Creating Pool...' : 'Confirm'}
+              </button>
+              <button
+                onClick={() => setPoolCreationState({
+                  showInputs: false,
+                  token0Amount: '',
+                  token1Amount: '',
+                  loading: false,
+                  priceRatio: null,
+                  error: null
+                })}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Update the createPoolAndAddLiquidity function
+  const createPoolAndAddLiquidity = async (amount0, amount1) => {
+    if (!address || !fromToken || !toToken || !amount0 || !amount1) {
+      toast.error('Please enter both liquidity amounts');
+      return;
+    }
+    
+    setPoolCreationState(prev => ({ ...prev, loading: true }));
+    try {
+      console.log('Creating pool for:', fromToken.symbol, toToken.symbol);
+      
+      // Parse amounts
+      const parsedAmount0 = ethers.parseUnits(amount0, fromToken.decimals);
+      const parsedAmount1 = ethers.parseUnits(amount1, toToken.decimals);
+
+      // First approve both tokens
+      const token0Contract = new ethers.Contract(fromToken.address, ERC20_ABI, signer);
+      const token1Contract = new ethers.Contract(toToken.address, ERC20_ABI, signer);
+
+      console.log('Approving tokens...');
+      
+      // Approve token0
+      const approve0Tx = await token0Contract.approve(UNISWAP_ADDRESSES.router, parsedAmount0);
+      await approve0Tx.wait();
+      toast.success(`Approved ${fromToken.symbol}`);
+
+      // Approve token1
+      const approve1Tx = await token1Contract.approve(UNISWAP_ADDRESSES.router, parsedAmount1);
+      await approve1Tx.wait();
+      toast.success(`Approved ${toToken.symbol}`);
+
+      console.log('Creating pool...');
+      const result = await uniswap.createPoolAndAddLiquidity(
+        fromToken.address,
+        toToken.address,
+        parsedAmount0,
+        parsedAmount1,
+        address,
+        0.05 // 5% slippage tolerance
+      );
+      
+      console.log('Pool created at:', result.pairAddress);
+      
+      // Save the created pool address to localStorage
+      const userPools = JSON.parse(localStorage.getItem('userCreatedPools') || '[]');
+      if (!userPools.includes(result.pairAddress)) {
+        userPools.push(result.pairAddress);
+        localStorage.setItem('userCreatedPools', JSON.stringify(userPools));
+      }
+
+      toast.success('Pool created and liquidity added successfully!');
+      setPoolCreationState({
+        showInputs: false,
+        token0Amount: '',
+        token1Amount: '',
+        loading: false,
+        priceRatio: null,
+        error: null
+      });
+      getQuote();
+    } catch (error) {
+      console.error('Error creating pool:', error);
+      setPoolCreationState(prev => ({
+        ...prev,
+        loading: false,
+        error: error.reason || 'Failed to create pool'
+      }));
+      toast.error(error.reason || 'Failed to create pool');
+    }
   };
 
   return (
@@ -243,6 +533,7 @@ export default function TokenSwap() {
                 <span className="text-gray-600 dark:text-gray-400">Route</span>
                 <span className="text-gray-900 dark:text-gray-100">{route || '--'}</span>
               </div>
+              {renderPoolCreation()}
             </div>
           </div>
         </div>

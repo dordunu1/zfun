@@ -1,44 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { FaSearch, FaTimes } from 'react-icons/fa';
-
-const EXAMPLE_POOLS = [
-  {
-    id: '1',
-    token0: {
-      symbol: 'ETH',
-      logo: '/eth-logo.png',
-    },
-    token1: {
-      symbol: 'USDT',
-      logo: '/usdt-logo.png',
-    },
-    fee: '0.3',
-    tvl: '$1.2M',
-    volume24h: '$500K',
-  },
-  // Add more example pools
-];
+import { useUniswap } from '../../hooks/useUniswap';
+import { ethers } from 'ethers';
+import { UNISWAP_ADDRESSES } from '../../services/uniswap';
+import { toast } from 'react-hot-toast';
 
 export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pools, setPools] = useState(EXAMPLE_POOLS);
+  const [error, setError] = useState(null);
+  const [searchMode, setSearchMode] = useState('created'); // 'created' or 'address'
+  const uniswap = useUniswap();
 
-  const handleSearch = async (query) => {
-    setSearchQuery(query);
-    if (query.length < 2) {
-      setPools(EXAMPLE_POOLS);
+  // Fetch user-created pools from localStorage
+  useEffect(() => {
+    if (!isOpen || !uniswap) return;
+    
+    const loadUserPools = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Get user pools from localStorage
+        const userPoolsStr = localStorage.getItem('userCreatedPools') || '[]';
+        const userPools = JSON.parse(userPoolsStr);
+        
+        // Fetch current data for each pool
+        const updatedPools = await Promise.all(
+          userPools.map(async (poolAddress) => {
+            try {
+              const poolInfo = await uniswap.getPoolInfo(poolAddress);
+              if (!poolInfo) return null;
+              return {
+                ...poolInfo,
+                pairAddress: poolAddress
+              };
+            } catch (err) {
+              console.error(`Error fetching pool ${poolAddress}:`, err);
+              return null;
+            }
+          })
+        );
+
+        // Filter out null values (failed fetches)
+        setPools(updatedPools.filter(Boolean));
+      } catch (err) {
+        console.error('Error loading user pools:', err);
+        setError('Failed to load your pools');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (searchMode === 'created') {
+      loadUserPools();
+    }
+  }, [isOpen, uniswap, searchMode]);
+
+  // Handle pool address search
+  const handleAddressSearch = async () => {
+    if (!searchQuery || !ethers.isAddress(searchQuery)) {
+      toast.error('Please enter a valid pool address');
       return;
     }
 
     setLoading(true);
+    setError(null);
     try {
-      // Pool search logic will go here
-      // This will integrate with Uniswap subgraph or on-chain data
-      
-    } catch (error) {
-      console.error('Pool search error:', error);
+      const poolInfo = await uniswap.getPoolInfoByAddress(searchQuery);
+      if (!poolInfo) {
+        setError('No pool found at this address');
+        setPools([]);
+      } else {
+        setPools([poolInfo]);
+      }
+    } catch (err) {
+      console.error('Error searching pool:', err);
+      setError('Failed to fetch pool information');
+      setPools([]);
     } finally {
       setLoading(false);
     }
@@ -53,84 +93,131 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
       <div className="flex items-center justify-center min-h-screen px-4">
         <Dialog.Overlay className="fixed inset-0 bg-black/50" />
 
-        <div className="relative bg-white dark:bg-[#1a1b1f] rounded-xl w-full max-w-md p-6">
+        <div className="relative bg-white dark:bg-[#1a1b1f] rounded-2xl max-w-lg w-full mx-auto p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
+          <div className="flex justify-between items-center mb-4">
+            <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
               Select Pool
             </Dialog.Title>
             <button
               onClick={onClose}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
-              <FaTimes size={16} />
+              <FaTimes className="text-gray-500" />
             </button>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-4">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search pools"
-              className="w-full px-4 py-3 pl-10 bg-white dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-lg focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent"
-            />
-            <FaSearch
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
+          {/* Search Mode Toggle */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setSearchMode('created')}
+              className={`flex-1 px-4 py-2 rounded-xl font-medium transition-colors ${
+                searchMode === 'created'
+                  ? 'bg-[#00ffbd] text-black'
+                  : 'bg-gray-100 dark:bg-[#2d2f36] text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              My Pools
+            </button>
+            <button
+              onClick={() => setSearchMode('address')}
+              className={`flex-1 px-4 py-2 rounded-xl font-medium transition-colors ${
+                searchMode === 'address'
+                  ? 'bg-[#00ffbd] text-black'
+                  : 'bg-gray-100 dark:bg-[#2d2f36] text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              Search by Address
+            </button>
           </div>
 
+          {/* Search Input */}
+          {searchMode === 'address' && (
+            <div className="relative mb-4">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Enter pool address..."
+                    className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent"
+                  />
+                </div>
+                <button
+                  onClick={handleAddressSearch}
+                  className="px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black rounded-xl font-medium transition-colors"
+                >
+                  Search
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Pool List */}
-          <div className="max-h-96 overflow-y-auto custom-scrollbar">
+          <div className="space-y-2 max-h-96 overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-4">
-                <div className="w-6 h-6 border-2 border-[#00ffbd] rounded-full animate-spin border-t-transparent" />
+              <div className="text-center py-4 text-gray-500">Loading pools...</div>
+            ) : error ? (
+              <div className="text-center py-4 text-red-500">{error}</div>
+            ) : pools.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                {searchMode === 'created' 
+                  ? 'No pools created yet' 
+                  : 'Enter a pool address to search'}
               </div>
             ) : (
-              <div className="space-y-2">
-                {pools.map((pool) => (
-                  <button
-                    key={pool.id}
-                    onClick={() => onSelect(pool)}
-                    className="w-full p-4 bg-white dark:bg-[#2d2f36] rounded-lg hover:bg-gray-50 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-2">
-                          <img
-                            src={pool.token0.logo}
-                            alt={pool.token0.symbol}
-                            className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                          />
-                          <img
-                            src={pool.token1.logo}
-                            alt={pool.token1.symbol}
-                            className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                          />
-                        </div>
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {pool.token0.symbol}/{pool.token1.symbol}
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {pool.fee}%
-                        </span>
+              pools.map((pool) => (
+                <button
+                  key={pool.pairAddress}
+                  onClick={() => onSelect(pool)}
+                  className="w-full p-4 bg-white/5 dark:bg-[#2d2f36] hover:bg-gray-50 dark:hover:bg-[#2d2f36]/80 rounded-xl border border-gray-200 dark:border-gray-800 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-2">
+                        <img
+                          src={pool.token0?.logo || '/unknown-token.png'}
+                          alt={pool.token0?.symbol || 'Unknown'}
+                          className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                        />
+                        <img
+                          src={pool.token1?.logo || '/unknown-token.png'}
+                          alt={pool.token1?.symbol || 'Unknown'}
+                          className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                        />
                       </div>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {pool.token0?.symbol || 'Unknown'}/{pool.token1?.symbol || 'Unknown'}
+                      </span>
                     </div>
+                  </div>
+                  {pool.reserve0 && pool.reserve1 && (
                     <div className="flex justify-between text-sm">
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">TVL:</span>
-                        <span className="ml-1 text-gray-900 dark:text-white">{pool.tvl}</span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {pool.token0?.symbol || 'Token0'}:
+                        </span>
+                        <span className="ml-1 text-gray-900 dark:text-white">
+                          {ethers.formatUnits(pool.reserve0, pool.token0?.decimals || 18)}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">24h Volume:</span>
-                        <span className="ml-1 text-gray-900 dark:text-white">{pool.volume24h}</span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {pool.token1?.symbol || 'Token1'}:
+                        </span>
+                        <span className="ml-1 text-gray-900 dark:text-white">
+                          {ethers.formatUnits(pool.reserve1, pool.token1?.decimals || 18)}
+                        </span>
                       </div>
                     </div>
-                  </button>
-                ))}
-              </div>
+                  )}
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pool.pairAddress}
+                  </div>
+                </button>
+              ))
             )}
           </div>
         </div>

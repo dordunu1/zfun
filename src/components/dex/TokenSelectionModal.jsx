@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog } from '@headlessui/react';
 import { useBalance, useAccount } from 'wagmi';
 import { ethers } from 'ethers';
@@ -16,8 +16,8 @@ const COMMON_TOKENS = [
   },
   {
     address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'USDT',
-    name: 'Tether USD',
+    symbol: 'tUSDT',
+    name: 'Test USDT',
     decimals: 6,
     logo: '/usdt.png'
   }
@@ -186,17 +186,63 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
 }
 
 function TokenRow({ token, userAddress, onSelect, isSelected }) {
-  console.log('TokenRow received token:', token);
+  const [directBalance, setDirectBalance] = useState(null);
   
-  // Skip balance fetching for predefined tokens
-  const skipBalanceFetch = token.symbol === 'USDT';
-  
-  const { data: balance } = useBalance({
+  // Use useBalance hook for ETH
+  const { data: balance, isError, isLoading } = useBalance({
     address: userAddress,
-    token: token.address === 'ETH' ? undefined : (skipBalanceFetch ? null : token.address),
-    chainId: 11155111, // Sepolia chain ID
-    enabled: !skipBalanceFetch // Only fetch balance for non-predefined tokens
+    token: token.symbol === 'ETH' ? undefined : token.address,
+    chainId: 11155111,
+    enabled: Boolean(userAddress) && token.symbol === 'ETH',
+    watch: true,
   });
+
+  // Fetch balance directly for tokens using contract call
+  useEffect(() => {
+    async function fetchTokenBalance() {
+      if (!userAddress || token.symbol === 'ETH' || !window.ethereum) return;
+      
+      try {
+        // Use ethers v6 syntax
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const tokenContract = new ethers.Contract(
+          token.address,
+          ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
+          provider
+        );
+
+        const [rawBalance, decimals] = await Promise.all([
+          tokenContract.balanceOf(userAddress),
+          tokenContract.decimals()
+        ]);
+
+        const formatted = ethers.formatUnits(rawBalance, decimals);
+        setDirectBalance(formatted);
+      } catch (error) {
+        console.error('Error fetching token balance:', error);
+        setDirectBalance(null);
+      }
+    }
+
+    fetchTokenBalance();
+    const interval = setInterval(fetchTokenBalance, 10000);
+    return () => clearInterval(interval);
+  }, [userAddress, token.address, token.symbol]);
+
+  const displayBalance = React.useMemo(() => {
+    if (!userAddress) return '0.0000';
+    
+    // For ETH, use wagmi's useBalance hook result
+    if (token.symbol === 'ETH') {
+      if (isLoading) return 'Loading...';
+      if (isError || !balance) return '0.0000';
+      return Number(balance.formatted).toFixed(4);
+    }
+    
+    // For other tokens, use direct contract call result
+    if (directBalance === null) return 'Loading...';
+    return Number(directBalance).toFixed(4);
+  }, [balance, isError, isLoading, userAddress, token.symbol, directBalance]);
 
   const handleClick = () => {
     if (token.symbol === 'ETH') {
@@ -204,11 +250,7 @@ function TokenRow({ token, userAddress, onSelect, isSelected }) {
         ...token,
         address: UNISWAP_ADDRESSES.WETH
       });
-    } else if (token.symbol === 'USDT') {
-      // For USDT, pass the token as is without trying to fetch any info
-      onSelect(token);
     } else {
-      // For custom tokens
       onSelect({
         address: token.address,
         symbol: token.symbol,
@@ -238,7 +280,7 @@ function TokenRow({ token, userAddress, onSelect, isSelected }) {
         </div>
       </div>
       <div className="text-right text-sm text-gray-900 dark:text-white">
-        {skipBalanceFetch ? '0.0000' : (balance ? Number(balance.formatted).toFixed(4) : '0.0000')}
+        {displayBalance}
       </div>
     </button>
   );
