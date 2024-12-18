@@ -771,3 +771,25 @@ export const updateUserPoolPosition = async (userAddress, poolAddress, position)
     throw error;
   }
 };
+
+export const getAllTokenDeployments = async () => {
+  try {
+    const q = query(
+      tokenDeploymentsRef,
+      where('type', '==', 'token'),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const deployments = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    console.log('Found token deployments:', deployments);
+    return deployments;
+  } catch (error) {
+    console.error('Error getting all token deployments:', error);
+    return [];
+  }
+};

@@ -4,31 +4,143 @@ import { useBalance, useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { UNISWAP_ADDRESSES } from '../../services/uniswap';
 import { useUniswap } from '../../hooks/useUniswap';
+import { FaSearch } from 'react-icons/fa';
+import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../services/firebase';
+import { ipfsToHttp } from '../../utils/ipfs';
 
-// Common tokens with metadata - IMPORTANT: Include all necessary info to avoid fetching
+// Common tokens with metadata
 const COMMON_TOKENS = [
   {
-    address: 'ETH', // Special case for ETH
+    address: 'ETH',
     symbol: 'ETH',
     name: 'Ethereum',
     decimals: 18,
     logo: '/eth.png'
   },
   {
-    address: UNISWAP_ADDRESSES.WETH, // WETH contract address
+    address: UNISWAP_ADDRESSES.WETH,
     symbol: 'WETH',
     name: 'Wrapped Ethereum',
     decimals: 18,
-    logo: '/eth.png' // Using same logo as ETH
+    logo: '/eth.png'
   },
   {
     address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'tUSDT',
+    symbol: 'USDT',
     name: 'Test USDT',
     decimals: 6,
     logo: '/usdt.png'
   }
 ];
+
+// Add CSS for custom scrollbar
+const scrollbarStyles = `
+  .token-list-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .token-list-scrollbar::-webkit-scrollbar-track {
+    background: #2d2f36;
+    border-radius: 3px;
+  }
+  .token-list-scrollbar::-webkit-scrollbar-thumb {
+    background: #00ffbd;
+    border-radius: 3px;
+  }
+  .token-list-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #00ffbd #2d2f36;
+  }
+`;
+
+function TokenRow({ token, userAddress, onSelect, isSelected }) {
+  const { data: balance } = useBalance({
+    address: userAddress,
+    token: token.address === 'ETH' ? undefined : token.address,
+    watch: true,
+  });
+
+  const formatBalance = (value, decimals) => {
+    const num = Number(ethers.formatUnits(value, decimals));
+    
+    // If the number is greater than 1, show commas and up to 4 decimal places
+    if (num >= 1) {
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4
+      }).format(num);
+    }
+    
+    // For small numbers (< 1), show up to 6 decimal places
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 6
+    }).format(num);
+  };
+
+  const displayBalance = balance 
+    ? formatBalance(balance.value, balance.decimals)
+    : Number(token.formattedBalance || '0').toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4
+      });
+
+  const renderTokenLogo = () => {
+    // For common tokens, use their predefined logos
+    const commonToken = COMMON_TOKENS.find(t => t.address === token.address);
+    if (commonToken) {
+      return <img src={commonToken.logo} alt={commonToken.symbol} className="w-8 h-8 rounded-full" />;
+    }
+
+    // For tokens with IPFS logo or direct logo
+    const logoUrl = token.logo || (token.logoIpfs ? ipfsToHttp(token.logoIpfs) : null);
+    if (logoUrl) {
+      return (
+        <img 
+          src={logoUrl}
+          alt={token.symbol}
+          className="w-8 h-8 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
+    }
+
+    // Default token logo
+    return (
+      <img 
+        src="/token-default.png"
+        alt={token.symbol || 'Unknown'}
+        className="w-8 h-8 rounded-full"
+      />
+    );
+  };
+
+  return (
+    <button
+      onClick={() => onSelect(token)}
+      className={`w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-[#2d2f36] rounded-xl transition-colors ${
+        isSelected ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : ''
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {renderTokenLogo()}
+        <div className="text-left">
+          <div className="font-medium text-gray-900 dark:text-white">
+            {token.symbol || 'Unknown'}
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            {token.name || 'Unknown Token'}
+          </div>
+        </div>
+      </div>
+      <div className="text-right text-sm text-gray-900 dark:text-white">
+        {displayBalance}
+      </div>
+    </button>
+  );
+}
 
 export default function TokenSelectionModal({ isOpen, onClose, onSelect, selectedTokenAddress }) {
   const { address: userAddress } = useAccount();
@@ -38,6 +150,68 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [deployedTokens, setDeployedTokens] = useState([]);
+  const [tokensWithBalance, setTokensWithBalance] = useState([]);
+
+  // Fetch all deployed tokens when modal opens
+  useEffect(() => {
+    const fetchDeployedTokens = async () => {
+      if (!isOpen || !userAddress) return;
+      
+      try {
+        setIsLoading(true);
+        const tokens = await getAllTokenDeployments();
+        console.log('Fetched deployed tokens:', tokens);
+        
+        const formattedTokens = tokens.map(token => ({
+          address: token.address,
+          symbol: token.symbol,
+          name: token.name,
+          decimals: token.decimals || 18,
+          logo: token.logo,
+          logoIpfs: token.logoIpfs,
+          artworkType: token.artworkType,
+          verified: true
+        }));
+        
+        setDeployedTokens(formattedTokens);
+
+        // Check balances for all tokens
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const tokensWithBalances = await Promise.all(
+          [...COMMON_TOKENS, ...formattedTokens].map(async (token) => {
+            try {
+              if (token.address === 'ETH') {
+                const balance = await provider.getBalance(userAddress);
+                return balance > 0n ? token : null;
+              } else {
+                const contract = new ethers.Contract(
+                  token.address,
+                  ['function balanceOf(address) view returns (uint256)'],
+                  provider
+                );
+                const balance = await contract.balanceOf(userAddress);
+                return balance > 0n ? token : null;
+              }
+            } catch (error) {
+              console.error('Error checking balance for token:', token.symbol, error);
+              return null;
+            }
+          })
+        );
+
+        const validTokens = tokensWithBalances.filter(token => token !== null);
+        console.log('Tokens with balance:', validTokens);
+        setTokensWithBalance(validTokens);
+      } catch (error) {
+        console.error('Error fetching deployed tokens:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDeployedTokens();
+  }, [isOpen, userAddress]);
 
   // Reset search and force refresh when modal opens
   useEffect(() => {
@@ -45,7 +219,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       setSearchQuery('');
       setCustomToken(null);
       setError('');
-      setRefreshTrigger(prev => prev + 1); // Force refresh of balances
+      setRefreshTrigger(prev => prev + 1);
     }
   }, [isOpen]);
 
@@ -62,7 +236,6 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       // Check if the search query looks like an address
       if (!ethers.isAddress(searchQuery)) {
         setCustomToken(null);
-        // Only show error if it looks like they're trying to paste an address
         if (searchQuery.startsWith('0x')) {
           setError('Invalid token address');
         }
@@ -73,6 +246,27 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       setError('');
 
       try {
+        // First try to get token info from Firestore deployments
+        const tokenDeployment = await getTokenDeploymentByAddress(searchQuery);
+        
+        if (tokenDeployment) {
+          console.log('Found custom token in Firebase:', tokenDeployment);
+          setCustomToken({
+            address: searchQuery,
+            symbol: tokenDeployment.symbol,
+            name: tokenDeployment.name,
+            decimals: tokenDeployment.decimals || 18,
+            logo: tokenDeployment.logo,
+            logoIpfs: tokenDeployment.logoIpfs,
+            artworkType: tokenDeployment.artworkType,
+            verified: true
+          });
+          setError('');
+          setIsLoading(false);
+          return;
+        }
+
+        // If not in Firebase, try direct contract call
         const provider = new ethers.BrowserProvider(window.ethereum);
         const tokenContract = new ethers.Contract(
           searchQuery,
@@ -84,19 +278,21 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           provider
         );
 
-        // Fetch token details in parallel
         const [symbol, name, decimals] = await Promise.all([
-          tokenContract.symbol().catch(() => 'Unknown'),
-          tokenContract.name().catch(() => 'Unknown Token'),
-          tokenContract.decimals().catch(() => 18)
+          tokenContract.symbol(),
+          tokenContract.name(),
+          tokenContract.decimals()
         ]);
 
         setCustomToken({
           address: searchQuery,
-          symbol,
-          name,
-          decimals,
-          logo: '/placeholder-token.png'
+          symbol: symbol,
+          name: name,
+          decimals: decimals,
+          logo: null,
+          logoIpfs: null,
+          artworkType: null,
+          verified: true
         });
         setError('');
       } catch (error) {
@@ -113,32 +309,43 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  const handleTokenSelect = (token) => {
-    console.log('Token being selected:', token);
-    console.log('Token type:', typeof token);
-    console.log('Token properties:', Object.keys(token));
+  // Filter tokens based on search query
+  const filteredTokens = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    return tokensWithBalance.filter(token => 
+      token.symbol?.toLowerCase().includes(searchLower) ||
+      token.name?.toLowerCase().includes(searchLower) ||
+      token.address?.toLowerCase().includes(searchLower)
+    );
+  }, [searchQuery, tokensWithBalance]);
 
-    // Validate token structure before proceeding
-    if (!token || typeof token !== 'object') {
-      console.error('Invalid token object:', token);
-      setError('Invalid token selection');
-      return;
-    }
-
+  const handleTokenSelect = async (token) => {
     try {
       let finalToken;
       if (token.symbol === 'ETH') {
-        console.log('Processing ETH token');
         finalToken = {
           ...token,
           address: UNISWAP_ADDRESSES.WETH
         };
       } else {
-        console.log('Processing non-ETH token');
-        finalToken = token;
+        // Try to get token info from Firebase
+        const tokenDeployment = await getTokenDeploymentByAddress(token.address);
+        if (tokenDeployment) {
+          finalToken = {
+            ...token,
+            symbol: tokenDeployment.symbol,
+            name: tokenDeployment.name,
+            decimals: tokenDeployment.decimals || token.decimals,
+            logo: tokenDeployment.logo,
+            logoIpfs: tokenDeployment.logoIpfs,
+            artworkType: tokenDeployment.artworkType,
+            verified: true
+          };
+        } else {
+          finalToken = token;
+        }
       }
 
-      console.log('Final token to be selected:', finalToken);
       onSelect(finalToken);
       onClose();
     } catch (error) {
@@ -147,14 +354,9 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     }
   };
 
-  const filteredTokens = COMMON_TOKENS.filter(token => 
-    token.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    token.address.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <style>{scrollbarStyles}</style>
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
       
       <div className="fixed inset-0 flex items-center justify-center p-4">
@@ -164,184 +366,74 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           </Dialog.Title>
 
           {/* Search Input */}
-          <div className="mb-4">
+          <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FaSearch className="text-gray-400" />
+            </div>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name or paste address"
-              className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500"
+              className="w-full pl-10 pr-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500"
             />
             {error && (
               <p className="mt-2 text-sm text-red-500">{error}</p>
             )}
           </div>
 
-          {/* Common Tokens Section */}
-          <div className="mb-4">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-              Common Tokens
-            </h3>
-            <div className="space-y-2">
-              {filteredTokens.map((token) => (
-                <TokenRow
-                  key={`${token.address}-${refreshTrigger}`}
-                  token={token}
-                  userAddress={userAddress}
-                  onSelect={handleTokenSelect}
-                  isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
-                  forceRefresh={refreshTrigger}
-                />
-              ))}
-            </div>
+          {/* Token List Container */}
+          <div className="token-list-scrollbar overflow-y-auto max-h-[60vh] pr-2">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]"></div>
+              </div>
+            ) : (
+              <>
+                {/* Common Tokens Section */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Your Tokens
+                  </h3>
+                  <div className="space-y-2">
+                    {filteredTokens.map((token) => (
+                      <TokenRow
+                        key={`${token.address}-${refreshTrigger}`}
+                        token={token}
+                        userAddress={userAddress}
+                        onSelect={handleTokenSelect}
+                        isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Token Section */}
+                {customToken && !error && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                      Custom Token
+                    </h3>
+                    <TokenRow
+                      token={customToken}
+                      userAddress={userAddress}
+                      onSelect={handleTokenSelect}
+                      isSelected={selectedTokenAddress === customToken.address}
+                    />
+                  </div>
+                )}
+
+                {/* No Results Message */}
+                {filteredTokens.length === 0 && !customToken && !error && (
+                  <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                    No tokens found with balance
+                  </div>
+                )}
+              </>
+            )}
           </div>
-
-          {/* Custom Token Section */}
-          {isLoading && (
-            <div className="flex justify-center py-4">
-              <div className="w-6 h-6 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-
-          {customToken && !error && (
-            <div className="mt-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Custom Token
-              </h3>
-              <TokenRow
-                token={customToken}
-                userAddress={userAddress}
-                onSelect={handleTokenSelect}
-                isSelected={selectedTokenAddress === customToken.address}
-                forceRefresh={refreshTrigger}
-              />
-            </div>
-          )}
         </Dialog.Panel>
       </div>
     </Dialog>
-  );
-}
-
-function TokenRow({ token, userAddress, onSelect, isSelected, forceRefresh }) {
-  const [walletBalance, setWalletBalance] = useState(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  // Direct wallet balance reading for ETH
-  const updateWalletBalance = async () => {
-    if (!userAddress || !window.ethereum) return;
-    
-    try {
-      setIsUpdating(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
-
-      if (token.symbol === 'ETH') {
-        // For ETH, directly read from wallet
-        const balance = await provider.getBalance(userAddress);
-        const formatted = ethers.formatEther(balance);
-        setWalletBalance(formatted);
-      } else {
-        // For WETH and other tokens
-        const tokenContract = new ethers.Contract(
-          token.address,
-          ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
-          provider
-        );
-
-        try {
-          const [rawBalance, decimals] = await Promise.all([
-            tokenContract.balanceOf(userAddress),
-            tokenContract.decimals()
-          ]);
-
-          const formatted = ethers.formatUnits(rawBalance, decimals);
-          setWalletBalance(formatted);
-        } catch (error) {
-          console.error('Error fetching token balance:', error);
-          setWalletBalance('0');
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching wallet balance:', error);
-      setWalletBalance('0');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  // Update balance immediately when component mounts or modal opens
-  useEffect(() => {
-    updateWalletBalance();
-  }, [userAddress, token.address, token.symbol, forceRefresh]);
-
-  // Set up blockchain event listeners for real-time updates
-  useEffect(() => {
-    if (!window.ethereum) return;
-
-    const handleNewBlock = () => {
-      updateWalletBalance();
-    };
-
-    const handleAccountsChanged = () => {
-      updateWalletBalance();
-    };
-
-    window.ethereum.on('block', handleNewBlock);
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-
-    // Poll every second as backup
-    const interval = setInterval(updateWalletBalance, 1000);
-
-    return () => {
-      window.ethereum.removeListener('block', handleNewBlock);
-      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      clearInterval(interval);
-    };
-  }, [userAddress, token.address, token.symbol]);
-
-  const displayBalance = React.useMemo(() => {
-    if (!userAddress || walletBalance === null) return '0.0000';
-    return Number(walletBalance).toFixed(4);
-  }, [walletBalance, userAddress]);
-
-  const handleClick = () => {
-    if (token.symbol === 'ETH') {
-      onSelect({
-        ...token,
-        address: UNISWAP_ADDRESSES.WETH
-      });
-    } else {
-      onSelect({
-        address: token.address,
-        symbol: token.symbol,
-        name: token.name,
-        decimals: token.decimals,
-        logo: token.logo
-      });
-    }
-  };
-
-  return (
-    <button
-      onClick={handleClick}
-      className={`w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-[#2d2f36] rounded-xl transition-colors ${
-        isSelected ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : ''
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <img src={token.logo} alt={token.symbol} className="w-8 h-8 rounded-full" />
-        <div className="text-left">
-          <div className="font-medium text-gray-900 dark:text-white">
-            {token.symbol}
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {token.name}
-          </div>
-        </div>
-      </div>
-      <div className="text-right text-sm text-gray-900 dark:text-white">
-        {displayBalance}
-      </div>
-    </button>
   );
 } 
