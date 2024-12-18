@@ -100,57 +100,5 @@ service cloud.firestore {
         request.resource.data.transactions is number;
       allow update, delete: if false;
     }
-
-    // Pools collection with updated rules for nested objects
-    match /pools/{poolAddress} {
-      // Anyone can read pool data
-      allow read: if true;
-      
-      // Allow creates with validation for nested objects
-      allow create, write: if 
-        // Basic pool data validation
-        request.resource.data.poolAddress != null &&
-        request.resource.data.creatorAddress != null &&
-        request.resource.data.factory != null &&
-        
-        // Token0 validation
-        request.resource.data.token0.address != null &&
-        request.resource.data.token0.symbol != null &&
-        request.resource.data.token0.decimals is number &&
-        request.resource.data.token0.name != null &&
-        
-        // Token1 validation
-        request.resource.data.token1.address != null &&
-        request.resource.data.token1.symbol != null &&
-        request.resource.data.token1.decimals is number &&
-        request.resource.data.token1.name != null &&
-        
-        // Reserves validation (optional)
-        (!('reserves' in request.resource.data) || (
-          request.resource.data.reserves.reserve0 is string &&
-          request.resource.data.reserves.reserve1 is string
-        )) &&
-        
-        // Address format validation
-        request.resource.data.creatorAddress.matches('^0x[a-fA-F0-9]{40}$') &&
-        request.resource.data.token0.address.matches('^0x[a-fA-F0-9]{40}$') &&
-        request.resource.data.token1.address.matches('^0x[a-fA-F0-9]{40}$');
-      
-      // Allow updates to reserves and totalLiquidity
-      allow update: if
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reserves', 'lastUpdated', 'totalLiquidity']);
-      
-      // No deletes allowed
-      allow delete: if false;
-    }
-
-    // User Pools collection
-    match /userPools/{userPoolId} {
-      // Allow read and write for all users
-      allow read, write: if true;
-      
-      // No deletes allowed
-      allow delete: if false;
-    }
   }
 }

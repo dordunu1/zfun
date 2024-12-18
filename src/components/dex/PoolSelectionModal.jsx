@@ -110,13 +110,13 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
       onClose={onClose}
       className="fixed inset-0 z-50 overflow-y-auto"
     >
-      <div className="flex items-center justify-center min-h-screen px-4">
+      <div className="flex items-center justify-center min-h-screen p-4">
         <Dialog.Overlay className="fixed inset-0 bg-black/50" />
 
-        <div className="relative bg-white dark:bg-[#1a1b1f] rounded-2xl max-w-lg w-full mx-auto p-6">
+        <div className="relative bg-white dark:bg-[#1a1b1f] rounded-2xl max-w-3xl w-full mx-auto p-8">
           {/* Header */}
-          <div className="flex justify-between items-center mb-4">
-            <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
+          <div className="flex justify-between items-center mb-6">
+            <Dialog.Title className="text-2xl font-semibold text-gray-900 dark:text-white">
               Select Pool
             </Dialog.Title>
             <button
@@ -128,65 +128,92 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
           </div>
 
           {/* Search Input */}
-          <div className="relative mb-4">
+          <div className="relative mb-6">
             <div className="relative">
-              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name, symbol, or address..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent"
+                className="w-full pl-12 pr-4 py-3 bg-gray-100 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-lg"
               />
             </div>
           </div>
 
           {/* Pool List */}
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div 
+            className="space-y-3 max-h-[60vh] overflow-y-auto pr-2"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#00ffbd #2d2f36'
+            }}
+          >
+            <style jsx>{`
+              div::-webkit-scrollbar {
+                width: 6px;
+              }
+              div::-webkit-scrollbar-track {
+                background: #2d2f36;
+                border-radius: 3px;
+              }
+              div::-webkit-scrollbar-thumb {
+                background-color: #00ffbd;
+                border-radius: 3px;
+              }
+            `}</style>
             {loading ? (
-              <div className="text-center py-4 text-gray-500">Loading pools...</div>
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ffbd] mx-auto"></div>
+                <p className="text-gray-500 mt-4">Loading pools...</p>
+              </div>
             ) : error ? (
-              <div className="text-center py-4 text-red-500">{error}</div>
+              <div className="text-center py-8 text-red-500">{error}</div>
             ) : filteredPools.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                {pools.length === 0 ? 'No pools found' : 'No pools match your search'}
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-lg">
+                  {pools.length === 0 ? 'No pools found' : 'No pools match your search'}
+                </p>
+                {pools.length > 0 && (
+                  <p className="text-sm text-gray-400 mt-2">Try searching with a different term</p>
+                )}
               </div>
             ) : (
               filteredPools.map((pool) => (
                 <button
                   key={pool.pairAddress}
                   onClick={() => onSelect(pool)}
-                  className="w-full p-4 bg-white/5 dark:bg-[#2d2f36] hover:bg-gray-50 dark:hover:bg-[#2d2f36]/80 rounded-xl border border-gray-200 dark:border-gray-800 transition-colors text-left"
+                  className="w-full p-6 bg-white/5 dark:bg-[#2d2f36] hover:bg-gray-50 dark:hover:bg-[#2d2f36]/80 rounded-xl border border-gray-200 dark:border-gray-800 transition-colors text-left"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex -space-x-3">
                         <img
                           src={pool.token0?.logo || '/unknown-token.png'}
                           alt={pool.token0?.symbol || 'Unknown'}
-                          className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                          className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         />
                         <img
                           src={pool.token1?.logo || '/unknown-token.png'}
                           alt={pool.token1?.symbol || 'Unknown'}
-                          className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                          className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         />
                       </div>
-                      <span className="font-medium text-gray-900 dark:text-white">
+                      <span className="font-medium text-gray-900 dark:text-white text-lg">
                         {pool.token0?.symbol || 'Unknown'}/{pool.token1?.symbol || 'Unknown'}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 truncate">
                     {pool.pairAddress}
                   </div>
                   {pool.reserves && (
-                    <div className="flex justify-between text-sm mt-2">
+                    <div className="flex justify-between text-sm mt-3">
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">
                           {pool.token0?.symbol || 'Token0'}:
                         </span>
-                        <span className="ml-1 text-gray-900 dark:text-white">
+                        <span className="ml-2 text-gray-900 dark:text-white">
                           {pool.reserves.reserve0Formatted}
                         </span>
                       </div>
@@ -194,7 +221,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                         <span className="text-gray-500 dark:text-gray-400">
                           {pool.token1?.symbol || 'Token1'}:
                         </span>
-                        <span className="ml-1 text-gray-900 dark:text-white">
+                        <span className="ml-2 text-gray-900 dark:text-white">
                           {pool.reserves.reserve1Formatted}
                         </span>
                       </div>
