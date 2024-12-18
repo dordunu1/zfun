@@ -30,10 +30,23 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
         const updatedPools = await Promise.all(
           userPools.map(async (poolAddress) => {
             try {
-              const poolInfo = await uniswap.getPoolInfo(poolAddress);
+              const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
               if (!poolInfo) return null;
+
+              // Get token logos (you can implement a token logo service)
+              const token0Logo = '/placeholder.png'; // Replace with actual token logo service
+              const token1Logo = '/placeholder.png'; // Replace with actual token logo service
+
               return {
                 ...poolInfo,
+                token0: {
+                  ...poolInfo.token0,
+                  logo: token0Logo
+                },
+                token1: {
+                  ...poolInfo.token1,
+                  logo: token1Logo
+                },
                 pairAddress: poolAddress
               };
             } catch (err) {
@@ -73,7 +86,22 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
         setError('No pool found at this address');
         setPools([]);
       } else {
-        setPools([poolInfo]);
+        // Get token logos (you can implement a token logo service)
+        const token0Logo = '/placeholder.png'; // Replace with actual token logo service
+        const token1Logo = '/placeholder.png'; // Replace with actual token logo service
+
+        setPools([{
+          ...poolInfo,
+          token0: {
+            ...poolInfo.token0,
+            logo: token0Logo
+          },
+          token1: {
+            ...poolInfo.token1,
+            logo: token1Logo
+          },
+          pairAddress: searchQuery
+        }]);
       }
     } catch (err) {
       console.error('Error searching pool:', err);
@@ -193,14 +221,17 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                       </span>
                     </div>
                   </div>
-                  {pool.reserve0 && pool.reserve1 && (
-                    <div className="flex justify-between text-sm">
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pool.pairAddress}
+                  </div>
+                  {pool.reserves && (
+                    <div className="flex justify-between text-sm mt-2">
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">
                           {pool.token0?.symbol || 'Token0'}:
                         </span>
                         <span className="ml-1 text-gray-900 dark:text-white">
-                          {ethers.formatUnits(pool.reserve0, pool.token0?.decimals || 18)}
+                          {pool.reserves.reserve0Formatted}
                         </span>
                       </div>
                       <div>
@@ -208,14 +239,11 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                           {pool.token1?.symbol || 'Token1'}:
                         </span>
                         <span className="ml-1 text-gray-900 dark:text-white">
-                          {ethers.formatUnits(pool.reserve1, pool.token1?.decimals || 18)}
+                          {pool.reserves.reserve1Formatted}
                         </span>
                       </div>
                     </div>
                   )}
-                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {pool.pairAddress}
-                  </div>
                 </button>
               ))
             )}

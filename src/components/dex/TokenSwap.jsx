@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FaExchangeAlt } from 'react-icons/fa';
 import { useAccount } from 'wagmi';
 import { toast } from 'react-hot-toast';
@@ -35,6 +35,8 @@ export default function TokenSwap() {
     priceRatio: null,
     error: null
   });
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Get quote when amount or tokens change
   useEffect(() => {
@@ -125,21 +127,35 @@ export default function TokenSwap() {
     try {
       const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
       const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
-      // Calculate 5% slippage tolerance using BigInt arithmetic
-      const amountOutMin = (amountOutMinRaw * BigInt(95)) / BigInt(100);
+      // Calculate 2% slippage tolerance using BigInt arithmetic
+      const amountOutMin = (amountOutMinRaw * BigInt(98)) / BigInt(100);
 
       const path = [fromToken.address, toToken.address];
       
       let receipt;
       // Check if we're swapping from ETH
       if (fromToken.symbol === 'ETH') {
+        console.log('Swapping ETH for tokens...');
         receipt = await uniswap.swapExactETHForTokens(
           amountIn,
           amountOutMin,
           path,
           address
         );
-      } else {
+      } 
+      // Check if we're swapping to ETH
+      else if (toToken.symbol === 'ETH') {
+        console.log('Swapping tokens for ETH...');
+        receipt = await uniswap.swapExactTokensForETH(
+          amountIn,
+          amountOutMin,
+          path,
+          address
+        );
+      }
+      // Token to token swap
+      else {
+        console.log('Swapping tokens for tokens...');
         receipt = await uniswap.swapExactTokensForTokens(
           amountIn,
           amountOutMin,
@@ -148,23 +164,25 @@ export default function TokenSwap() {
         );
       }
 
+      console.log('Swap receipt:', receipt);
       toast.success('Swap successful!');
       setFromAmount('');
       setToAmount('');
+      
+      // Refresh balances
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Swap error:', error);
       
       // Handle specific error messages
-      if (error.message.includes('Ledger')) {
-        toast.error('Please make sure your Ledger is connected and the Ethereum app is open');
-      } else if (error.message.includes('insufficient')) {
+      if (error.message.includes('insufficient')) {
         toast.error('Insufficient balance for swap');
-      } else if (error.message.includes('INSUFFICIENT_INPUT_AMOUNT')) {
-        toast.error('The input amount is too small for this swap');
       } else if (error.message.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
-        toast.error('The output amount is too small due to slippage or price impact');
+        toast.error('Price impact too high, try a smaller amount');
+      } else if (error.message.includes('EXCESSIVE_INPUT_AMOUNT')) {
+        toast.error('Insufficient liquidity for this trade');
       } else if (error.message.includes('user rejected')) {
-        toast.error('Transaction was rejected');
+        toast.error('Transaction rejected');
       } else {
         toast.error(error.reason || 'Failed to swap tokens');
       }
@@ -333,10 +351,7 @@ export default function TokenSwap() {
             )}
             <div className="flex gap-2">
               <button
-                onClick={() => createPoolAndAddLiquidity(
-                  poolCreationState.token0Amount,
-                  poolCreationState.token1Amount
-                )}
+                onClick={() => handleCreatePool()}
                 disabled={poolCreationState.loading || !poolCreationState.token0Amount || !poolCreationState.token1Amount}
                 className="flex-1 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -362,49 +377,35 @@ export default function TokenSwap() {
     );
   };
 
-  // Update the createPoolAndAddLiquidity function
-  const createPoolAndAddLiquidity = async (amount0, amount1) => {
-    if (!address || !fromToken || !toToken || !amount0 || !amount1) {
-      toast.error('Please enter both liquidity amounts');
+  const handleCreatePool = async () => {
+    if (!fromToken || !toToken) {
+      toast.error('Please select both tokens');
       return;
     }
-    
+
     setPoolCreationState(prev => ({ ...prev, loading: true }));
     try {
-      console.log('Creating pool for:', fromToken.symbol, toToken.symbol);
-      
-      // Parse amounts
-      const parsedAmount0 = ethers.parseUnits(amount0, fromToken.decimals);
-      const parsedAmount1 = ethers.parseUnits(amount1, toToken.decimals);
+      // Parse amounts to BigInt with proper decimals
+      const amount0 = ethers.parseUnits(
+        poolCreationState.token0Amount,
+        fromToken.decimals
+      );
+      const amount1 = ethers.parseUnits(
+        poolCreationState.token1Amount,
+        toToken.decimals
+      );
 
-      // First approve both tokens
-      const token0Contract = new ethers.Contract(fromToken.address, ERC20_ABI, signer);
-      const token1Contract = new ethers.Contract(toToken.address, ERC20_ABI, signer);
-
-      console.log('Approving tokens...');
-      
-      // Approve token0
-      const approve0Tx = await token0Contract.approve(UNISWAP_ADDRESSES.router, parsedAmount0);
-      await approve0Tx.wait();
-      toast.success(`Approved ${fromToken.symbol}`);
-
-      // Approve token1
-      const approve1Tx = await token1Contract.approve(UNISWAP_ADDRESSES.router, parsedAmount1);
-      await approve1Tx.wait();
-      toast.success(`Approved ${toToken.symbol}`);
-
-      console.log('Creating pool...');
-      const result = await uniswap.createPoolAndAddLiquidity(
+      // Create pool and add initial liquidity
+      const result = await uniswap.createPool(
         fromToken.address,
         toToken.address,
-        parsedAmount0,
-        parsedAmount1,
-        address,
-        0.05 // 5% slippage tolerance
+        amount0,
+        amount1
       );
-      
-      console.log('Pool created at:', result.pairAddress);
-      
+
+      toast.success('Pool created and initial liquidity added successfully!');
+      console.log('Pool address:', result.pairAddress);
+
       // Save the created pool address to localStorage
       const userPools = JSON.parse(localStorage.getItem('userCreatedPools') || '[]');
       if (!userPools.includes(result.pairAddress)) {
@@ -412,7 +413,7 @@ export default function TokenSwap() {
         localStorage.setItem('userCreatedPools', JSON.stringify(userPools));
       }
 
-      toast.success('Pool created and liquidity added successfully!');
+      // Reset the pool creation state
       setPoolCreationState({
         showInputs: false,
         token0Amount: '',
@@ -421,7 +422,13 @@ export default function TokenSwap() {
         priceRatio: null,
         error: null
       });
-      getQuote();
+
+      // Show success message with the pool address
+      toast.success(
+        'Pool created and liquidity added! You can now start swapping.',
+        { duration: 5000 }
+      );
+      
     } catch (error) {
       console.error('Error creating pool:', error);
       setPoolCreationState(prev => ({
@@ -429,9 +436,23 @@ export default function TokenSwap() {
         loading: false,
         error: error.reason || 'Failed to create pool'
       }));
-      toast.error(error.reason || 'Failed to create pool');
+      
+      if (error.message.includes('Pool already exists')) {
+        toast.error('Pool already exists. Try adding liquidity instead.');
+      } else {
+        toast.error(error.reason || 'Failed to create pool');
+      }
     }
   };
+
+  // Add useEffect to handle refresh
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      // Refresh balances and other data
+      updateBalances();
+      // You can add other refresh logic here
+    }
+  }, [refreshTrigger]);
 
   return (
     <>

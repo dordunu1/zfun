@@ -3,8 +3,8 @@ import { createPublicClient, http, createWalletClient } from 'viem';
 
 // Uniswap V2 Contract Addresses (Sepolia)
 export const UNISWAP_ADDRESSES = {
-  factory: '0xF62c03E08ada871A0bEb309762E260a7a6a880E6',
-  router: '0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3',
+  factory: '0x2201CbE5fec9337822018F8AD5ae98C95089E58f',
+  router: '0x099D0E74a30b439bECDac2c8AF362cc7Cf7f0F73',
   // Common tokens on Sepolia
   WETH: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
   USDT: '0x148b1aB3e2321d79027C4b71B6118e70434B4784' // TestUSDT address
@@ -141,14 +141,30 @@ export class UniswapService {
     }
   }
 
-  // Optimized pool creation and liquidity addition
-  async createPoolAndAddLiquidity(
+  // Add new method to check if pool exists
+  async checkPoolExists(tokenA, tokenB) {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const factory = new ethers.Contract(
+        UNISWAP_ADDRESSES.factory,
+        FACTORY_ABI,
+        provider
+      );
+
+      const pairAddress = await factory.getPair(tokenA, tokenB);
+      return pairAddress !== '0x0000000000000000000000000000000000000000';
+    } catch (error) {
+      console.error('Error checking pool existence:', error);
+      throw error;
+    }
+  }
+
+  // Pool creation only
+  async createPool(
     token0Address,
     token1Address,
     amount0Desired,
-    amount1Desired,
-    account,
-    slippageTolerance = 0.05 // 5% default slippage tolerance
+    amount1Desired
   ) {
     try {
       // Sort token addresses (required by Uniswap)
@@ -156,12 +172,14 @@ export class UniswapService {
         ? [token0Address, token1Address]
         : [token1Address, token0Address];
 
+      // Sort amounts according to token order
       const [amount0, amount1] = token0Address.toLowerCase() < token1Address.toLowerCase()
         ? [amount0Desired, amount1Desired]
         : [amount1Desired, amount0Desired];
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      const account = await signer.getAddress();
 
       // Create contract instances
       const factory = new ethers.Contract(UNISWAP_ADDRESSES.factory, FACTORY_ABI, signer);
@@ -175,23 +193,13 @@ export class UniswapService {
         throw new Error('Pool already exists');
       }
 
-      console.log('Creating pool and adding liquidity...');
+      console.log('Creating pool...');
 
-      // Approve both tokens in parallel
-      const [approve0Tx, approve1Tx] = await Promise.all([
-        token0Contract.approve(UNISWAP_ADDRESSES.router, amount0),
-        token1Contract.approve(UNISWAP_ADDRESSES.router, amount1)
-      ]);
-
-      // Wait for approvals in parallel
-      await Promise.all([
-        approve0Tx.wait(),
-        approve1Tx.wait()
-      ]);
-
-      // Create pair
+      // First create the pair
       const createPairTx = await factory.createPair(token0, token1, { gasLimit: 3000000 });
+      console.log('Create pair transaction sent:', createPairTx.hash);
       const createPairReceipt = await createPairTx.wait();
+      console.log('Create pair transaction confirmed');
 
       // Get pair address from event
       const pairCreatedEvent = createPairReceipt.logs.find(log => {
@@ -211,12 +219,28 @@ export class UniswapService {
       const pairAddress = decodedData.args[2];
       console.log('Created pair address:', pairAddress);
 
-      // Calculate minimum amounts with slippage tolerance
-      const amount0Min = amount0 * BigInt(Math.floor((1 - slippageTolerance) * 10000)) / BigInt(10000);
-      const amount1Min = amount1 * BigInt(Math.floor((1 - slippageTolerance) * 10000)) / BigInt(10000);
+      // Wait a bit for the pair to be fully deployed
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
+      console.log('Approving tokens...');
+
+      // Now approve the tokens
+      const approve0Tx = await token0Contract.approve(UNISWAP_ADDRESSES.router, amount0, { gasLimit: 100000 });
+      await approve0Tx.wait();
+      console.log('Token 0 approved');
+
+      const approve1Tx = await token1Contract.approve(UNISWAP_ADDRESSES.router, amount1, { gasLimit: 100000 });
+      await approve1Tx.wait();
+      console.log('Token 1 approved');
+
+      // Calculate minimum amounts with 5% slippage tolerance
+      const amount0Min = (amount0 * 95n) / 100n;
+      const amount1Min = (amount1 * 95n) / 100n;
+
+      console.log('Adding initial liquidity...');
       // Add initial liquidity
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+
       const addLiquidityTx = await router.addLiquidity(
         token0,
         token1,
@@ -226,10 +250,15 @@ export class UniswapService {
         amount1Min,
         account,
         deadline,
-        { gasLimit: 3000000 }
+        { 
+          gasLimit: 3000000,
+          gasPrice: await provider.getFeeData().then(data => data.gasPrice)
+        }
       );
 
+      console.log('Add liquidity transaction sent:', addLiquidityTx.hash);
       const addLiquidityReceipt = await addLiquidityTx.wait();
+      console.log('Add liquidity transaction confirmed');
 
       return {
         pairAddress,
@@ -237,7 +266,7 @@ export class UniswapService {
         addLiquidityReceipt
       };
     } catch (error) {
-      console.error('Error in pool creation and liquidity addition:', error);
+      console.error('Error in pool creation:', error);
       throw error;
     }
   }
@@ -363,7 +392,7 @@ export class UniswapService {
     amountAMin,
     amountBMin,
     to,
-    deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20) // 20 minutes from now
+    deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
   ) {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -376,48 +405,69 @@ export class UniswapService {
         signer
       );
 
-      const tokenAContract = new ethers.Contract(
-        tokenA,
-        ERC20_ABI,
-        signer
-      );
+      const tokenAContract = new ethers.Contract(tokenA, ERC20_ABI, signer);
+      const tokenBContract = new ethers.Contract(tokenB, ERC20_ABI, signer);
 
-      const tokenBContract = new ethers.Contract(
-        tokenB,
-        ERC20_ABI,
-        signer
-      );
-
-      console.log('Approving tokens for liquidity addition...');
+      console.log('Checking pool info...');
+      // Get pool info to check the optimal ratio
+      const poolInfo = await this.getPoolInfo(tokenA, tokenB);
       
+      let finalAmountA = amountADesired;
+      let finalAmountB = amountBDesired;
+
+      if (poolInfo) {
+        // Pool exists, calculate optimal amounts based on current ratio
+        const reserve0 = poolInfo.reserve0;
+        const reserve1 = poolInfo.reserve1;
+        
+        if (reserve0 > 0 && reserve1 > 0) {
+          if (tokenA.toLowerCase() === poolInfo.token0.address.toLowerCase()) {
+            finalAmountB = (amountADesired * reserve1) / reserve0;
+            if (finalAmountB > amountBDesired) {
+              finalAmountB = amountBDesired;
+              finalAmountA = (amountBDesired * reserve0) / reserve1;
+            }
+          } else {
+            finalAmountB = (amountADesired * reserve0) / reserve1;
+            if (finalAmountB > amountBDesired) {
+              finalAmountB = amountBDesired;
+              finalAmountA = (amountBDesired * reserve1) / reserve0;
+            }
+          }
+        }
+      }
+
+      // Calculate minimum amounts with 1% slippage tolerance
+      const slippageTolerance = 99n; // 99% of the desired amount (1% slippage)
+      const finalAmountAMin = (finalAmountA * slippageTolerance) / 100n;
+      const finalAmountBMin = (finalAmountB * slippageTolerance) / 100n;
+
+      console.log('Approving tokens for liquidity addition...', {
+        tokenA,
+        tokenB,
+        finalAmountA: finalAmountA.toString(),
+        finalAmountB: finalAmountB.toString(),
+        finalAmountAMin: finalAmountAMin.toString(),
+        finalAmountBMin: finalAmountBMin.toString()
+      });
+
       // Approve router to spend both tokens
-      const approveATx = await tokenAContract.approve(UNISWAP_ADDRESSES.router, amountADesired);
+      const approveATx = await tokenAContract.approve(UNISWAP_ADDRESSES.router, finalAmountA);
       await approveATx.wait();
       console.log('Token A approved');
 
-      const approveBTx = await tokenBContract.approve(UNISWAP_ADDRESSES.router, amountBDesired);
+      const approveBTx = await tokenBContract.approve(UNISWAP_ADDRESSES.router, finalAmountB);
       await approveBTx.wait();
       console.log('Token B approved');
 
-      console.log('Adding liquidity with params:', {
-        tokenA,
-        tokenB,
-        amountADesired: amountADesired.toString(),
-        amountBDesired: amountBDesired.toString(),
-        amountAMin: amountAMin.toString(),
-        amountBMin: amountBMin.toString(),
-        to,
-        deadline: deadline.toString()
-      });
-
-      // Add liquidity
+      // Add liquidity with optimized parameters
       const tx = await router.addLiquidity(
         tokenA,
         tokenB,
-        amountADesired,
-        amountBDesired,
-        amountAMin,
-        amountBMin,
+        finalAmountA,
+        finalAmountB,
+        finalAmountAMin,
+        finalAmountBMin,
         to,
         deadline,
         { gasLimit: 3000000 }
@@ -430,6 +480,11 @@ export class UniswapService {
       return receipt;
     } catch (error) {
       console.error('Error adding liquidity:', error);
+      if (error.message.includes('INSUFFICIENT_A_AMOUNT')) {
+        throw new Error('Insufficient amount for token A based on current pool ratio');
+      } else if (error.message.includes('INSUFFICIENT_B_AMOUNT')) {
+        throw new Error('Insufficient amount for token B based on current pool ratio');
+      }
       throw error;
     }
   }
@@ -525,44 +580,47 @@ export class UniswapService {
 
   // Get Token Info
   async getTokenInfo(tokenAddress) {
-    // Special handling for known tokens
-    if (tokenAddress === UNISWAP_ADDRESSES.USDT) {
-      return {
-        symbol: 'tUSDT',
-        name: 'Test USDT',
-        decimals: 6
-      };
-    }
-
     try {
-      const tokenContract = {
-        address: tokenAddress,
-        abi: [
-          'function symbol() external view returns (string)',
-          'function name() external view returns (string)',
-          'function decimals() external view returns (uint8)'
-        ]
-      };
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
 
+      // Try to get all token information with fallbacks
       const [symbol, name, decimals] = await Promise.all([
-        this.publicClient.readContract({
-          ...tokenContract,
-          functionName: 'symbol'
-        }).catch(() => 'UNKNOWN'),
-        this.publicClient.readContract({
-          ...tokenContract,
-          functionName: 'name'
-        }).catch(() => 'Unknown Token'),
-        this.publicClient.readContract({
-          ...tokenContract,
-          functionName: 'decimals'
-        }).catch(() => 18)
+        tokenContract.symbol().catch(() => 'Unknown'),
+        tokenContract.name().catch(() => 'Unknown Token'),
+        tokenContract.decimals().catch(() => 18)
       ]);
 
-      return { symbol, name, decimals };
+      // Special handling for known tokens
+      if (tokenAddress.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+        return {
+          symbol: 'WETH',
+          name: 'Wrapped Ether',
+          decimals: 18
+        };
+      }
+
+      if (tokenAddress.toLowerCase() === UNISWAP_ADDRESSES.USDT.toLowerCase()) {
+        return {
+          symbol: 'tUSDT',
+          name: 'Test USDT',
+          decimals: 6
+        };
+      }
+
+      return { 
+        symbol: symbol || 'Unknown', 
+        name: name || 'Unknown Token', 
+        decimals: decimals || 18 
+      };
     } catch (error) {
       console.error('Error getting token info:', error);
-      throw error;
+      // Return fallback values if there's an error
+      return {
+        symbol: 'Unknown',
+        name: 'Unknown Token',
+        decimals: 18
+      };
     }
   }
 
@@ -579,36 +637,62 @@ export class UniswapService {
         pair.getReserves()
       ]);
 
-      // Get token information
+      // Get token information with better error handling
       const token0Contract = new ethers.Contract(token0, ERC20_ABI, provider);
       const token1Contract = new ethers.Contract(token1, ERC20_ABI, provider);
 
+      // Improved token info fetching with fallbacks
       const [
         token0Symbol,
         token0Decimals,
+        token0Name,
         token1Symbol,
-        token1Decimals
+        token1Decimals,
+        token1Name
       ] = await Promise.all([
-        token0Contract.symbol(),
-        token0Contract.decimals(),
-        token1Contract.symbol(),
-        token1Contract.decimals()
+        token0Contract.symbol().catch(() => 'Unknown'),
+        token0Contract.decimals().catch(() => 18),
+        token0Contract.name().catch(() => 'Unknown Token'),
+        token1Contract.symbol().catch(() => 'Unknown'),
+        token1Contract.decimals().catch(() => 18),
+        token1Contract.name().catch(() => 'Unknown Token')
       ]);
+
+      // Format reserves with proper decimals
+      const reserve0Formatted = ethers.formatUnits(reserves[0], token0Decimals);
+      const reserve1Formatted = ethers.formatUnits(reserves[1], token1Decimals);
+
+      // Calculate ratio
+      const ratio0to1 = reserves[1] > 0n ? 
+        Number(reserves[0]) / Number(reserves[1]) :
+        0;
+      const ratio1to0 = reserves[0] > 0n ? 
+        Number(reserves[1]) / Number(reserves[0]) :
+        0;
 
       return {
         pairAddress,
         token0: {
           address: token0,
           symbol: token0Symbol,
+          name: token0Name,
           decimals: token0Decimals
         },
         token1: {
           address: token1,
           symbol: token1Symbol,
+          name: token1Name,
           decimals: token1Decimals
         },
-        reserve0: reserves[0],
-        reserve1: reserves[1]
+        reserves: {
+          reserve0: reserves[0],
+          reserve1: reserves[1],
+          reserve0Formatted,
+          reserve1Formatted,
+          ratio0to1,
+          ratio1to0
+        },
+        lastUpdatedTimestamp: reserves[2]
       };
     } catch (error) {
       console.error('Error getting pool info by address:', error);
@@ -616,7 +700,7 @@ export class UniswapService {
     }
   }
 
-  // Add new method for ETH to Token swaps
+  // Update swapExactETHForTokens function
   async swapExactETHForTokens(
     amountIn,
     amountOutMin,
@@ -676,6 +760,155 @@ export class UniswapService {
       return receipt;
     } catch (error) {
       console.error('Error swapping ETH for tokens:', error);
+      throw error;
+    }
+  }
+
+  // Update swapExactTokensForTokens with optimized gas
+  async swapExactTokensForTokens(
+    amountIn,
+    amountOutMin,
+    path,
+    to,
+    deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
+  ) {
+    try {
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      const router = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        ROUTER_ABI,
+        signer
+      );
+
+      const tokenContract = new ethers.Contract(
+        path[0],
+        ERC20_ABI,
+        signer
+      );
+
+      // Get gas price with 10% boost
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice * 110n / 100n;
+
+      // Check and handle approvals
+      const currentAllowance = await tokenContract.allowance(to, UNISWAP_ADDRESSES.router);
+      if (currentAllowance < amountIn) {
+        const approveTx = await tokenContract.approve(
+          UNISWAP_ADDRESSES.router,
+          amountIn,
+          {
+            gasLimit: 60000,
+            gasPrice
+          }
+        );
+        await approveTx.wait();
+      }
+
+      // Execute swap with optimized gas
+      const tx = await router.swapExactTokensForTokens(
+        amountIn,
+        amountOutMin,
+        path,
+        to,
+        deadline,
+        {
+          gasLimit: 150000,
+          gasPrice
+        }
+      );
+
+      const receipt = await tx.wait();
+      return receipt;
+    } catch (error) {
+      console.error('Error swapping tokens:', error);
+      throw error;
+    }
+  }
+
+  // Update addLiquidity with optimized gas
+  async addLiquidity(
+    tokenA,
+    tokenB,
+    amountADesired,
+    amountBDesired,
+    amountAMin,
+    amountBMin,
+    to,
+    deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
+  ) {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // Get optimized gas price
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice * 110n / 100n;
+
+      const router = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        ROUTER_ABI,
+        signer
+      );
+
+      const tokenAContract = new ethers.Contract(tokenA, ERC20_ABI, signer);
+      const tokenBContract = new ethers.Contract(tokenB, ERC20_ABI, signer);
+
+      // Optimize approvals
+      const approveAParams = {
+        gasLimit: 60000,
+        gasPrice
+      };
+      const approveBParams = {
+        gasLimit: 60000,
+        gasPrice
+      };
+
+      // Only approve if needed
+      const allowanceA = await tokenAContract.allowance(to, UNISWAP_ADDRESSES.router);
+      const allowanceB = await tokenBContract.allowance(to, UNISWAP_ADDRESSES.router);
+
+      if (allowanceA < amountADesired) {
+        const approveATx = await tokenAContract.approve(
+          UNISWAP_ADDRESSES.router,
+          amountADesired,
+          approveAParams
+        );
+        await approveATx.wait();
+      }
+
+      if (allowanceB < amountBDesired) {
+        const approveBTx = await tokenBContract.approve(
+          UNISWAP_ADDRESSES.router,
+          amountBDesired,
+          approveBParams
+        );
+        await approveBTx.wait();
+      }
+
+      // Add liquidity with optimized gas
+      const tx = await router.addLiquidity(
+        tokenA,
+        tokenB,
+        amountADesired,
+        amountBDesired,
+        amountAMin,
+        amountBMin,
+        to,
+        deadline,
+        {
+          gasLimit: 250000,
+          gasPrice
+        }
+      );
+
+      const receipt = await tx.wait();
+      return receipt;
+    } catch (error) {
+      console.error('Error adding liquidity:', error);
       throw error;
     }
   }

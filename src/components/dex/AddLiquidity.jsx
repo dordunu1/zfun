@@ -3,14 +3,43 @@ import { useAccount } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import TokenSelectionModal from './TokenSelectionModal';
 import PoolSelectionModal from './PoolSelectionModal';
+import { ethers } from 'ethers';
+import { useUniswap } from '../../hooks/useUniswap';
 
 export default function AddLiquidity() {
   const { address } = useAccount();
+  const uniswap = useUniswap();
   const [pool, setPool] = useState(null);
   const [token0Amount, setToken0Amount] = useState('');
   const [token1Amount, setToken1Amount] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPoolModal, setShowPoolModal] = useState(false);
+
+  // Add new useEffect for automatic amount calculation
+  React.useEffect(() => {
+    const calculateOtherAmount = async () => {
+      if (!pool || (!token0Amount && !token1Amount)) return;
+
+      try {
+        const poolInfo = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
+        if (!poolInfo || !poolInfo.reserve0 || !poolInfo.reserve1) return;
+
+        if (token0Amount && !token1Amount) {
+          const amount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
+          const amount1 = (amount0 * poolInfo.reserve1) / poolInfo.reserve0;
+          setToken1Amount(ethers.formatUnits(amount1, pool.token1.decimals));
+        } else if (token1Amount && !token0Amount) {
+          const amount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
+          const amount0 = (amount1 * poolInfo.reserve0) / poolInfo.reserve1;
+          setToken0Amount(ethers.formatUnits(amount0, pool.token0.decimals));
+        }
+      } catch (error) {
+        console.error('Error calculating amounts:', error);
+      }
+    };
+
+    calculateOtherAmount();
+  }, [pool, token0Amount, token1Amount, uniswap]);
 
   const handleAddLiquidity = async () => {
     if (!address) {
@@ -25,11 +54,103 @@ export default function AddLiquidity() {
 
     setLoading(true);
     try {
-      // Uniswap add liquidity logic will go here
+      // Parse amounts with proper decimals
+      const parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
+      const parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
+
+      // First ensure approvals are completed
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
       
+      const token0Contract = new ethers.Contract(pool.token0.address, [
+        'function allowance(address,address) view returns (uint256)',
+        'function approve(address,uint256) returns (bool)'
+      ], signer);
+      
+      const token1Contract = new ethers.Contract(pool.token1.address, [
+        'function allowance(address,address) view returns (uint256)',
+        'function approve(address,uint256) returns (bool)'
+      ], signer);
+
+      // Check allowances
+      const allowance0 = await token0Contract.allowance(address, uniswap.router.address);
+      const allowance1 = await token1Contract.allowance(address, uniswap.router.address);
+
+      // Handle token0 approval first if needed
+      if (allowance0 < parsedAmount0) {
+        try {
+          toast.loading('Approving ' + pool.token0.symbol + '...', { id: 'approve0' });
+          const approve0Tx = await token0Contract.approve(uniswap.router.address, ethers.MaxUint256);
+          await approve0Tx.wait();
+          toast.success(pool.token0.symbol + ' approved successfully', { id: 'approve0' });
+        } catch (error) {
+          toast.error('Failed to approve ' + pool.token0.symbol, { id: 'approve0' });
+          setLoading(false);
+          return; // Exit if approval fails
+        }
+      }
+
+      // Handle token1 approval after token0 is approved
+      if (allowance1 < parsedAmount1) {
+        try {
+          toast.loading('Approving ' + pool.token1.symbol + '...', { id: 'approve1' });
+          const approve1Tx = await token1Contract.approve(uniswap.router.address, ethers.MaxUint256);
+          await approve1Tx.wait();
+          toast.success(pool.token1.symbol + ' approved successfully', { id: 'approve1' });
+        } catch (error) {
+          toast.error('Failed to approve ' + pool.token1.symbol, { id: 'approve1' });
+          setLoading(false);
+          return; // Exit if approval fails
+        }
+      }
+
+      // Double-check allowances after approvals
+      const finalAllowance0 = await token0Contract.allowance(address, uniswap.router.address);
+      const finalAllowance1 = await token1Contract.allowance(address, uniswap.router.address);
+
+      if (finalAllowance0 < parsedAmount0 || finalAllowance1 < parsedAmount1) {
+        toast.error('Approval process incomplete. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Wait a moment after approvals are confirmed
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Calculate minimum amounts (1% slippage tolerance)
+      const amount0Min = parsedAmount0 * 99n / 100n;
+      const amount1Min = parsedAmount1 * 99n / 100n;
+
+      toast.loading('Adding liquidity...', { id: 'add-liquidity' });
+
+      // Add liquidity only after approvals are confirmed
+      const receipt = await uniswap.addLiquidity(
+        pool.token0.address,
+        pool.token1.address,
+        parsedAmount0,
+        parsedAmount1,
+        amount0Min,
+        amount1Min,
+        address
+      );
+
+      console.log('Liquidity added:', receipt);
+      toast.success('Liquidity added successfully!', { id: 'add-liquidity' });
+      
+      // Reset form
+      setToken0Amount('');
+      setToken1Amount('');
+      setPool(null);
     } catch (error) {
       console.error('Add liquidity error:', error);
-      toast.error('Failed to add liquidity');
+      toast.error(
+        error.message.includes('insufficient')
+          ? 'Insufficient balance for transaction'
+          : error.message.includes('chain')
+          ? 'Please switch to a supported network'
+          : `Failed to add liquidity: ${error.message}`,
+        { id: 'add-liquidity' }
+      );
     } finally {
       setLoading(false);
     }

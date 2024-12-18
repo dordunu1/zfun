@@ -15,6 +15,13 @@ const COMMON_TOKENS = [
     logo: '/eth.png'
   },
   {
+    address: UNISWAP_ADDRESSES.WETH, // WETH contract address
+    symbol: 'WETH',
+    name: 'Wrapped Ethereum',
+    decimals: 18,
+    logo: '/eth.png' // Using same logo as ETH
+  },
+  {
     address: UNISWAP_ADDRESSES.USDT,
     symbol: 'tUSDT',
     name: 'Test USDT',
@@ -45,15 +52,20 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   // Handle search for custom token
   useEffect(() => {
     const searchCustomToken = async () => {
+      // Clear custom token if search is empty or too short
       if (!searchQuery || searchQuery.length < 42) {
         setCustomToken(null);
         setError('');
         return;
       }
 
-      if (!ethers.utils.isAddress(searchQuery)) {
+      // Check if the search query looks like an address
+      if (!ethers.isAddress(searchQuery)) {
         setCustomToken(null);
-        setError('Invalid token address');
+        // Only show error if it looks like they're trying to paste an address
+        if (searchQuery.startsWith('0x')) {
+          setError('Invalid token address');
+        }
         return;
       }
 
@@ -61,23 +73,45 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       setError('');
 
       try {
-        const tokenInfo = await uniswap.getTokenInfo(searchQuery);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const tokenContract = new ethers.Contract(
+          searchQuery,
+          [
+            'function symbol() view returns (string)',
+            'function name() view returns (string)',
+            'function decimals() view returns (uint8)'
+          ],
+          provider
+        );
+
+        // Fetch token details in parallel
+        const [symbol, name, decimals] = await Promise.all([
+          tokenContract.symbol().catch(() => 'Unknown'),
+          tokenContract.name().catch(() => 'Unknown Token'),
+          tokenContract.decimals().catch(() => 18)
+        ]);
+
         setCustomToken({
           address: searchQuery,
-          ...tokenInfo,
-          logo: '/placeholder.png'
+          symbol,
+          name,
+          decimals,
+          logo: '/placeholder-token.png'
         });
+        setError('');
       } catch (error) {
         console.error('Error loading token:', error);
-        setError('Invalid token contract');
+        setError('Could not load token information. Make sure this is a valid ERC20 token.');
         setCustomToken(null);
       } finally {
         setIsLoading(false);
       }
     };
 
-    searchCustomToken();
-  }, [searchQuery, uniswap]);
+    // Debounce the search to avoid too many requests
+    const timeoutId = setTimeout(searchCustomToken, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const handleTokenSelect = (token) => {
     console.log('Token being selected:', token);
@@ -199,31 +233,37 @@ function TokenRow({ token, userAddress, onSelect, isSelected, forceRefresh }) {
     
     try {
       setIsUpdating(true);
+      const provider = new ethers.BrowserProvider(window.ethereum);
+
       if (token.symbol === 'ETH') {
         // For ETH, directly read from wallet
-        const provider = new ethers.BrowserProvider(window.ethereum);
         const balance = await provider.getBalance(userAddress);
         const formatted = ethers.formatEther(balance);
         setWalletBalance(formatted);
       } else {
-        // For other tokens
-        const provider = new ethers.BrowserProvider(window.ethereum);
+        // For WETH and other tokens
         const tokenContract = new ethers.Contract(
           token.address,
           ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
           provider
         );
 
-        const [rawBalance, decimals] = await Promise.all([
-          tokenContract.balanceOf(userAddress),
-          tokenContract.decimals()
-        ]);
+        try {
+          const [rawBalance, decimals] = await Promise.all([
+            tokenContract.balanceOf(userAddress),
+            tokenContract.decimals()
+          ]);
 
-        const formatted = ethers.formatUnits(rawBalance, decimals);
-        setWalletBalance(formatted);
+          const formatted = ethers.formatUnits(rawBalance, decimals);
+          setWalletBalance(formatted);
+        } catch (error) {
+          console.error('Error fetching token balance:', error);
+          setWalletBalance('0');
+        }
       }
     } catch (error) {
       console.error('Error fetching wallet balance:', error);
+      setWalletBalance('0');
     } finally {
       setIsUpdating(false);
     }

@@ -1,59 +1,34 @@
 # Dependencies
 node_modules
-.pnp
-.pnp.js
-
-# Environment files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*
 
-# Build outputs
-dist
-build
-coverage
-coverage.json
+# Hardhat
+cache
+artifacts
 typechain
 typechain-types
 
-# Hardhat files
-cache
-artifacts
-.openzeppelin
+# Deployment
+deployments
 
-# Local Netlify folder
-.netlify
-
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# IDE and editor files
-.idea
+# IDE
 .vscode
-*.swp
-*.swo
+.idea
+
+# Logs
+logs
+*.log
+
+# OS
 .DS_Store
 
-# Contract verification
-arguments.js
-arguments-*.js
+# Uniswap v2 core and periphery original repos
+uniswap-v2-deployment/v2-core/.git
+uniswap-v2-deployment/v2-periphery/.git
 
-# Gas reporter results
-gas-report.txt
+# Coverage
+coverage
+coverage.json
 
-# Deployment logs
-deployments/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Firebase
-.firebase/
-firebase-debug.log
+# Local Hardhat files
+hardhat.config.local.js

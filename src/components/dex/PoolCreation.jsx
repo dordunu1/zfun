@@ -40,6 +40,15 @@ export default function PoolCreation() {
     });
   }, []);
 
+  // Add function to validate Ethereum address
+  const isValidAddress = (address) => {
+    try {
+      return ethers.isAddress(address);
+    } catch (error) {
+      return false;
+    }
+  };
+
   // Handle token selection
   const handleToken0Select = async (token) => {
     if (token.symbol === 'ETH') {
@@ -103,7 +112,7 @@ export default function PoolCreation() {
     }
   };
 
-  // Create pool and add initial liquidity
+  // Modify handleCreatePool to check pool existence first
   const handleCreatePool = async () => {
     if (!isConnected) {
       openConnectModal();
@@ -122,19 +131,26 @@ export default function PoolCreation() {
 
     setLoading(true);
     try {
+      // Check if pool exists first
+      const poolExists = await uniswap.checkPoolExists(token0.address, token1.address);
+      
+      if (poolExists) {
+        toast.error('This pool already exists. Please use the Add Liquidity feature instead.');
+        setLoading(false);
+        return;
+      }
+
       // Parse amounts
       const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
       const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
 
       toast.loading('Creating pool and adding liquidity...', { id: 'pool-create' });
 
-      const result = await uniswap.createPoolAndAddLiquidity(
+      const result = await uniswap.createPool(
         token0.address,
         token1.address,
         parsedAmount0,
-        parsedAmount1,
-        account,
-        0.05 // 5% slippage tolerance
+        parsedAmount1
       );
 
       console.log('Pool created at:', result.pairAddress);
@@ -143,12 +159,12 @@ export default function PoolCreation() {
       // Reset form
       setAmount0('');
       setAmount1('');
+      setToken0(null);
+      setToken1(null);
     } catch (error) {
       console.error('Error creating pool:', error);
       toast.error(
-        error.message.includes('Pool already exists')
-          ? 'This pool already exists. Try adding liquidity instead.'
-          : error.message.includes('insufficient')
+        error.message.includes('insufficient')
           ? 'Insufficient balance for transaction'
           : error.message.includes('chain')
           ? 'Please switch to a supported network'
@@ -227,19 +243,21 @@ export default function PoolCreation() {
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
                 Token 1
               </label>
-              <button
-                onClick={() => setShowToken0Modal(true)}
-                className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
-              >
-                {token0 ? (
-                  <div className="flex items-center gap-2">
-                    <img src={token0.logo} alt={token0.symbol} className="w-5 h-5" />
-                    <span>{token0.symbol}</span>
-                  </div>
-                ) : (
-                  'Select Token'
-                )}
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowToken0Modal(true)}
+                  className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
+                >
+                  {token0 ? (
+                    <div className="flex items-center gap-2">
+                      <img src={token0.logo} alt={token0.symbol} className="w-5 h-5" />
+                      <span>{token0.symbol}</span>
+                    </div>
+                  ) : (
+                    'Select Token'
+                  )}
+                </button>
+              </div>
               {token0 && (
                 <input
                   type="text"
@@ -256,19 +274,21 @@ export default function PoolCreation() {
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
                 Token 2
               </label>
-              <button
-                onClick={() => setShowToken1Modal(true)}
-                className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
-              >
-                {token1 ? (
-                  <div className="flex items-center gap-2">
-                    <img src={token1.logo} alt={token1.symbol} className="w-5 h-5" />
-                    <span>{token1.symbol}</span>
-                  </div>
-                ) : (
-                  'Select Token'
-                )}
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowToken1Modal(true)}
+                  className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
+                >
+                  {token1 ? (
+                    <div className="flex items-center gap-2">
+                      <img src={token1.logo} alt={token1.symbol} className="w-5 h-5" />
+                      <span>{token1.symbol}</span>
+                    </div>
+                  ) : (
+                    'Select Token'
+                  )}
+                </button>
+              </div>
               {token1 && (
                 <input
                   type="text"
