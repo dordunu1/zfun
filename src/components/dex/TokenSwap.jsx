@@ -21,6 +21,8 @@ export default function TokenSwap() {
   const [route, setRoute] = useState(null);
   const [showFromTokenModal, setShowFromTokenModal] = useState(false);
   const [showToTokenModal, setShowToTokenModal] = useState(false);
+  const [fromTokenBalance, setFromTokenBalance] = useState('0');
+  const [toTokenBalance, setToTokenBalance] = useState('0');
   
   // New state for liquidity amounts
   const [liquidityAmount0, setLiquidityAmount0] = useState('');
@@ -112,6 +114,42 @@ export default function TokenSwap() {
     }
   };
 
+  // Add updateBalances function
+  const updateBalances = async () => {
+    if (!address || !fromToken || !toToken) return;
+
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      
+      // Get ETH balance if either token is ETH
+      if (fromToken.symbol === 'ETH') {
+        const ethBalance = await provider.getBalance(address);
+        setFromTokenBalance(ethers.formatEther(ethBalance));
+      } else {
+        const fromTokenContract = new ethers.Contract(fromToken.address, ERC20_ABI, provider);
+        const fromBalance = await fromTokenContract.balanceOf(address);
+        setFromTokenBalance(ethers.formatUnits(fromBalance, fromToken.decimals));
+      }
+
+      if (toToken.symbol === 'ETH') {
+        const ethBalance = await provider.getBalance(address);
+        setToTokenBalance(ethers.formatEther(ethBalance));
+      } else {
+        const toTokenContract = new ethers.Contract(toToken.address, ERC20_ABI, provider);
+        const toBalance = await toTokenContract.balanceOf(address);
+        setToTokenBalance(ethers.formatUnits(toBalance, toToken.decimals));
+      }
+    } catch (error) {
+      console.error('Error updating balances:', error);
+    }
+  };
+
+  // Add useEffect to update balances when tokens change or after refresh trigger
+  useEffect(() => {
+    updateBalances();
+  }, [address, fromToken, toToken, refreshTrigger]);
+
+  // Update handleSwap function to call updateBalances after successful swap
   const handleSwap = async () => {
     if (!address) {
       toast.error('Please connect your wallet');
@@ -165,6 +203,10 @@ export default function TokenSwap() {
       }
 
       console.log('Swap receipt:', receipt);
+      
+      // Update balances after successful swap
+      await updateBalances();
+      
       toast.success('Swap successful!');
       setFromAmount('');
       setToAmount('');

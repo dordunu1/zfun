@@ -912,4 +912,82 @@ export class UniswapService {
       throw error;
     }
   }
+
+  // Add swapExactTokensForETH function
+  async swapExactTokensForETH(
+    amountIn,
+    amountOutMin,
+    path,
+    to,
+    deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20) // 20 minutes from now
+  ) {
+    try {
+      // Request account access first
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // Verify path ends with WETH
+      if (path[path.length - 1].toLowerCase() !== UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+        throw new Error('Path must end with WETH for ETH swaps');
+      }
+
+      // Create contract instances
+      const router = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        ROUTER_ABI,
+        signer
+      );
+
+      const tokenContract = new ethers.Contract(
+        path[0],
+        ERC20_ABI,
+        signer
+      );
+
+      // Check and handle approvals
+      const currentAllowance = await tokenContract.allowance(to, UNISWAP_ADDRESSES.router);
+      if (currentAllowance < amountIn) {
+        console.log('Approving token for swap...');
+        const approveTx = await tokenContract.approve(UNISWAP_ADDRESSES.router, amountIn);
+        await approveTx.wait();
+        console.log('Token approved');
+      }
+
+      console.log('Executing token to ETH swap with params:', {
+        amountIn: amountIn.toString(),
+        amountOutMin: amountOutMin.toString(),
+        path,
+        to,
+        deadline: deadline.toString()
+      });
+
+      // Get gas price with 10% boost for better chances of execution
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice * 110n / 100n;
+
+      // Execute swap
+      const tx = await router.swapExactTokensForETH(
+        amountIn,
+        amountOutMin,
+        path,
+        to,
+        deadline,
+        {
+          gasLimit: 250000,
+          gasPrice
+        }
+      );
+
+      console.log('Swap transaction:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('Swap receipt:', receipt);
+      
+      return receipt;
+    } catch (error) {
+      console.error('Error swapping tokens for ETH:', error);
+      throw error;
+    }
+  }
 } 

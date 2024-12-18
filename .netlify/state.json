@@ -1,0 +1,19 @@
+{
+	"geolocation": {
+		"data": {
+			"city": "Accra",
+			"country": {
+				"code": "GH",
+				"name": "Ghana"
+			},
+			"subdivision": {
+				"code": "AA",
+				"name": "Greater Accra Region"
+			},
+			"timezone": "Africa/Accra",
+			"latitude": 5.5486,
+			"longitude": -0.2012
+		},
+		"timestamp": 1734414385915
+	}
+}
