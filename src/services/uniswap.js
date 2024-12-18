@@ -3,8 +3,8 @@ import { createPublicClient, http, createWalletClient } from 'viem';
 
 // Uniswap V2 Contract Addresses (Sepolia)
 export const UNISWAP_ADDRESSES = {
-  factory: '0x2201CbE5fec9337822018F8AD5ae98C95089E58f',
-  router: '0x099D0E74a30b439bECDac2c8AF362cc7Cf7f0F73',
+  factory: '0xAE3511d8ad1bD1bDAdF8dF44d3158ED5aeF72703',
+  router: '0xc9393aFAAAe60e5f4532cfa7171749171158b1e9',
   // Common tokens on Sepolia
   WETH: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
   USDT: '0x148b1aB3e2321d79027C4b71B6118e70434B4784' // TestUSDT address
@@ -167,94 +167,186 @@ export class UniswapService {
     amount1Desired
   ) {
     try {
-      // Sort token addresses (required by Uniswap)
-      const [token0, token1] = token0Address.toLowerCase() < token1Address.toLowerCase()
-        ? [token0Address, token1Address]
-        : [token1Address, token0Address];
-
-      // Sort amounts according to token order
-      const [amount0, amount1] = token0Address.toLowerCase() < token1Address.toLowerCase()
-        ? [amount0Desired, amount1Desired]
-        : [amount1Desired, amount0Desired];
-
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const account = await signer.getAddress();
 
+      // Check if one of the tokens is ETH
+      const isToken0ETH = token0Address.toLowerCase() === 'eth';
+      const isToken1ETH = token1Address.toLowerCase() === 'eth';
+      
+      // Convert ETH address to WETH for pair creation
+      const actualToken0 = isToken0ETH ? UNISWAP_ADDRESSES.WETH : token0Address;
+      const actualToken1 = isToken1ETH ? UNISWAP_ADDRESSES.WETH : token1Address;
+
+      // Sort token addresses (required by Uniswap)
+      const [token0, token1] = actualToken0.toLowerCase() < actualToken1.toLowerCase()
+        ? [actualToken0, actualToken1]
+        : [actualToken1, actualToken0];
+
+      // Sort amounts according to token order
+      const [amount0, amount1] = actualToken0.toLowerCase() < actualToken1.toLowerCase()
+        ? [amount0Desired, amount1Desired]
+        : [amount1Desired, amount0Desired];
+
       // Create contract instances
       const factory = new ethers.Contract(UNISWAP_ADDRESSES.factory, FACTORY_ABI, signer);
       const router = new ethers.Contract(UNISWAP_ADDRESSES.router, ROUTER_ABI, signer);
-      const token0Contract = new ethers.Contract(token0, ERC20_ABI, signer);
-      const token1Contract = new ethers.Contract(token1, ERC20_ABI, signer);
+
+      // Create token contract instances (only for non-ETH tokens)
+      const token0Contract = !isToken0ETH ? new ethers.Contract(token0, ERC20_ABI, signer) : null;
+      const token1Contract = !isToken1ETH ? new ethers.Contract(token1, ERC20_ABI, signer) : null;
 
       // Check if pair exists
+      console.log('Checking if pair exists...');
       const existingPair = await factory.getPair(token0, token1);
+      console.log('Existing pair address:', existingPair);
+
       if (existingPair !== '0x0000000000000000000000000000000000000000') {
         throw new Error('Pool already exists');
       }
 
-      console.log('Creating pool...');
+      // Get current nonce
+      const nonce = await provider.getTransactionCount(account);
 
-      // First create the pair
-      const createPairTx = await factory.createPair(token0, token1, { gasLimit: 3000000 });
+      // Get optimized gas price (5% above base fee)
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice * 105n / 100n;
+
+      // Create pair
+      console.log('Creating pair...');
+      const createPairTx = await factory.createPair(token0, token1, {
+        gasLimit: 3000000,
+        gasPrice,
+        nonce
+      });
       console.log('Create pair transaction sent:', createPairTx.hash);
       const createPairReceipt = await createPairTx.wait();
       console.log('Create pair transaction confirmed');
 
       // Get pair address from event
       const pairCreatedEvent = createPairReceipt.logs.find(log => {
-        const topics = log.topics || [];
-        return topics[0] === ethers.id('PairCreated(address,address,address,uint256)');
+        try {
+          const parsedLog = factory.interface.parseLog({
+            topics: log.topics,
+            data: log.data
+          });
+          return parsedLog.name === 'PairCreated';
+        } catch (e) {
+          return false;
+        }
       });
 
       if (!pairCreatedEvent) {
         throw new Error('Failed to get pair address from transaction receipt');
       }
 
-      const decodedData = factory.interface.parseLog({
+      const parsedLog = factory.interface.parseLog({
         topics: pairCreatedEvent.topics,
         data: pairCreatedEvent.data
       });
-
-      const pairAddress = decodedData.args[2];
+      const pairAddress = parsedLog.args[2];
       console.log('Created pair address:', pairAddress);
 
-      // Wait a bit for the pair to be fully deployed
+      // Wait for pair to be fully deployed
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // Handle approvals for non-ETH tokens
+      let currentNonce = nonce + 1;
+
+      if (!isToken0ETH) {
+        console.log('Approving token0...');
+        const approve0Tx = await token0Contract.approve(UNISWAP_ADDRESSES.router, amount0, {
+          gasLimit: 50000,
+          gasPrice,
+          nonce: currentNonce++
+        });
+        await approve0Tx.wait();
+        console.log('Token0 approved');
+      }
+
+      if (!isToken1ETH) {
+        console.log('Approving token1...');
+        const approve1Tx = await token1Contract.approve(UNISWAP_ADDRESSES.router, amount1, {
+          gasLimit: 50000,
+          gasPrice,
+          nonce: currentNonce++
+        });
+        await approve1Tx.wait();
+        console.log('Token1 approved');
+      }
+
+      // Wait after approvals
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      console.log('Approving tokens...');
+      // Calculate minimum amounts with 1% slippage tolerance
+      const amount0Min = (amount0 * 99n) / 100n;
+      const amount1Min = (amount1 * 99n) / 100n;
 
-      // Now approve the tokens
-      const approve0Tx = await token0Contract.approve(UNISWAP_ADDRESSES.router, amount0, { gasLimit: 100000 });
-      await approve0Tx.wait();
-      console.log('Token 0 approved');
+      // Get fresh nonce
+      currentNonce = await provider.getTransactionCount(account);
 
-      const approve1Tx = await token1Contract.approve(UNISWAP_ADDRESSES.router, amount1, { gasLimit: 100000 });
-      await approve1Tx.wait();
-      console.log('Token 1 approved');
-
-      // Calculate minimum amounts with 5% slippage tolerance
-      const amount0Min = (amount0 * 95n) / 100n;
-      const amount1Min = (amount1 * 95n) / 100n;
-
-      console.log('Adding initial liquidity...');
-      // Add initial liquidity
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
-
-      const addLiquidityTx = await router.addLiquidity(
+      console.log('Adding initial liquidity with params:', {
         token0,
         token1,
-        amount0,
-        amount1,
-        amount0Min,
-        amount1Min,
-        account,
-        deadline,
-        { 
-          gasLimit: 3000000,
-          gasPrice: await provider.getFeeData().then(data => data.gasPrice)
-        }
-      );
+        amount0: amount0.toString(),
+        amount1: amount1.toString(),
+        amount0Min: amount0Min.toString(),
+        amount1Min: amount1Min.toString()
+      });
+
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+
+      // Add liquidity based on whether ETH is involved
+      let addLiquidityTx;
+      if (isToken0ETH || isToken1ETH) {
+        // One of the tokens is ETH
+        const tokenAddress = isToken0ETH ? token1 : token0;
+        const ethAmount = isToken0ETH ? amount0 : amount1;
+        const tokenAmount = isToken0ETH ? amount1 : amount0;
+        const ethAmountMin = isToken0ETH ? amount0Min : amount1Min;
+        const tokenAmountMin = isToken0ETH ? amount1Min : amount0Min;
+
+        console.log('Adding ETH liquidity with params:', {
+          token: tokenAddress,
+          ethAmount: ethAmount.toString(),
+          tokenAmount: tokenAmount.toString(),
+          ethAmountMin: ethAmountMin.toString(),
+          tokenAmountMin: tokenAmountMin.toString()
+        });
+
+        addLiquidityTx = await router.addLiquidityETH(
+          tokenAddress,
+          tokenAmount,
+          tokenAmountMin,
+          ethAmountMin,
+          account,
+          deadline,
+          {
+            value: ethAmount,
+            gasLimit: 500000,
+            gasPrice,
+            nonce: currentNonce
+          }
+        );
+      } else {
+        // Both are ERC20 tokens
+        addLiquidityTx = await router.addLiquidity(
+          token0,
+          token1,
+          amount0,
+          amount1,
+          amount0Min,
+          amount1Min,
+          account,
+          deadline,
+          {
+            gasLimit: 500000,
+            gasPrice,
+            nonce: currentNonce
+          }
+        );
+      }
 
       console.log('Add liquidity transaction sent:', addLiquidityTx.hash);
       const addLiquidityReceipt = await addLiquidityTx.wait();
@@ -267,6 +359,13 @@ export class UniswapService {
       };
     } catch (error) {
       console.error('Error in pool creation:', error);
+      if (error.message.includes('INSUFFICIENT_A_AMOUNT')) {
+        throw new Error('Insufficient amount for token A. Try increasing the amount.');
+      } else if (error.message.includes('INSUFFICIENT_B_AMOUNT')) {
+        throw new Error('Insufficient amount for token B. Try increasing the amount.');
+      } else if (error.message.includes('TRANSFER_FROM_FAILED')) {
+        throw new Error('Transfer failed. Please check your token balances and approvals.');
+      }
       throw error;
     }
   }

@@ -6,11 +6,20 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying contracts with the account:", deployer.address);
 
+  // Use the same address for both feeToSetter and feeTo initially
+  // You can change feeTo later using setFeeTo if needed
+  const feeCollector = deployer.address;  // or specify a different address for fee collection
+  
+  console.log("Fee configuration:");
+  console.log("feeToSetter (can change fees):", deployer.address);
+  console.log("initialFeeTo (receives protocol fees):", feeCollector);
+
   const UniswapV2Factory = await hre.ethers.getContractFactory("UniswapV2Factory");
-  const factory = await UniswapV2Factory.deploy(deployer.address);
+  const factory = await UniswapV2Factory.deploy(deployer.address, feeCollector);
   await factory.deployed();
 
   console.log("UniswapV2Factory deployed to:", factory.address);
+  console.log("Protocol fees (0.05% of swaps) will be collected at:", feeCollector);
 
   // Update the .env file with the new factory address
   const envContent = fs.readFileSync('.env', 'utf8');
@@ -29,7 +38,7 @@ async function main() {
   console.log("Verifying contract on Etherscan...");
   await hre.run("verify:verify", {
     address: factory.address,
-    constructorArguments: [deployer.address],
+    constructorArguments: [deployer.address, feeCollector],
   });
 }
 

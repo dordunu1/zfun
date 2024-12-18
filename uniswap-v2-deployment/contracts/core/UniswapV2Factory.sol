@@ -11,9 +11,16 @@ contract UniswapV2Factory is IUniswapV2Factory {
     address[] public allPairs;
 
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+    event FeeToUpdated(address indexed oldFeeTo, address indexed newFeeTo);
+    event FeeToSetterUpdated(address indexed oldFeeToSetter, address indexed newFeeToSetter);
 
-    constructor(address _feeToSetter) public {
+    constructor(address _feeToSetter, address _initialFeeTo) public {
+        require(_feeToSetter != address(0), "UniswapV2: INVALID_FEE_SETTER");
+        require(_initialFeeTo != address(0), "UniswapV2: INVALID_FEE_TO");
         feeToSetter = _feeToSetter;
+        feeTo = _initialFeeTo;
+        emit FeeToUpdated(address(0), _initialFeeTo);
+        emit FeeToSetterUpdated(address(0), _feeToSetter);
     }
 
     function allPairsLength() external view returns (uint) {
@@ -39,11 +46,15 @@ contract UniswapV2Factory is IUniswapV2Factory {
 
     function setFeeTo(address _feeTo) external {
         require(msg.sender == feeToSetter, 'UniswapV2: FORBIDDEN');
+        require(_feeTo != address(0), "UniswapV2: INVALID_FEE_TO");
+        emit FeeToUpdated(feeTo, _feeTo);
         feeTo = _feeTo;
     }
 
     function setFeeToSetter(address _feeToSetter) external {
         require(msg.sender == feeToSetter, 'UniswapV2: FORBIDDEN');
+        require(_feeToSetter != address(0), "UniswapV2: INVALID_FEE_SETTER");
+        emit FeeToSetterUpdated(feeToSetter, _feeToSetter);
         feeToSetter = _feeToSetter;
     }
 }

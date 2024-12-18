@@ -32,3 +32,6 @@ coverage.json
 
 # Local Hardhat files
 hardhat.config.local.js
+
+# Local Netlify folder
+.netlify
