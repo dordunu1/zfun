@@ -178,26 +178,59 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
 
         // Check balances for all tokens
         const provider = new ethers.BrowserProvider(window.ethereum);
-        const tokensWithBalances = await Promise.all(
-          [...COMMON_TOKENS, ...formattedTokens].map(async (token) => {
+        
+        // First check if the contract is valid ERC20 before checking balance
+        const checkTokenBalance = async (token) => {
+          try {
+            if (token.address === 'ETH') {
+              const balance = await provider.getBalance(userAddress);
+              return balance > 0n ? token : null;
+            }
+
+            // First verify if the contract exists and has the required methods
+            const code = await provider.getCode(token.address);
+            if (code === '0x') return null; // Contract doesn't exist
+
+            const contract = new ethers.Contract(
+              token.address,
+              [
+                'function balanceOf(address) view returns (uint256)',
+                'function decimals() view returns (uint8)',
+                'function symbol() view returns (string)',
+                'function name() view returns (string)'
+              ],
+              provider
+            );
+
+            // Try to call balanceOf
             try {
-              if (token.address === 'ETH') {
-                const balance = await provider.getBalance(userAddress);
-                return balance > 0n ? token : null;
-              } else {
-                const contract = new ethers.Contract(
-                  token.address,
-                  ['function balanceOf(address) view returns (uint256)'],
-                  provider
-                );
-                const balance = await contract.balanceOf(userAddress);
-                return balance > 0n ? token : null;
+              const balance = await contract.balanceOf(userAddress);
+              if (balance > 0n) {
+                // Verify other token information
+                try {
+                  await Promise.all([
+                    contract.symbol(),
+                    contract.name(),
+                    contract.decimals()
+                  ]);
+                  return token;
+                } catch {
+                  // If any of the token info calls fail, still return the token but with basic info
+                  return token;
+                }
               }
-            } catch (error) {
-              console.error('Error checking balance for token:', token.symbol, error);
+              return null;
+            } catch {
               return null;
             }
-          })
+          } catch (error) {
+            // Silently fail and return null for any errors
+            return null;
+          }
+        };
+
+        const tokensWithBalances = await Promise.all(
+          [...COMMON_TOKENS, ...formattedTokens].map(checkTokenBalance)
         );
 
         const validTokens = tokensWithBalances.filter(token => token !== null);
