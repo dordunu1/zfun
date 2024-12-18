@@ -5,6 +5,49 @@ import TokenSelectionModal from './TokenSelectionModal';
 import PoolSelectionModal from './PoolSelectionModal';
 import { ethers } from 'ethers';
 import { useUniswap } from '../../hooks/useUniswap';
+import { UNISWAP_ADDRESSES } from '../../services/uniswap';
+import { ipfsToHttp } from '../../utils/ipfs';
+
+// Common tokens with metadata
+const COMMON_TOKENS = [
+  {
+    address: 'ETH',
+    symbol: 'ETH',
+    name: 'Ethereum',
+    decimals: 18,
+    logo: '/eth.png'
+  },
+  {
+    address: UNISWAP_ADDRESSES.WETH,
+    symbol: 'WETH',
+    name: 'Wrapped Ethereum',
+    decimals: 18,
+    logo: '/eth.png'
+  },
+  {
+    address: UNISWAP_ADDRESSES.USDT,
+    symbol: 'USDT',
+    name: 'Test USDT',
+    decimals: 6,
+    logo: '/usdt.png'
+  }
+];
+
+const getTokenLogo = (token) => {
+  // Check if it's a common token
+  const commonToken = COMMON_TOKENS.find(t => t.address?.toLowerCase() === token?.address?.toLowerCase());
+  if (commonToken) {
+    return commonToken.logo;
+  }
+
+  // Check for IPFS or direct logo from token data
+  if (token?.logo || token?.logoIpfs) {
+    return token.logo || ipfsToHttp(token.logoIpfs);
+  }
+
+  // Default token logo
+  return '/token-default.png';
+};
 
 export default function AddLiquidity() {
   const { address } = useAccount();
@@ -180,14 +223,22 @@ export default function AddLiquidity() {
                   <div className="flex items-center gap-2">
                     <div className="flex -space-x-2">
                       <img
-                        src={pool.token0.logo}
+                        src={getTokenLogo(pool.token0)}
                         alt={pool.token0.symbol}
                         className="w-5 h-5 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/token-default.png';
+                        }}
                       />
                       <img
-                        src={pool.token1.logo}
+                        src={getTokenLogo(pool.token1)}
                         alt={pool.token1.symbol}
                         className="w-5 h-5 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/token-default.png';
+                        }}
                       />
                     </div>
                     <span>
