@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDoc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, onSnapshot, limit as firestoreLimit } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDoc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, onSnapshot, limit as firestoreLimit, doc, setDoc } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 import { ethers } from 'ethers';
 import { NFTCollectionABI } from '../abi/NFTCollection';
@@ -27,6 +27,8 @@ export const holdersRef = collection(db, 'holders');
 export const mintersRef = collection(db, 'minters');
 export const volumeRef = collection(db, 'volume');
 export const tokenTransfersRef = collection(db, 'tokenTransfers');
+export const poolsRef = collection(db, 'pools');
+export const userPoolsRef = collection(db, 'userPools');
 
 export const saveCollection = async (collectionData) => {
   try {
@@ -562,5 +564,210 @@ export const getOwnedNFTs = async (address) => {
   } catch (error) {
     console.error('Error getting owned NFTs:', error);
     return [];
+  }
+};
+
+// Pool Management Functions
+export const savePool = async (poolData) => {
+  try {
+    console.log('Saving pool data:', poolData);
+    const { poolAddress } = poolData;
+    
+    if (!poolAddress) {
+      throw new Error('Pool address is required');
+    }
+
+    if (!poolData.creatorAddress) {
+      throw new Error('Creator address is required');
+    }
+
+    // Validate token data before saving
+    if (!poolData.token0?.address || !poolData.token1?.address) {
+      throw new Error('Token addresses are required');
+    }
+
+    // Ensure all required fields are present
+    const poolDataToSave = {
+      poolAddress: poolAddress,
+      creatorAddress: poolData.creatorAddress.toLowerCase(),
+      factory: poolData.factory,
+      token0: {
+        address: poolData.token0.address,
+        symbol: poolData.token0.symbol || 'Unknown',
+        name: poolData.token0.name || 'Unknown Token',
+        decimals: Number(poolData.token0.decimals || 18)
+      },
+      token1: {
+        address: poolData.token1.address,
+        symbol: poolData.token1.symbol || 'Unknown',
+        name: poolData.token1.name || 'Unknown Token',
+        decimals: Number(poolData.token1.decimals || 18)
+      },
+      reserves: poolData.reserves ? {
+        reserve0: String(poolData.reserves.reserve0 || '0'),
+        reserve1: String(poolData.reserves.reserve1 || '0')
+      } : {
+        reserve0: '0',
+        reserve1: '0'
+      },
+      totalLiquidity: '0',
+      createdAt: serverTimestamp(),
+      lastUpdated: serverTimestamp()
+    };
+
+    console.log('Saving pool data to Firestore:', poolDataToSave);
+    const poolRef = doc(poolsRef, poolAddress);
+    await setDoc(poolRef, poolDataToSave);
+    console.log('Pool data saved successfully');
+
+    // Create user pool entry
+    const userPoolId = `${poolData.creatorAddress.toLowerCase()}_${poolAddress}`;
+    const userPoolData = {
+      userAddress: poolData.creatorAddress.toLowerCase(),
+      poolAddress,
+      lpTokenBalance: '0',
+      token0Amount: '0',
+      token1Amount: '0',
+      lastUpdated: serverTimestamp()
+    };
+
+    console.log('Saving user pool data:', userPoolData);
+    await setDoc(doc(userPoolsRef, userPoolId), userPoolData);
+    console.log('User pool data saved successfully');
+
+    return poolAddress;
+  } catch (error) {
+    console.error('Error saving pool:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack
+    });
+    throw error;
+  }
+};
+
+export const getPool = async (poolAddress) => {
+  try {
+    const poolDoc = await getDoc(doc(poolsRef, poolAddress));
+    if (poolDoc.exists()) {
+      return {
+        id: poolDoc.id,
+        ...poolDoc.data()
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting pool:', error);
+    throw error;
+  }
+};
+
+export const getUserPools = async (userAddress) => {
+  try {
+    console.log('Getting pools for user address:', userAddress.toLowerCase());
+    
+    // First check the pools collection directly for pools created by this user
+    console.log('Checking pools collection for pools created by user...');
+    const creatorQuery = query(
+      poolsRef,
+      where('creatorAddress', '==', userAddress.toLowerCase())
+    );
+    
+    const creatorPoolsSnapshot = await getDocs(creatorQuery);
+    console.log('Found creator pools:', creatorPoolsSnapshot.size);
+    
+    const pools = [];
+    
+    // Add pools where user is creator
+    for (const doc of creatorPoolsSnapshot.docs) {
+      const poolData = doc.data();
+      console.log('Found creator pool:', poolData);
+      pools.push({
+        ...poolData,
+        pairAddress: doc.id,
+        source: 'firebase'
+      });
+    }
+
+    // Then get user pool entries for additional pools where user has liquidity
+    const userPoolsQuery = query(
+      userPoolsRef,
+      where('userAddress', '==', userAddress.toLowerCase())
+    );
+    
+    console.log('Fetching user pools from userPools collection...');
+    const userPoolsSnapshot = await getDocs(userPoolsQuery);
+    console.log('Found user pool entries:', userPoolsSnapshot.size);
+    
+    // Add pools where user has liquidity
+    for (const userPoolDoc of userPoolsSnapshot.docs) {
+      const userPool = userPoolDoc.data();
+      console.log('Processing user pool:', userPool);
+      
+      // Only add if not already in the list
+      if (!pools.some(p => p.pairAddress.toLowerCase() === userPool.poolAddress.toLowerCase())) {
+        try {
+          console.log('Fetching pool data for address:', userPool.poolAddress);
+          const poolDocRef = doc(poolsRef, userPool.poolAddress);
+          const poolDoc = await getDoc(poolDocRef);
+          
+          if (poolDoc.exists()) {
+            const poolData = poolDoc.data();
+            console.log('Found pool data:', poolData);
+            
+            pools.push({
+              ...poolData,
+              pairAddress: userPool.poolAddress,
+              userLiquidity: {
+                lpTokenBalance: userPool.lpTokenBalance || '0',
+                token0Amount: userPool.token0Amount || '0',
+                token1Amount: userPool.token1Amount || '0'
+              },
+              source: 'firebase'
+            });
+          } else {
+            console.log('No pool data found for address:', userPool.poolAddress);
+          }
+        } catch (poolError) {
+          console.error('Error fetching pool data:', poolError);
+        }
+      }
+    }
+    
+    console.log('Total pools found:', pools.length);
+    console.log('Returning pools:', pools);
+    return pools;
+  } catch (error) {
+    console.error('Error getting user pools:', error);
+    throw error;
+  }
+};
+
+export const updatePoolReserves = async (poolAddress, reserves) => {
+  try {
+    const poolRef = doc(poolsRef, poolAddress);
+    await updateDoc(poolRef, {
+      reserves,
+      lastUpdated: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating pool reserves:', error);
+    throw error;
+  }
+};
+
+export const updateUserPoolPosition = async (userAddress, poolAddress, position) => {
+  try {
+    const userPoolId = `${userAddress.toLowerCase()}_${poolAddress}`;
+    await setDoc(doc(userPoolsRef, userPoolId), {
+      userAddress: userAddress.toLowerCase(),
+      poolAddress,
+      ...position,
+      lastUpdated: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error updating user pool position:', error);
+    throw error;
   }
 };

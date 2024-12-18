@@ -8,6 +8,7 @@ import { UNISWAP_ADDRESSES } from '../../services/uniswap';
 import { ERC20_ABI } from '../../services/erc20';
 import { useWeb3Modal } from '@web3modal/react';
 import { BiWallet } from 'react-icons/bi';
+import { savePool } from '../../services/firebase';
 
 export default function PoolCreation() {
   const { address: account, isConnected } = useAccount();
@@ -152,6 +153,30 @@ export default function PoolCreation() {
         parsedAmount0,
         parsedAmount1
       );
+
+      // Save pool data to Firebase
+      await savePool({
+        poolAddress: result.pairAddress,
+        token0: {
+          address: token0.address,
+          symbol: token0.symbol,
+          decimals: token0.decimals,
+          name: token0.name
+        },
+        token1: {
+          address: token1.address,
+          symbol: token1.symbol,
+          decimals: token1.decimals,
+          name: token1.name
+        },
+        creatorAddress: account,
+        factory: UNISWAP_ADDRESSES.factory,
+        reserves: {
+          reserve0: parsedAmount0.toString(),
+          reserve1: parsedAmount1.toString()
+        },
+        totalLiquidity: '0' // Will be updated after liquidity is added
+      });
 
       console.log('Pool created at:', result.pairAddress);
       toast.success('Pool created and liquidity added successfully!', { id: 'pool-create' });
