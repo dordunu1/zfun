@@ -1106,4 +1106,103 @@ export class UniswapService {
       throw error;
     }
   }
+
+  // Get all pools from factory
+  async getAllPools() {
+    try {
+      console.log('Getting all pools from factory');
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const factory = new ethers.Contract(
+        UNISWAP_ADDRESSES.factory,
+        FACTORY_ABI,
+        provider
+      );
+
+      const pairCount = await factory.allPairsLength();
+      console.log('Total pairs:', pairCount.toString());
+      const pairs = [];
+
+      for (let i = 0; i < pairCount; i++) {
+        try {
+          const pairAddress = await factory.allPairs(i);
+          pairs.push(pairAddress);
+        } catch (pairError) {
+          console.error(`Error getting pair ${i}:`, pairError);
+          continue;
+        }
+      }
+
+      console.log('Found pairs:', pairs.length);
+      return pairs;
+    } catch (error) {
+      console.error('Error getting all pools:', error);
+      throw error;
+    }
+  }
+
+  // Get pool info by address
+  async getPoolInfoByAddress(poolAddress) {
+    try {
+      console.log('Getting pool info for:', poolAddress);
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      
+      const pair = new ethers.Contract(
+        poolAddress,
+        PAIR_ABI,
+        provider
+      );
+
+      // Get token addresses
+      const [token0Address, token1Address] = await Promise.all([
+        pair.token0(),
+        pair.token1()
+      ]);
+
+      // Get token contracts
+      const token0Contract = new ethers.Contract(token0Address, ERC20_ABI, provider);
+      const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider);
+
+      // Get token info
+      const [
+        token0Symbol,
+        token0Name,
+        token0Decimals,
+        token1Symbol,
+        token1Name,
+        token1Decimals,
+        reserves
+      ] = await Promise.all([
+        token0Contract.symbol(),
+        token0Contract.name(),
+        token0Contract.decimals(),
+        token1Contract.symbol(),
+        token1Contract.name(),
+        token1Contract.decimals(),
+        pair.getReserves()
+      ]);
+
+      return {
+        token0: {
+          address: token0Address,
+          symbol: token0Symbol,
+          name: token0Name,
+          decimals: token0Decimals
+        },
+        token1: {
+          address: token1Address,
+          symbol: token1Symbol,
+          name: token1Name,
+          decimals: token1Decimals
+        },
+        reserves: {
+          reserve0: reserves[0],
+          reserve1: reserves[1],
+          blockTimestampLast: reserves[2]
+        }
+      };
+    } catch (error) {
+      console.error('Error getting pool info:', error);
+      return null;
+    }
+  }
 } 

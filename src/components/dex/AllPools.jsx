@@ -1,122 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
 import { useUniswap } from '../../hooks/useUniswap';
-import { UNISWAP_ADDRESSES } from '../../services/uniswap';
-import { FaSearch } from 'react-icons/fa';
-import { ipfsToHttp } from '../../utils/ipfs';
+import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
-
-const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
-
-// Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: 'ETH',
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.WETH,
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'USDT',
-    name: 'Test USDT',
-    decimals: 6,
-    logo: '/usdt.png'
-  }
-];
-
-const getTokenLogo = (token) => {
-  // Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => t.address?.toLowerCase() === token?.address?.toLowerCase());
-  if (commonToken) {
-    return commonToken.logo;
-  }
-
-  // Check for IPFS or direct logo from token data
-  if (token?.logo || token?.logoIpfs) {
-    return token.logo || ipfsToHttp(token.logoIpfs);
-  }
-
-  // Default token logo
-  return '/token-default.png';
-};
+import { FaSearch } from 'react-icons/fa';
+import { getTokenLogo, getTokenMetadata } from '../../utils/tokens';
 
 export default function AllPools() {
-  const [pools, setPools] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState(null);
   const uniswap = useUniswap();
+  const [pools, setPools] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const loadPools = async () => {
       setLoading(true);
-      setError(null);
+      setError('');
       try {
-        // Use Alchemy API to get all pools
-        const alchemyUrl = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
-        
-        // Get all events for pool creation from the factory
-        const response = await fetch(alchemyUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'eth_getLogs',
-            params: [{
-              address: UNISWAP_ADDRESSES.factory,
-              topics: [
-                ethers.id('PairCreated(address,address,address,uint256)')
-              ],
-              fromBlock: '0x0',
-              toBlock: 'latest'
-            }]
-          })
-        });
+        const factoryPools = await uniswap.getAllPools();
+        console.log('Factory pools:', factoryPools);
 
-        const data = await response.json();
-        console.log('Factory events:', data);
-
-        if (data.result) {
-          // Process each pool creation event
+        if (factoryPools && factoryPools.length > 0) {
+          // Get pool data for each pool
           const poolsData = await Promise.all(
-            data.result.map(async (event) => {
+            factoryPools.map(async (poolAddress) => {
               try {
-                const poolAddress = '0x' + event.data.slice(26, 66);
                 console.log('Fetching data for pool:', poolAddress);
                 const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
-                if (!poolInfo) return null;
+                if (!poolInfo) {
+                  console.log('No pool info found for:', poolAddress);
+                  return null;
+                }
 
-                // Calculate TVL from reserves
-                const tvl = Number(ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', poolInfo.token0?.decimals || 18)) +
-                          Number(ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', poolInfo.token1?.decimals || 18));
+                // Enhance token metadata
+                const [token0Metadata, token1Metadata] = await Promise.all([
+                  getTokenMetadata(poolInfo.token0),
+                  getTokenMetadata(poolInfo.token1)
+                ]);
 
-                // Mock volume data for now (to be replaced with actual volume tracking)
-                const volumes = {
-                  oneDay: Math.random() * 1000000,
-                  sevenDay: Math.random() * 5000000,
-                  thirtyDay: Math.random() * 15000000
-                };
+                console.log('Pool info found:', {
+                  token0: token0Metadata?.symbol,
+                  token1: token1Metadata?.symbol,
+                  reserves: poolInfo.reserves
+                });
+
+                // Calculate TVL and volumes
+                const reserve0USD = Number(ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', token0Metadata?.decimals || 18)) * (poolInfo.token0Price || 0);
+                const reserve1USD = Number(ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)) * (poolInfo.token1Price || 0);
+                const tvl = reserve0USD + reserve1USD;
 
                 return {
                   ...poolInfo,
+                  token0: token0Metadata,
+                  token1: token1Metadata,
                   pairAddress: poolAddress,
-                  reserves: {
-                    ...poolInfo.reserves,
-                    reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', poolInfo.token0?.decimals || 18),
-                    reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', poolInfo.token1?.decimals || 18)
-                  },
                   tvl,
-                  volumes
+                  volumes: {
+                    oneDay: tvl * 0.05, // Example volume calculation
+                    sevenDay: tvl * 0.2,
+                    thirtyDay: tvl * 0.5
+                  }
                 };
               } catch (err) {
                 console.error(`Error fetching pool data:`, err);
@@ -140,11 +83,9 @@ export default function AllPools() {
       } finally {
         setLoading(false);
       }
-    };
-
-    if (uniswap) {
-      loadPools();
     }
+
+    loadPools();
   }, [uniswap]);
 
   // Filter pools based on search term
@@ -220,7 +161,7 @@ export default function AllPools() {
                     <div className="flex -space-x-2">
                       <img 
                         src={getTokenLogo(pool.token0)}
-                        alt={pool.token0?.symbol || 'Unknown'}
+                        alt={pool.token0?.symbol || 'ERC20 Token'}
                         className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -229,7 +170,7 @@ export default function AllPools() {
                       />
                       <img 
                         src={getTokenLogo(pool.token1)}
-                        alt={pool.token1?.symbol || 'Unknown'}
+                        alt={pool.token1?.symbol || 'ERC20 Token'}
                         className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -238,7 +179,7 @@ export default function AllPools() {
                       />
                     </div>
                     <span className="text-sm text-gray-900 dark:text-white">
-                      {pool.token0?.symbol || 'Unknown'}/{pool.token1?.symbol || 'Unknown'}
+                      {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">

@@ -3,51 +3,9 @@ import { useAccount } from 'wagmi';
 import { useUniswap } from '../../hooks/useUniswap';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
-import { UNISWAP_ADDRESSES } from '../../services/uniswap';
-import { ipfsToHttp } from '../../utils/ipfs';
+import { getTokenLogo, getTokenMetadata } from '../../utils/tokens';
 
 const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
-
-// Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: 'ETH',
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.WETH,
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'USDT',
-    name: 'Test USDT',
-    decimals: 6,
-    logo: '/usdt.png'
-  }
-];
-
-const getTokenLogo = (token) => {
-  // Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => t.address.toLowerCase() === token?.address?.toLowerCase());
-  if (commonToken) {
-    return commonToken.logo;
-  }
-
-  // Check for IPFS or direct logo from token data
-  if (token?.logo || token?.logoIpfs) {
-    return token.logo || ipfsToHttp(token.logoIpfs);
-  }
-
-  // Default token logo
-  return '/token-default.png';
-};
 
 export default function MyPools() {
   const { address } = useAccount();
@@ -127,21 +85,29 @@ export default function MyPools() {
                     return null;
                   }
 
+                  // Enhance token metadata
+                  const [token0Metadata, token1Metadata] = await Promise.all([
+                    getTokenMetadata(poolInfo.token0),
+                    getTokenMetadata(poolInfo.token1)
+                  ]);
+
                   console.log('Pool info found:', {
-                    token0: poolInfo.token0?.symbol,
-                    token1: poolInfo.token1?.symbol,
+                    token0: token0Metadata?.symbol,
+                    token1: token1Metadata?.symbol,
                     reserves: poolInfo.reserves
                   });
 
                   return {
                     ...poolInfo,
+                    token0: token0Metadata,
+                    token1: token1Metadata,
                     pairAddress: poolAddress,
                     lpBalance: token.tokenBalance,
                     createdAt: new Date(),
                     reserves: {
                       ...poolInfo.reserves,
-                      reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', poolInfo.token0?.decimals || 18),
-                      reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', poolInfo.token1?.decimals || 18)
+                      reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', token0Metadata?.decimals || 18),
+                      reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)
                     }
                   };
                 } catch (err) {
@@ -163,7 +129,7 @@ export default function MyPools() {
       } finally {
         setLoading(false);
       }
-    };
+    }
 
     loadPools();
   }, [address, uniswap]);
@@ -182,16 +148,24 @@ export default function MyPools() {
         return;
       }
 
+      // Enhance token metadata
+      const [token0Metadata, token1Metadata] = await Promise.all([
+        getTokenMetadata(poolInfo.token0),
+        getTokenMetadata(poolInfo.token1)
+      ]);
+
       // Add the found pool to the list if it's not already there
       setPools(prevPools => {
         if (!prevPools.some(p => p.pairAddress.toLowerCase() === searchAddress.toLowerCase())) {
           const newPool = {
             ...poolInfo,
+            token0: token0Metadata,
+            token1: token1Metadata,
             pairAddress: searchAddress,
             reserves: {
               ...poolInfo.reserves,
-              reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', poolInfo.token0?.decimals || 18),
-              reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', poolInfo.token1?.decimals || 18)
+              reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', token0Metadata?.decimals || 18),
+              reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)
             }
           };
           return [...prevPools, newPool];
@@ -256,7 +230,7 @@ export default function MyPools() {
                 <div className="flex -space-x-2">
                   <img
                     src={getTokenLogo(pool.token0)}
-                    alt={pool.token0?.symbol || 'Unknown'}
+                    alt={pool.token0?.symbol || 'ERC20 Token'}
                     className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                     onError={(e) => {
                       e.target.onerror = null;
@@ -265,7 +239,7 @@ export default function MyPools() {
                   />
                   <img
                     src={getTokenLogo(pool.token1)}
-                    alt={pool.token1?.symbol || 'Unknown'}
+                    alt={pool.token1?.symbol || 'ERC20 Token'}
                     className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                     onError={(e) => {
                       e.target.onerror = null;
@@ -274,7 +248,7 @@ export default function MyPools() {
                   />
                 </div>
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {pool.token0?.symbol || 'Unknown'}/{pool.token1?.symbol || 'Unknown'}
+                  {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
                 </span>
               </div>
               {pool.createdAt && (
@@ -292,7 +266,7 @@ export default function MyPools() {
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {pool.token0?.symbol || 'Token0'} Reserves
+                    {pool.token0?.symbol || 'ERC20 Token'} Reserves
                   </div>
                   <div className="text-lg font-medium text-gray-900 dark:text-white">
                     {pool.reserves.reserve0Formatted}
@@ -300,7 +274,7 @@ export default function MyPools() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {pool.token1?.symbol || 'Token1'} Reserves
+                    {pool.token1?.symbol || 'ERC20 Token'} Reserves
                   </div>
                   <div className="text-lg font-medium text-gray-900 dark:text-white">
                     {pool.reserves.reserve1Formatted}

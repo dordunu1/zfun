@@ -1,112 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { FaSearch, FaTimes } from 'react-icons/fa';
 import { useUniswap } from '../../hooks/useUniswap';
 import { ethers } from 'ethers';
-import { UNISWAP_ADDRESSES } from '../../services/uniswap';
-import { toast } from 'react-hot-toast';
-import { ipfsToHttp } from '../../utils/ipfs';
-
-const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
-
-// Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: 'ETH',
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.WETH,
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'USDT',
-    name: 'Test USDT',
-    decimals: 6,
-    logo: '/usdt.png'
-  }
-];
-
-const getTokenLogo = (token) => {
-  // Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => t.address?.toLowerCase() === token?.address?.toLowerCase());
-  if (commonToken) {
-    return commonToken.logo;
-  }
-
-  // Check for IPFS or direct logo from token data
-  if (token?.logo || token?.logoIpfs) {
-    return token.logo || ipfsToHttp(token.logoIpfs);
-  }
-
-  // Default token logo
-  return '/token-default.png';
-};
+import { FaSearch } from 'react-icons/fa';
+import { getTokenLogo, getTokenMetadata } from '../../utils/tokens';
 
 export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const uniswap = useUniswap();
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const uniswap = useUniswap();
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Load pools when modal opens
   useEffect(() => {
-    if (!isOpen || !uniswap) return;
-    
     const loadPools = async () => {
+      if (!isOpen) return;
+
       setLoading(true);
-      setError(null);
+      setError('');
       try {
-        // Use Alchemy API to get all pools
-        const alchemyUrl = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
-        
-        // Get all events for pool creation from the factory
-        const response = await fetch(alchemyUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'eth_getLogs',
-            params: [{
-              address: UNISWAP_ADDRESSES.factory,
-              topics: [
-                ethers.id('PairCreated(address,address,address,uint256)')
-              ],
-              fromBlock: '0x0',
-              toBlock: 'latest'
-            }]
-          })
-        });
+        const factoryPools = await uniswap.getAllPools();
+        console.log('Factory pools:', factoryPools);
 
-        const data = await response.json();
-        console.log('Factory events:', data);
-
-        if (data.result) {
-          // Process each pool creation event
+        if (factoryPools && factoryPools.length > 0) {
+          // Get pool data for each pool
           const poolsData = await Promise.all(
-            data.result.map(async (event) => {
+            factoryPools.map(async (poolAddress) => {
               try {
-                const poolAddress = '0x' + event.data.slice(26, 66);
                 console.log('Fetching data for pool:', poolAddress);
                 const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
-                if (!poolInfo) return null;
+                if (!poolInfo) {
+                  console.log('No pool info found for:', poolAddress);
+                  return null;
+                }
+
+                // Enhance token metadata
+                const [token0Metadata, token1Metadata] = await Promise.all([
+                  getTokenMetadata(poolInfo.token0),
+                  getTokenMetadata(poolInfo.token1)
+                ]);
+
+                console.log('Pool info found:', {
+                  token0: token0Metadata?.symbol,
+                  token1: token1Metadata?.symbol,
+                  reserves: poolInfo.reserves
+                });
 
                 return {
                   ...poolInfo,
+                  token0: token0Metadata,
+                  token1: token1Metadata,
                   pairAddress: poolAddress,
                   reserves: {
                     ...poolInfo.reserves,
-                    reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', poolInfo.token0?.decimals || 18),
-                    reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', poolInfo.token1?.decimals || 18)
+                    reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', token0Metadata?.decimals || 18),
+                    reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)
                   }
                 };
               } catch (err) {
@@ -116,7 +64,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
             })
           );
 
-          // Filter out null values and set pools
+          // Filter out null values and sort by TVL
           const validPools = poolsData.filter(pool => pool !== null);
           console.log('Setting pools:', validPools);
           setPools(validPools);
@@ -132,78 +80,42 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
     loadPools();
   }, [isOpen, uniswap]);
 
-  // Filter pools based on search query
+  // Filter pools based on search term
   const filteredPools = pools.filter(pool => {
-    const searchLower = searchQuery.toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
     return (
-      // Match pool address
-      pool.pairAddress.toLowerCase().includes(searchLower) ||
-      // Match token symbols
-      `${pool.token0?.symbol}/${pool.token1?.symbol}`.toLowerCase().includes(searchLower) ||
-      // Match token addresses
-      pool.token0?.address.toLowerCase().includes(searchLower) ||
-      pool.token1?.address.toLowerCase().includes(searchLower)
+      pool.token0?.symbol?.toLowerCase().includes(searchLower) ||
+      pool.token1?.symbol?.toLowerCase().includes(searchLower) ||
+      pool.pairAddress.toLowerCase().includes(searchLower)
     );
   });
 
   return (
-    <Dialog
-      open={isOpen}
-      onClose={onClose}
-      className="fixed inset-0 z-50 overflow-y-auto"
-    >
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-
-        <div className="relative bg-white dark:bg-[#1a1b1f] rounded-2xl max-w-3xl w-full mx-auto p-8">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <Dialog.Title className="text-2xl font-semibold text-gray-900 dark:text-white">
-              Select Pool
-            </Dialog.Title>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <FaTimes className="text-gray-500" />
-            </button>
-          </div>
+    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
+      
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-2xl rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl border border-gray-200 dark:border-gray-800">
+          <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Select Pool
+          </Dialog.Title>
 
           {/* Search Input */}
-          <div className="relative mb-6">
-            <div className="relative">
-              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, symbol, or address..."
-                className="w-full pl-12 pr-4 py-3 bg-gray-100 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-lg"
-              />
+          <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FaSearch className="text-gray-400" />
             </div>
+            <input
+              type="text"
+              placeholder="Search by token symbol or pool address..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 pl-10 bg-white/5 dark:bg-[#1a1b1f] rounded-xl border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white"
+            />
           </div>
 
-          {/* Pool List */}
-          <div 
-            className="space-y-3 max-h-[60vh] overflow-y-auto pr-2"
-            style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#00ffbd #2d2f36'
-            }}
-          >
-            <style jsx>{`
-              div::-webkit-scrollbar {
-                width: 6px;
-              }
-              div::-webkit-scrollbar-track {
-                background: #2d2f36;
-                border-radius: 3px;
-              }
-              div::-webkit-scrollbar-thumb {
-                background-color: #00ffbd;
-                border-radius: 3px;
-              }
-            `}</style>
+          {/* Pool List Container */}
+          <div className="overflow-y-auto max-h-[60vh] space-y-2 pr-2 token-list-scrollbar">
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ffbd] mx-auto"></div>
@@ -232,7 +144,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                       <div className="flex -space-x-3">
                         <img
                           src={getTokenLogo(pool.token0)}
-                          alt={pool.token0?.symbol || 'Unknown'}
+                          alt={pool.token0?.symbol || 'ERC20 Token'}
                           className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                           onError={(e) => {
                             e.target.onerror = null;
@@ -241,7 +153,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                         />
                         <img
                           src={getTokenLogo(pool.token1)}
-                          alt={pool.token1?.symbol || 'Unknown'}
+                          alt={pool.token1?.symbol || 'ERC20 Token'}
                           className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                           onError={(e) => {
                             e.target.onerror = null;
@@ -250,38 +162,38 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                         />
                       </div>
                       <span className="font-medium text-gray-900 dark:text-white text-lg">
-                        {pool.token0?.symbol || 'Unknown'}/{pool.token1?.symbol || 'Unknown'}
+                        {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 truncate">
-                    {pool.pairAddress}
-                  </div>
-                  {pool.reserves && (
-                    <div className="flex justify-between text-sm mt-3">
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">
-                          {pool.token0?.symbol || 'Token0'}:
-                        </span>
-                        <span className="ml-2 text-gray-900 dark:text-white">
-                          {pool.reserves.reserve0Formatted}
-                        </span>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {pool.token0?.symbol || 'ERC20 Token'} Reserves
                       </div>
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">
-                          {pool.token1?.symbol || 'Token1'}:
-                        </span>
-                        <span className="ml-2 text-gray-900 dark:text-white">
-                          {pool.reserves.reserve1Formatted}
-                        </span>
+                      <div className="text-base font-medium text-gray-900 dark:text-white">
+                        {pool.reserves.reserve0Formatted}
                       </div>
                     </div>
-                  )}
+                    <div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {pool.token1?.symbol || 'ERC20 Token'} Reserves
+                      </div>
+                      <div className="text-base font-medium text-gray-900 dark:text-white">
+                        {pool.reserves.reserve1Formatted}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pool.pairAddress}
+                  </div>
                 </button>
               ))
             )}
           </div>
-        </div>
+        </Dialog.Panel>
       </div>
     </Dialog>
   );
