@@ -7,6 +7,105 @@ import { getTokenLogo, getTokenMetadata } from '../../utils/tokens';
 
 const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
 
+// Cache management for My Pools
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const myPoolsCache = {
+  data: null,
+  timestamp: 0,
+  isValid() {
+    return this.data && (Date.now() - this.timestamp < CACHE_DURATION);
+  },
+  set(data) {
+    this.data = data;
+    this.timestamp = Date.now();
+    // Store in localStorage with BigInt handling
+    try {
+      const serializedData = JSON.stringify(data, (key, value) => {
+        // Convert BigInt to string with a special prefix
+        if (typeof value === 'bigint') {
+          return `bigint:${value.toString()}`;
+        }
+        return value;
+      });
+      localStorage.setItem('myPoolsCache', JSON.stringify({
+        data: serializedData,
+        timestamp: this.timestamp
+      }));
+    } catch (error) {
+      console.warn('Error saving to localStorage:', error);
+    }
+  },
+  load() {
+    try {
+      const stored = localStorage.getItem('myPoolsCache');
+      if (stored) {
+        const { data, timestamp } = JSON.parse(stored);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          // Parse the data and convert BigInt strings back to BigInt
+          this.data = JSON.parse(data, (key, value) => {
+            if (typeof value === 'string' && value.startsWith('bigint:')) {
+              return BigInt(value.slice(7));
+            }
+            return value;
+          });
+          this.timestamp = timestamp;
+          return true;
+        }
+      }
+    } catch (error) {
+      console.warn('Error loading from localStorage:', error);
+    }
+    return false;
+  },
+  clear() {
+    this.data = null;
+    this.timestamp = 0;
+    localStorage.removeItem('myPoolsCache');
+  }
+};
+
+// Token metadata cache with BigInt handling
+const tokenMetadataCache = {
+  data: new Map(),
+  load() {
+    try {
+      const stored = localStorage.getItem('tokenMetadataCache');
+      if (stored) {
+        const parsed = JSON.parse(stored, (key, value) => {
+          if (typeof value === 'string' && value.startsWith('bigint:')) {
+            return BigInt(value.slice(7));
+          }
+          return value;
+        });
+        this.data = new Map(parsed);
+      }
+    } catch (error) {
+      console.warn('Error loading token metadata cache:', error);
+    }
+  },
+  set(address, metadata) {
+    this.data.set(address.toLowerCase(), metadata);
+    try {
+      const serialized = JSON.stringify([...this.data], (key, value) => {
+        if (typeof value === 'bigint') {
+          return `bigint:${value.toString()}`;
+        }
+        return value;
+      });
+      localStorage.setItem('tokenMetadataCache', serialized);
+    } catch (error) {
+      console.warn('Error saving token metadata cache:', error);
+    }
+  },
+  get(address) {
+    return this.data.get(address.toLowerCase());
+  }
+};
+
+// Load caches on module initialization
+tokenMetadataCache.load();
+myPoolsCache.load();
+
 export default function MyPools() {
   const { address } = useAccount();
   const uniswap = useUniswap();
@@ -25,6 +124,14 @@ export default function MyPools() {
       try {
         console.log('Connected wallet address:', address);
         console.log('Starting to load pools...');
+
+        // Check cache first
+        if (myPoolsCache.isValid() && myPoolsCache.data) {
+          console.log('Returning pools from cache');
+          setPools(myPoolsCache.data);
+          setLoading(false);
+          return;
+        }
 
         // Fetch pools using Alchemy API
         const alchemyUrl = `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
@@ -48,8 +155,14 @@ export default function MyPools() {
           // Get token metadata for each balance
           const tokenMetadataPromises = balanceData.result.tokenBalances
             .filter(token => token.tokenBalance !== '0x0')
-            .map(token => 
-              fetch(alchemyUrl, {
+            .map(async token => {
+              // Check token metadata cache first
+              const cachedMetadata = tokenMetadataCache.get(token.contractAddress);
+              if (cachedMetadata) {
+                return { result: cachedMetadata };
+              }
+
+              const response = await fetch(alchemyUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -58,8 +171,13 @@ export default function MyPools() {
                   method: 'alchemy_getTokenMetadata',
                   params: [token.contractAddress]
                 })
-              }).then(res => res.json())
-            );
+              });
+              const metadata = await response.json();
+              if (metadata.result) {
+                tokenMetadataCache.set(token.contractAddress, metadata.result);
+              }
+              return metadata;
+            });
 
           const tokenMetadata = await Promise.all(tokenMetadataPromises);
           console.log('Token metadata:', tokenMetadata);
@@ -121,6 +239,9 @@ export default function MyPools() {
             const validPools = poolsData.filter(pool => pool !== null);
             console.log('Setting pools:', validPools);
             setPools(validPools);
+            
+            // Cache the valid pools
+            myPoolsCache.set(validPools);
           }
         }
       } catch (error) {

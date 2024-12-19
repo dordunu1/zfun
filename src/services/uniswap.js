@@ -78,6 +78,57 @@ export class UniswapService {
       address: UNISWAP_ADDRESSES.router,
       abi: ROUTER_ABI
     };
+
+    // Initialize cache
+    this.poolCache = new Map();
+    this.poolInfoCache = new Map();
+    this.lastCacheUpdate = 0;
+    this.CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    
+    // Load cache from localStorage on initialization
+    this.loadCacheFromStorage();
+  }
+
+  // Cache management methods
+  loadCacheFromStorage() {
+    try {
+      const storedCache = localStorage.getItem('uniswapPoolCache');
+      if (storedCache) {
+        const { pools, poolInfo, timestamp } = JSON.parse(storedCache);
+        // Only load cache if it's not too old (less than 1 hour)
+        if (Date.now() - timestamp < 60 * 60 * 1000) {
+          this.poolCache = new Map(pools);
+          this.poolInfoCache = new Map(poolInfo);
+          this.lastCacheUpdate = timestamp;
+        }
+      }
+    } catch (error) {
+      console.warn('Error loading cache from storage:', error);
+    }
+  }
+
+  saveCacheToStorage() {
+    try {
+      const cacheData = {
+        pools: Array.from(this.poolCache.entries()),
+        poolInfo: Array.from(this.poolInfoCache.entries()),
+        timestamp: Date.now()
+      };
+      localStorage.setItem('uniswapPoolCache', JSON.stringify(cacheData));
+    } catch (error) {
+      console.warn('Error saving cache to storage:', error);
+    }
+  }
+
+  clearCache() {
+    this.poolCache.clear();
+    this.poolInfoCache.clear();
+    this.lastCacheUpdate = 0;
+    localStorage.removeItem('uniswapPoolCache');
+  }
+
+  isCacheValid() {
+    return Date.now() - this.lastCacheUpdate < this.CACHE_DURATION;
   }
 
   // Get all pools for a token
@@ -743,59 +794,58 @@ export class UniswapService {
   // Get Pool Information by Pair Address
   async getPoolInfoByAddress(pairAddress) {
     try {
+      console.log('Getting pool info for:', pairAddress);
+      
+      // Normalize address for cache lookup
+      const normalizedAddress = pairAddress.toLowerCase();
+      
+      // Check cache first
+      if (this.isCacheValid() && this.poolInfoCache.has(normalizedAddress)) {
+        console.log('Returning pool info from cache');
+        return this.poolInfoCache.get(normalizedAddress);
+      }
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const pair = new ethers.Contract(pairAddress, PAIR_ABI, provider);
 
-      // Get pool information
-      const [token0, token1, reserves] = await Promise.all([
+      // Get token addresses
+      const [token0Address, token1Address] = await Promise.all([
         pair.token0(),
-        pair.token1(),
+        pair.token1()
+      ]);
+
+      // Get token contracts
+      const token0Contract = new ethers.Contract(token0Address, ERC20_ABI, provider);
+      const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider);
+
+      // Get token info
+      const [
+        token0Symbol,
+        token0Name,
+        token0Decimals,
+        token1Symbol,
+        token1Name,
+        token1Decimals,
+        reserves
+      ] = await Promise.all([
+        token0Contract.symbol().catch(() => 'Unknown'),
+        token0Contract.name().catch(() => 'Unknown Token'),
+        token0Contract.decimals().catch(() => 18),
+        token1Contract.symbol().catch(() => 'Unknown'),
+        token1Contract.name().catch(() => 'Unknown Token'),
+        token1Contract.decimals().catch(() => 18),
         pair.getReserves()
       ]);
 
-      // Get token information with better error handling
-      const token0Contract = new ethers.Contract(token0, ERC20_ABI, provider);
-      const token1Contract = new ethers.Contract(token1, ERC20_ABI, provider);
-
-      // Improved token info fetching with fallbacks
-      const [
-        token0Symbol,
-        token0Decimals,
-        token0Name,
-        token1Symbol,
-        token1Decimals,
-        token1Name
-      ] = await Promise.all([
-        token0Contract.symbol().catch(() => 'Unknown'),
-        token0Contract.decimals().catch(() => 18),
-        token0Contract.name().catch(() => 'Unknown Token'),
-        token1Contract.symbol().catch(() => 'Unknown'),
-        token1Contract.decimals().catch(() => 18),
-        token1Contract.name().catch(() => 'Unknown Token')
-      ]);
-
-      // Format reserves with proper decimals
-      const reserve0Formatted = ethers.formatUnits(reserves[0], token0Decimals);
-      const reserve1Formatted = ethers.formatUnits(reserves[1], token1Decimals);
-
-      // Calculate ratio
-      const ratio0to1 = reserves[1] > 0n ? 
-        Number(reserves[0]) / Number(reserves[1]) :
-        0;
-      const ratio1to0 = reserves[0] > 0n ? 
-        Number(reserves[1]) / Number(reserves[0]) :
-        0;
-
-      return {
-        pairAddress,
+      const poolInfo = {
         token0: {
-          address: token0,
+          address: token0Address,
           symbol: token0Symbol,
           name: token0Name,
           decimals: token0Decimals
         },
         token1: {
-          address: token1,
+          address: token1Address,
           symbol: token1Symbol,
           name: token1Name,
           decimals: token1Decimals
@@ -803,16 +853,23 @@ export class UniswapService {
         reserves: {
           reserve0: reserves[0],
           reserve1: reserves[1],
-          reserve0Formatted,
-          reserve1Formatted,
-          ratio0to1,
-          ratio1to0
-        },
-        lastUpdatedTimestamp: reserves[2]
+          blockTimestampLast: reserves[2]
+        }
       };
+
+      // Update cache and save to storage
+      this.poolInfoCache.set(normalizedAddress, poolInfo);
+      this.saveCacheToStorage();
+
+      return poolInfo;
     } catch (error) {
-      console.error('Error getting pool info by address:', error);
-      throw error;
+      console.error('Error getting pool info:', error);
+      // If there's an error but we have cached data, return it
+      if (this.poolInfoCache.has(pairAddress.toLowerCase())) {
+        console.log('Returning cached pool info due to error');
+        return this.poolInfoCache.get(pairAddress.toLowerCase());
+      }
+      return null;
     }
   }
 
@@ -1107,10 +1164,17 @@ export class UniswapService {
     }
   }
 
-  // Get all pools from factory
+  // Update getAllPools with caching
   async getAllPools() {
     try {
       console.log('Getting all pools from factory');
+      
+      // Check cache first
+      if (this.isCacheValid() && this.poolCache.size > 0) {
+        console.log('Returning pools from cache');
+        return Array.from(this.poolCache.values());
+      }
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const factory = new ethers.Contract(
         UNISWAP_ADDRESSES.factory,
@@ -1122,87 +1186,66 @@ export class UniswapService {
       console.log('Total pairs:', pairCount.toString());
       const pairs = [];
 
-      for (let i = 0; i < pairCount; i++) {
-        try {
-          const pairAddress = await factory.allPairs(i);
-          pairs.push(pairAddress);
-        } catch (pairError) {
-          console.error(`Error getting pair ${i}:`, pairError);
-          continue;
+      // Batch the requests in groups of 10 for better performance
+      const batchSize = 10;
+      for (let i = 0; i < pairCount; i += batchSize) {
+        const promises = [];
+        for (let j = 0; j < batchSize && i + j < pairCount; j++) {
+          promises.push(factory.allPairs(i + j));
         }
+        const batchResults = await Promise.all(promises);
+        pairs.push(...batchResults);
+        
+        // Update cache as we go
+        batchResults.forEach(address => {
+          this.poolCache.set(address.toLowerCase(), address);
+        });
       }
 
       console.log('Found pairs:', pairs.length);
+      
+      // Update cache timestamp and save to storage
+      this.lastCacheUpdate = Date.now();
+      this.saveCacheToStorage();
+      
       return pairs;
     } catch (error) {
       console.error('Error getting all pools:', error);
+      // If there's an error but we have cached data, return it
+      if (this.poolCache.size > 0) {
+        console.log('Returning cached pools due to error');
+        return Array.from(this.poolCache.values());
+      }
       throw error;
     }
   }
 
-  // Get pool info by address
-  async getPoolInfoByAddress(poolAddress) {
-    try {
-      console.log('Getting pool info for:', poolAddress);
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      
-      const pair = new ethers.Contract(
-        poolAddress,
-        PAIR_ABI,
-        provider
+  // Add method to batch load pool info
+  async batchLoadPoolInfo(poolAddresses) {
+    const uncachedPools = poolAddresses.filter(
+      address => !this.isCacheValid() || !this.poolInfoCache.has(address.toLowerCase())
+    );
+
+    if (uncachedPools.length === 0) {
+      console.log('All pool info available in cache');
+      return poolAddresses.map(address => 
+        this.poolInfoCache.get(address.toLowerCase())
       );
-
-      // Get token addresses
-      const [token0Address, token1Address] = await Promise.all([
-        pair.token0(),
-        pair.token1()
-      ]);
-
-      // Get token contracts
-      const token0Contract = new ethers.Contract(token0Address, ERC20_ABI, provider);
-      const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider);
-
-      // Get token info
-      const [
-        token0Symbol,
-        token0Name,
-        token0Decimals,
-        token1Symbol,
-        token1Name,
-        token1Decimals,
-        reserves
-      ] = await Promise.all([
-        token0Contract.symbol(),
-        token0Contract.name(),
-        token0Contract.decimals(),
-        token1Contract.symbol(),
-        token1Contract.name(),
-        token1Contract.decimals(),
-        pair.getReserves()
-      ]);
-
-      return {
-        token0: {
-          address: token0Address,
-          symbol: token0Symbol,
-          name: token0Name,
-          decimals: token0Decimals
-        },
-        token1: {
-          address: token1Address,
-          symbol: token1Symbol,
-          name: token1Name,
-          decimals: token1Decimals
-        },
-        reserves: {
-          reserve0: reserves[0],
-          reserve1: reserves[1],
-          blockTimestampLast: reserves[2]
-        }
-      };
-    } catch (error) {
-      console.error('Error getting pool info:', error);
-      return null;
     }
+
+    console.log(`Loading info for ${uncachedPools.length} uncached pools`);
+    const batchSize = 5;
+    const results = [];
+
+    for (let i = 0; i < uncachedPools.length; i += batchSize) {
+      const batch = uncachedPools.slice(i, i + batchSize);
+      const promises = batch.map(address => this.getPoolInfoByAddress(address));
+      const batchResults = await Promise.all(promises);
+      results.push(...batchResults);
+    }
+
+    return poolAddresses.map(address => 
+      this.poolInfoCache.get(address.toLowerCase()) || null
+    );
   }
 } 
