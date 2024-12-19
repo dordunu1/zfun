@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
-import { getTokenLogo, getTokenMetadata } from '../../utils/tokens';
+import { getTokenLogo, getTokenMetadata, COMMON_TOKENS } from '../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../services/uniswap';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { db } from '../../services/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+
+// Helper function to convert IPFS URLs to HTTP
+const ipfsToHttp = (ipfsUrl) => {
+  if (!ipfsUrl) return null;
+  if (ipfsUrl.startsWith('ipfs://')) {
+    return ipfsUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+  }
+  return ipfsUrl;
+};
 
 // Factory and Pair ABIs
 const FACTORY_ABI = [
@@ -24,6 +35,92 @@ const Transactions = () => {
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('All');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  const [tokenMetadataMap, setTokenMetadataMap] = useState({});
+
+  // Add function to fetch token metadata from Firestore
+  const fetchFirestoreTokenMetadata = async () => {
+    try {
+      const tokensRef = collection(db, 'tokens');
+      const snapshot = await getDocs(tokensRef);
+      const metadata = {};
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        metadata[doc.id.toLowerCase()] = {
+          ...data,
+          address: doc.id,
+          logo: data.logo || '/token-default.png'
+        };
+      });
+      return metadata;
+    } catch (error) {
+      console.error('Error fetching Firestore token metadata:', error);
+      return {};
+    }
+  };
+
+  // Update getTokenInfo function
+  const getTokenInfo = async (token, tokenAddress) => {
+    try {
+      // First try to get token metadata from Firestore
+      const firestoreToken = tokenMetadataMap[tokenAddress?.toLowerCase()];
+      if (firestoreToken) {
+        const logo = await getTokenLogo({ 
+          ...firestoreToken,
+          address: tokenAddress 
+        });
+        return {
+          ...token,
+          ...firestoreToken,
+          logo: logo || '/token-default.png'
+        };
+      }
+
+      // Then try to get from common tokens
+      const commonToken = COMMON_TOKENS.find(t => t.address.toLowerCase() === tokenAddress?.toLowerCase());
+      if (commonToken) {
+        const logo = await getTokenLogo(commonToken);
+        return {
+          ...commonToken,
+          logo: logo || commonToken.logo || '/token-default.png'
+        };
+      }
+
+      // Finally try to get metadata from the chain
+      const metadata = await getTokenMetadata(tokenAddress);
+      if (metadata) {
+        const logo = await getTokenLogo(metadata);
+        return {
+          ...metadata,
+          logo: logo || '/token-default.png',
+          symbol: metadata.symbol || 'ERC20'
+        };
+      }
+
+      // Return default token info
+      return {
+        ...token,
+        symbol: token?.symbol || 'ERC20',
+        decimals: token?.decimals || 18,
+        logo: '/token-default.png'
+      };
+    } catch (error) {
+      console.error('Error in getTokenInfo:', error);
+      return {
+        ...token,
+        symbol: token?.symbol || 'ERC20',
+        decimals: token?.decimals || 18,
+        logo: '/token-default.png'
+      };
+    }
+  };
+
+  useEffect(() => {
+    const initialize = async () => {
+      const firestoreMetadata = await fetchFirestoreTokenMetadata();
+      setTokenMetadataMap(firestoreMetadata);
+    };
+    initialize();
+  }, []);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -45,7 +142,7 @@ const Transactions = () => {
         console.log('Total pairs:', pairsLength.toString());
 
         const latestBlock = await provider.getBlockNumber();
-        const fromBlock = latestBlock - 10000;
+        const fromBlock = latestBlock - 10000; // Last ~24 hours
         console.log('Fetching events from block', fromBlock, 'to', latestBlock);
 
         const pairPromises = [];
@@ -64,9 +161,10 @@ const Transactions = () => {
               pairContract.token1()
             ]);
 
-            const [token0Metadata, token1Metadata] = await Promise.all([
-              getTokenMetadata(token0),
-              getTokenMetadata(token1)
+            // Get token metadata with proper Firestore integration
+            const [token0Info, token1Info] = await Promise.all([
+              getTokenMetadata({ address: token0 }),
+              getTokenMetadata({ address: token1 })
             ]);
 
             // Get swap events
@@ -75,28 +173,36 @@ const Transactions = () => {
 
             for (const event of events) {
               const block = await event.getBlock();
+              
+              // Convert BigInt values to strings immediately
               const amount0In = event.args.amount0In.toString();
               const amount1In = event.args.amount1In.toString();
               const amount0Out = event.args.amount0Out.toString();
               const amount1Out = event.args.amount1Out.toString();
 
-              let token0Amount, token1Amount;
-              if (BigInt(amount0In) > 0n) {
-                token0Amount = amount0In;
-                token1Amount = amount1Out;
+              // Check if amount0In or amount1In is greater than 0
+              let inputToken, outputToken, inputAmount, outputAmount;
+              if (amount0In !== '0') {
+                inputToken = token0Info;
+                outputToken = token1Info;
+                inputAmount = amount0In;
+                outputAmount = amount1Out;
               } else {
-                token0Amount = amount0Out;
-                token1Amount = amount1In;
+                inputToken = token1Info;
+                outputToken = token0Info;
+                inputAmount = amount1In;
+                outputAmount = amount0Out;
               }
 
+              // Add the transaction
               allEvents.push({
                 type: 'Swaps',
                 txHash: event.transactionHash,
                 timestamp: block.timestamp * 1000,
-                token0: token0Metadata,
-                token1: token1Metadata,
-                token0Amount,
-                token1Amount,
+                inputToken,
+                outputToken,
+                inputAmount,
+                outputAmount,
                 account: event.args.to
               });
             }
@@ -108,6 +214,12 @@ const Transactions = () => {
         const sortedEvents = allEvents
           .sort((a, b) => b.timestamp - a.timestamp)
           .slice(0, 50);
+
+        console.log('Final processed events:', sortedEvents.map(event => ({
+          ...event,
+          formattedInputAmount: formatAmount(event.inputAmount, event.inputToken?.decimals),
+          formattedOutputAmount: formatAmount(event.outputAmount, event.outputToken?.decimals)
+        })));
 
         setTransactions(sortedEvents);
       } catch (error) {
@@ -121,14 +233,42 @@ const Transactions = () => {
   }, []);
 
   const formatAmount = (amount, decimals) => {
-    if (!amount || !decimals) return '0';
+    if (!amount || decimals === undefined) return '0';
     try {
-      const bn = ethers.getBigInt(amount);
-      const formatted = ethers.formatUnits(bn, decimals);
+      // Ensure amount is a string and decimals is a number
+      const amountStr = amount.toString();
+      const decimalNum = parseInt(decimals);
+      
+      if (isNaN(decimalNum)) {
+        console.error('Invalid decimals:', decimals);
+        return '0';
+      }
+
+      const bn = ethers.getBigInt(amountStr);
+      const formatted = ethers.formatUnits(bn, decimalNum);
       const parsed = parseFloat(formatted);
+      
+      // Log the formatting process
+      console.log('Formatting amount:', {
+        original: amountStr,
+        decimals: decimalNum,
+        formatted,
+        parsed
+      });
+
       if (parsed === 0) return '0';
       if (parsed < 0.0001) return '< 0.0001';
-      return parsed.toFixed(4).replace(/\.?0+$/, '');
+      
+      // Format with appropriate decimal places based on the value
+      const decimalPlaces = parsed < 1 ? 6 : 2;
+      const formatted_number = new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: decimalPlaces,
+        useGrouping: true
+      }).format(parsed);
+
+      console.log('Final formatted number:', formatted_number);
+      return formatted_number;
     } catch (error) {
       console.error('Error formatting amount:', error, { amount, decimals });
       return '0';
@@ -155,6 +295,12 @@ const Transactions = () => {
     selectedType === 'All' || tx.type === selectedType
   );
 
+  // Update renderTokenLogo function to use the token's logo directly
+  const renderTokenLogo = (token) => {
+    if (!token) return '/token-default.png';
+    return token.logo || '/token-default.png';
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -170,33 +316,10 @@ const Transactions = () => {
           <thead>
             <tr className="text-left text-sm text-gray-500 dark:text-gray-400">
               <th className="py-3 px-4">↓ Time</th>
-              <th className="py-3 px-4 relative">
-                <button 
-                  onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-                  className="flex items-center gap-1 hover:text-white"
-                >
-                  Type <ChevronDownIcon className="h-4 w-4" />
-                </button>
-                {showTypeDropdown && (
-                  <div className="absolute top-full left-0 mt-1 bg-[#1a1b1f] border border-gray-800 rounded-lg shadow-lg z-10">
-                    {TRANSACTION_TYPES.map(type => (
-                      <button
-                        key={type}
-                        className="block w-full px-4 py-2 text-left hover:bg-gray-800"
-                        onClick={() => {
-                          setSelectedType(type);
-                          setShowTypeDropdown(false);
-                        }}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </th>
-              <th className="py-3 px-4">USD</th>
-              <th className="py-3 px-4">Token amount</th>
-              <th className="py-3 px-4">Token amount</th>
+              <th className="py-3 px-4">Type</th>
+              <th className="py-3 px-4">Token Amount</th>
+              <th className="py-3 px-4">Token Amount</th>
+              <th className="py-3 px-4">Value USD</th>
               <th className="py-3 px-4">Wallet</th>
             </tr>
           </thead>
@@ -204,39 +327,67 @@ const Transactions = () => {
             {filteredTransactions.map((tx, index) => (
               <tr 
                 key={tx.txHash + index}
-                className="border-t border-gray-800 text-sm hover:bg-[#1a1b1f]"
+                className="border-b border-gray-200 dark:border-gray-800 hover:bg-white/10 dark:hover:bg-[#2d2f36] transition-colors"
               >
-                <td className="py-3 px-4 text-gray-500">
+                <td className="py-3 px-4 text-sm text-gray-500 dark:text-gray-400">
                   {formatTimeAgo(tx.timestamp)}
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                      <img
-                        src={getTokenLogo(tx.token0)}
-                        alt={tx.token0?.symbol}
-                        className="w-5 h-5 rounded-full"
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Swap</span>
+                    <div className="flex items-center gap-1">
+                      <img 
+                        src={renderTokenLogo(tx.inputToken)}
+                        alt={tx.inputToken?.symbol}
+                        className="w-4 h-4 rounded-full ring-1 ring-white dark:ring-[#1a1b1f]"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/token-default.png';
+                        }}
                       />
-                      <img
-                        src={getTokenLogo(tx.token1)}
-                        alt={tx.token1?.symbol}
-                        className="w-5 h-5 rounded-full"
-                      />
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {tx.inputToken?.symbol}
+                      </span>
                     </div>
-                    <span>
-                      Swap {tx.token0?.symbol} for {tx.token1?.symbol}
-                    </span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">for</span>
+                    <div className="flex items-center gap-1">
+                      <img 
+                        src={renderTokenLogo(tx.outputToken)}
+                        alt={tx.outputToken?.symbol}
+                        className="w-4 h-4 rounded-full ring-1 ring-white dark:ring-[#1a1b1f]"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/token-default.png';
+                        }}
+                      />
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {tx.outputToken?.symbol}
+                      </span>
+                    </div>
                   </div>
                 </td>
-                <td className="py-3 px-4">$--</td>
-                <td className="py-3 px-4">
-                  {formatAmount(tx.token0Amount, tx.token0?.decimals)} {tx.token0?.symbol}
+                <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
+                  {formatAmount(tx.inputAmount, tx.inputToken?.decimals)} {tx.inputToken?.symbol}
+                </td>
+                <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
+                  {formatAmount(tx.outputAmount, tx.outputToken?.decimals)} {tx.outputToken?.symbol}
+                </td>
+                <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
+                  {tx.outputToken?.symbol === 'USDC' || tx.outputToken?.symbol === 'USDT' 
+                    ? `$${formatAmount(tx.outputAmount, tx.outputToken?.decimals)}`
+                    : tx.inputToken?.symbol === 'USDC' || tx.inputToken?.symbol === 'USDT'
+                    ? `$${formatAmount(tx.inputAmount, tx.inputToken?.decimals)}`
+                    : '-'}
                 </td>
                 <td className="py-3 px-4">
-                  {formatAmount(tx.token1Amount, tx.token1?.decimals)} {tx.token1?.symbol}
-                </td>
-                <td className="py-3 px-4 text-[#00ffbd]">
-                  {formatAddress(tx.account)}
+                  <a 
+                    href={`https://sepolia.etherscan.io/address/${tx.account}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+                  >
+                    {formatAddress(tx.account)}
+                  </a>
                 </td>
               </tr>
             ))}

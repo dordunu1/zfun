@@ -626,7 +626,10 @@ export class UniswapService {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // Create contract instances
+      // Get optimized gas price
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice * 110n / 100n;
+
       const router = new ethers.Contract(
         UNISWAP_ADDRESSES.router,
         ROUTER_ABI,
@@ -636,8 +639,27 @@ export class UniswapService {
       const tokenAContract = new ethers.Contract(tokenA, ERC20_ABI, signer);
       const tokenBContract = new ethers.Contract(tokenB, ERC20_ABI, signer);
 
+      // Get token decimals
+      const [decimalsA, decimalsB] = await Promise.all([
+        tokenAContract.decimals(),
+        tokenBContract.decimals()
+      ]);
+
+      console.log('Token details:', {
+        tokenA: {
+          address: tokenA,
+          decimals: decimalsA,
+          amountDesired: ethers.formatUnits(amountADesired, decimalsA)
+        },
+        tokenB: {
+          address: tokenB,
+          decimals: decimalsB,
+          amountDesired: ethers.formatUnits(amountBDesired, decimalsB)
+        }
+      });
+
+      // Check pool info and calculate optimal amounts
       console.log('Checking pool info...');
-      // Get pool info to check the optimal ratio
       const poolInfo = await this.getPoolInfo(tokenA, tokenB);
       
       let finalAmountA = amountADesired;
@@ -649,20 +671,63 @@ export class UniswapService {
         const reserve1 = poolInfo.reserve1;
         
         if (reserve0 > 0 && reserve1 > 0) {
+          console.log('Current pool reserves:', {
+            reserve0: ethers.formatUnits(reserve0, poolInfo.token0.decimals),
+            reserve1: ethers.formatUnits(reserve1, poolInfo.token1.decimals),
+            ratio: Number(reserve1) / Number(reserve0)
+          });
+
           if (tokenA.toLowerCase() === poolInfo.token0.address.toLowerCase()) {
-            finalAmountB = (amountADesired * reserve1) / reserve0;
-            if (finalAmountB > amountBDesired) {
+            const optimalB = (amountADesired * reserve1) / reserve0;
+            console.log('Calculated optimal amounts (A is token0):', {
+              optimalB: ethers.formatUnits(optimalB, decimalsB),
+              providedB: ethers.formatUnits(amountBDesired, decimalsB)
+            });
+
+            if (optimalB > amountBDesired) {
               finalAmountB = amountBDesired;
               finalAmountA = (amountBDesired * reserve0) / reserve1;
+              console.log('Adjusting token A amount to match ratio');
+            } else {
+              finalAmountB = optimalB;
+              console.log('Using calculated optimal amount for token B');
             }
           } else {
-            finalAmountB = (amountADesired * reserve0) / reserve1;
-            if (finalAmountB > amountBDesired) {
+            const optimalB = (amountADesired * reserve0) / reserve1;
+            console.log('Calculated optimal amounts (A is token1):', {
+              optimalB: ethers.formatUnits(optimalB, decimalsB),
+              providedB: ethers.formatUnits(amountBDesired, decimalsB)
+            });
+
+            if (optimalB > amountBDesired) {
               finalAmountB = amountBDesired;
               finalAmountA = (amountBDesired * reserve1) / reserve0;
+              console.log('Adjusting token A amount to match ratio');
+            } else {
+              finalAmountB = optimalB;
+              console.log('Using calculated optimal amount for token B');
             }
           }
         }
+      }
+
+      // Check balances
+      const [balanceA, balanceB] = await Promise.all([
+        tokenAContract.balanceOf(to),
+        tokenBContract.balanceOf(to)
+      ]);
+
+      console.log('Token balances:', {
+        tokenA: ethers.formatUnits(balanceA, decimalsA),
+        tokenB: ethers.formatUnits(balanceB, decimalsB)
+      });
+
+      if (balanceA < finalAmountA) {
+        throw new Error(`Insufficient balance for token A. Required: ${ethers.formatUnits(finalAmountA, decimalsA)}, Available: ${ethers.formatUnits(balanceA, decimalsA)}`);
+      }
+
+      if (balanceB < finalAmountB) {
+        throw new Error(`Insufficient balance for token B. Required: ${ethers.formatUnits(finalAmountB, decimalsB)}, Available: ${ethers.formatUnits(balanceB, decimalsB)}`);
       }
 
       // Calculate minimum amounts with 1% slippage tolerance
@@ -670,25 +735,102 @@ export class UniswapService {
       const finalAmountAMin = (finalAmountA * slippageTolerance) / 100n;
       const finalAmountBMin = (finalAmountB * slippageTolerance) / 100n;
 
-      console.log('Approving tokens for liquidity addition...', {
-        tokenA,
-        tokenB,
-        finalAmountA: finalAmountA.toString(),
-        finalAmountB: finalAmountB.toString(),
-        finalAmountAMin: finalAmountAMin.toString(),
-        finalAmountBMin: finalAmountBMin.toString()
+      console.log('Final amounts:', {
+        tokenA: {
+          desired: ethers.formatUnits(finalAmountA, decimalsA),
+          minimum: ethers.formatUnits(finalAmountAMin, decimalsA)
+        },
+        tokenB: {
+          desired: ethers.formatUnits(finalAmountB, decimalsB),
+          minimum: ethers.formatUnits(finalAmountBMin, decimalsB)
+        }
       });
 
-      // Approve router to spend both tokens
-      const approveATx = await tokenAContract.approve(UNISWAP_ADDRESSES.router, finalAmountA);
-      await approveATx.wait();
-      console.log('Token A approved');
+      // Check and handle approvals
+      console.log('Checking allowances...');
+      const [allowanceA, allowanceB] = await Promise.all([
+        tokenAContract.allowance(to, UNISWAP_ADDRESSES.router),
+        tokenBContract.allowance(to, UNISWAP_ADDRESSES.router)
+      ]);
 
-      const approveBTx = await tokenBContract.approve(UNISWAP_ADDRESSES.router, finalAmountB);
-      await approveBTx.wait();
-      console.log('Token B approved');
+      console.log('Current allowances:', {
+        tokenA: ethers.formatUnits(allowanceA, decimalsA),
+        tokenB: ethers.formatUnits(allowanceB, decimalsB)
+      });
 
-      // Add liquidity with optimized parameters
+      const maxApproval = ethers.MaxUint256;
+      const approvalPromises = [];
+
+      // Only approve if current allowance is insufficient
+      if (allowanceA < finalAmountA) {
+        console.log('Approving token A...');
+        toast.loading('Approving first token...', { id: 'approve-a' });
+        approvalPromises.push(
+          tokenAContract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
+            gasLimit: 60000,
+            gasPrice
+          })
+            .then(tx => tx.wait())
+            .then(() => {
+              toast.success('First token approved', { id: 'approve-a' });
+            })
+            .catch(error => {
+              toast.error('Failed to approve first token', { id: 'approve-a' });
+              throw error;
+            })
+        );
+      }
+
+      if (allowanceB < finalAmountB) {
+        console.log('Approving token B...');
+        toast.loading('Approving second token...', { id: 'approve-b' });
+        approvalPromises.push(
+          tokenBContract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
+            gasLimit: 60000,
+            gasPrice
+          })
+            .then(tx => tx.wait())
+            .then(() => {
+              toast.success('Second token approved', { id: 'approve-b' });
+            })
+            .catch(error => {
+              toast.error('Failed to approve second token', { id: 'approve-b' });
+              throw error;
+            })
+        );
+      }
+
+      // Wait for all approvals to complete
+      if (approvalPromises.length > 0) {
+        await Promise.all(approvalPromises);
+        console.log('All approvals completed');
+
+        // Double check allowances
+        const [finalAllowanceA, finalAllowanceB] = await Promise.all([
+          tokenAContract.allowance(to, UNISWAP_ADDRESSES.router),
+          tokenBContract.allowance(to, UNISWAP_ADDRESSES.router)
+        ]);
+
+        console.log('Final allowances:', {
+          tokenA: ethers.formatUnits(finalAllowanceA, decimalsA),
+          tokenB: ethers.formatUnits(finalAllowanceB, decimalsB)
+        });
+
+        if (finalAllowanceA < finalAmountA || finalAllowanceB < finalAmountB) {
+          throw new Error('Approval process failed. Please try again.');
+        }
+      }
+
+      console.log('Adding liquidity with parameters:', {
+        tokenA,
+        tokenB,
+        amountADesired: ethers.formatUnits(finalAmountA, decimalsA),
+        amountBDesired: ethers.formatUnits(finalAmountB, decimalsB),
+        amountAMin: ethers.formatUnits(finalAmountAMin, decimalsA),
+        amountBMin: ethers.formatUnits(finalAmountBMin, decimalsB)
+      });
+
+      // Add liquidity with optimized gas
       const tx = await router.addLiquidity(
         tokenA,
         tokenB,
@@ -698,7 +840,10 @@ export class UniswapService {
         finalAmountBMin,
         to,
         deadline,
-        { gasLimit: 3000000 }
+        {
+          gasLimit: 500000, // Increased gas limit for better chances of success
+          gasPrice
+        }
       );
 
       console.log('Add liquidity transaction:', tx.hash);
@@ -708,11 +853,23 @@ export class UniswapService {
       return receipt;
     } catch (error) {
       console.error('Error adding liquidity:', error);
+      
+      // Enhanced error handling
       if (error.message.includes('INSUFFICIENT_A_AMOUNT')) {
-        throw new Error('Insufficient amount for token A based on current pool ratio');
+        const errorMessage = 'The amount of first token is too low for the current pool ratio. Try increasing the amount or adjusting the ratio.';
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       } else if (error.message.includes('INSUFFICIENT_B_AMOUNT')) {
-        throw new Error('Insufficient amount for token B based on current pool ratio');
+        const errorMessage = 'The amount of second token is too low for the current pool ratio. Try increasing the amount or adjusting the ratio.';
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
+      } else if (error.message.includes('TRANSFER_FROM_FAILED')) {
+        const errorMessage = 'Transfer failed. Please check your token balances and approvals.';
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       }
+      
+      toast.error(error.message);
       throw error;
     }
   }
