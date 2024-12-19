@@ -1477,4 +1477,104 @@ export class UniswapService {
       this.poolInfoCache.get(address.toLowerCase()) || null
     );
   }
+
+  // Add helper method to calculate liquidity amounts
+  async calculateLiquidityAmounts(tokenA, tokenB, amountADesired) {
+    try {
+      const poolInfo = await this.getPoolInfo(tokenA, tokenB);
+      
+      if (!poolInfo) {
+        // For new pools, return the desired amount as is (initial price setter)
+        console.log('No existing pool - amounts will set initial price');
+        return {
+          amountA: amountADesired,
+          amountB: amountADesired, // Default 1:1, can be adjusted based on desired initial price
+          priceRatio: '1',
+          isNewPool: true,
+          estimatedPrice: '1' // 1:1 initial price
+        };
+      }
+
+      // For existing pools, calculate based on current ratio
+      const { reserve0, reserve1 } = poolInfo;
+      const token0IsTokenA = tokenA.toLowerCase() === poolInfo.token0.address.toLowerCase();
+      
+      // Get token decimals
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const tokenAContract = new ethers.Contract(tokenA, ERC20_ABI, provider);
+      const tokenBContract = new ethers.Contract(tokenB, ERC20_ABI, provider);
+      const [decimalsA, decimalsB] = await Promise.all([
+        tokenAContract.decimals(),
+        tokenBContract.decimals()
+      ]);
+
+      // Calculate amounts and price
+      let optimalAmountB;
+      let priceRatio;
+      let estimatedPrice;
+
+      if (token0IsTokenA) {
+        optimalAmountB = (amountADesired * reserve1) / reserve0;
+        priceRatio = ethers.formatUnits(reserve1, decimalsB) / ethers.formatUnits(reserve0, decimalsA);
+        estimatedPrice = ethers.formatUnits(reserve0, decimalsA) / ethers.formatUnits(reserve1, decimalsB);
+      } else {
+        optimalAmountB = (amountADesired * reserve0) / reserve1;
+        priceRatio = ethers.formatUnits(reserve0, decimalsB) / ethers.formatUnits(reserve1, decimalsA);
+        estimatedPrice = ethers.formatUnits(reserve1, decimalsA) / ethers.formatUnits(reserve0, decimalsB);
+      }
+
+      // Format amounts for display
+      const formattedAmountA = ethers.formatUnits(amountADesired, decimalsA);
+      const formattedAmountB = ethers.formatUnits(optimalAmountB, decimalsB);
+
+      console.log('Calculated liquidity amounts:', {
+        amountA: formattedAmountA,
+        amountB: formattedAmountB,
+        priceRatio: priceRatio.toString(),
+        estimatedPrice: estimatedPrice.toString(),
+        poolReserves: {
+          reserve0: ethers.formatUnits(reserve0, poolInfo.token0.decimals),
+          reserve1: ethers.formatUnits(reserve1, poolInfo.token1.decimals)
+        }
+      });
+
+      return {
+        amountA: amountADesired,
+        amountB: optimalAmountB,
+        priceRatio: priceRatio.toString(),
+        isNewPool: false,
+        estimatedPrice: estimatedPrice.toString(),
+        token0IsTokenA
+      };
+    } catch (error) {
+      console.error('Error calculating liquidity amounts:', error);
+      throw error;
+    }
+  }
+
+  // Add helper method to calculate initial pool price
+  calculateInitialPoolPrice(
+    token0Amount,
+    token1Amount,
+    token0Decimals,
+    token1Decimals
+  ) {
+    try {
+      // Convert amounts to same decimal basis for accurate price calculation
+      const normalizedToken0 = ethers.formatUnits(token0Amount, token0Decimals);
+      const normalizedToken1 = ethers.formatUnits(token1Amount, token1Decimals);
+      
+      // Calculate price in both directions
+      const token0Price = Number(normalizedToken1) / Number(normalizedToken0);
+      const token1Price = Number(normalizedToken0) / Number(normalizedToken1);
+
+      return {
+        token0Price: token0Price.toString(),
+        token1Price: token1Price.toString()
+      };
+    } catch (error) {
+      console.error('Error calculating initial pool price:', error);
+      throw error;
+    }
+  }
 } 

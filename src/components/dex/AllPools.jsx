@@ -4,78 +4,85 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { FaSearch } from 'react-icons/fa';
 import { getTokenLogo, getTokenMetadata } from '../../utils/tokens';
+import { useTokenPrices } from '../../hooks/useTokenPrices';
 
 export default function AllPools() {
   const uniswap = useUniswap();
   const [pools, setPools] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const { calculateUSDValue, formatUSD } = useTokenPrices();
 
   useEffect(() => {
     const loadPools = async () => {
-      setLoading(true);
-      setError('');
       try {
+        setLoading(true);
         const factoryPools = await uniswap.getAllPools();
-        console.log('Factory pools:', factoryPools);
+        console.log('Found pools:', factoryPools);
 
-        if (factoryPools && factoryPools.length > 0) {
-          // Get pool data for each pool
-          const poolsData = await Promise.all(
-            factoryPools.map(async (poolAddress) => {
-              try {
-                console.log('Fetching data for pool:', poolAddress);
-                const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
-                if (!poolInfo) {
-                  console.log('No pool info found for:', poolAddress);
-                  return null;
-                }
+        if (!factoryPools || factoryPools.length === 0) {
+          console.log('No pools found');
+          setPools([]);
+          return;
+        }
 
-                // Enhance token metadata
-                const [token0Metadata, token1Metadata] = await Promise.all([
-                  getTokenMetadata(poolInfo.token0),
-                  getTokenMetadata(poolInfo.token1)
-                ]);
-
-                console.log('Pool info found:', {
-                  token0: token0Metadata?.symbol,
-                  token1: token1Metadata?.symbol,
-                  reserves: poolInfo.reserves
-                });
-
-                // Calculate TVL and volumes
-                const reserve0USD = Number(ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', token0Metadata?.decimals || 18)) * (poolInfo.token0Price || 0);
-                const reserve1USD = Number(ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)) * (poolInfo.token1Price || 0);
-                const tvl = reserve0USD + reserve1USD;
-
-                return {
-                  ...poolInfo,
-                  token0: token0Metadata,
-                  token1: token1Metadata,
-                  pairAddress: poolAddress,
-                  tvl,
-                  volumes: {
-                    oneDay: tvl * 0.05, // Example volume calculation
-                    sevenDay: tvl * 0.2,
-                    thirtyDay: tvl * 0.5
-                  }
-                };
-              } catch (err) {
-                console.error(`Error fetching pool data:`, err);
+        const poolsData = await Promise.all(
+          factoryPools.map(async (poolAddress) => {
+            try {
+              console.log('Fetching data for pool:', poolAddress);
+              const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
+              if (!poolInfo) {
+                console.log('No pool info found for:', poolAddress);
                 return null;
               }
-            })
-          );
 
-          // Filter out null values and sort by TVL
-          const validPools = poolsData
-            .filter(pool => pool !== null)
-            .sort((a, b) => (b.tvl || 0) - (a.tvl || 0));
-            
-          console.log('Setting pools:', validPools);
-          setPools(validPools);
-        }
+              // Enhance token metadata
+              const [token0Metadata, token1Metadata] = await Promise.all([
+                getTokenMetadata(poolInfo.token0),
+                getTokenMetadata(poolInfo.token1)
+              ]);
+
+              console.log('Pool info found:', {
+                token0: token0Metadata?.symbol,
+                token1: token1Metadata?.symbol,
+                reserves: poolInfo.reserves
+              });
+
+              // Calculate TVL using Chainlink price feeds
+              const [reserve0USD, reserve1USD] = await Promise.all([
+                calculateUSDValue(token0Metadata, poolInfo.reserves?.reserve0 || '0'),
+                calculateUSDValue(token1Metadata, poolInfo.reserves?.reserve1 || '0')
+              ]);
+
+              const tvl = (reserve0USD || 0) + (reserve1USD || 0);
+
+              return {
+                ...poolInfo,
+                token0: token0Metadata,
+                token1: token1Metadata,
+                pairAddress: poolAddress,
+                tvl,
+                volumes: {
+                  oneDay: tvl * 0.05, // Example volume calculation
+                  sevenDay: tvl * 0.2,
+                  thirtyDay: tvl * 0.5
+                }
+              };
+            } catch (err) {
+              console.error('Error processing pool:', poolAddress, err);
+              return null;
+            }
+          })
+        );
+
+        // Filter out null values and sort by TVL
+        const validPools = poolsData
+          .filter(pool => pool !== null)
+          .sort((a, b) => (b.tvl || 0) - (a.tvl || 0));
+          
+        console.log('Setting pools:', validPools);
+        setPools(validPools);
       } catch (err) {
         console.error('Error loading pools:', err);
         setError('Failed to load pools');
@@ -85,7 +92,9 @@ export default function AllPools() {
       }
     }
 
-    loadPools();
+    if (uniswap) {
+      loadPools();
+    }
   }, [uniswap]);
 
   // Filter pools based on search term
@@ -200,16 +209,16 @@ export default function AllPools() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  ${formatNumber(pool.tvl)}
+                  {formatUSD(pool.tvl)}
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  ${formatNumber(pool.volumes.oneDay)}
+                  {formatUSD(pool.volumes.oneDay)}
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  ${formatNumber(pool.volumes.sevenDay)}
+                  {formatUSD(pool.volumes.sevenDay)}
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  ${formatNumber(pool.volumes.thirtyDay)}
+                  {formatUSD(pool.volumes.thirtyDay)}
                 </td>
               </tr>
             ))}

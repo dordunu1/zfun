@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { FaEthereum } from 'react-icons/fa';
-import { getVolumeMetrics, getEthPrice } from '../../../services/analytics';
+import { getVolumeMetrics } from '../../../services/analytics';
 import { useParams } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
+import { useTokenPrices } from '../../../hooks/useTokenPrices';
 
 const TIME_RANGES = [
   { label: '24h', value: '24h' },
@@ -16,18 +17,15 @@ export default function VolumeMetrics() {
   const { symbol } = useParams();
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [ethPrice, setEthPrice] = useState(null);
   const [timeRange, setTimeRange] = useState('7d');
+  const { prices } = useTokenPrices();
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [metricsData, usdPrice] = await Promise.all([
-          getVolumeMetrics(symbol, timeRange),
-          getEthPrice()
-        ]);
+        setLoading(true);
+        const metricsData = await getVolumeMetrics(symbol, timeRange);
         setMetrics(metricsData);
-        setEthPrice(usdPrice);
       } catch (error) {
         console.error('Error loading volume metrics:', error);
       } finally {
@@ -38,6 +36,26 @@ export default function VolumeMetrics() {
     loadData();
   }, [symbol, timeRange]);
 
+  // Calculate USD values using ETH price from Chainlink
+  const calculateUSDValue = (ethAmount) => {
+    if (!ethAmount || !prices.ETH) return 0;
+    return ethAmount * prices.ETH;
+  };
+
+  // Calculate summary metrics with USD values
+  const totalVolumeUSD = metrics.reduce((sum, m) => sum + calculateUSDValue(m.volume), 0);
+  const totalTransactions = metrics.reduce((sum, m) => sum + m.transactions, 0);
+  const avgPriceUSD = totalVolumeUSD / totalTransactions || 0;
+
+  // Format data for charts with USD values
+  const chartData = metrics.map(m => ({
+    date: m.timestamp.toDate(),
+    volumeUSD: calculateUSDValue(m.volume),
+    volume: m.volume,
+    transactions: m.transactions,
+    avgPriceUSD: calculateUSDValue(m.volume / m.transactions) || 0
+  }));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -45,19 +63,6 @@ export default function VolumeMetrics() {
       </div>
     );
   }
-
-  // Calculate summary metrics
-  const totalVolume = metrics.reduce((sum, m) => sum + m.volume, 0);
-  const totalTransactions = metrics.reduce((sum, m) => sum + m.transactions, 0);
-  const avgPrice = totalVolume / totalTransactions || 0;
-
-  // Format data for charts
-  const chartData = metrics.map(m => ({
-    date: m.timestamp.toDate(),
-    volume: m.volume,
-    transactions: m.transactions,
-    avgPrice: m.volume / m.transactions || 0
-  }));
 
   return (
     <div className="space-y-6">
@@ -84,7 +89,12 @@ export default function VolumeMetrics() {
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Total Volume</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             <span className="flex items-center">
-              <FaEthereum className="mr-1" /> {totalVolume.toFixed(2)}
+              <FaEthereum className="mr-1" /> {totalVolumeUSD.toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}
             </span>
           </p>
         </div>
@@ -96,7 +106,12 @@ export default function VolumeMetrics() {
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Avg. Price</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             <span className="flex items-center">
-              <FaEthereum className="mr-1" /> {avgPrice.toFixed(3)}
+              <FaEthereum className="mr-1" /> {avgPriceUSD.toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}
             </span>
           </p>
         </div>
@@ -137,7 +152,7 @@ export default function VolumeMetrics() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="volume"
+                  dataKey="volumeUSD"
                   stroke="#00ffbd"
                   strokeWidth={2}
                   fill="url(#volumeGradient)"
@@ -220,7 +235,7 @@ export default function VolumeMetrics() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="avgPrice"
+                  dataKey="avgPriceUSD"
                   stroke="#00ffbd"
                   strokeWidth={2}
                   fill="url(#priceGradient)"

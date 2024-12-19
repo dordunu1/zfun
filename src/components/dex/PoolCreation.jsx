@@ -57,6 +57,7 @@ export default function PoolCreation() {
   const [showToken1Modal, setShowToken1Modal] = useState(false);
   const [priceRatio, setPriceRatio] = useState(null);
   const [useAutoPrice, setUseAutoPrice] = useState(true);
+  const [priceInfo, setPriceInfo] = useState(null);
 
   // Add useEffect to get chain ID and listen for changes
   useEffect(() => {
@@ -276,6 +277,71 @@ export default function PoolCreation() {
     fetchPriceRatio();
   }, [token0, token1]);
 
+  // Add useEffect to calculate and update price info
+  useEffect(() => {
+    async function updatePriceInfo() {
+      if (!token0 || !token1 || !amount0 || !amount1) {
+        setPriceInfo(null);
+        return;
+      }
+
+      try {
+        const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
+        const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
+
+        const prices = uniswap.calculateInitialPoolPrice(
+          parsedAmount0,
+          parsedAmount1,
+          token0.decimals,
+          token1.decimals
+        );
+
+        setPriceInfo({
+          token0Price: prices.token0Price,
+          token1Price: prices.token1Price
+        });
+      } catch (error) {
+        console.error('Error calculating price:', error);
+        setPriceInfo(null);
+      }
+    }
+
+    updatePriceInfo();
+  }, [token0, token1, amount0, amount1]);
+
+  // Add TokenBalance component
+  const TokenBalance = ({ token }) => {
+    const [balance, setBalance] = useState('0');
+    const { address } = useAccount();
+
+    useEffect(() => {
+      async function getBalance() {
+        if (!token || !address) return;
+
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
+          const rawBalance = await tokenContract.balanceOf(address);
+          const formattedBalance = ethers.formatUnits(rawBalance, token.decimals);
+          setBalance(formattedBalance);
+        } catch (error) {
+          console.error('Error fetching balance:', error);
+          setBalance('0');
+        }
+      }
+
+      getBalance();
+    }, [token, address]);
+
+    if (!token) return null;
+
+    return (
+      <span className="text-sm text-gray-500 dark:text-gray-400">
+        Balance: {Number(balance).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6 max-w-lg mx-auto">
       <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
@@ -323,9 +389,12 @@ export default function PoolCreation() {
                   className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
                 >
                   {token0 ? (
-                    <div className="flex items-center gap-2">
-                      <img src={token0.logo} alt={token0.symbol} className="w-5 h-5" />
-                      <span>{token0.symbol}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img src={token0.logo} alt={token0.symbol} className="w-5 h-5" />
+                        <span>{token0.symbol}</span>
+                      </div>
+                      <TokenBalance token={token0} />
                     </div>
                   ) : (
                     'Select Token'
@@ -354,9 +423,12 @@ export default function PoolCreation() {
                   className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
                 >
                   {token1 ? (
-                    <div className="flex items-center gap-2">
-                      <img src={token1.logo} alt={token1.symbol} className="w-5 h-5" />
-                      <span>{token1.symbol}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img src={token1.logo} alt={token1.symbol} className="w-5 h-5" />
+                        <span>{token1.symbol}</span>
+                      </div>
+                      <TokenBalance token={token1} />
                     </div>
                   ) : (
                     'Select Token'
@@ -373,6 +445,33 @@ export default function PoolCreation() {
                 />
               )}
             </div>
+
+            {/* Price Information */}
+            {priceInfo && token0 && token1 && (
+              <div className="mt-6 p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Initial Pool Price
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">
+                      1 {token0.symbol} =
+                    </span>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {Number(priceInfo.token0Price).toLocaleString(undefined, { maximumFractionDigits: 6 })} {token1.symbol}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">
+                      1 {token1.symbol} =
+                    </span>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {Number(priceInfo.token1Price).toLocaleString(undefined, { maximumFractionDigits: 6 })} {token0.symbol}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Fee Tier Selection */}
             <div className="mt-6 space-y-2">
@@ -406,7 +505,7 @@ export default function PoolCreation() {
               </h3>
               <p className="text-sm text-blue-800 dark:text-blue-200">
                 Creating a new liquidity pool allows you to be the first liquidity provider.
-                You'll need to deposit both tokens in the ratio you want to set the initial price.
+                The ratio of tokens you add will set the initial price. Make sure to add sufficient liquidity to minimize price impact from trades.
               </p>
             </div>
           </>

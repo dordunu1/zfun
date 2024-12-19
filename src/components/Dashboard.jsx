@@ -1,13 +1,87 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BiRocket, BiShield, BiCoin, BiPalette, BiLineChart, BiCog, BiStore, BiTransfer, BiWater, BiCollection } from 'react-icons/bi';
 import { useDeployments } from '../context/DeploymentsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { getExplorerUrl } from '../utils/explorer';
 import { ipfsToHttp } from '../utils/ipfs';
 import { Link } from 'react-router-dom';
+import { useTokenPrices } from '../hooks/useTokenPrices';
+import { useUniswap } from '../hooks/useUniswap';
 
 export default function Dashboard() {
   const { deployments } = useDeployments();
+  const { prices } = useTokenPrices();
+  const { uniswap } = useUniswap();
+  const [poolStats, setPoolStats] = useState({
+    volume24h: 0,
+    liquidity: 0,
+    holders: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPoolStats = async () => {
+      try {
+        setLoading(true);
+        
+        // Get all pools
+        const pools = await uniswap.getAllPools();
+        
+        // Calculate total liquidity and volume
+        let totalLiquidity = 0;
+        let totalVolume24h = 0;
+        let uniqueHolders = new Set();
+
+        for (const poolAddress of pools) {
+          const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
+          if (!poolInfo) continue;
+
+          // Calculate liquidity in USD
+          const reserve0USD = poolInfo.reserves?.reserve0 && prices.ETH
+            ? Number(ethers.formatUnits(poolInfo.reserves.reserve0, poolInfo.token0.decimals)) * prices.ETH
+            : 0;
+          const reserve1USD = poolInfo.reserves?.reserve1 && prices.ETH
+            ? Number(ethers.formatUnits(poolInfo.reserves.reserve1, poolInfo.token1.decimals)) * prices.ETH
+            : 0;
+
+          totalLiquidity += reserve0USD + reserve1USD;
+
+          // Get 24h volume
+          const volume = await uniswap.getPoolVolume(poolAddress, '24h');
+          if (volume) {
+            totalVolume24h += volume * prices.ETH;
+          }
+
+          // Add holders to set
+          const holders = await uniswap.getPoolHolders(poolAddress);
+          holders.forEach(holder => uniqueHolders.add(holder));
+        }
+
+        setPoolStats({
+          volume24h: totalVolume24h,
+          liquidity: totalLiquidity,
+          holders: uniqueHolders.size
+        });
+      } catch (error) {
+        console.error('Error loading pool stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (uniswap && prices.ETH) {
+      loadPoolStats();
+    }
+  }, [uniswap, prices.ETH]);
+
+  const formatUSD = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
 
   const features = [
     {
@@ -309,15 +383,21 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-4 mt-4">
               <div className="text-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400">Volume 24h</div>
-                <div className="text-lg font-medium text-gray-900 dark:text-white">369K</div>
+                <div className="text-lg font-medium text-gray-900 dark:text-white">
+                  {loading ? 'Loading...' : formatUSD(poolStats.volume24h)}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400">Liquidity</div>
-                <div className="text-lg font-medium text-gray-900 dark:text-white">$369K</div>
+                <div className="text-lg font-medium text-gray-900 dark:text-white">
+                  {loading ? 'Loading...' : formatUSD(poolStats.liquidity)}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400">Holders</div>
-                <div className="text-lg font-medium text-gray-900 dark:text-white">69</div>
+                <div className="text-lg font-medium text-gray-900 dark:text-white">
+                  {loading ? 'Loading...' : poolStats.holders.toLocaleString()}
+                </div>
               </div>
             </div>
           </div>

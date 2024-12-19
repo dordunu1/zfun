@@ -5,6 +5,7 @@ import { UNISWAP_ADDRESSES } from '../../services/uniswap';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import { db } from '../../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { useTokenPrices } from '../../hooks/useTokenPrices';
 
 // Helper function to convert IPFS URLs to HTTP
 const ipfsToHttp = (ipfsUrl) => {
@@ -36,6 +37,7 @@ const Transactions = () => {
   const [selectedType, setSelectedType] = useState('All');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [tokenMetadataMap, setTokenMetadataMap] = useState({});
+  const { calculateUSDValue, formatUSD } = useTokenPrices();
 
   // Add function to fetch token metadata from Firestore
   const fetchFirestoreTokenMetadata = async () => {
@@ -373,11 +375,7 @@ const Transactions = () => {
                   {formatAmount(tx.outputAmount, tx.outputToken?.decimals)} {tx.outputToken?.symbol}
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
-                  {tx.outputToken?.symbol === 'USDC' || tx.outputToken?.symbol === 'USDT' 
-                    ? `$${formatAmount(tx.outputAmount, tx.outputToken?.decimals)}`
-                    : tx.inputToken?.symbol === 'USDC' || tx.inputToken?.symbol === 'USDT'
-                    ? `$${formatAmount(tx.inputAmount, tx.inputToken?.decimals)}`
-                    : '-'}
+                  {tx.usdValue ? formatUSD(tx.usdValue) : '-'}
                 </td>
                 <td className="py-3 px-4">
                   <a 
