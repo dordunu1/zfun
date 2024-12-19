@@ -267,33 +267,89 @@ export class UniswapService {
       const maxApproval = ethers.MaxUint256;
       const approvalPromises = [];
 
-      if (!isToken0ETH) {
-        const allowance0 = await token0Contract.allowance(account, UNISWAP_ADDRESSES.router);
+      // Check and handle approvals for both tokens simultaneously
+      if (!isToken0ETH && !isToken1ETH) {
+        const [allowance0, allowance1] = await Promise.all([
+          token0Contract.allowance(account, UNISWAP_ADDRESSES.router),
+          token1Contract.allowance(account, UNISWAP_ADDRESSES.router)
+        ]);
+
+        // Estimate gas for approvals
+        const [gas0, gas1] = await Promise.all([
+          token0Contract.approve.estimateGas(UNISWAP_ADDRESSES.router, maxApproval),
+          token1Contract.approve.estimateGas(UNISWAP_ADDRESSES.router, maxApproval)
+        ]).catch(e => [100000n, 100000n]); // Fallback gas limits if estimation fails
+
         if (allowance0 < amount0) {
           console.log('Approving token0...');
           toast.loading('Approving first token...', { id: 'approve0' });
           approvalPromises.push(
             token0Contract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
-              gasLimit: 50000,
+              gasLimit: gas0 * 120n / 100n, // Add 20% buffer to estimated gas
               gasPrice
             }).then(tx => tx.wait()).then(() => {
               toast.success('First token approved', { id: 'approve0' });
+            }).catch(error => {
+              toast.error('Failed to approve first token: ' + error.message, { id: 'approve0' });
+              throw error;
             })
           );
         }
-      }
 
-      if (!isToken1ETH) {
-        const allowance1 = await token1Contract.allowance(account, UNISWAP_ADDRESSES.router);
         if (allowance1 < amount1) {
           console.log('Approving token1...');
           toast.loading('Approving second token...', { id: 'approve1' });
           approvalPromises.push(
             token1Contract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
-              gasLimit: 50000,
+              gasLimit: gas1 * 120n / 100n, // Add 20% buffer to estimated gas
               gasPrice
             }).then(tx => tx.wait()).then(() => {
               toast.success('Second token approved', { id: 'approve1' });
+            }).catch(error => {
+              toast.error('Failed to approve second token: ' + error.message, { id: 'approve1' });
+              throw error;
+            })
+          );
+        }
+      } else if (!isToken0ETH) {
+        // Only token0 needs approval
+        const allowance0 = await token0Contract.allowance(account, UNISWAP_ADDRESSES.router);
+        const gas0 = await token0Contract.approve.estimateGas(UNISWAP_ADDRESSES.router, maxApproval)
+          .catch(() => 100000n);
+
+        if (allowance0 < amount0) {
+          console.log('Approving token0...');
+          toast.loading('Approving token...', { id: 'approve0' });
+          approvalPromises.push(
+            token0Contract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
+              gasLimit: gas0 * 120n / 100n,
+              gasPrice
+            }).then(tx => tx.wait()).then(() => {
+              toast.success('Token approved', { id: 'approve0' });
+            }).catch(error => {
+              toast.error('Failed to approve token: ' + error.message, { id: 'approve0' });
+              throw error;
+            })
+          );
+        }
+      } else if (!isToken1ETH) {
+        // Only token1 needs approval
+        const allowance1 = await token1Contract.allowance(account, UNISWAP_ADDRESSES.router);
+        const gas1 = await token1Contract.approve.estimateGas(UNISWAP_ADDRESSES.router, maxApproval)
+          .catch(() => 100000n);
+
+        if (allowance1 < amount1) {
+          console.log('Approving token1...');
+          toast.loading('Approving token...', { id: 'approve1' });
+          approvalPromises.push(
+            token1Contract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
+              gasLimit: gas1 * 120n / 100n,
+              gasPrice
+            }).then(tx => tx.wait()).then(() => {
+              toast.success('Token approved', { id: 'approve1' });
+            }).catch(error => {
+              toast.error('Failed to approve token: ' + error.message, { id: 'approve1' });
+              throw error;
             })
           );
         }
@@ -303,15 +359,31 @@ export class UniswapService {
       if (approvalPromises.length > 0) {
         await Promise.all(approvalPromises);
         console.log('All tokens approved');
+        
+        // Double check allowances after approvals
+        const finalAllowances = await Promise.all([
+          !isToken0ETH ? token0Contract.allowance(account, UNISWAP_ADDRESSES.router) : maxApproval,
+          !isToken1ETH ? token1Contract.allowance(account, UNISWAP_ADDRESSES.router) : maxApproval
+        ]);
+
+        if (finalAllowances[0] < amount0 || finalAllowances[1] < amount1) {
+          throw new Error('Approval process failed. Please try again.');
+        }
       }
 
       // Create pair
       console.log('Creating pair...');
       toast.loading('Creating liquidity pool...', { id: 'create-pool' });
+      
+      // Estimate gas for pair creation
+      const createPairGas = await factory.createPair.estimateGas(token0, token1)
+        .catch(() => 3000000n);
+
       const createPairTx = await factory.createPair(token0, token1, {
-        gasLimit: 3000000,
+        gasLimit: createPairGas * 120n / 100n,
         gasPrice
       });
+      
       console.log('Create pair transaction sent:', createPairTx.hash);
       const createPairReceipt = await createPairTx.wait();
       console.log('Create pair transaction confirmed');

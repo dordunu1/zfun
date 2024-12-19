@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { FaExchangeAlt, FaPlus, FaWater, FaList, FaLayerGroup } from 'react-icons/fa';
+import { FaExchangeAlt, FaPlus, FaWater, FaList, FaLayerGroup, FaHistory } from 'react-icons/fa';
 import TokenSwap from '../components/dex/TokenSwap';
 import PoolCreation from '../components/dex/PoolCreation';
 import AddLiquidity from '../components/dex/AddLiquidity';
 import MyPools from '../components/dex/MyPools';
 import AllPools from '../components/dex/AllPools';
+import Transactions from '../components/dex/Transactions';
 
 const TABS = [
   { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
+  { id: 'transactions', label: 'Transactions', icon: FaHistory },
   { id: 'pool', label: 'Create Pool', icon: FaPlus },
   { id: 'liquidity', label: 'Add Liquidity', icon: FaWater },
   { id: 'my-pools', label: 'My Pools', icon: FaList },
@@ -95,6 +97,7 @@ export default function ActivityPage() {
             {/* Tab Content */}
             <div className="h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
               {activeTab === 'swap' && <TokenSwap />}
+              {activeTab === 'transactions' && <Transactions />}
               {activeTab === 'pool' && <PoolCreation />}
               {activeTab === 'liquidity' && <AddLiquidity />}
               {activeTab === 'my-pools' && <MyPools />}
