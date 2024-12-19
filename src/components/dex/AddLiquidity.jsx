@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccount, useBalance } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import TokenSelectionModal from './TokenSelectionModal';
@@ -59,108 +59,47 @@ const getTokenLogo = (token) => {
 // Add balance display component
 const TokenBalance = ({ token }) => {
   const { address } = useAccount();
-  const [contractError, setContractError] = React.useState(null);
+  const [balance, setBalance] = useState('0');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Add contract verification
-  React.useEffect(() => {
-    const verifyContract = async () => {
-      if (token.symbol === 'USDC') {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          const contract = new ethers.Contract(token.address, [
+  useEffect(() => {
+    const loadBalance = async () => {
+      if (!address || !token?.address) return;
+
+      setIsLoading(true);
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const tokenContract = new ethers.Contract(
+          token.address,
+          [
             'function balanceOf(address) view returns (uint256)',
-            'function decimals() view returns (uint8)',
-            'function symbol() view returns (string)'
-          ], provider);
+            'function decimals() view returns (uint8)'
+          ],
+          provider
+        );
 
-          // Test contract calls
-          const [decimals, symbol] = await Promise.all([
-            contract.decimals(),
-            contract.symbol()
-          ]);
+        const [rawBalance, decimals] = await Promise.all([
+          tokenContract.balanceOf(address),
+          tokenContract.decimals()
+        ]);
 
-          console.log('USDC Contract Verification:', {
-            address: token.address,
-            decimals,
-            symbol,
-            isValid: decimals === 6 && symbol === 'USDC'
-          });
-        } catch (error) {
-          console.error('USDC Contract Verification Error:', error);
-          setContractError(error.message);
-        }
+        const formattedBalance = ethers.formatUnits(rawBalance, decimals);
+        console.log(`Balance loaded for ${token.symbol}:`, {
+          raw: rawBalance.toString(),
+          formatted: formattedBalance,
+          decimals
+        });
+
+        setBalance(formattedBalance);
+      } catch (error) {
+        console.error(`Error loading ${token.symbol} balance:`, error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    verifyContract();
-  }, [token]);
-
-  const { data: balance, isError, isLoading } = useBalance({
-    address: address,
-    token: token.address === 'ETH' ? undefined : token.address,
-    watch: true,
-    onError: (error) => {
-      console.error('Error fetching balance:', error, {
-        token: token.address,
-        userAddress: address,
-        tokenSymbol: token.symbol,
-        tokenDecimals: token.decimals
-      });
-    },
-    onSuccess: (data) => {
-      console.log('Balance fetched successfully:', {
-        token: token.address,
-        symbol: token.symbol,
-        balance: data.formatted,
-        decimals: data.decimals,
-        value: data.value.toString(),
-        rawValue: data.value
-      });
-    }
-  });
-
-  // Add useEffect for debugging USDC specifically
-  React.useEffect(() => {
-    if (token.symbol === 'USDC') {
-      console.log('USDC Token Details:', {
-        address: token.address,
-        decimals: token.decimals,
-        userAddress: address,
-        hasBalance: !!balance,
-        balanceValue: balance?.value?.toString(),
-        formattedBalance: balance?.formatted,
-        contractError: contractError
-      });
-
-      // Try direct contract call for balance
-      const getBalanceDirectly = async () => {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          const contract = new ethers.Contract(token.address, [
-            'function balanceOf(address) view returns (uint256)'
-          ], provider);
-          
-          const rawBalance = await contract.balanceOf(address);
-          console.log('USDC Direct Balance Check:', {
-            rawBalance: rawBalance.toString(),
-            formatted: ethers.formatUnits(rawBalance, 6)
-          });
-        } catch (error) {
-          console.error('Direct USDC balance check failed:', error);
-        }
-      };
-      
-      getBalanceDirectly();
-    }
-  }, [token, balance, address, contractError]);
-
-  if (contractError) {
-    return (
-      <div className="text-sm text-red-500 mt-1">
-        Contract Error: {contractError}
-      </div>
-    );
-  }
+    loadBalance();
+  }, [address, token]);
 
   if (isLoading) {
     return (
@@ -170,21 +109,10 @@ const TokenBalance = ({ token }) => {
     );
   }
 
-  if (isError) {
-    return (
-      <div className="text-sm text-red-500 mt-1">
-        Error loading balance
-      </div>
-    );
-  }
-
-  const formattedBalance = balance ? 
-    Number(ethers.formatUnits(balance.value, balance.decimals))
-      .toLocaleString(undefined, { 
-        minimumFractionDigits: 0,
-        maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6 
-      })
-    : '0';
+  const formattedBalance = Number(balance).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6
+  });
 
   return (
     <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -363,149 +291,142 @@ export default function AddLiquidity() {
   };
 
   return (
-    <>
-      <div className="space-y-6 max-w-lg mx-auto">
-        {/* Card Container */}
-        <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
-          {/* Pool Selection */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-              Select Pool
-            </label>
-            <div className="relative">
-              <button
-                onClick={() => setShowPoolModal(true)}
-                className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
-              >
-                {pool ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                      <img
-                        src={getTokenLogo(pool.token0)}
-                        alt={pool.token0.symbol}
-                        className="w-5 h-5 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/token-default.png';
-                        }}
-                      />
-                      <img
-                        src={getTokenLogo(pool.token1)}
-                        alt={pool.token1.symbol}
-                        className="w-5 h-5 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/token-default.png';
-                        }}
-                      />
-                    </div>
-                    <span>
-                      {pool.token0.symbol}/{pool.token1.symbol}
-                    </span>
-                  </div>
-                ) : (
-                  'Select Pool'
-                )}
-              </button>
+    <div className="max-w-2xl mx-auto p-6 bg-white/5 dark:bg-[#1a1b1f] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Add Liquidity</h2>
+      
+      {/* Pool Selection */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Select Pool
+        </label>
+        <button
+          onClick={() => setShowPoolModal(true)}
+          className="w-full px-4 py-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[#00ffbd] dark:hover:border-[#00ffbd] transition-colors flex items-center justify-between group"
+        >
+          {pool ? (
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-2">
+                <img
+                  src={getTokenLogo(pool.token0)}
+                  alt={pool.token0.symbol}
+                  className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                />
+                <img
+                  src={getTokenLogo(pool.token1)}
+                  alt={pool.token1.symbol}
+                  className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+                />
+              </div>
+              <span className="font-medium text-gray-900 dark:text-white">
+                {pool.token0.symbol}/{pool.token1.symbol}
+              </span>
             </div>
-          </div>
+          ) : (
+            <span className="text-gray-500">Select a pool</span>
+          )}
+          <svg
+            className="w-5 h-5 text-gray-400 group-hover:text-[#00ffbd] transition-colors"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
 
-          {pool && (
-            <>
-              {/* Token 0 Amount */}
-              <div className="mt-4 space-y-2">
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {pool.token0.symbol} Amount
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={token0Amount}
-                    onChange={(e) => setToken0Amount(e.target.value)}
-                    placeholder="0.0"
-                    className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+      {pool && (
+        <>
+          {/* Amount Inputs */}
+          <div className="space-y-4">
+            {/* Token 0 Input */}
+            <div className="p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={getTokenLogo(pool.token0)}
+                    alt={pool.token0.symbol}
+                    className="w-6 h-6 rounded-full"
                   />
-                  <button
-                    className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-sm text-[#00ffbd] hover:bg-[#00ffbd]/10 rounded-lg transition-colors"
-                  >
-                    MAX
-                  </button>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {pool.token0.symbol}
+                  </span>
                 </div>
                 <TokenBalance token={pool.token0} />
               </div>
+              <input
+                type="number"
+                value={token0Amount}
+                onChange={(e) => setToken0Amount(e.target.value)}
+                placeholder="0.0"
+                className="w-full bg-transparent text-2xl font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+              />
+            </div>
 
-              {/* Token 1 Amount */}
-              <div className="mt-4 space-y-2">
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {pool.token1.symbol} Amount
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={token1Amount}
-                    onChange={(e) => setToken1Amount(e.target.value)}
-                    placeholder="0.0"
-                    className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+            {/* Plus Icon */}
+            <div className="flex justify-center">
+              <div className="w-8 h-8 bg-white/5 dark:bg-[#2d2f36] rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Token 1 Input */}
+            <div className="p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={getTokenLogo(pool.token1)}
+                    alt={pool.token1.symbol}
+                    className="w-6 h-6 rounded-full"
                   />
-                  <button
-                    className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-sm text-[#00ffbd] hover:bg-[#00ffbd]/10 rounded-lg transition-colors"
-                  >
-                    MAX
-                  </button>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {pool.token1.symbol}
+                  </span>
                 </div>
                 <TokenBalance token={pool.token1} />
               </div>
+              <input
+                type="number"
+                value={token1Amount}
+                onChange={(e) => setToken1Amount(e.target.value)}
+                placeholder="0.0"
+                className="w-full bg-transparent text-2xl font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+              />
+            </div>
+          </div>
 
-              {/* Pool Stats */}
-              <div className="mt-6 p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Pool Share</span>
-                    <span className="text-gray-900 dark:text-gray-100">--</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Current Price</span>
-                    <span className="text-gray-900 dark:text-gray-100">--</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Info Box */}
-              <div className="mt-6 p-4 bg-blue-500/5 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-800">
-                <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                  About Adding Liquidity
-                </h3>
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                  By adding liquidity you'll earn fees from trades in this pool.
-                  The ratio of tokens you add will determine the price impact on the pool.
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Add Liquidity Button */}
-        <button
-          onClick={handleAddLiquidity}
-          disabled={loading || !pool || !token0Amount || !token1Amount}
-          className={`
-            w-full px-4 py-4 rounded-xl font-medium text-black text-lg
-            ${loading || !pool || !token0Amount || !token1Amount
-              ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-              : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors'
-            }
-          `}
-        >
-          {loading ? 'Adding Liquidity...' : 'Add Liquidity'}
-        </button>
-      </div>
+          {/* Add Liquidity Button */}
+          <button
+            onClick={handleAddLiquidity}
+            disabled={loading || !token0Amount || !token1Amount}
+            className="w-full mt-6 px-6 py-3 bg-[#00ffbd] hover:bg-[#00e6a9] disabled:bg-gray-400 text-black font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                Adding Liquidity...
+              </>
+            ) : (
+              'Add Liquidity'
+            )}
+          </button>
+        </>
+      )}
 
       {/* Pool Selection Modal */}
       <PoolSelectionModal
         isOpen={showPoolModal}
         onClose={() => setShowPoolModal(false)}
-        onSelect={handlePoolSelect}
+        onSelect={(selectedPool) => {
+          setPool(selectedPool);
+          setShowPoolModal(false);
+          // Reset amounts when pool changes
+          setToken0Amount('');
+          setToken1Amount('');
+        }}
       />
-    </>
+    </div>
   );
 } 

@@ -115,7 +115,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
           </div>
 
           {/* Pool List Container */}
-          <div className="overflow-y-auto max-h-[60vh] space-y-2 pr-2 token-list-scrollbar">
+          <div className="overflow-y-auto max-h-[60vh] space-y-2 pr-2 custom-scrollbar">
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ffbd] mx-auto"></div>
