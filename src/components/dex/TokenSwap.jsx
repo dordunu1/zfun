@@ -513,74 +513,71 @@ export default function TokenSwap() {
   // Add balance display component
   const TokenBalance = ({ token }) => {
     const { address } = useAccount();
-    const [directBalance, setDirectBalance] = React.useState(null);
-    const [contractError, setContractError] = React.useState(null);
+    const [balance, setBalance] = React.useState(null);
+    const [isLoading, setIsLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
 
-    // Add direct balance check for USDC
     React.useEffect(() => {
-      if (token.symbol === 'USDC') {
-        const checkUSDCBalance = async () => {
-          try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const contract = new ethers.Contract(token.address, [
-              'function balanceOf(address) view returns (uint256)',
-              'function decimals() view returns (uint8)'
-            ], provider);
+      const fetchBalance = async () => {
+        if (!address || !token) return;
+        
+        try {
+          setIsLoading(true);
+          setError(null);
+          const provider = new ethers.BrowserProvider(window.ethereum);
 
-            const [rawBalance, decimals] = await Promise.all([
+          let rawBalance;
+          let decimals;
+
+          if (token.symbol === 'ETH') {
+            rawBalance = await provider.getBalance(address);
+            decimals = 18;
+          } else {
+            const contract = new ethers.Contract(
+              token.address,
+              [
+                'function balanceOf(address) view returns (uint256)',
+                'function decimals() view returns (uint8)'
+              ],
+              provider
+            );
+
+            [rawBalance, decimals] = await Promise.all([
               contract.balanceOf(address),
               contract.decimals()
             ]);
-
-            console.log('USDC Direct Balance Check:', {
-              rawBalance: rawBalance.toString(),
-              formatted: ethers.formatUnits(rawBalance, decimals)
-            });
-
-            setDirectBalance({
-              value: rawBalance,
-              decimals: decimals
-            });
-          } catch (error) {
-            console.error('USDC direct balance check failed:', error);
-            setContractError(error.message);
           }
-        };
 
-        checkUSDCBalance();
-      }
+          console.log(`Balance for ${token.symbol}:`, {
+            raw: rawBalance.toString(),
+            decimals,
+            formatted: ethers.formatUnits(rawBalance, decimals)
+          });
+
+          setBalance({
+            value: rawBalance,
+            decimals
+          });
+        } catch (err) {
+          console.error('Error fetching balance:', err);
+          setError(err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchBalance();
     }, [token, address]);
 
-    // Only use wagmi's useBalance for non-USDC tokens
-    const { data: balance, isError, isLoading } = useBalance({
-      address: address,
-      token: token.symbol === 'USDC' ? undefined : (token.address === 'ETH' ? undefined : token.address),
-      watch: true,
-      enabled: token.symbol !== 'USDC',
-      onError: (error) => {
-        console.error('Error fetching balance:', error);
-        setContractError(error.message);
-      },
-      onSuccess: (data) => {
-        console.log('Balance fetched successfully:', {
-          token: token.address,
-          symbol: token.symbol,
-          balance: data.formatted,
-          decimals: data.decimals,
-          value: data.value.toString()
-        });
-      }
-    });
-
-    if (contractError) {
+    if (error) {
       return (
         <div className="text-sm text-red-500 mt-1">
-          Contract Error: {contractError}
+          Error: {error}
         </div>
       );
     }
 
-    if (isLoading && !directBalance && token.symbol !== 'USDC') {
+    if (isLoading) {
       return (
         <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Loading balance...
@@ -588,24 +585,21 @@ export default function TokenSwap() {
       );
     }
 
-    const formatBalance = (value, decimals) => {
-      if (!value) return '0';
+    const formatBalance = (balance) => {
+      if (!balance?.value) return '0';
       
-      const num = Number(ethers.formatUnits(value, decimals));
+      const formatted = Number(ethers.formatUnits(balance.value, balance.decimals));
       
       return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 0,
-        maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6
-      }).format(num);
+        maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6,
+        useGrouping: true
+      }).format(formatted);
     };
-
-    const displayBalance = token.symbol === 'USDC'
-      ? (directBalance ? formatBalance(directBalance.value, directBalance.decimals) : '0')
-      : (balance ? formatBalance(balance.value, balance.decimals) : '0');
 
     return (
       <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        Balance: {displayBalance} {token.symbol}
+        Balance: {formatBalance(balance)} {token.symbol}
       </div>
     );
   };
