@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { createPublicClient, http, createWalletClient } from 'viem';
+import { toast } from 'react-hot-toast';
 
 // Uniswap V2 Contract Addresses (Sepolia)
 export const UNISWAP_ADDRESSES = {
@@ -7,7 +8,8 @@ export const UNISWAP_ADDRESSES = {
   router: '0xc9393aFAAAe60e5f4532cfa7171749171158b1e9',
   // Common tokens on Sepolia
   WETH: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
-  USDT: '0x148b1aB3e2321d79027C4b71B6118e70434B4784' // TestUSDT address
+  USDT: '0x148b1aB3e2321d79027C4b71B6118e70434B4784', // TestUSDT address
+  USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'  // USDC address
 };
 
 // Uniswap V2 ABIs
@@ -206,23 +208,63 @@ export class UniswapService {
         throw new Error('Pool already exists');
       }
 
-      // Get current nonce
-      const nonce = await provider.getTransactionCount(account);
-
       // Get optimized gas price (5% above base fee)
       const feeData = await provider.getFeeData();
       const gasPrice = feeData.gasPrice * 105n / 100n;
 
+      // Handle approvals for non-ETH tokens
+      const maxApproval = ethers.MaxUint256;
+      const approvalPromises = [];
+
+      if (!isToken0ETH) {
+        const allowance0 = await token0Contract.allowance(account, UNISWAP_ADDRESSES.router);
+        if (allowance0 < amount0) {
+          console.log('Approving token0...');
+          toast.loading('Approving first token...', { id: 'approve0' });
+          approvalPromises.push(
+            token0Contract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
+              gasLimit: 50000,
+              gasPrice
+            }).then(tx => tx.wait()).then(() => {
+              toast.success('First token approved', { id: 'approve0' });
+            })
+          );
+        }
+      }
+
+      if (!isToken1ETH) {
+        const allowance1 = await token1Contract.allowance(account, UNISWAP_ADDRESSES.router);
+        if (allowance1 < amount1) {
+          console.log('Approving token1...');
+          toast.loading('Approving second token...', { id: 'approve1' });
+          approvalPromises.push(
+            token1Contract.approve(UNISWAP_ADDRESSES.router, maxApproval, {
+              gasLimit: 50000,
+              gasPrice
+            }).then(tx => tx.wait()).then(() => {
+              toast.success('Second token approved', { id: 'approve1' });
+            })
+          );
+        }
+      }
+
+      // Wait for all approvals to complete
+      if (approvalPromises.length > 0) {
+        await Promise.all(approvalPromises);
+        console.log('All tokens approved');
+      }
+
       // Create pair
       console.log('Creating pair...');
+      toast.loading('Creating liquidity pool...', { id: 'create-pool' });
       const createPairTx = await factory.createPair(token0, token1, {
         gasLimit: 3000000,
-        gasPrice,
-        nonce
+        gasPrice
       });
       console.log('Create pair transaction sent:', createPairTx.hash);
       const createPairReceipt = await createPairTx.wait();
       console.log('Create pair transaction confirmed');
+      toast.success('Pool created successfully!', { id: 'create-pool' });
 
       // Get pair address from event
       const pairCreatedEvent = createPairReceipt.logs.find(log => {
@@ -249,56 +291,17 @@ export class UniswapService {
       console.log('Created pair address:', pairAddress);
 
       // Wait for pair to be fully deployed
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      // Handle approvals for non-ETH tokens
-      let currentNonce = nonce + 1;
-
-      if (!isToken0ETH) {
-        console.log('Approving token0...');
-        const approve0Tx = await token0Contract.approve(UNISWAP_ADDRESSES.router, amount0, {
-          gasLimit: 50000,
-          gasPrice,
-          nonce: currentNonce++
-        });
-        await approve0Tx.wait();
-        console.log('Token0 approved');
-      }
-
-      if (!isToken1ETH) {
-        console.log('Approving token1...');
-        const approve1Tx = await token1Contract.approve(UNISWAP_ADDRESSES.router, amount1, {
-          gasLimit: 50000,
-          gasPrice,
-          nonce: currentNonce++
-        });
-        await approve1Tx.wait();
-        console.log('Token1 approved');
-      }
-
-      // Wait after approvals
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Calculate minimum amounts with 1% slippage tolerance
       const amount0Min = (amount0 * 99n) / 100n;
       const amount1Min = (amount1 * 99n) / 100n;
 
-      // Get fresh nonce
-      currentNonce = await provider.getTransactionCount(account);
-
-      console.log('Adding initial liquidity with params:', {
-        token0,
-        token1,
-        amount0: amount0.toString(),
-        amount1: amount1.toString(),
-        amount0Min: amount0Min.toString(),
-        amount1Min: amount1Min.toString()
-      });
-
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
 
       // Add liquidity based on whether ETH is involved
       let addLiquidityTx;
+      toast.loading('Adding initial liquidity...', { id: 'add-liquidity' });
       if (isToken0ETH || isToken1ETH) {
         // One of the tokens is ETH
         const tokenAddress = isToken0ETH ? token1 : token0;
@@ -325,8 +328,7 @@ export class UniswapService {
           {
             value: ethAmount,
             gasLimit: 500000,
-            gasPrice,
-            nonce: currentNonce
+            gasPrice
           }
         );
       } else {
@@ -342,8 +344,7 @@ export class UniswapService {
           deadline,
           {
             gasLimit: 500000,
-            gasPrice,
-            nonce: currentNonce
+            gasPrice
           }
         );
       }
@@ -351,6 +352,7 @@ export class UniswapService {
       console.log('Add liquidity transaction sent:', addLiquidityTx.hash);
       const addLiquidityReceipt = await addLiquidityTx.wait();
       console.log('Add liquidity transaction confirmed');
+      toast.success('Initial liquidity added successfully!', { id: 'add-liquidity' });
 
       return {
         pairAddress,
@@ -360,12 +362,16 @@ export class UniswapService {
     } catch (error) {
       console.error('Error in pool creation:', error);
       if (error.message.includes('INSUFFICIENT_A_AMOUNT')) {
+        toast.error('Insufficient amount for token A. Try increasing the amount.');
         throw new Error('Insufficient amount for token A. Try increasing the amount.');
       } else if (error.message.includes('INSUFFICIENT_B_AMOUNT')) {
+        toast.error('Insufficient amount for token B. Try increasing the amount.');
         throw new Error('Insufficient amount for token B. Try increasing the amount.');
       } else if (error.message.includes('TRANSFER_FROM_FAILED')) {
+        toast.error('Transfer failed. Please check your token balances and approvals.');
         throw new Error('Transfer failed. Please check your token balances and approvals.');
       }
+      toast.error(error.message);
       throw error;
     }
   }
@@ -695,7 +701,8 @@ export class UniswapService {
         return {
           symbol: 'WETH',
           name: 'Wrapped Ether',
-          decimals: 18
+          decimals: 18,
+          logo: '/eth.png'
         };
       }
 
@@ -703,7 +710,17 @@ export class UniswapService {
         return {
           symbol: 'tUSDT',
           name: 'Test USDT',
-          decimals: 6
+          decimals: 6,
+          logo: '/usdt.png'
+        };
+      }
+
+      if (tokenAddress.toLowerCase() === UNISWAP_ADDRESSES.USDC.toLowerCase()) {
+        return {
+          symbol: 'USDC',
+          name: 'USD Coin',
+          decimals: 6,
+          logo: '/usdc.png'
         };
       }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useBalance } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import TokenSelectionModal from './TokenSelectionModal';
 import PoolSelectionModal from './PoolSelectionModal';
@@ -25,6 +25,13 @@ const COMMON_TOKENS = [
     logo: '/eth.png'
   },
   {
+    address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    logo: '/usdc.png'
+  },
+  {
     address: UNISWAP_ADDRESSES.USDT,
     symbol: 'USDT',
     name: 'Test USDT',
@@ -47,6 +54,143 @@ const getTokenLogo = (token) => {
 
   // Default token logo
   return '/token-default.png';
+};
+
+// Add balance display component
+const TokenBalance = ({ token }) => {
+  const { address } = useAccount();
+  const [contractError, setContractError] = React.useState(null);
+
+  // Add contract verification
+  React.useEffect(() => {
+    const verifyContract = async () => {
+      if (token.symbol === 'USDC') {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const contract = new ethers.Contract(token.address, [
+            'function balanceOf(address) view returns (uint256)',
+            'function decimals() view returns (uint8)',
+            'function symbol() view returns (string)'
+          ], provider);
+
+          // Test contract calls
+          const [decimals, symbol] = await Promise.all([
+            contract.decimals(),
+            contract.symbol()
+          ]);
+
+          console.log('USDC Contract Verification:', {
+            address: token.address,
+            decimals,
+            symbol,
+            isValid: decimals === 6 && symbol === 'USDC'
+          });
+        } catch (error) {
+          console.error('USDC Contract Verification Error:', error);
+          setContractError(error.message);
+        }
+      }
+    };
+
+    verifyContract();
+  }, [token]);
+
+  const { data: balance, isError, isLoading } = useBalance({
+    address: address,
+    token: token.address === 'ETH' ? undefined : token.address,
+    watch: true,
+    onError: (error) => {
+      console.error('Error fetching balance:', error, {
+        token: token.address,
+        userAddress: address,
+        tokenSymbol: token.symbol,
+        tokenDecimals: token.decimals
+      });
+    },
+    onSuccess: (data) => {
+      console.log('Balance fetched successfully:', {
+        token: token.address,
+        symbol: token.symbol,
+        balance: data.formatted,
+        decimals: data.decimals,
+        value: data.value.toString(),
+        rawValue: data.value
+      });
+    }
+  });
+
+  // Add useEffect for debugging USDC specifically
+  React.useEffect(() => {
+    if (token.symbol === 'USDC') {
+      console.log('USDC Token Details:', {
+        address: token.address,
+        decimals: token.decimals,
+        userAddress: address,
+        hasBalance: !!balance,
+        balanceValue: balance?.value?.toString(),
+        formattedBalance: balance?.formatted,
+        contractError: contractError
+      });
+
+      // Try direct contract call for balance
+      const getBalanceDirectly = async () => {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const contract = new ethers.Contract(token.address, [
+            'function balanceOf(address) view returns (uint256)'
+          ], provider);
+          
+          const rawBalance = await contract.balanceOf(address);
+          console.log('USDC Direct Balance Check:', {
+            rawBalance: rawBalance.toString(),
+            formatted: ethers.formatUnits(rawBalance, 6)
+          });
+        } catch (error) {
+          console.error('Direct USDC balance check failed:', error);
+        }
+      };
+      
+      getBalanceDirectly();
+    }
+  }, [token, balance, address, contractError]);
+
+  if (contractError) {
+    return (
+      <div className="text-sm text-red-500 mt-1">
+        Contract Error: {contractError}
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        Loading balance...
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="text-sm text-red-500 mt-1">
+        Error loading balance
+      </div>
+    );
+  }
+
+  const formattedBalance = balance ? 
+    Number(ethers.formatUnits(balance.value, balance.decimals))
+      .toLocaleString(undefined, { 
+        minimumFractionDigits: 0,
+        maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6 
+      })
+    : '0';
+
+  return (
+    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      Balance: {formattedBalance} {token.symbol}
+    </div>
+  );
 };
 
 export default function AddLiquidity() {
@@ -200,7 +344,21 @@ export default function AddLiquidity() {
   };
 
   const handlePoolSelect = (selectedPool) => {
-    setPool(selectedPool);
+    setPool({
+      ...selectedPool,
+      token0: {
+        ...selectedPool.token0,
+        name: selectedPool.token0.name || selectedPool.token0.symbol,
+        symbol: selectedPool.token0.symbol,
+        logo: selectedPool.token0.logo || selectedPool.token0.logoIpfs,
+      },
+      token1: {
+        ...selectedPool.token1,
+        name: selectedPool.token1.name || selectedPool.token1.symbol,
+        symbol: selectedPool.token1.symbol,
+        logo: selectedPool.token1.logo || selectedPool.token1.logoIpfs,
+      }
+    });
     setShowPoolModal(false);
   };
 
@@ -242,7 +400,7 @@ export default function AddLiquidity() {
                       />
                     </div>
                     <span>
-                      {pool.token0.symbol}/{pool.token1.symbol} {pool.fee}%
+                      {pool.token0.symbol}/{pool.token1.symbol}
                     </span>
                   </div>
                 ) : (
@@ -273,6 +431,7 @@ export default function AddLiquidity() {
                     MAX
                   </button>
                 </div>
+                <TokenBalance token={pool.token0} />
               </div>
 
               {/* Token 1 Amount */}
@@ -294,6 +453,7 @@ export default function AddLiquidity() {
                     MAX
                   </button>
                 </div>
+                <TokenBalance token={pool.token1} />
               </div>
 
               {/* Pool Stats */}

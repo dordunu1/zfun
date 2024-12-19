@@ -25,6 +25,13 @@ const COMMON_TOKENS = [
     logo: '/eth.png'
   },
   {
+    address: UNISWAP_ADDRESSES.USDC,
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    logo: '/usdc.png'
+  },
+  {
     address: UNISWAP_ADDRESSES.USDT,
     symbol: 'USDT',
     name: 'Test USDT',
@@ -53,36 +60,57 @@ const scrollbarStyles = `
 `;
 
 function TokenRow({ token, userAddress, onSelect, isSelected }) {
-  const { data: balance } = useBalance({
-    address: userAddress,
-    token: token.address === 'ETH' ? undefined : token.address,
-    watch: true,
-  });
+  const [balance, setBalance] = useState('0');
 
-  const formatBalance = (value, decimals) => {
-    const num = Number(ethers.formatUnits(value, decimals));
-    
-    // If the number is greater than 1, show commas and up to 4 decimal places
-    if (num >= 1) {
-      return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 4
-      }).format(num);
-    }
-    
-    // For small numbers (< 1), show up to 6 decimal places
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 6
-    }).format(num);
-  };
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!userAddress || !token) return;
 
-  const displayBalance = balance 
-    ? formatBalance(balance.value, balance.decimals)
-    : Number(token.formattedBalance || '0').toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 4
-      });
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        let rawBalance, decimals;
+
+        if (token.address === 'ETH') {
+          rawBalance = await provider.getBalance(userAddress);
+          decimals = 18;
+        } else {
+          const contract = new ethers.Contract(
+            token.address,
+            ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
+            provider
+          );
+
+          // Get decimals first
+          try {
+            decimals = await contract.decimals();
+          } catch {
+            decimals = 18;
+          }
+
+          // Get balance using raw call
+          const data = contract.interface.encodeFunctionData('balanceOf', [userAddress]);
+          const result = await provider.call({
+            to: token.address,
+            data: data
+          });
+          rawBalance = ethers.toBigInt(result);
+        }
+
+        const formatted = Number(ethers.formatUnits(rawBalance, decimals));
+        const displayBalance = new Intl.NumberFormat('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6
+        }).format(formatted);
+
+        setBalance(displayBalance);
+      } catch (error) {
+        console.error(`Error fetching balance for ${token.symbol}:`, error);
+        setBalance('0');
+      }
+    };
+
+    fetchBalance();
+  }, [token, userAddress]);
 
   const renderTokenLogo = () => {
     // For common tokens, use their predefined logos
@@ -136,7 +164,7 @@ function TokenRow({ token, userAddress, onSelect, isSelected }) {
         </div>
       </div>
       <div className="text-right text-sm text-gray-900 dark:text-white">
-        {displayBalance}
+        {balance}
       </div>
     </button>
   );
@@ -184,7 +212,11 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           try {
             if (token.address === 'ETH') {
               const balance = await provider.getBalance(userAddress);
-              return balance > 0n ? token : null;
+              const formattedBalance = ethers.formatUnits(balance, 18);
+              return {
+                ...token,
+                formattedBalance
+              };
             }
 
             // First verify if the contract exists and has the required methods
@@ -202,30 +234,26 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
               provider
             );
 
-            // Try to call balanceOf
-            try {
-              const balance = await contract.balanceOf(userAddress);
-              if (balance > 0n) {
-                // Verify other token information
-                try {
-                  await Promise.all([
-                    contract.symbol(),
-                    contract.name(),
-                    contract.decimals()
-                  ]);
-                  return token;
-                } catch {
-                  // If any of the token info calls fail, still return the token but with basic info
-                  return token;
-                }
-              }
-              return null;
-            } catch {
-              return null;
-            }
+            // Get balance and decimals
+            const [balance, decimals] = await Promise.all([
+              contract.balanceOf(userAddress),
+              contract.decimals().catch(() => 18) // Default to 18 if decimals() fails
+            ]);
+
+            // Format the balance
+            const formattedBalance = ethers.formatUnits(balance, decimals);
+            
+            // Return token with balance info
+            return {
+              ...token,
+              formattedBalance
+            };
           } catch (error) {
-            // Silently fail and return null for any errors
-            return null;
+            console.error(`Error checking token ${token.symbol}:`, error);
+            return {
+              ...token,
+              formattedBalance: '0'
+            };
           }
         };
 
@@ -234,7 +262,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         );
 
         const validTokens = tokensWithBalances.filter(token => token !== null);
-        console.log('Tokens with balance:', validTokens);
+        console.log('All tokens with balances:', validTokens);
         setTokensWithBalance(validTokens);
       } catch (error) {
         console.error('Error fetching deployed tokens:', error);
@@ -366,16 +394,21 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         if (tokenDeployment) {
           finalToken = {
             ...token,
-            symbol: tokenDeployment.symbol,
-            name: tokenDeployment.name,
-            decimals: tokenDeployment.decimals || token.decimals,
-            logo: tokenDeployment.logo,
-            logoIpfs: tokenDeployment.logoIpfs,
-            artworkType: tokenDeployment.artworkType,
+            symbol: token.symbol || tokenDeployment.symbol, // Preserve original symbol if exists
+            name: token.name || tokenDeployment.name, // Preserve original name if exists
+            decimals: token.decimals || tokenDeployment.decimals || 18,
+            logo: token.logo || tokenDeployment.logo,
+            logoIpfs: token.logoIpfs || tokenDeployment.logoIpfs,
+            artworkType: token.artworkType || tokenDeployment.artworkType,
             verified: true
           };
         } else {
-          finalToken = token;
+          // If not in Firebase, keep all original token information
+          finalToken = {
+            ...token,
+            decimals: token.decimals || 18,
+            verified: true
+          };
         }
       }
 
@@ -384,6 +417,70 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     } catch (error) {
       console.error('Error in handleTokenSelect:', error);
       setError('Failed to process token selection');
+    }
+  };
+
+  const fetchBalance = async () => {
+    if (!userAddress || !customToken) return;
+    
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      let rawBalance;
+      let decimals;
+
+      if (customToken.symbol === 'ETH') {
+        rawBalance = await provider.getBalance(userAddress);
+        decimals = 18;
+      } else {
+        // Create contract instance with full ERC20 interface
+        const contract = new ethers.Contract(
+          customToken.address,
+          [
+            'function balanceOf(address) view returns (uint256)',
+            'function decimals() view returns (uint8)',
+            'function symbol() view returns (string)',
+            'function name() view returns (string)'
+          ],
+          provider
+        );
+
+        try {
+          // Try to get decimals first
+          decimals = await contract.decimals();
+        } catch (error) {
+          console.log('Failed to get decimals, using default 18');
+          decimals = 18;
+        }
+
+        try {
+          // Get balance with a lower-level call to handle non-standard implementations
+          rawBalance = await provider.call({
+            to: customToken.address,
+            data: contract.interface.encodeFunctionData('balanceOf', [userAddress])
+          });
+          rawBalance = ethers.zeroPadValue(rawBalance, 32); // Ensure proper padding
+          rawBalance = ethers.toBigInt(rawBalance);
+        } catch (error) {
+          console.error('Failed to get balance with low-level call:', error);
+          // Fallback to standard call
+          rawBalance = await contract.balanceOf(userAddress);
+        }
+      }
+
+      const formatted = Number(ethers.formatUnits(rawBalance, decimals));
+      setCustomToken({
+        ...customToken,
+        formattedBalance: new Intl.NumberFormat('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: customToken.symbol === 'USDC' ? 2 : 6
+        }).format(formatted)
+      });
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      setCustomToken({
+        ...customToken,
+        formattedBalance: '0'
+      });
     }
   };
 

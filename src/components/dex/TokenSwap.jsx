@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { FaExchangeAlt } from 'react-icons/fa';
-import { useAccount } from 'wagmi';
+import { useAccount, useBalance } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import { ethers } from 'ethers';
 import TokenSelectionModal from './TokenSelectionModal';
@@ -242,9 +242,16 @@ export default function TokenSwap() {
         decimals: 18
       });
     } else {
-      // For other tokens, get token info
+      // For other tokens, get token info but preserve name and symbol
       const tokenInfo = await uniswap.getTokenInfo(token.address);
-      setFromToken({ ...token, ...tokenInfo });
+      setFromToken({ 
+        ...token,
+        ...tokenInfo,
+        name: token.name || tokenInfo.name,
+        symbol: token.symbol || tokenInfo.symbol,
+        logo: token.logo || tokenInfo.logo,
+        logoIpfs: token.logoIpfs || tokenInfo.logoIpfs
+      });
     }
     setShowFromTokenModal(false);
   };
@@ -258,9 +265,16 @@ export default function TokenSwap() {
         decimals: 18
       });
     } else {
-      // For other tokens, get token info
+      // For other tokens, get token info but preserve name and symbol
       const tokenInfo = await uniswap.getTokenInfo(token.address);
-      setToToken({ ...token, ...tokenInfo });
+      setToToken({ 
+        ...token,
+        ...tokenInfo,
+        name: token.name || tokenInfo.name,
+        symbol: token.symbol || tokenInfo.symbol,
+        logo: token.logo || tokenInfo.logo,
+        logoIpfs: token.logoIpfs || tokenInfo.logoIpfs
+      });
     }
     setShowToTokenModal(false);
   };
@@ -496,6 +510,106 @@ export default function TokenSwap() {
     }
   }, [refreshTrigger]);
 
+  // Add balance display component
+  const TokenBalance = ({ token }) => {
+    const { address } = useAccount();
+    const [directBalance, setDirectBalance] = React.useState(null);
+    const [contractError, setContractError] = React.useState(null);
+
+    // Add direct balance check for USDC
+    React.useEffect(() => {
+      if (token.symbol === 'USDC') {
+        const checkUSDCBalance = async () => {
+          try {
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const contract = new ethers.Contract(token.address, [
+              'function balanceOf(address) view returns (uint256)',
+              'function decimals() view returns (uint8)'
+            ], provider);
+
+            const [rawBalance, decimals] = await Promise.all([
+              contract.balanceOf(address),
+              contract.decimals()
+            ]);
+
+            console.log('USDC Direct Balance Check:', {
+              rawBalance: rawBalance.toString(),
+              formatted: ethers.formatUnits(rawBalance, decimals)
+            });
+
+            setDirectBalance({
+              value: rawBalance,
+              decimals: decimals
+            });
+          } catch (error) {
+            console.error('USDC direct balance check failed:', error);
+            setContractError(error.message);
+          }
+        };
+
+        checkUSDCBalance();
+      }
+    }, [token, address]);
+
+    // Only use wagmi's useBalance for non-USDC tokens
+    const { data: balance, isError, isLoading } = useBalance({
+      address: address,
+      token: token.symbol === 'USDC' ? undefined : (token.address === 'ETH' ? undefined : token.address),
+      watch: true,
+      enabled: token.symbol !== 'USDC',
+      onError: (error) => {
+        console.error('Error fetching balance:', error);
+        setContractError(error.message);
+      },
+      onSuccess: (data) => {
+        console.log('Balance fetched successfully:', {
+          token: token.address,
+          symbol: token.symbol,
+          balance: data.formatted,
+          decimals: data.decimals,
+          value: data.value.toString()
+        });
+      }
+    });
+
+    if (contractError) {
+      return (
+        <div className="text-sm text-red-500 mt-1">
+          Contract Error: {contractError}
+        </div>
+      );
+    }
+
+    if (isLoading && !directBalance && token.symbol !== 'USDC') {
+      return (
+        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Loading balance...
+        </div>
+      );
+    }
+
+    const formatBalance = (value, decimals) => {
+      if (!value) return '0';
+      
+      const num = Number(ethers.formatUnits(value, decimals));
+      
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6
+      }).format(num);
+    };
+
+    const displayBalance = token.symbol === 'USDC'
+      ? (directBalance ? formatBalance(directBalance.value, directBalance.decimals) : '0')
+      : (balance ? formatBalance(balance.value, balance.decimals) : '0');
+
+    return (
+      <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        Balance: {displayBalance} {token.symbol}
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="space-y-6 max-w-lg mx-auto">
@@ -533,6 +647,7 @@ export default function TokenSwap() {
                 )}
               </button>
             </div>
+            {fromToken && <TokenBalance token={fromToken} />}
           </div>
 
           {/* Swap Icon */}
@@ -579,6 +694,7 @@ export default function TokenSwap() {
                 )}
               </button>
             </div>
+            {toToken && <TokenBalance token={toToken} />}
           </div>
 
           {/* Price Impact & Route */}

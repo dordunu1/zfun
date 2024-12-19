@@ -8,7 +8,39 @@ import { UNISWAP_ADDRESSES } from '../../services/uniswap';
 import { ERC20_ABI } from '../../services/erc20';
 import { useWeb3Modal } from '@web3modal/react';
 import { BiWallet } from 'react-icons/bi';
-import { savePool } from '../../services/firebase';
+import { getTokenDeploymentByAddress } from '../../services/firebase';
+
+// Common tokens with metadata
+const COMMON_TOKENS = [
+  {
+    address: 'ETH',
+    symbol: 'ETH',
+    name: 'Ethereum',
+    decimals: 18,
+    logo: '/eth.png'
+  },
+  {
+    address: UNISWAP_ADDRESSES.WETH,
+    symbol: 'WETH',
+    name: 'Wrapped Ethereum',
+    decimals: 18,
+    logo: '/eth.png'
+  },
+  {
+    address: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    logo: '/usdc.png'
+  },
+  {
+    address: UNISWAP_ADDRESSES.USDT,
+    symbol: 'USDT',
+    name: 'Test USDT',
+    decimals: 6,
+    logo: '/usdt.png'
+  }
+];
 
 export default function PoolCreation() {
   const { address: account, isConnected } = useAccount();
@@ -59,8 +91,27 @@ export default function PoolCreation() {
         decimals: 18
       });
     } else {
-      const tokenInfo = await uniswap.getTokenInfo(token.address);
-      setToken0({ ...token, ...tokenInfo });
+      // Try to get token info from Firebase first
+      const tokenDeployment = await getTokenDeploymentByAddress(token.address);
+      if (tokenDeployment) {
+        setToken0({
+          ...token,
+          name: tokenDeployment.name,
+          symbol: tokenDeployment.symbol,
+          decimals: tokenDeployment.decimals || 18,
+          logo: tokenDeployment.logo,
+          logoIpfs: tokenDeployment.logoIpfs
+        });
+      } else {
+        // Fallback to contract info
+        const tokenInfo = await uniswap.getTokenInfo(token.address);
+        setToken0({ 
+          ...token,
+          ...tokenInfo,
+          name: token.name || tokenInfo.name,
+          symbol: token.symbol || tokenInfo.symbol
+        });
+      }
     }
     setShowToken0Modal(false);
   };
@@ -73,8 +124,27 @@ export default function PoolCreation() {
         decimals: 18
       });
     } else {
-      const tokenInfo = await uniswap.getTokenInfo(token.address);
-      setToken1({ ...token, ...tokenInfo });
+      // Try to get token info from Firebase first
+      const tokenDeployment = await getTokenDeploymentByAddress(token.address);
+      if (tokenDeployment) {
+        setToken1({
+          ...token,
+          name: tokenDeployment.name,
+          symbol: tokenDeployment.symbol,
+          decimals: tokenDeployment.decimals || 18,
+          logo: tokenDeployment.logo,
+          logoIpfs: tokenDeployment.logoIpfs
+        });
+      } else {
+        // Fallback to contract info
+        const tokenInfo = await uniswap.getTokenInfo(token.address);
+        setToken1({ 
+          ...token,
+          ...tokenInfo,
+          name: token.name || tokenInfo.name,
+          symbol: token.symbol || tokenInfo.symbol
+        });
+      }
     }
     setShowToken1Modal(false);
   };
@@ -113,7 +183,7 @@ export default function PoolCreation() {
     }
   };
 
-  // Modify handleCreatePool to check pool existence first
+  // Modify handleCreatePool
   const handleCreatePool = async () => {
     if (!isConnected) {
       openConnectModal();
@@ -145,6 +215,7 @@ export default function PoolCreation() {
       const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
       const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
 
+      // Create pool and add liquidity
       toast.loading('Creating pool and adding liquidity...', { id: 'pool-create' });
 
       const result = await uniswap.createPool(
@@ -153,30 +224,6 @@ export default function PoolCreation() {
         parsedAmount0,
         parsedAmount1
       );
-
-      // Save pool data to Firebase
-      await savePool({
-        poolAddress: result.pairAddress,
-        token0: {
-          address: token0.address,
-          symbol: token0.symbol,
-          decimals: token0.decimals,
-          name: token0.name
-        },
-        token1: {
-          address: token1.address,
-          symbol: token1.symbol,
-          decimals: token1.decimals,
-          name: token1.name
-        },
-        creatorAddress: account,
-        factory: UNISWAP_ADDRESSES.factory,
-        reserves: {
-          reserve0: parsedAmount0.toString(),
-          reserve1: parsedAmount1.toString()
-        },
-        totalLiquidity: '0' // Will be updated after liquidity is added
-      });
 
       console.log('Pool created at:', result.pairAddress);
       toast.success('Pool created and liquidity added successfully!', { id: 'pool-create' });
@@ -193,6 +240,8 @@ export default function PoolCreation() {
           ? 'Insufficient balance for transaction'
           : error.message.includes('chain')
           ? 'Please switch to a supported network'
+          : error.message.includes('approve')
+          ? error.message
           : `Failed to create pool: ${error.message}`,
         { id: 'pool-create' }
       );

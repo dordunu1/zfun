@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { FaExchangeAlt, FaPlus, FaWater, FaList } from 'react-icons/fa';
+import { FaExchangeAlt, FaPlus, FaWater, FaList, FaLayerGroup } from 'react-icons/fa';
 import TokenSwap from '../components/dex/TokenSwap';
 import PoolCreation from '../components/dex/PoolCreation';
 import AddLiquidity from '../components/dex/AddLiquidity';
 import MyPools from '../components/dex/MyPools';
+import AllPools from '../components/dex/AllPools';
 
 const TABS = [
   { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
   { id: 'pool', label: 'Create Pool', icon: FaPlus },
   { id: 'liquidity', label: 'Add Liquidity', icon: FaWater },
   { id: 'my-pools', label: 'My Pools', icon: FaList },
+  { id: 'all-pools', label: 'All Pools', icon: FaLayerGroup },
 ];
 
 export default function ActivityPage() {
@@ -96,6 +98,7 @@ export default function ActivityPage() {
               {activeTab === 'pool' && <PoolCreation />}
               {activeTab === 'liquidity' && <AddLiquidity />}
               {activeTab === 'my-pools' && <MyPools />}
+              {activeTab === 'all-pools' && <AllPools />}
             </div>
           </div>
         </div>
