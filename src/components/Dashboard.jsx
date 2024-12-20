@@ -11,7 +11,7 @@ import { useUniswap } from '../hooks/useUniswap';
 export default function Dashboard() {
   const { deployments } = useDeployments();
   const { prices } = useTokenPrices();
-  const { uniswap } = useUniswap();
+  const uniswap = useUniswap();
   const [poolStats, setPoolStats] = useState({
     volume24h: 0,
     liquidity: 0,
@@ -21,6 +21,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     const loadPoolStats = async () => {
+      if (!uniswap) return;
+      
       try {
         setLoading(true);
         

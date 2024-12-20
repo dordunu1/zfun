@@ -163,45 +163,93 @@ export default function TokenSwap() {
     
     setLoading(true);
     try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      
+      // Parse input amount with proper decimals
       const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
+      
+      // Parse output amount with proper decimals (especially for USDC)
       const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
-      // Calculate 2% slippage tolerance using BigInt arithmetic
-      const amountOutMin = (amountOutMinRaw * BigInt(98)) / BigInt(100);
+      
+      // Calculate slippage (2%) with proper decimal handling
+      const slippageMultiplier = toToken.symbol === 'USDC' ? 9800n : 9800n; // 98% (2% slippage)
+      const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
       const path = [fromToken.address, toToken.address];
-      
-      let receipt;
-      // Check if we're swapping from ETH
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+
+      // Create router contract
+      const router = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        [
+          'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
+          'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
+          'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)'
+        ],
+        signer
+      );
+
+      console.log('Swap parameters:', {
+        amountIn: amountIn.toString(),
+        amountOutMin: amountOutMin.toString(),
+        path,
+        to: address,
+        deadline: deadline.toString()
+      });
+
+      let tx;
       if (fromToken.symbol === 'ETH') {
-        console.log('Swapping ETH for tokens...');
-        receipt = await uniswap.swapExactETHForTokens(
-          amountIn,
+        tx = await router.swapExactETHForTokens(
           amountOutMin,
           path,
-          address
+          address,
+          deadline,
+          { value: amountIn, gasLimit: 300000 }
         );
-      } 
-      // Check if we're swapping to ETH
-      else if (toToken.symbol === 'ETH') {
-        console.log('Swapping tokens for ETH...');
-        receipt = await uniswap.swapExactTokensForETH(
+      } else if (toToken.symbol === 'ETH') {
+        tx = await router.swapExactTokensForETH(
           amountIn,
           amountOutMin,
           path,
-          address
+          address,
+          deadline,
+          { gasLimit: 300000 }
         );
-      }
-      // Token to token swap
-      else {
-        console.log('Swapping tokens for tokens...');
-        receipt = await uniswap.swapExactTokensForTokens(
+      } else {
+        // For token to token swaps (including USDC)
+        // First approve if needed
+        if (fromToken.symbol !== 'ETH') {
+          const tokenContract = new ethers.Contract(
+            fromToken.address,
+            [
+              'function approve(address spender, uint256 amount) external returns (bool)',
+              'function allowance(address owner, address spender) external view returns (uint256)'
+            ],
+            signer
+          );
+          
+          const allowance = await tokenContract.allowance(address, UNISWAP_ADDRESSES.router);
+          if (allowance < amountIn) {
+            console.log('Approving tokens...');
+            const approveTx = await tokenContract.approve(UNISWAP_ADDRESSES.router, amountIn);
+            await approveTx.wait();
+            console.log('Tokens approved');
+          }
+        }
+
+        tx = await router.swapExactTokensForTokens(
           amountIn,
           amountOutMin,
           path,
-          address
+          address,
+          deadline,
+          { gasLimit: 300000 }
         );
       }
 
+      console.log('Swap transaction sent:', tx.hash);
+      const receipt = await tx.wait();
       console.log('Swap receipt:', receipt);
       
       // Update balances after successful swap
