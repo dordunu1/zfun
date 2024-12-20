@@ -9,9 +9,40 @@ const PAIR_ABI = [
   'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)'
 ];
 
+const VOLUME_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache for volumes
+
 export class VolumeTracker {
   constructor() {
     this.volumeCache = new Map();
+    this.lastCacheUpdate = 0;
+    this.loadCacheFromStorage();
+  }
+
+  loadCacheFromStorage() {
+    try {
+      const cached = localStorage.getItem('volumeCache');
+      if (cached) {
+        const { volumes, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < VOLUME_CACHE_DURATION) {
+          this.volumeCache = new Map(Object.entries(volumes));
+          this.lastCacheUpdate = timestamp;
+        }
+      }
+    } catch (error) {
+      console.warn('Error loading volume cache:', error);
+    }
+  }
+
+  saveCacheToStorage() {
+    try {
+      const volumes = Object.fromEntries(this.volumeCache);
+      localStorage.setItem('volumeCache', JSON.stringify({
+        volumes,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Error saving volume cache:', error);
+    }
   }
 
   isStablecoin(tokenAddress) {
@@ -41,6 +72,16 @@ export class VolumeTracker {
 
   async getPoolVolumes(pairAddress, pairContract, token0Decimals, token1Decimals) {
     try {
+      // Check cache first
+      const cacheKey = pairAddress.toLowerCase();
+      const cachedData = this.volumeCache.get(cacheKey);
+      const now = Date.now();
+
+      if (cachedData && (now - cachedData.timestamp < VOLUME_CACHE_DURATION)) {
+        console.log('Returning volume data from cache for:', pairAddress);
+        return cachedData;
+      }
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       
       // Get current block
@@ -59,7 +100,7 @@ export class VolumeTracker {
       const sevenDayBlocks = blocksPerDay * 7;
       const thirtyDayBlocks = blocksPerDay * 30;
 
-      // Get swap events for each period
+      // Get swap events for each period in parallel
       const swapFilter = pairContract.filters.Swap();
       
       const [oneDayEvents, sevenDayEvents, thirtyDayEvents, reserves] = await Promise.all([
@@ -120,8 +161,12 @@ export class VolumeTracker {
         oneDayTxCount: oneDayEvents.length,
         sevenDayTxCount: sevenDayEvents.length,
         thirtyDayTxCount: thirtyDayEvents.length,
-        lastUpdated: Math.floor(Date.now() / 1000)
+        timestamp: now
       };
+
+      // Update cache
+      this.volumeCache.set(cacheKey, volumeData);
+      this.saveCacheToStorage();
 
       console.log('Volume data for pool:', pairAddress, volumeData);
       return volumeData;
@@ -134,7 +179,7 @@ export class VolumeTracker {
         oneDayTxCount: 0,
         sevenDayTxCount: 0,
         thirtyDayTxCount: 0,
-        lastUpdated: 0
+        timestamp: Date.now()
       };
     }
   }

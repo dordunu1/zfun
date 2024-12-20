@@ -81,11 +81,11 @@ export class UniswapService {
       abi: ROUTER_ABI
     };
 
-    // Initialize cache
+    // Initialize cache with longer duration
     this.poolCache = new Map();
     this.poolInfoCache = new Map();
     this.lastCacheUpdate = 0;
-    this.CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    this.CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
     this.volumeTracker = new VolumeTracker();
     
     // Load cache from localStorage on initialization
@@ -1374,7 +1374,7 @@ export class UniswapService {
     }
   }
 
-  // Update getAllPools with caching
+  // Update getAllPools with parallel loading
   async getAllPools() {
     try {
       console.log('Getting all pools from factory');
@@ -1394,23 +1394,26 @@ export class UniswapService {
 
       const pairCount = await factory.allPairsLength();
       console.log('Total pairs:', pairCount.toString());
-      const pairs = [];
 
-      // Batch the requests in groups of 10 for better performance
-      const batchSize = 10;
+      // Load all pairs in parallel with batches of 20
+      const batchSize = 20;
+      const batches = [];
       for (let i = 0; i < pairCount; i += batchSize) {
-        const promises = [];
+        const batch = [];
         for (let j = 0; j < batchSize && i + j < pairCount; j++) {
-          promises.push(factory.allPairs(i + j));
+          batch.push(factory.allPairs(i + j));
         }
-        const batchResults = await Promise.all(promises);
-        pairs.push(...batchResults);
-        
-        // Update cache as we go
-        batchResults.forEach(address => {
-          this.poolCache.set(address.toLowerCase(), address);
-        });
+        batches.push(Promise.all(batch));
       }
+
+      // Wait for all batches to complete
+      const results = await Promise.all(batches);
+      const pairs = results.flat();
+      
+      // Update cache
+      pairs.forEach(address => {
+        this.poolCache.set(address.toLowerCase(), address);
+      });
 
       console.log('Found pairs:', pairs.length);
       
@@ -1430,7 +1433,7 @@ export class UniswapService {
     }
   }
 
-  // Add method to batch load pool info
+  // Update batchLoadPoolInfo with larger batch size
   async batchLoadPoolInfo(poolAddresses) {
     const uncachedPools = poolAddresses.filter(
       address => !this.isCacheValid() || !this.poolInfoCache.has(address.toLowerCase())
@@ -1444,15 +1447,28 @@ export class UniswapService {
     }
 
     console.log(`Loading info for ${uncachedPools.length} uncached pools`);
-    const batchSize = 5;
+    const batchSize = 10; // Increased from 5 to 10
     const results = [];
 
+    // Process batches in parallel
+    const batches = [];
     for (let i = 0; i < uncachedPools.length; i += batchSize) {
       const batch = uncachedPools.slice(i, i + batchSize);
-      const promises = batch.map(address => this.getPoolInfoByAddress(address));
-      const batchResults = await Promise.all(promises);
-      results.push(...batchResults);
+      batches.push(Promise.all(batch.map(address => this.getPoolInfoByAddress(address))));
     }
+
+    const batchResults = await Promise.all(batches);
+    results.push(...batchResults.flat());
+
+    // Update cache with new results
+    results.forEach(poolInfo => {
+      if (poolInfo) {
+        this.poolInfoCache.set(poolInfo.pairAddress.toLowerCase(), poolInfo);
+      }
+    });
+
+    // Save updated cache
+    this.saveCacheToStorage();
 
     return poolAddresses.map(address => 
       this.poolInfoCache.get(address.toLowerCase()) || null

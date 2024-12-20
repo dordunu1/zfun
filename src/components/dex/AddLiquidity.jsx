@@ -129,32 +129,65 @@ export default function AddLiquidity() {
   const [token1Amount, setToken1Amount] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPoolModal, setShowPoolModal] = useState(false);
+  const [activeInput, setActiveInput] = useState(null);
+  const calculateTimeoutRef = React.useRef(null);
 
-  // Add new useEffect for automatic amount calculation
+  // Single useEffect for calculations
   React.useEffect(() => {
-    const calculateOtherAmount = async () => {
-      if (!pool || (!token0Amount && !token1Amount)) return;
+    const calculateAmount = async () => {
+      if (!pool || !activeInput) return;
 
       try {
         const poolInfo = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
         if (!poolInfo || !poolInfo.reserve0 || !poolInfo.reserve1) return;
 
-        if (token0Amount && !token1Amount) {
+        if (activeInput === 'token0' && token0Amount && token0Amount !== '0') {
           const amount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
           const amount1 = (amount0 * poolInfo.reserve1) / poolInfo.reserve0;
-          setToken1Amount(ethers.formatUnits(amount1, pool.token1.decimals));
-        } else if (token1Amount && !token0Amount) {
+          const formattedAmount1 = ethers.formatUnits(amount1, pool.token1.decimals);
+          setToken1Amount(formattedAmount1);
+        } else if (activeInput === 'token1' && token1Amount && token1Amount !== '0') {
           const amount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
           const amount0 = (amount1 * poolInfo.reserve0) / poolInfo.reserve1;
-          setToken0Amount(ethers.formatUnits(amount0, pool.token0.decimals));
+          const formattedAmount0 = ethers.formatUnits(amount0, pool.token0.decimals);
+          setToken0Amount(formattedAmount0);
         }
       } catch (error) {
         console.error('Error calculating amounts:', error);
       }
     };
 
-    calculateOtherAmount();
-  }, [pool, token0Amount, token1Amount, uniswap]);
+    // Clear any existing timeout
+    if (calculateTimeoutRef.current) {
+      clearTimeout(calculateTimeoutRef.current);
+    }
+
+    // Set new timeout for calculation
+    calculateTimeoutRef.current = setTimeout(calculateAmount, 500);
+
+    // Cleanup
+    return () => {
+      if (calculateTimeoutRef.current) {
+        clearTimeout(calculateTimeoutRef.current);
+      }
+    };
+  }, [pool, token0Amount, token1Amount, activeInput, uniswap]);
+
+  const handleToken0Change = (e) => {
+    setActiveInput('token0');
+    setToken0Amount(e.target.value);
+    if (!e.target.value || e.target.value === '0') {
+      setToken1Amount('');
+    }
+  };
+
+  const handleToken1Change = (e) => {
+    setActiveInput('token1');
+    setToken1Amount(e.target.value);
+    if (!e.target.value || e.target.value === '0') {
+      setToken0Amount('');
+    }
+  };
 
   const handleAddLiquidity = async () => {
     if (!address) {
@@ -357,7 +390,8 @@ export default function AddLiquidity() {
               <input
                 type="number"
                 value={token0Amount}
-                onChange={(e) => setToken0Amount(e.target.value)}
+                onChange={handleToken0Change}
+                onFocus={() => setActiveInput('token0')}
                 placeholder="0.0"
                 className="w-full bg-transparent text-2xl font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
               />
@@ -390,7 +424,8 @@ export default function AddLiquidity() {
               <input
                 type="number"
                 value={token1Amount}
-                onChange={(e) => setToken1Amount(e.target.value)}
+                onChange={handleToken1Change}
+                onFocus={() => setActiveInput('token1')}
                 placeholder="0.0"
                 className="w-full bg-transparent text-2xl font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
               />
