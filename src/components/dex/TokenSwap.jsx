@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FaExchangeAlt } from 'react-icons/fa';
 import { useAccount, useBalance } from 'wagmi';
 import { toast } from 'react-hot-toast';
@@ -12,107 +12,171 @@ import { ERC20_ABI } from '../../services/erc20';
 export default function TokenSwap() {
   const { address } = useAccount();
   const uniswap = useUniswap();
+  
+  // State declarations
   const [fromToken, setFromToken] = useState(null);
   const [toToken, setToToken] = useState(null);
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [loading, setLoading] = useState(false);
-  const [priceImpact, setPriceImpact] = useState(null);
+  const [priceImpact, setPriceImpact] = useState(0);
   const [route, setRoute] = useState(null);
   const [showFromTokenModal, setShowFromTokenModal] = useState(false);
   const [showToTokenModal, setShowToTokenModal] = useState(false);
   const [fromTokenBalance, setFromTokenBalance] = useState('0');
   const [toTokenBalance, setToTokenBalance] = useState('0');
-  
-  // New state for liquidity amounts
-  const [liquidityAmount0, setLiquidityAmount0] = useState('');
-  const [liquidityAmount1, setLiquidityAmount1] = useState('');
-  const [showLiquidityInputs, setShowLiquidityInputs] = useState(false);
-
-  const [poolCreationState, setPoolCreationState] = useState({
-    showInputs: false,
-    token0Amount: '',
-    token1Amount: '',
-    loading: false,
-    priceRatio: null,
-    error: null
-  });
-
+  const [slippage, setSlippage] = useState(2.0);
+  const [customSlippage, setCustomSlippage] = useState('');
+  const [showCustomSlippage, setShowCustomSlippage] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Get quote when amount or tokens change
+  // Price impact calculation
+  const calculatePriceImpact = useCallback((amountIn, amountOut, poolInfo) => {
+    if (!amountIn || !amountOut || !fromToken || !toToken || !poolInfo?.token0) return 0;
+    
+    try {
+      const { reserve0, reserve1, token0 } = poolInfo;
+      
+      if (!reserve0 || !reserve1 || !token0) {
+        console.error('Missing required pool info:', { reserve0, reserve1, token0 });
+        return 0;
+      }
+
+      const fromTokenAddress = fromToken.address.toLowerCase();
+      const token0Address = token0.toLowerCase();
+      const isToken0In = fromTokenAddress === token0Address;
+      
+      const reserveIn = isToken0In ? reserve0 : reserve1;
+      const reserveOut = isToken0In ? reserve1 : reserve0;
+      
+      const amountInDecimal = Number(ethers.formatUnits(amountIn, fromToken.decimals));
+      const amountOutDecimal = Number(ethers.formatUnits(amountOut, toToken.decimals));
+      const reserveInDecimal = Number(ethers.formatUnits(reserveIn, fromToken.decimals));
+      const reserveOutDecimal = Number(ethers.formatUnits(reserveOut, toToken.decimals));
+      
+      const spotPrice = reserveOutDecimal / reserveInDecimal;
+      const executionPrice = amountOutDecimal / amountInDecimal;
+      const impact = Math.abs((spotPrice - executionPrice) / spotPrice * 100);
+      
+      console.log('Price Impact Calculation:', {
+        spotPrice,
+        executionPrice,
+        impact,
+        amountInDecimal,
+        amountOutDecimal,
+        reserveInDecimal,
+        reserveOutDecimal
+      });
+      
+      return Number(impact.toFixed(2));
+    } catch (error) {
+      console.error('Error calculating price impact:', error);
+      return 0;
+    }
+  }, [fromToken, toToken]);
+
+  // Quote effect
   useEffect(() => {
     async function getQuote() {
       if (!uniswap || !fromToken || !toToken || !fromAmount || fromAmount === '0') {
         setToAmount('');
-        setPriceImpact(null);
+        setPriceImpact(0);
         setRoute(null);
         return;
       }
 
       try {
-        // Check if pool exists
         const poolInfo = await uniswap.getPoolInfo(fromToken.address, toToken.address);
         console.log('Pool info:', poolInfo);
         
-        if (!poolInfo) {
+        if (!poolInfo?.token0) {
           console.log('No liquidity pool exists for this pair');
           setToAmount('');
-          setPriceImpact(null);
+          setPriceImpact(0);
           setRoute('No liquidity pool exists');
           return;
         }
 
-        // Convert amount to wei based on token decimals
         const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
         const path = [fromToken.address, toToken.address];
+        const amountOut = await uniswap.getAmountOut(amountIn, path);
+        const formattedAmount = ethers.formatUnits(amountOut, toToken.decimals);
+        setToAmount(formattedAmount);
 
-        try {
-          // Get quote from Uniswap
-          const amountOut = await uniswap.getAmountOut(amountIn, path);
-          const formattedAmount = ethers.formatUnits(amountOut, toToken.decimals);
-          setToAmount(formattedAmount);
-
-          // Calculate price impact
-          const impact = calculatePriceImpact(amountIn, amountOut, poolInfo);
-          setPriceImpact(impact);
-          setRoute(`${fromToken.symbol} → ${toToken.symbol}`);
-        } catch (quoteError) {
-          console.error('Error getting quote:', quoteError);
-          setToAmount('');
-          setPriceImpact(null);
-          setRoute('Error: Failed to get quote');
-        }
+        // Store the values needed for price impact calculation
+        setSwapDetails({
+          amountIn,
+          amountOut,
+          poolInfo
+        });
+        
+        setRoute(`${fromToken.symbol} → ${toToken.symbol}`);
       } catch (error) {
-        console.error('Error checking pool:', error);
+        console.error('Error in getQuote:', error);
         setToAmount('');
-        setPriceImpact(null);
-        setRoute('Error: ' + (error.reason || 'Failed to check pool'));
+        setPriceImpact(0);
+        setRoute('Error: ' + (error.reason || 'Failed to get quote'));
       }
     }
 
     getQuote();
   }, [uniswap, fromToken, toToken, fromAmount]);
 
-  const calculatePriceImpact = (amountIn, amountOut, poolInfo) => {
+  // Add state for swap details
+  const [swapDetails, setSwapDetails] = useState({
+    amountIn: null,
+    amountOut: null,
+    poolInfo: null
+  });
+
+  // Calculate price impact using useMemo
+  useMemo(() => {
+    if (!swapDetails.amountIn || !swapDetails.amountOut || !fromToken || !toToken || !swapDetails.poolInfo?.token0) {
+      setPriceImpact(0);
+      return;
+    }
+    
     try {
-      const { reserve0, reserve1 } = poolInfo;
-      const isToken0 = fromToken.address.toLowerCase() === poolInfo.token0.toLowerCase();
+      const { reserve0, reserve1, token0 } = swapDetails.poolInfo;
       
-      const reserveIn = isToken0 ? reserve0 : reserve1;
-      const reserveOut = isToken0 ? reserve1 : reserve0;
+      if (!reserve0 || !reserve1 || !token0) {
+        console.error('Missing required pool info:', { reserve0, reserve1, token0 });
+        setPriceImpact(0);
+        return;
+      }
+
+      const fromTokenAddress = fromToken.address.toLowerCase();
+      const token0Address = token0.toLowerCase();
+      const isToken0In = fromTokenAddress === token0Address;
       
-      // Calculate price impact using reserves
-      const priceBeforeSwap = reserveOut * BigInt(1e18) / reserveIn;
-      const priceAfterSwap = amountOut * BigInt(1e18) / amountIn;
-      const impact = ((priceBeforeSwap - priceAfterSwap) * BigInt(100)) / priceBeforeSwap;
+      const reserveIn = isToken0In ? reserve0 : reserve1;
+      const reserveOut = isToken0In ? reserve1 : reserve0;
       
-      return Number(ethers.formatUnits(impact.toString(), 2));
+      const amountInDecimal = Number(ethers.formatUnits(swapDetails.amountIn, fromToken.decimals));
+      const amountOutDecimal = Number(ethers.formatUnits(swapDetails.amountOut, toToken.decimals));
+      const reserveInDecimal = Number(ethers.formatUnits(reserveIn, fromToken.decimals));
+      const reserveOutDecimal = Number(ethers.formatUnits(reserveOut, toToken.decimals));
+      
+      const spotPrice = reserveOutDecimal / reserveInDecimal;
+      const executionPrice = amountOutDecimal / amountInDecimal;
+      const impact = Math.abs((spotPrice - executionPrice) / spotPrice * 100);
+      
+      console.log('Price Impact Calculation:', {
+        spotPrice,
+        executionPrice,
+        impact,
+        amountInDecimal,
+        amountOutDecimal,
+        reserveInDecimal,
+        reserveOutDecimal
+      });
+      
+      setPriceImpact(Number(impact.toFixed(2)));
     } catch (error) {
       console.error('Error calculating price impact:', error);
-      return null;
+      setPriceImpact(0);
     }
-  };
+  }, [swapDetails, fromToken, toToken]);
 
   // Add updateBalances function
   const updateBalances = async () => {
@@ -172,8 +236,8 @@ export default function TokenSwap() {
       // Parse output amount with proper decimals (especially for USDC)
       const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
       
-      // Calculate slippage (2%) with proper decimal handling
-      const slippageMultiplier = toToken.symbol === 'USDC' ? 9800n : 9800n; // 98% (2% slippage)
+      // Calculate slippage using user-defined slippage value
+      const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100)); // Convert percentage to basis points
       const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
       const path = [fromToken.address, toToken.address];
@@ -652,6 +716,28 @@ export default function TokenSwap() {
     );
   };
 
+  const handleSlippageChange = (value) => {
+    if (value === 'custom') {
+      setShowCustomSlippage(true);
+    } else {
+      setSlippage(parseFloat(value));
+      setShowCustomSlippage(false);
+      setCustomSlippage('');
+    }
+  };
+
+  const handleCustomSlippageChange = (e) => {
+    const value = e.target.value;
+    if (value === '' || (/^\d*\.?\d*$/.test(value) && parseFloat(value) <= 100)) {
+      setCustomSlippage(value);
+      if (value !== '') {
+        setSlippage(parseFloat(value));
+      }
+    }
+  };
+
+  const isHighPriceImpact = priceImpact > 5; // Warning for price impact > 5%
+
   return (
     <>
       <div className="space-y-6 max-w-lg mx-auto">
@@ -756,6 +842,72 @@ export default function TokenSwap() {
               </div>
               {renderPoolCreation()}
             </div>
+          </div>
+        </div>
+
+        {/* Revamped Slippage Settings */}
+        <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800">
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Slippage Tolerance
+              </span>
+              <div className="flex space-x-2">
+                {[0.5, 1.0, 2.0].map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => handleSlippageChange(value.toString())}
+                    className={`px-3 py-1.5 text-sm rounded-xl transition-all
+                      ${slippage === value && !showCustomSlippage
+                        ? 'bg-[#00ffbd] text-black font-medium shadow-lg shadow-[#00ffbd]/20'
+                        : 'bg-white/5 dark:bg-[#2d2f36] text-gray-900 dark:text-gray-100 hover:bg-[#00ffbd]/10'
+                      } border border-gray-200 dark:border-gray-800`}
+                  >
+                    {value}%
+                  </button>
+                ))}
+                <button
+                  onClick={() => handleSlippageChange('custom')}
+                  className={`px-3 py-1.5 text-sm rounded-xl transition-all
+                    ${showCustomSlippage
+                      ? 'bg-[#00ffbd] text-black font-medium shadow-lg shadow-[#00ffbd]/20'
+                      : 'bg-white/5 dark:bg-[#2d2f36] text-gray-900 dark:text-gray-100 hover:bg-[#00ffbd]/10'
+                    } border border-gray-200 dark:border-gray-800`}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+            
+            {showCustomSlippage && (
+              <div className="flex items-center space-x-2 bg-white/5 dark:bg-[#2d2f36] rounded-xl p-2 border border-gray-200 dark:border-gray-800">
+                <input
+                  type="text"
+                  value={customSlippage}
+                  onChange={handleCustomSlippageChange}
+                  placeholder="Enter slippage %"
+                  className="w-full px-3 py-2 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
+                />
+                <span className="text-gray-900 dark:text-gray-100 pr-2">%</span>
+              </div>
+            )}
+            
+            {/* Price Impact Warning with updated styling */}
+            {priceImpact > 0 && (
+              <div className={`flex items-center justify-between p-2 rounded-xl ${
+                isHighPriceImpact 
+                  ? 'bg-red-500/10 text-red-500' 
+                  : 'bg-white/5 dark:bg-[#2d2f36] text-gray-900 dark:text-gray-100'
+              }`}>
+                <span>Price Impact</span>
+                <div className="flex items-center space-x-2">
+                  <span>{priceImpact.toFixed(2)}%</span>
+                  {isHighPriceImpact && (
+                    <span className="text-red-500">⚠️</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
