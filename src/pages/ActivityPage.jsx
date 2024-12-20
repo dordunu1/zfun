@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FaExchangeAlt, FaPlus, FaWater, FaList, FaLayerGroup, FaHistory } from 'react-icons/fa';
 import TokenSwap from '../components/dex/TokenSwap';
 import PoolCreation from '../components/dex/PoolCreation';
-import AddLiquidity from '../components/dex/AddLiquidity';
+import ManageLiquidity from '../components/dex/ManageLiquidity';
 import MyPools from '../components/dex/MyPools';
 import AllPools from '../components/dex/AllPools';
 import Transactions from '../components/dex/Transactions';
@@ -11,7 +11,7 @@ const TABS = [
   { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
   { id: 'transactions', label: 'Transactions', icon: FaHistory },
   { id: 'pool', label: 'Create Pool', icon: FaPlus },
-  { id: 'liquidity', label: 'Add Liquidity', icon: FaWater },
+  { id: 'liquidity', label: 'Manage Liquidity', icon: FaWater },
   { id: 'my-pools', label: 'My Pools', icon: FaList },
   { id: 'all-pools', label: 'All Pools', icon: FaLayerGroup },
 ];
@@ -99,7 +99,7 @@ export default function ActivityPage() {
               {activeTab === 'swap' && <TokenSwap />}
               {activeTab === 'transactions' && <Transactions />}
               {activeTab === 'pool' && <PoolCreation />}
-              {activeTab === 'liquidity' && <AddLiquidity />}
+              {activeTab === 'liquidity' && <ManageLiquidity />}
               {activeTab === 'my-pools' && <MyPools />}
               {activeTab === 'all-pools' && <AllPools />}
             </div>

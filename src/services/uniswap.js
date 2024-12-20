@@ -1578,108 +1578,50 @@ export class UniswapService {
     }
   }
 
-  // Add this function to collect protocol fees
-  async collectProtocolFees(pairAddress) {
+  // Add removeLiquidity function
+  async removeLiquidity(
+    tokenA,
+    tokenB,
+    liquidity,
+    amountAMin,
+    amountBMin,
+    to,
+    deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
+  ) {
     try {
-      const signer = await this.provider.getSigner();
-      
-      // Interface for the pair contract
-      const pairABI = [
-        'function mint(address to) external returns (uint256 liquidity)',
-        'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
-        'function token0() external view returns (address)',
-        'function token1() external view returns (address)'
-      ];
-      
-      const pairContract = new ethers.Contract(pairAddress, pairABI, signer);
-      
-      // Get current reserves before minting
-      const reservesBefore = await pairContract.getReserves();
-      
-      // Mint new LP tokens (this will collect the protocol fees)
-      const tx = await pairContract.mint(await signer.getAddress());
-      await tx.wait();
-      
-      // Get reserves after minting to calculate collected fees
-      const reservesAfter = await pairContract.getReserves();
-      
-      // Calculate collected fees
-      const token0Collected = reservesAfter[0] - reservesBefore[0];
-      const token1Collected = reservesAfter[1] - reservesBefore[1];
-      
-      return {
-        success: true,
-        token0Collected: token0Collected.toString(),
-        token1Collected: token1Collected.toString()
-      };
-    } catch (error) {
-      console.error('Error collecting protocol fees:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
 
-  // Add this function to check accumulated protocol fees
-  async checkAccumulatedFees(pairAddress) {
-    try {
-      const signer = await this.provider.getSigner();
-      const factory = new ethers.Contract(
-        UNISWAP_ADDRESSES.factory,
-        [
-          'function feeTo() external view returns (address)',
-          'function feeToSetter() external view returns (address)'
-        ],
+      // Get optimized gas price
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice * 110n / 100n;
+
+      const router = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        ROUTER_ABI,
         signer
       );
-      
-      // Check if feeTo is set
-      const feeTo = await factory.feeTo();
-      if (feeTo === ethers.ZeroAddress) {
-        return {
-          success: false,
-          error: 'feeTo address not set in factory'
-        };
-      }
-      
-      // Get pair contract
-      const pairABI = [
-        'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
-        'function token0() external view returns (address)',
-        'function token1() external view returns (address)',
-        'function kLast() external view returns (uint256)'
-      ];
-      
-      const pairContract = new ethers.Contract(pairAddress, pairABI, signer);
-      const [reserve0, reserve1] = await pairContract.getReserves();
-      const kLast = await pairContract.kLast();
-      
-      // Calculate accumulated fees (this is an estimate)
-      const rootK = Math.sqrt(reserve0 * reserve1);
-      const rootKLast = Math.sqrt(kLast);
-      
-      if (rootK <= rootKLast) {
-        return {
-          success: true,
-          accumulatedFees: '0'
-        };
-      }
-      
-      const numerator = rootK - rootKLast;
-      const denominator = rootK * 5 + rootKLast;
-      const feeLiquidity = (numerator * rootK) / denominator;
-      
-      return {
-        success: true,
-        accumulatedFees: feeLiquidity.toString()
-      };
+
+      // Execute removeLiquidity with optimized gas
+      const tx = await router.removeLiquidity(
+        tokenA,
+        tokenB,
+        liquidity,
+        amountAMin,
+        amountBMin,
+        to,
+        deadline,
+        {
+          gasLimit: 250000,
+          gasPrice
+        }
+      );
+
+      const receipt = await tx.wait();
+      return receipt;
     } catch (error) {
-      console.error('Error checking accumulated fees:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+      console.error('Error removing liquidity:', error);
+      throw error;
     }
   }
 } 
