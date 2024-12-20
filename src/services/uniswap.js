@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { createPublicClient, http, createWalletClient } from 'viem';
 import { toast } from 'react-hot-toast';
+import { VolumeTracker } from './VolumeTracker';
 
 // Uniswap V2 Contract Addresses (Sepolia)
 export const UNISWAP_ADDRESSES = {
@@ -49,6 +50,7 @@ const PAIR_ABI = [
   'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
   'function price0CumulativeLast() external view returns (uint)',
   'function price1CumulativeLast() external view returns (uint)',
+  'event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)',
 ];
 
 const ERC20_ABI = [
@@ -84,6 +86,7 @@ export class UniswapService {
     this.poolInfoCache = new Map();
     this.lastCacheUpdate = 0;
     this.CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    this.volumeTracker = new VolumeTracker();
     
     // Load cache from localStorage on initialization
     this.loadCacheFromStorage();
@@ -1023,24 +1026,13 @@ export class UniswapService {
   // Get Pool Information by Pair Address
   async getPoolInfoByAddress(pairAddress) {
     try {
-      console.log('Getting pool info for:', pairAddress);
-      
-      // Normalize address for cache lookup
-      const normalizedAddress = pairAddress.toLowerCase();
-      
-      // Check cache first
-      if (this.isCacheValid() && this.poolInfoCache.has(normalizedAddress)) {
-        console.log('Returning pool info from cache');
-        return this.poolInfoCache.get(normalizedAddress);
-      }
-
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const pair = new ethers.Contract(pairAddress, PAIR_ABI, provider);
+      const pairContract = new ethers.Contract(pairAddress, PAIR_ABI, provider);
 
       // Get token addresses
       const [token0Address, token1Address] = await Promise.all([
-        pair.token0(),
-        pair.token1()
+        pairContract.token0(),
+        pairContract.token1()
       ]);
 
       // Get token contracts
@@ -1048,57 +1040,46 @@ export class UniswapService {
       const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider);
 
       // Get token info
-      const [
-        token0Symbol,
-        token0Name,
-        token0Decimals,
-        token1Symbol,
-        token1Name,
-        token1Decimals,
-        reserves
-      ] = await Promise.all([
-        token0Contract.symbol().catch(() => 'Unknown'),
-        token0Contract.name().catch(() => 'Unknown Token'),
-        token0Contract.decimals().catch(() => 18),
-        token1Contract.symbol().catch(() => 'Unknown'),
-        token1Contract.name().catch(() => 'Unknown Token'),
-        token1Contract.decimals().catch(() => 18),
-        pair.getReserves()
+      const [token0Symbol, token1Symbol, token0Decimals, token1Decimals, reserves] = await Promise.all([
+        token0Contract.symbol(),
+        token1Contract.symbol(),
+        token0Contract.decimals(),
+        token1Contract.decimals(),
+        pairContract.getReserves()
       ]);
 
-      const poolInfo = {
+      // Get volume data
+      const volumeData = await this.volumeTracker.getPoolVolumes(
+        pairAddress,
+        pairContract,
+        token0Decimals,
+        token1Decimals
+      );
+
+      console.log('Pool info volumes:', volumeData);
+
+      return {
+        pairAddress,
         token0: {
           address: token0Address,
           symbol: token0Symbol,
-          name: token0Name,
           decimals: token0Decimals
         },
         token1: {
           address: token1Address,
           symbol: token1Symbol,
-          name: token1Name,
           decimals: token1Decimals
         },
         reserves: {
           reserve0: reserves[0],
           reserve1: reserves[1],
           blockTimestampLast: reserves[2]
-        }
+        },
+        volumes: volumeData
       };
-
-      // Update cache and save to storage
-      this.poolInfoCache.set(normalizedAddress, poolInfo);
-      this.saveCacheToStorage();
-
-      return poolInfo;
     } catch (error) {
       console.error('Error getting pool info:', error);
-      // If there's an error but we have cached data, return it
-      if (this.poolInfoCache.has(pairAddress.toLowerCase())) {
-        console.log('Returning cached pool info due to error');
-        return this.poolInfoCache.get(pairAddress.toLowerCase());
-      }
-      return null;
+      throw error;
     }
   }
 
@@ -1622,6 +1603,46 @@ export class UniswapService {
     } catch (error) {
       console.error('Error removing liquidity:', error);
       throw error;
+    }
+  }
+
+  // Add method to get pool volumes
+  async getPoolVolumes(pairAddress) {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const pair = new ethers.Contract(pairAddress, PAIR_ABI, provider);
+
+      // Get token contracts for decimals
+      const [token0Address, token1Address] = await Promise.all([
+        pair.token0(),
+        pair.token1()
+      ]);
+
+      const token0Contract = new ethers.Contract(token0Address, ERC20_ABI, provider);
+      const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider);
+      const [decimals0, decimals1] = await Promise.all([
+        token0Contract.decimals(),
+        token1Contract.decimals()
+      ]);
+
+      // Use VolumeTracker to get volumes
+      return await this.volumeTracker.getPoolVolumes(
+        pairAddress,
+        pair,
+        decimals0,
+        decimals1
+      );
+    } catch (error) {
+      console.error('Error getting pool volumes:', error);
+      return {
+        oneDayVolume: 0,
+        sevenDayVolume: 0,
+        thirtyDayVolume: 0,
+        oneDayTxCount: 0,
+        sevenDayTxCount: 0,
+        thirtyDayTxCount: 0,
+        poolCreatedAt: 0
+      };
     }
   }
 } 

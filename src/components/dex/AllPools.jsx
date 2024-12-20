@@ -63,10 +63,14 @@ export default function AllPools() {
                 token1: token1Metadata,
                 pairAddress: poolAddress,
                 tvl,
+                createdAt: poolInfo.volumes?.poolCreatedAt || 0,
                 volumes: {
-                  oneDay: tvl * 0.05, // Example volume calculation
-                  sevenDay: tvl * 0.2,
-                  thirtyDay: tvl * 0.5
+                  oneDay: poolInfo.volumes?.oneDayVolume || 0,
+                  sevenDay: poolInfo.volumes?.sevenDayVolume || 0,
+                  thirtyDay: poolInfo.volumes?.thirtyDayVolume || 0,
+                  oneDayTxCount: poolInfo.volumes?.oneDayTxCount || 0,
+                  sevenDayTxCount: poolInfo.volumes?.sevenDayTxCount || 0,
+                  thirtyDayTxCount: poolInfo.volumes?.thirtyDayTxCount || 0
                 }
               };
             } catch (err) {
@@ -117,6 +121,13 @@ export default function AllPools() {
     } else {
       return value.toFixed(2);
     }
+  };
+
+  const isPoolOlderThan = (createdAt, days) => {
+    if (!createdAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const daysInSeconds = days * 24 * 60 * 60;
+    return (now - createdAt) >= daysInSeconds;
   };
 
   if (loading) {
@@ -193,6 +204,9 @@ export default function AllPools() {
                   </div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                     <span className="truncate">{pool.pairAddress}</span>
+                    <span className="text-xs text-gray-400">
+                      Created {new Date(pool.createdAt * 1000).toLocaleDateString()}
+                    </span>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(pool.pairAddress);
@@ -212,13 +226,34 @@ export default function AllPools() {
                   {formatUSD(pool.tvl)}
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  {formatUSD(pool.volumes.oneDay)}
+                  <div className="group relative inline-block">
+                    {formatUSD(pool.volumes.oneDay)}
+                    {pool.volumes.oneDayTxCount > 0 && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full right-0 mb-2 px-3 py-1 text-xs bg-gray-900 text-white rounded-lg whitespace-nowrap">
+                        {pool.volumes.oneDayTxCount} transactions in 24h
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  {formatUSD(pool.volumes.sevenDay)}
+                  <div className="group relative inline-block">
+                    {isPoolOlderThan(pool.createdAt, 7) ? formatUSD(pool.volumes.sevenDay) : '-'}
+                    {pool.volumes.sevenDayTxCount > 0 && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full right-0 mb-2 px-3 py-1 text-xs bg-gray-900 text-white rounded-lg whitespace-nowrap">
+                        {pool.volumes.sevenDayTxCount} transactions in 7d
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  {formatUSD(pool.volumes.thirtyDay)}
+                  <div className="group relative inline-block">
+                    {isPoolOlderThan(pool.createdAt, 30) ? formatUSD(pool.volumes.thirtyDay) : '-'}
+                    {pool.volumes.thirtyDayTxCount > 0 && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full right-0 mb-2 px-3 py-1 text-xs bg-gray-900 text-white rounded-lg whitespace-nowrap">
+                        {pool.volumes.thirtyDayTxCount} transactions in 30d
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
