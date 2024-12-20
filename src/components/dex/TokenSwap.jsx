@@ -19,7 +19,6 @@ export default function TokenSwap() {
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [loading, setLoading] = useState(false);
-  const [priceImpact, setPriceImpact] = useState(0);
   const [route, setRoute] = useState(null);
   const [showFromTokenModal, setShowFromTokenModal] = useState(false);
   const [showToTokenModal, setShowToTokenModal] = useState(false);
@@ -29,58 +28,48 @@ export default function TokenSwap() {
   const [customSlippage, setCustomSlippage] = useState('');
   const [showCustomSlippage, setShowCustomSlippage] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [estimatedFee, setEstimatedFee] = useState(null);
+  const [networkCost, setNetworkCost] = useState(null);
+  const [exchangeRate, setExchangeRate] = useState(null);
 
-  // Price impact calculation
-  const calculatePriceImpact = useCallback((amountIn, amountOut, poolInfo) => {
-    if (!amountIn || !amountOut || !fromToken || !toToken || !poolInfo?.token0) return 0;
-    
-    try {
-      const { reserve0, reserve1, token0 } = poolInfo;
-      
-      if (!reserve0 || !reserve1 || !token0) {
-        console.error('Missing required pool info:', { reserve0, reserve1, token0 });
-        return 0;
-      }
-
-      const fromTokenAddress = fromToken.address.toLowerCase();
-      const token0Address = token0.toLowerCase();
-      const isToken0In = fromTokenAddress === token0Address;
-      
-      const reserveIn = isToken0In ? reserve0 : reserve1;
-      const reserveOut = isToken0In ? reserve1 : reserve0;
-      
-      const amountInDecimal = Number(ethers.formatUnits(amountIn, fromToken.decimals));
-      const amountOutDecimal = Number(ethers.formatUnits(amountOut, toToken.decimals));
-      const reserveInDecimal = Number(ethers.formatUnits(reserveIn, fromToken.decimals));
-      const reserveOutDecimal = Number(ethers.formatUnits(reserveOut, toToken.decimals));
-      
-      const spotPrice = reserveOutDecimal / reserveInDecimal;
-      const executionPrice = amountOutDecimal / amountInDecimal;
-      const impact = Math.abs((spotPrice - executionPrice) / spotPrice * 100);
-      
-      console.log('Price Impact Calculation:', {
-        spotPrice,
-        executionPrice,
-        impact,
-        amountInDecimal,
-        amountOutDecimal,
-        reserveInDecimal,
-        reserveOutDecimal
-      });
-      
-      return Number(impact.toFixed(2));
-    } catch (error) {
-      console.error('Error calculating price impact:', error);
-      return 0;
+  // Calculate exchange rate and fees
+  const calculateTradeDetails = useCallback(() => {
+    if (!fromAmount || !toAmount || !fromToken || !toToken) {
+      setEstimatedFee(null);
+      setExchangeRate(null);
+      return;
     }
-  }, [fromToken, toToken]);
+
+    try {
+      // Calculate exchange rate
+      const fromAmountDecimal = Number(fromAmount);
+      const toAmountDecimal = Number(toAmount);
+      const rate = toAmountDecimal / fromAmountDecimal;
+      
+      // Calculate estimated fee (0.3% for Uniswap V2)
+      const fee = fromAmountDecimal * 0.003;
+      
+      setEstimatedFee(fee);
+      setExchangeRate(rate);
+      
+      // Estimate network cost (this would normally come from the provider)
+      setNetworkCost('~0.003 ETH');
+    } catch (error) {
+      console.error('Error calculating trade details:', error);
+    }
+  }, [fromAmount, toAmount, fromToken, toToken]);
+
+  // Update trade details when amounts change
+  useEffect(() => {
+    calculateTradeDetails();
+  }, [calculateTradeDetails, fromAmount, toAmount]);
 
   // Quote effect
   useEffect(() => {
     async function getQuote() {
       if (!uniswap || !fromToken || !toToken || !fromAmount || fromAmount === '0') {
         setToAmount('');
-        setPriceImpact(0);
         setRoute(null);
         return;
       }
@@ -92,7 +81,6 @@ export default function TokenSwap() {
         if (!poolInfo?.token0) {
           console.log('No liquidity pool exists for this pair');
           setToAmount('');
-          setPriceImpact(0);
           setRoute('No liquidity pool exists');
           return;
         }
@@ -102,19 +90,11 @@ export default function TokenSwap() {
         const amountOut = await uniswap.getAmountOut(amountIn, path);
         const formattedAmount = ethers.formatUnits(amountOut, toToken.decimals);
         setToAmount(formattedAmount);
-
-        // Store the values needed for price impact calculation
-        setSwapDetails({
-          amountIn,
-          amountOut,
-          poolInfo
-        });
         
         setRoute(`${fromToken.symbol} → ${toToken.symbol}`);
       } catch (error) {
         console.error('Error in getQuote:', error);
         setToAmount('');
-        setPriceImpact(0);
         setRoute('Error: ' + (error.reason || 'Failed to get quote'));
       }
     }
@@ -122,61 +102,64 @@ export default function TokenSwap() {
     getQuote();
   }, [uniswap, fromToken, toToken, fromAmount]);
 
-  // Add state for swap details
-  const [swapDetails, setSwapDetails] = useState({
-    amountIn: null,
-    amountOut: null,
-    poolInfo: null
-  });
+  // Render trade details section
+  const renderTradeDetails = () => {
+    if (!fromToken || !toToken || !fromAmount || !toAmount) return null;
 
-  // Calculate price impact using useMemo
-  useMemo(() => {
-    if (!swapDetails.amountIn || !swapDetails.amountOut || !fromToken || !toToken || !swapDetails.poolInfo?.token0) {
-      setPriceImpact(0);
-      return;
-    }
-    
-    try {
-      const { reserve0, reserve1, token0 } = swapDetails.poolInfo;
-      
-      if (!reserve0 || !reserve1 || !token0) {
-        console.error('Missing required pool info:', { reserve0, reserve1, token0 });
-        setPriceImpact(0);
-        return;
-      }
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowMoreDetails(!showMoreDetails)}
+          className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-400"
+        >
+          {showMoreDetails ? 'Show less' : 'Show more'} 
+          <svg
+            className={`w-4 h-4 transition-transform ${showMoreDetails ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-      const fromTokenAddress = fromToken.address.toLowerCase();
-      const token0Address = token0.toLowerCase();
-      const isToken0In = fromTokenAddress === token0Address;
-      
-      const reserveIn = isToken0In ? reserve0 : reserve1;
-      const reserveOut = isToken0In ? reserve1 : reserve0;
-      
-      const amountInDecimal = Number(ethers.formatUnits(swapDetails.amountIn, fromToken.decimals));
-      const amountOutDecimal = Number(ethers.formatUnits(swapDetails.amountOut, toToken.decimals));
-      const reserveInDecimal = Number(ethers.formatUnits(reserveIn, fromToken.decimals));
-      const reserveOutDecimal = Number(ethers.formatUnits(reserveOut, toToken.decimals));
-      
-      const spotPrice = reserveOutDecimal / reserveInDecimal;
-      const executionPrice = amountOutDecimal / amountInDecimal;
-      const impact = Math.abs((spotPrice - executionPrice) / spotPrice * 100);
-      
-      console.log('Price Impact Calculation:', {
-        spotPrice,
-        executionPrice,
-        impact,
-        amountInDecimal,
-        amountOutDecimal,
-        reserveInDecimal,
-        reserveOutDecimal
-      });
-      
-      setPriceImpact(Number(impact.toFixed(2)));
-    } catch (error) {
-      console.error('Error calculating price impact:', error);
-      setPriceImpact(0);
-    }
-  }, [swapDetails, fromToken, toToken]);
+        {showMoreDetails && (
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Expected Output</span>
+              <span className="text-gray-200">{toAmount} {toToken.symbol}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-gray-500">Fee</span>
+              <span className="text-gray-200">
+                {estimatedFee ? `${estimatedFee.toFixed(6)} ${fromToken.symbol} (0.3%)` : '--'}
+              </span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-gray-500">Network Cost</span>
+              <span className="text-gray-200">{networkCost || '--'}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-gray-500">Route</span>
+              <span className="text-gray-200">{route || '--'}</span>
+            </div>
+
+            {exchangeRate && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Exchange Rate</span>
+                <span className="text-gray-200">
+                  1 {fromToken.symbol} = {exchangeRate.toFixed(6)} {toToken.symbol}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Add updateBalances function
   const updateBalances = async () => {
@@ -736,8 +719,6 @@ export default function TokenSwap() {
     }
   };
 
-  const isHighPriceImpact = priceImpact > 5; // Warning for price impact > 5%
-
   return (
     <>
       <div className="space-y-6 max-w-lg mx-auto">
@@ -825,27 +806,81 @@ export default function TokenSwap() {
             {toToken && <TokenBalance token={toToken} />}
           </div>
 
-          {/* Price Impact & Route */}
+          {/* Trade Details Section */}
           <div className="mt-4 p-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Price Impact</span>
-                <span className={`text-gray-900 dark:text-gray-100 ${
-                  priceImpact && priceImpact > 5 ? 'text-red-500' : ''
-                }`}>
-                  {priceImpact ? `${priceImpact}%` : '--'}
+            {/* Compact View (Always Visible) */}
+            <div className="space-y-2 text-sm mb-2">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-500">Fee (0.3%)</span>
+                  <span className="text-gray-500 cursor-help" title="A portion of each trade (0.3%) goes to liquidity providers as a protocol incentive.">ⓘ</span>
+                </div>
+                <span className="text-gray-200">
+                  {fromAmount ? `${(Number(fromAmount) * 0.003).toFixed(6)} ${fromToken?.symbol}` : '--'}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Route</span>
-                <span className="text-gray-900 dark:text-gray-100">{route || '--'}</span>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-500">Network cost</span>
+                  <span className="text-gray-500 cursor-help" title="Estimated cost of the transaction on Ethereum">ⓘ</span>
+                </div>
+                <span className="text-gray-200">{networkCost || '~0.003 ETH'}</span>
               </div>
-              {renderPoolCreation()}
             </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-200 dark:border-gray-800 my-2"></div>
+
+            {/* Show More Button */}
+            <button
+              onClick={() => setShowMoreDetails(!showMoreDetails)}
+              className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-400"
+            >
+              {showMoreDetails ? 'Hide Details' : 'Show Details'} 
+              <svg
+                className={`w-4 h-4 transition-transform ${showMoreDetails ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Expanded Details */}
+            {showMoreDetails && (
+              <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Expected Output</span>
+                  <span className="text-gray-200">{toAmount} {toToken?.symbol}</span>
+                </div>
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Minimum received after slippage ({slippage}%)</span>
+                  <span className="text-gray-200">
+                    {toAmount && Number(toAmount * (1 - slippage/100)).toFixed(6)} {toToken?.symbol}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Route</span>
+                  <span className="text-gray-200">{route || '--'}</span>
+                </div>
+
+                {exchangeRate && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Rate</span>
+                    <span className="text-gray-200">
+                      1 {fromToken?.symbol} = {exchangeRate.toFixed(6)} {toToken?.symbol}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Revamped Slippage Settings */}
+        {/* Slippage Settings */}
         <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800">
           <div className="flex flex-col space-y-3">
             <div className="flex items-center justify-between">
@@ -889,23 +924,6 @@ export default function TokenSwap() {
                   className="w-full px-3 py-2 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
                 />
                 <span className="text-gray-900 dark:text-gray-100 pr-2">%</span>
-              </div>
-            )}
-            
-            {/* Price Impact Warning with updated styling */}
-            {priceImpact > 0 && (
-              <div className={`flex items-center justify-between p-2 rounded-xl ${
-                isHighPriceImpact 
-                  ? 'bg-red-500/10 text-red-500' 
-                  : 'bg-white/5 dark:bg-[#2d2f36] text-gray-900 dark:text-gray-100'
-              }`}>
-                <span>Price Impact</span>
-                <div className="flex items-center space-x-2">
-                  <span>{priceImpact.toFixed(2)}%</span>
-                  {isHighPriceImpact && (
-                    <span className="text-red-500">⚠️</span>
-                  )}
-                </div>
               </div>
             )}
           </div>
