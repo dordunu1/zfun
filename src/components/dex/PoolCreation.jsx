@@ -55,8 +55,6 @@ export default function PoolCreation() {
   const [loading, setLoading] = useState(false);
   const [showToken0Modal, setShowToken0Modal] = useState(false);
   const [showToken1Modal, setShowToken1Modal] = useState(false);
-  const [priceRatio, setPriceRatio] = useState(null);
-  const [useAutoPrice, setUseAutoPrice] = useState(true);
   const [priceInfo, setPriceInfo] = useState(null);
 
   // Add useEffect to get chain ID and listen for changes
@@ -154,33 +152,12 @@ export default function PoolCreation() {
   const handleAmount0Change = (value) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setAmount0(value);
-      if (useAutoPrice && priceRatio) {
-        setAmount1(calculateOtherAmount(value, true));
-      }
     }
   };
 
   const handleAmount1Change = (value) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setAmount1(value);
-      if (useAutoPrice && priceRatio) {
-        setAmount0(calculateOtherAmount(value, false));
-      }
-    }
-  };
-
-  // Calculate other amount based on price ratio
-  const calculateOtherAmount = (amount, isToken0) => {
-    if (!amount) return '';
-    if (!priceRatio) return '';
-    
-    try {
-      return isToken0 
-        ? (Number(amount) * priceRatio).toFixed(6)
-        : (Number(amount) / priceRatio).toFixed(6);
-    } catch (error) {
-      console.error('Error calculating amount:', error);
-      return '';
     }
   };
 
@@ -365,19 +342,6 @@ export default function PoolCreation() {
           </div>
         ) : (
           <>
-            {/* Auto-price toggle */}
-            <div className="mb-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={useAutoPrice}
-                  onChange={(e) => setUseAutoPrice(e.target.checked)}
-                  className="form-checkbox h-4 w-4 text-[#00ffbd]"
-                />
-                <span className="text-sm text-gray-900 dark:text-gray-100">Auto-calculate prices</span>
-              </label>
-            </div>
-
             {/* Token 0 Selection */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -389,12 +353,9 @@ export default function PoolCreation() {
                   className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
                 >
                   {token0 ? (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img src={token0.logo} alt={token0.symbol} className="w-5 h-5" />
-                        <span>{token0.symbol}</span>
-                      </div>
-                      <TokenBalance token={token0} />
+                    <div className="flex items-center gap-2">
+                      <img src={token0.logo} alt={token0.symbol} className="w-5 h-5" />
+                      <span>{token0.symbol}</span>
                     </div>
                   ) : (
                     'Select Token'
@@ -423,12 +384,9 @@ export default function PoolCreation() {
                   className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
                 >
                   {token1 ? (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img src={token1.logo} alt={token1.symbol} className="w-5 h-5" />
-                        <span>{token1.symbol}</span>
-                      </div>
-                      <TokenBalance token={token1} />
+                    <div className="flex items-center gap-2">
+                      <img src={token1.logo} alt={token1.symbol} className="w-5 h-5" />
+                      <span>{token1.symbol}</span>
                     </div>
                   ) : (
                     'Select Token'

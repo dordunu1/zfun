@@ -252,8 +252,6 @@ export default function PoolCreation() {
   const [loading, setLoading] = useState(false);
   const [showToken0Modal, setShowToken0Modal] = useState(false);
   const [showToken1Modal, setShowToken1Modal] = useState(false);
-  const [priceRatio, setPriceRatio] = useState(null);
-  const [useAutoPrice, setUseAutoPrice] = useState(true);
   const [priceInfo, setPriceInfo] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(null);
@@ -392,33 +390,12 @@ export default function PoolCreation() {
   const handleAmount0Change = (value) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setAmount0(value);
-      if (useAutoPrice && priceRatio) {
-        setAmount1(calculateOtherAmount(value, true));
-      }
     }
   };
 
   const handleAmount1Change = (value) => {
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setAmount1(value);
-      if (useAutoPrice && priceRatio) {
-        setAmount0(calculateOtherAmount(value, false));
-      }
-    }
-  };
-
-  // Calculate other amount based on price ratio
-  const calculateOtherAmount = (amount, isToken0) => {
-    if (!amount) return '';
-    if (!priceRatio) return '';
-    
-    try {
-      return isToken0 
-        ? (Number(amount) * priceRatio).toFixed(6)
-        : (Number(amount) / priceRatio).toFixed(6);
-    } catch (error) {
-      console.error('Error calculating amount:', error);
-      return '';
     }
   };
 
@@ -618,19 +595,6 @@ export default function PoolCreation() {
           </div>
         ) : (
           <>
-            {/* Auto-price toggle */}
-            <div className="mb-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={useAutoPrice}
-                  onChange={(e) => setUseAutoPrice(e.target.checked)}
-                  className="form-checkbox h-4 w-4 text-[#00ffbd]"
-                />
-                <span className="text-sm text-gray-900 dark:text-gray-100">Auto-calculate prices</span>
-              </label>
-            </div>
-
             {/* Token 0 Selection */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">

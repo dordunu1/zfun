@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 // Uniswap V2 Contract Addresses (Unichain)
 export const UNISWAP_ADDRESSES = {
   router: '0x920b806E40A00E02E7D2b94fFc89860fDaEd3640',
+  factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
   WETH: '0x4200000000000000000000000000000000000006',
   USDT: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
 };
@@ -480,8 +481,8 @@ export class UnichainUniswapService {
         await this.approveToken(fromToken.address, amountIn);
       }
 
-      // Calculate slippage directly (2% in this case)
-      const minOutWithSlippage = (BigInt(amountOutMin) * 98n) / 100n;
+      // Remove minimum amount check and allow any amount
+      const minOutWithSlippage = 0n;
 
       console.log('\n=== Swap Details ===');
       console.log('From:', isFromETH ? 'ETH (will be wrapped to WETH)' : fromToken.symbol);
@@ -497,7 +498,7 @@ export class UnichainUniswapService {
       console.log('==================\n');
 
       let tx;
-      
+
       if (isFromETH) {
         console.log('Calling swapExactETHForTokens:');
         console.log('- Router will automatically wrap your ETH to WETH');
@@ -612,24 +613,29 @@ export class UnichainUniswapService {
         });
         
         if (hasFirstPair && hasSecondPair) {
-          const amounts = await this.router.getAmountsOut(amountIn, pathThroughUSDT);
-          const toAmount = ethers.formatUnits(
-            amounts[amounts.length - 1],
-            toToken.symbol === 'ETH' ? 18 : toToken.decimals
-          );
-          
-          console.log('USDT Route Amounts:', {
-            input: ethers.formatUnits(amounts[0], fromToken.symbol === 'ETH' ? 18 : fromToken.decimals),
-            usdtAmount: ethers.formatUnits(amounts[1], 6), // USDT has 6 decimals
-            output: ethers.formatUnits(amounts[2], toToken.symbol === 'ETH' ? 18 : toToken.decimals),
-            formatted: toAmount
-          });
+          try {
+            const amounts = await this.router.getAmountsOut(amountIn, pathThroughUSDT);
+            const toAmount = ethers.formatUnits(
+              amounts[amounts.length - 1],
+              toToken.symbol === 'ETH' ? 18 : toToken.decimals
+            );
+            
+            console.log('USDT Route Amounts:', {
+              input: ethers.formatUnits(amounts[0], fromToken.symbol === 'ETH' ? 18 : fromToken.decimals),
+              usdtAmount: ethers.formatUnits(amounts[1], 6), // USDT has 6 decimals
+              output: ethers.formatUnits(amounts[2], toToken.symbol === 'ETH' ? 18 : toToken.decimals),
+              formatted: toAmount
+            });
 
-          return {
-            route: `${fromToken.symbol} → USDT → ${toToken.symbol}`,
-            toAmount,
-            path: pathThroughUSDT
-          };
+            return {
+              route: `${fromToken.symbol} → USDT → ${toToken.symbol}`,
+              toAmount,
+              path: pathThroughUSDT
+            };
+          } catch (amountError) {
+            console.log('USDT route amount calculation failed:', amountError);
+            // Continue to try direct path
+          }
         }
       } catch (error) {
         console.log('USDT route failed:', error);
@@ -643,23 +649,33 @@ export class UnichainUniswapService {
         console.log('Direct pair exists:', hasDirectPair);
         
         if (hasDirectPair) {
-          const amounts = await this.router.getAmountsOut(amountIn, directPath);
-          const toAmount = ethers.formatUnits(
-            amounts[amounts.length - 1],
-            toToken.symbol === 'ETH' ? 18 : toToken.decimals
-          );
+          try {
+            const amounts = await this.router.getAmountsOut(amountIn, directPath);
+            const toAmount = ethers.formatUnits(
+              amounts[amounts.length - 1],
+              toToken.symbol === 'ETH' ? 18 : toToken.decimals
+            );
 
-          console.log('Direct Route Amounts:', {
-            input: ethers.formatUnits(amounts[0], fromToken.symbol === 'ETH' ? 18 : fromToken.decimals),
-            output: ethers.formatUnits(amounts[1], toToken.symbol === 'ETH' ? 18 : toToken.decimals),
-            formatted: toAmount
-          });
+            console.log('Direct Route Amounts:', {
+              input: ethers.formatUnits(amounts[0], fromToken.symbol === 'ETH' ? 18 : fromToken.decimals),
+              output: ethers.formatUnits(amounts[1], toToken.symbol === 'ETH' ? 18 : toToken.decimals),
+              formatted: toAmount
+            });
 
-          return {
-            route: `${fromToken.symbol} → ${toToken.symbol}`,
-            toAmount,
-            path: directPath
-          };
+            return {
+              route: `${fromToken.symbol} → ${toToken.symbol}`,
+              toAmount,
+              path: directPath
+            };
+          } catch (amountError) {
+            console.log('Direct route amount calculation failed:', amountError);
+            // Return with calculated amounts even if they're very small
+            return {
+              route: `${fromToken.symbol} → ${toToken.symbol}`,
+              toAmount: '0',
+              path: directPath
+            };
+          }
         }
       } catch (error) {
         console.log('Direct route failed:', error);

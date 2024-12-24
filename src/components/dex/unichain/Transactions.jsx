@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import { getTokenLogo, getTokenMetadata, COMMON_TOKENS } from '../../../utils/tokens';
-import { UNICHAIN_UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
+import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import { db } from '../../../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
@@ -31,91 +31,156 @@ const PAIR_ABI = [
 
 const TRANSACTION_TYPES = ['All', 'Swaps', 'Adds', 'Removes'];
 
+// Helper function to get token info
+const getTokenInfo = async (token, tokenAddress) => {
+  try {
+    // First try to get token metadata from Firestore
+    const firestoreToken = tokenMetadataMap[tokenAddress?.toLowerCase()];
+    if (firestoreToken) {
+      const logo = await getTokenLogo({ 
+        ...firestoreToken,
+        address: tokenAddress 
+      });
+      return {
+        ...token,
+        ...firestoreToken,
+        logo: logo || '/token-default.png'
+      };
+    }
+
+    // Then try to get from common tokens
+    const commonToken = COMMON_TOKENS.find(t => t.address.toLowerCase() === tokenAddress?.toLowerCase());
+    if (commonToken) {
+      const logo = await getTokenLogo(commonToken);
+      return {
+        ...commonToken,
+        logo: logo || commonToken.logo || '/token-default.png'
+      };
+    }
+
+    // Finally try to get metadata from the chain
+    const metadata = await getTokenMetadata(tokenAddress);
+    if (metadata) {
+      const logo = await getTokenLogo(metadata);
+      return {
+        ...metadata,
+        logo: logo || '/token-default.png',
+        symbol: metadata.symbol || 'ERC20'
+      };
+    }
+
+    // Return default token info
+    return {
+      ...token,
+      symbol: token?.symbol || 'ERC20',
+      decimals: token?.decimals || 18,
+      logo: '/token-default.png'
+    };
+  } catch (error) {
+    console.error('Error in getTokenInfo:', error);
+    return {
+      ...token,
+      symbol: token?.symbol || 'ERC20',
+      decimals: token?.decimals || 18,
+      logo: '/token-default.png'
+    };
+  }
+};
+
 const Transactions = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('All');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [tokenMetadataMap, setTokenMetadataMap] = useState({});
+  const [userAddress, setUserAddress] = useState(null);
   const { calculateUSDValue, formatUSD } = useTokenPrices();
+
+  // Get user's address
+  useEffect(() => {
+    const getUserAddress = async () => {
+      if (!window.ethereum) return;
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (accounts.length > 0) {
+          setUserAddress(accounts[0]);
+        }
+      } catch (error) {
+        console.error('Error getting user address:', error);
+      }
+    };
+    getUserAddress();
+  }, []);
 
   // Add function to fetch token metadata from Firestore
   const fetchFirestoreTokenMetadata = async () => {
     try {
-      const tokensRef = collection(db, 'tokens');
-      const snapshot = await getDocs(tokensRef);
+      // First try to get from common tokens
       const metadata = {};
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        metadata[doc.id.toLowerCase()] = {
-          ...data,
-          address: doc.id,
-          logo: data.logo || '/token-default.png'
+      COMMON_TOKENS.forEach(token => {
+        metadata[token.address.toLowerCase()] = {
+          ...token,
+          logo: token.logo || '/token-default.png'
         };
       });
+
+      // Then try to get additional tokens from Firestore
+      try {
+        const tokensRef = collection(db, 'tokens');
+        const snapshot = await getDocs(tokensRef);
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          metadata[doc.id.toLowerCase()] = {
+            ...data,
+            address: doc.id,
+            logo: data.logo || '/token-default.png'
+          };
+        });
+      } catch (firebaseError) {
+        console.warn('Firebase fetch failed:', firebaseError);
+      }
+
       return metadata;
     } catch (error) {
-      console.error('Error fetching Firestore token metadata:', error);
+      console.error('Error fetching token metadata:', error);
       return {};
     }
   };
 
-  // Update getTokenInfo function
-  const getTokenInfo = async (token, tokenAddress) => {
+  // Helper function to get wallet tokens
+  const getWalletTokens = async (provider, userAddress) => {
     try {
-      // First check if it's a common token
-      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-      const chainTokens = getChainTokens(parseInt(chainId));
-      const commonToken = chainTokens.find(t => t.address.toLowerCase() === tokenAddress?.toLowerCase());
-      if (commonToken) {
-        return {
-          ...token,
-          ...commonToken,
-          logo: commonToken.logo || '/token-default.png',
-          symbol: commonToken.symbol
-        };
-      }
+      // Get tokens directly from the wallet
+      const tokens = await provider.request({
+        method: 'eth_accounts'
+      }).then(async (accounts) => {
+        if (accounts.length === 0) return [];
 
-      // Then try to get token metadata from Firestore
-      const firestoreToken = tokenMetadataMap[tokenAddress?.toLowerCase()];
-      if (firestoreToken) {
-        const logo = await getTokenLogo({ 
-          ...firestoreToken,
-          address: tokenAddress 
-        }, parseInt(chainId));
-        return {
-          ...token,
-          ...firestoreToken,
-          logo: logo || '/token-default.png'
-        };
-      }
+        // Get token balances
+        const tokenBalances = await provider.request({
+          method: 'wallet_getPermissions'
+        }).then(permissions => {
+          const tokenPermission = permissions.find(p => p.parentCapability === 'eth_accounts');
+          return tokenPermission?.caveats?.[0]?.value || [];
+        });
 
-      // Finally try to get metadata from the chain
-      const metadata = await getTokenMetadata(tokenAddress, parseInt(chainId));
-      if (metadata) {
-        const logo = await getTokenLogo(metadata, parseInt(chainId));
-        return {
-          ...metadata,
-          logo: logo || '/token-default.png',
-          symbol: metadata.symbol || 'ERC20'
-        };
-      }
+        // Format tokens properly
+        return (tokenBalances || [])
+          .filter(token => token && typeof token === 'object')
+          .map(token => ({
+            address: token.address || '',
+            symbol: token.symbol || 'Unknown',
+            name: token.name || 'Unknown Token',
+            decimals: token.decimals || 18,
+            logo: token.logo || '/token-default.png',
+            verified: true
+          }));
+      });
 
-      // Return default token info
-      return {
-        ...token,
-        symbol: token?.symbol || 'ERC20',
-        decimals: token?.decimals || 18,
-        logo: '/token-default.png'
-      };
+      return tokens.filter(token => token && token.address);
     } catch (error) {
-      console.error('Error in getTokenInfo:', error);
-      return {
-        ...token,
-        symbol: token?.symbol || 'ERC20',
-        decimals: token?.decimals || 18,
-        logo: '/token-default.png'
-      };
+      console.error('Error getting wallet tokens:', error);
+      return [];
     }
   };
 
@@ -130,49 +195,65 @@ const Transactions = () => {
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
+        setLoading(true);
         console.log('Starting to fetch transactions...');
-        console.log('Factory address:', UNICHAIN_UNISWAP_ADDRESSES.factory);
         
-        const provider = new ethers.JsonRpcProvider('https://rpc.unichain.io');
+        // First get deployed tokens from Firebase
+        const tokensRef = collection(db, 'tokens');
+        const snapshot = await getDocs(tokensRef);
+        const deployedTokens = new Set();
+        snapshot.forEach(doc => {
+          deployedTokens.add(doc.id.toLowerCase());
+        });
+        console.log('Deployed tokens:', deployedTokens);
 
+        const provider = new ethers.BrowserProvider(window.ethereum);
         const factoryContract = new ethers.Contract(
-          UNICHAIN_UNISWAP_ADDRESSES.factory,
+          UNISWAP_ADDRESSES.factory,
           FACTORY_ABI,
           provider
         );
 
-        const pairsLength = await factoryContract.allPairsLength();
-        console.log('Total pairs:', pairsLength.toString());
-
+        // Get PairCreated events to find relevant pairs
         const latestBlock = await provider.getBlockNumber();
         const fromBlock = latestBlock - 10000; // Last ~24 hours
         console.log('Fetching events from block', fromBlock, 'to', latestBlock);
 
-        const pairPromises = [];
-        for (let i = 0; i < pairsLength; i++) {
-          pairPromises.push(factoryContract.allPairs(i));
+        // Get PairCreated events
+        const pairCreatedEvents = await factoryContract.queryFilter('PairCreated', fromBlock);
+        console.log('Found pair created events:', pairCreatedEvents.length);
+
+        const relevantPairs = [];
+        for (const event of pairCreatedEvents) {
+          const token0 = event.args.token0.toLowerCase();
+          const token1 = event.args.token1.toLowerCase();
+          
+          // Only include pairs where at least one token is from our platform
+          if (deployedTokens.has(token0) || deployedTokens.has(token1)) {
+            relevantPairs.push({
+              address: event.args.pair,
+              token0,
+              token1
+            });
+          }
         }
-        const pairs = await Promise.all(pairPromises);
+
+        console.log('Relevant pairs:', relevantPairs.length);
 
         const allEvents = [];
-        for (const pairAddress of pairs) {
+        for (const pair of relevantPairs) {
           try {
-            const pairContract = new ethers.Contract(pairAddress, PAIR_ABI, provider);
-            
-            const [token0, token1] = await Promise.all([
-              pairContract.token0(),
-              pairContract.token1()
-            ]);
+            const pairContract = new ethers.Contract(pair.address, PAIR_ABI, provider);
 
-            // Get token metadata with proper Firestore integration
+            // Get token info
             const [token0Info, token1Info] = await Promise.all([
-              getTokenMetadata({ address: token0 }),
-              getTokenMetadata({ address: token1 })
+              getTokenMetadata(pair.token0),
+              getTokenMetadata(pair.token1)
             ]);
 
             // Get swap events
             const events = await pairContract.queryFilter('Swap', fromBlock);
-            console.log(`Found ${events.length} events for pair ${pairAddress}`);
+            console.log(`Found ${events.length} events for pair ${pair.address}`);
 
             for (const event of events) {
               const block = await event.getBlock();
@@ -210,7 +291,7 @@ const Transactions = () => {
               });
             }
           } catch (error) {
-            console.error('Error processing pair:', pairAddress, error);
+            console.error('Error processing pair:', pair.address, error);
           }
         }
 
@@ -218,12 +299,7 @@ const Transactions = () => {
           .sort((a, b) => b.timestamp - a.timestamp)
           .slice(0, 50);
 
-        console.log('Final processed events:', sortedEvents.map(event => ({
-          ...event,
-          formattedInputAmount: formatAmount(event.inputAmount, event.inputToken?.decimals),
-          formattedOutputAmount: formatAmount(event.outputAmount, event.outputToken?.decimals)
-        })));
-
+        console.log('Final processed events:', sortedEvents.length);
         setTransactions(sortedEvents);
       } catch (error) {
         console.error('Error fetching transactions:', error);
@@ -232,7 +308,9 @@ const Transactions = () => {
       }
     };
 
-    fetchTransactions();
+    if (window.ethereum) {
+      fetchTransactions();
+    }
   }, []);
 
   const formatAmount = (amount, decimals) => {
@@ -307,6 +385,7 @@ const Transactions = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Input Token</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Output Token</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Value</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time</th>
                 </tr>
@@ -330,6 +409,11 @@ const Transactions = () => {
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
                               {formatAmount(tx.inputAmount, tx.inputToken?.decimals)} {tx.inputToken?.symbol}
                             </div>
+                            {tx.inputUSD && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatUSD(tx.inputUSD)}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -344,7 +428,17 @@ const Transactions = () => {
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
                               {formatAmount(tx.outputAmount, tx.outputToken?.decimals)} {tx.outputToken?.symbol}
                             </div>
+                            {tx.outputUSD && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatUSD(tx.outputUSD)}
+                              </div>
+                            )}
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {tx.inputUSD ? formatUSD(tx.inputUSD) : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">

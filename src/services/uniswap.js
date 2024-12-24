@@ -5,8 +5,8 @@ import { VolumeTracker } from './VolumeTracker';
 
 // Uniswap V2 Contract Addresses (Sepolia)
 export const UNISWAP_ADDRESSES = {
-  factory: '0xAE3511d8ad1bD1bDAdF8dF44d3158ED5aeF72703',
-  router: '0xc9393aFAAAe60e5f4532cfa7171749171158b1e9',
+  factory: '0xF62c03E08ada871A0bEb309762E260a7a6a880E6',
+  router: '0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3',
   // Common tokens on Sepolia
   WETH: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
   USDT: '0x148b1aB3e2321d79027C4b71B6118e70434B4784', // TestUSDT address

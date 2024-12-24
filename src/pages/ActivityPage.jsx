@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FaExchangeAlt, FaPlus, FaWater, FaList, FaLayerGroup, FaHistory } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { FaExchangeAlt, FaPlus, FaWater, FaList } from 'react-icons/fa';
 import { useNetwork } from 'wagmi';
 import SepoliaTokenSwap from '../components/dex/TokenSwap';
 import UnichainTokenSwap from '../components/dex/unichain/TokenSwap';
@@ -9,86 +9,106 @@ import SepoliaManageLiquidity from '../components/dex/ManageLiquidity';
 import UnichainManageLiquidity from '../components/dex/unichain/ManageLiquidity';
 import SepoliaMyPools from '../components/dex/MyPools';
 import UnichainMyPools from '../components/dex/unichain/MyPools';
-import SepoliaAllPools from '../components/dex/AllPools';
-import UnichainAllPools from '../components/dex/unichain/AllPools';
-import Transactions from '../components/dex/Transactions';
 import { unichainTestnet } from '../config/wagmi';
 
 const TABS = [
   { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
-  { id: 'transactions', label: 'Transactions (Beta)', icon: FaHistory },
   { id: 'pool', label: 'Create Pool', icon: FaPlus },
   { id: 'liquidity', label: 'Manage Liquidity', icon: FaWater },
   { id: 'my-pools', label: 'My Pools', icon: FaList },
-  { id: 'all-pools', label: 'All Pools', icon: FaLayerGroup },
 ];
 
 export default function ActivityPage() {
   const [activeTab, setActiveTab] = useState('swap');
   const { chain } = useNetwork();
+  const [devModeEnabled, setDevModeEnabled] = useState(false);
+  const [zKeyPresses, setZKeyPresses] = useState([]);
+
+  // Handle key presses for dev mode toggle
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.key.toLowerCase() === 'z') {
+        const now = Date.now();
+        setZKeyPresses(prev => {
+          // Add current timestamp and keep only last 3 presses
+          const newPresses = [...prev, now].slice(-3);
+          
+          // Check if we have 3 presses within 2 seconds
+          if (newPresses.length === 3 && 
+              (newPresses[2] - newPresses[0]) <= 2000) {
+            // Toggle dev mode and reset presses
+            setDevModeEnabled(prev => !prev);
+            return [];
+          }
+          
+          return newPresses;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
 
   // Function to get the appropriate component based on chain
   const getChainComponent = (componentType) => {
     if (!chain) return null;
 
+    // If chain is Sepolia but dev mode is disabled, show the "switch to Unichain" message
+    if (chain.id === 11155111 && !devModeEnabled) {
+      return (
+        <div className="text-center py-8 text-gray-500">
+          Please switch to Unichain network
+        </div>
+      );
+    }
+
     switch (componentType) {
       case 'swap':
         if (chain.id === unichainTestnet.id) {
           return <UnichainTokenSwap />;
-        } else if (chain.id === 11155111) { // Sepolia chain ID
+        } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaTokenSwap />;
         } else {
           return (
             <div className="text-center py-8 text-gray-500">
-              Please switch to either Sepolia or Unichain network to swap tokens
+              Please switch to Unichain network
             </div>
           );
         }
       case 'pool':
         if (chain.id === unichainTestnet.id) {
           return <UnichainPoolCreation />;
-        } else if (chain.id === 11155111) { // Sepolia chain ID
+        } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaPoolCreation />;
         } else {
           return (
             <div className="text-center py-8 text-gray-500">
-              Please switch to either Sepolia or Unichain network to create pools
+              Please switch to Unichain network
             </div>
           );
         }
       case 'liquidity':
         if (chain.id === unichainTestnet.id) {
           return <UnichainManageLiquidity />;
-        } else if (chain.id === 11155111) { // Sepolia chain ID
+        } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaManageLiquidity />;
         } else {
           return (
             <div className="text-center py-8 text-gray-500">
-              Please switch to either Sepolia or Unichain network to manage liquidity
+              Please switch to Unichain network
             </div>
           );
         }
       case 'my-pools':
         if (chain.id === unichainTestnet.id) {
           return <UnichainMyPools />;
-        } else if (chain.id === 11155111) { // Sepolia chain ID
+        } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaMyPools />;
         } else {
           return (
             <div className="text-center py-8 text-gray-500">
-              Please switch to either Sepolia or Unichain network to view your pools
-            </div>
-          );
-        }
-      case 'all-pools':
-        if (chain.id === unichainTestnet.id) {
-          return <UnichainAllPools />;
-        } else if (chain.id === 11155111) { // Sepolia chain ID
-          return <SepoliaAllPools />;
-        } else {
-          return (
-            <div className="text-center py-8 text-gray-500">
-              Please switch to either Sepolia or Unichain network to view all pools
+              Please switch to Unichain network
             </div>
           );
         }
@@ -100,9 +120,19 @@ export default function ActivityPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-          DEX Activity
-        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+            DEX Activity
+          </h1>
+          {/* Only show dev mode indicator when enabled */}
+          {devModeEnabled && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-900">
+                Dev Mode
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Main Container with L-shape corners and glowing dots */}
         <div className="relative">
@@ -143,6 +173,15 @@ export default function ActivityPage() {
 
           {/* Main Content */}
           <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+            {/* Network Warning for Sepolia when Dev Mode is disabled */}
+            {chain?.id === 11155111 && !devModeEnabled && (
+              <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  You are connected to Sepolia network. Please switch to Unichain network or enable Dev Mode to use Sepolia.
+                </p>
+              </div>
+            )}
+
             {/* Tab Navigation */}
             <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar">
               {TABS.map(tab => (
@@ -175,11 +214,9 @@ export default function ActivityPage() {
             {/* Tab Content */}
             <div className="h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
               {activeTab === 'swap' && getChainComponent('swap')}
-              {activeTab === 'transactions' && <Transactions />}
               {activeTab === 'pool' && getChainComponent('pool')}
               {activeTab === 'liquidity' && getChainComponent('liquidity')}
               {activeTab === 'my-pools' && getChainComponent('my-pools')}
-              {activeTab === 'all-pools' && getChainComponent('all-pools')}
             </div>
           </div>
         </div>
