@@ -11,6 +11,8 @@ import { ERC20_ABI } from '../../../services/erc20';
 import { getTokenDeploymentByAddress } from '../../../services/firebase';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+import Confetti from 'react-confetti';
+import { FaStar } from 'react-icons/fa';
 
 // Common tokens with metadata
 const COMMON_TOKENS = [
@@ -239,6 +241,107 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
   );
 };
 
+// Add StarRatingModal component
+const StarRatingModal = ({ isOpen, onClose, onRate }) => {
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-[99998]" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white text-center mb-4"
+                >
+                  Rate Your Pool Creation Experience
+                </Dialog.Title>
+                
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="flex items-center space-x-2">
+                    {[...Array(9)].map((_, index) => {
+                      const starValue = index + 1;
+                      return (
+                        <button
+                          key={starValue}
+                          className="transition-transform hover:scale-110 focus:outline-none"
+                          onClick={() => setRating(starValue)}
+                          onMouseEnter={() => setHover(starValue)}
+                          onMouseLeave={() => setHover(0)}
+                        >
+                          <FaStar
+                            size={28}
+                            className={`transition-colors ${
+                              (hover || rating) >= starValue
+                                ? 'text-[#00ffbd]'
+                                : 'text-gray-300 dark:text-gray-600'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {rating === 0 ? 'Select a rating' : `You rated: ${rating} star${rating !== 1 ? 's' : ''}`}
+                  </p>
+
+                  <div className="flex space-x-3 mt-4">
+                    <button
+                      onClick={() => {
+                        if (rating > 0) {
+                          onRate(rating);
+                          onClose();
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+                        rating > 0
+                          ? 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
+                          : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      Submit Rating
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 rounded-xl font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
 export default function PoolCreation() {
   const { address: account, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
@@ -256,6 +359,12 @@ export default function PoolCreation() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(null);
   const [isNewPool, setIsNewPool] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
   // Add useEffect to get chain ID and listen for changes
   useEffect(() => {
@@ -399,6 +508,24 @@ export default function PoolCreation() {
     }
   };
 
+  // Add window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleRating = (rating) => {
+    console.log('User rated pool creation:', rating);
+    // Here you can implement the logic to save the rating
+  };
+
   // Modify handleCreatePool
   const handleCreatePool = async () => {
     if (!isConnected) {
@@ -449,6 +576,29 @@ export default function PoolCreation() {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setCurrentStep('completed');
       
+      // Show completed state briefly, then close modal and show confetti
+      setTimeout(() => {
+        setShowProgressModal(false);
+        setCurrentStep(null);
+        
+        // Show confetti after modal is closed
+        setTimeout(() => {
+          setShowConfetti(true);
+          
+          // Show rating modal after a short delay
+          setTimeout(() => {
+            setShowRatingModal(true);
+          }, 1000);
+          
+          // Reset form and cleanup after confetti (30 seconds)
+          setTimeout(() => {
+            setAmount0('');
+            setAmount1('');
+            setShowConfetti(false);
+          }, 30000); // 30 seconds
+        }, 100);
+      }, 1000);
+      
       // Reset form
       setAmount0('');
       setAmount1('');
@@ -457,6 +607,8 @@ export default function PoolCreation() {
     } catch (error) {
       console.error('Error creating pool:', error);
       setShowProgressModal(false);
+      setCurrentStep(null);
+      setShowConfetti(false);
       toast.error(
         error.message.includes('insufficient')
           ? 'Insufficient balance for transaction'
@@ -574,6 +726,29 @@ export default function PoolCreation() {
 
   return (
     <div className="space-y-6 max-w-lg mx-auto">
+      {/* Add Confetti component with higher z-index */}
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          numberOfPieces={200}
+          recycle={false}
+          gravity={0.2}
+          initialVelocityX={10}
+          initialVelocityY={10}
+          colors={['#00ffbd', '#00e6a9', '#00cc95', '#00b381', '#00996d']}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 99999,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+
       <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
         {!isConnected ? (
           <div className="text-center py-8">
@@ -769,6 +944,13 @@ export default function PoolCreation() {
         token0={token0}
         token1={token1}
         isNewPool={isNewPool}
+      />
+
+      {/* Add Rating Modal */}
+      <StarRatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onRate={handleRating}
       />
     </div>
   );

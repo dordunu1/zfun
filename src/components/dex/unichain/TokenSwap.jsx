@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
-import { FaExchangeAlt } from 'react-icons/fa';
+import { FaExchangeAlt, FaStar } from 'react-icons/fa';
 import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../hooks/useUnichain';
 import TokenSelector from './TokenSelector';
@@ -11,6 +11,7 @@ import { getTokenLogo } from '../../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+import Confetti from 'react-confetti';
 
 // Add these modern DeFi-inspired icons for swap steps
 const Icons = {
@@ -476,6 +477,107 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
   );
 };
 
+// Add StarRatingModal component
+const StarRatingModal = ({ isOpen, onClose, onRate }) => {
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-[99998]" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white text-center mb-4"
+                >
+                  Rate Your Swap Experience
+                </Dialog.Title>
+                
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="flex items-center space-x-2">
+                    {[...Array(9)].map((_, index) => {
+                      const starValue = index + 1;
+                      return (
+                        <button
+                          key={starValue}
+                          className="transition-transform hover:scale-110 focus:outline-none"
+                          onClick={() => setRating(starValue)}
+                          onMouseEnter={() => setHover(starValue)}
+                          onMouseLeave={() => setHover(0)}
+                        >
+                          <FaStar
+                            size={28}
+                            className={`transition-colors ${
+                              (hover || rating) >= starValue
+                                ? 'text-[#00ffbd]'
+                                : 'text-gray-300 dark:text-gray-600'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {rating === 0 ? 'Select a rating' : `You rated: ${rating} star${rating !== 1 ? 's' : ''}`}
+                  </p>
+
+                  <div className="flex space-x-3 mt-4">
+                    <button
+                      onClick={() => {
+                        if (rating > 0) {
+                          onRate(rating);
+                          onClose();
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+                        rating > 0
+                          ? 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
+                          : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      Submit Rating
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="px-4 py-2 rounded-xl font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
 export default function TokenSwap() {
   const { address, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
@@ -498,6 +600,36 @@ export default function TokenSwap() {
   const [routeError, setRouteError] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [swapStep, setSwapStep] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+  const [showRatingModal, setShowRatingModal] = useState(false);
+
+  // Add window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Add confetti timeout handler
+  useEffect(() => {
+    if (showConfetti) {
+      const timer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 5000); // Run confetti for 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [showConfetti]);
 
   // Add balance display component
   const TokenBalance = ({ token }) => {
@@ -587,7 +719,7 @@ export default function TokenSwap() {
 
     setLoading(true);
     setShowProgressModal(true);
-    setSwapStep('approval');
+    setSwapStep('preparing');
     
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -601,11 +733,11 @@ export default function TokenSwap() {
       const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100));
       const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
-      setSwapStep('swapping');
-      
       // Get the route path from updateRoute
       const { path } = await uniswap.updateRoute(fromToken, toToken, fromAmount);
-      if (!path) return;
+      if (!path) {
+        throw new Error('No valid route found');
+      }
 
       let actualFromToken = fromToken;
       let actualPath = path;
@@ -614,6 +746,7 @@ export default function TokenSwap() {
       if (fromToken.symbol === 'ETH' && path[0] === UNISWAP_ADDRESSES.WETH) {
         const wethBalance = await uniswap.getWETHBalance(address);
         if (wethBalance < amountIn) {
+          setSwapStep('wrapping');
           await uniswap.wrapETH(amountIn);
           
           actualFromToken = {
@@ -627,6 +760,7 @@ export default function TokenSwap() {
 
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 
+      setSwapStep('swapping');
       const tx = await uniswap.swap(
         actualFromToken,
         toToken,
@@ -636,15 +770,48 @@ export default function TokenSwap() {
         deadline
       );
 
+      // Start watching for confirmation
       setSwapStep('confirming');
-      await tx.wait();
-      setSwapStep('completed');
       
-      // Reset form
-      setFromAmount('');
-      setToAmount('');
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 1) { // 1 means success
+        // Set completed state
+        setSwapStep('completed');
+        
+        // Show completed state briefly, then close modal and show confetti
+        setTimeout(() => {
+          setShowProgressModal(false);
+          setSwapStep(null);
+          
+          // Show confetti after modal is closed
+          setTimeout(() => {
+            setShowConfetti(true);
+            
+            // Show rating modal after a short delay
+            setTimeout(() => {
+              setShowRatingModal(true);
+            }, 1000);
+            
+            // Reset form and cleanup after confetti (30 seconds)
+            setTimeout(() => {
+              setFromAmount('');
+              setToAmount('');
+              setShowConfetti(false);
+            }, 30000); // 30 seconds
+          }, 100);
+        }, 1000);
+      } else {
+        throw new Error('Transaction failed');
+      }
+      
     } catch (error) {
+      console.error('Swap error:', error);
       setShowProgressModal(false);
+      setSwapStep(null);
+      setShowConfetti(false);
+      toast.error(error.message || 'Transaction failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -743,8 +910,36 @@ export default function TokenSwap() {
   `;
   document.head.appendChild(style);
 
+  const handleRating = (rating) => {
+    console.log('User rated:', rating);
+    // Here you can implement the logic to save the rating
+  };
+
   return (
     <div className="space-y-6 max-w-lg mx-auto">
+      {/* Add Confetti component with higher z-index */}
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          numberOfPieces={200}
+          recycle={false}
+          gravity={0.2}
+          initialVelocityX={10}
+          initialVelocityY={10}
+          colors={['#00ffbd', '#00e6a9', '#00cc95', '#00b381', '#00996d']}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 99999,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+
       {/* Card Container */}
       <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
         {!isConnected ? (
@@ -1027,6 +1222,13 @@ export default function TokenSwap() {
           needsApproval={isWrapUnwrapOperation()}
         />
       )}
+
+      {/* Add Rating Modal */}
+      <StarRatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onRate={handleRating}
+      />
     </div>
   );
 } 
