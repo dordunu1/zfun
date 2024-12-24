@@ -44,15 +44,96 @@ const COMMON_TOKENS = [
   }
 ];
 
+// Replace the Icons object with modern DeFi-inspired icons
+const Icons = {
+  Preparing: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path className="animate-[spin_1s_linear_infinite]" 
+          d="M12 6v1M12 17v1M7.05 7.05l.707.707M16.243 16.243l.707.707M6 12h1M17 12h1M7.757 16.243l-.707.707M16.95 7.05l-.707.707">
+        </path>
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" 
+          strokeOpacity="0.2" 
+        />
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2" 
+          strokeLinecap="round" 
+          className="origin-center animate-[spin_1.5s_linear_infinite]" 
+        />
+      </g>
+    </svg>
+  ),
+  Approval: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <path className="animate-[draw_1s_ease-in-out]" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} stroke="currentColor"
+        d="M7 11l3 3L19 5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        strokeDasharray="60"
+        strokeDashoffset="60">
+        <animate
+          attributeName="stroke-dashoffset"
+          from="60"
+          to="0"
+          dur="0.6s"
+          fill="freeze"
+        />
+      </path>
+    </svg>
+  ),
+  Creating: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path className="animate-pulse" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path className="animate-[spin_3s_linear_infinite]" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="4" className="animate-[pulse_2s_ease-in-out_infinite]" />
+      </g>
+    </svg>
+  ),
+  Adding: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 8v8m-4-4h8" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_0.6s_ease-in-out]" />
+        <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" className="animate-[pulse_2s_ease-in-out_infinite]" />
+      </g>
+    </svg>
+  ),
+  Confirming: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+        <path strokeLinecap="round" className="origin-center animate-[spin_2s_linear_infinite]"
+          d="M12 6v6l4 4" />
+      </g>
+    </svg>
+  ),
+  Completed: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g>
+        <path className="animate-[draw_0.6s_ease-in-out]" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} stroke="currentColor"
+          d="M7 13l3 3L17 8" strokeDasharray="60" strokeDashoffset="60">
+          <animate
+            attributeName="stroke-dashoffset"
+            from="60"
+            to="0"
+            dur="0.6s"
+            fill="freeze"
+          />
+        </path>
+        <path fill="currentColor" fillOpacity="0.2" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+      </g>
+    </svg>
+  )
+};
+
 // Add PoolProgressModal component
 const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNewPool }) => {
   const steps = [
-    { id: 'preparing', title: 'Preparing', icon: '⚡' },
-    { id: 'approval', title: 'Token Approval', icon: '🔑' },
-    ...(isNewPool ? [{ id: 'creating', title: 'Creating Pool', icon: '🌊' }] : []),
-    { id: 'adding', title: 'Adding Liquidity', icon: '💧' },
-    { id: 'confirming', title: 'Confirming', icon: '⏳' },
-    { id: 'completed', title: 'Completed', icon: '✨' }
+    { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
+    { id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> },
+    ...(isNewPool ? [{ id: 'creating', title: 'Creating Pool', icon: <Icons.Creating /> }] : []),
+    { id: 'adding', title: 'Adding Liquidity', icon: <Icons.Adding /> },
+    { id: 'confirming', title: 'Confirming', icon: <Icons.Confirming /> },
+    { id: 'completed', title: 'Completed', icon: <Icons.Completed /> }
   ];
 
   return (
@@ -103,7 +184,13 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                           'bg-gray-50 dark:bg-gray-800/20'
                         }`}
                       >
-                        <div className={`text-2xl ${isActive ? 'animate-bounce' : ''}`}>
+                        <div 
+                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
+                            isActive ? 'text-[#00ffbd] animate-pulse' : 
+                            isCompleted ? 'text-[#00ffbd]' : 
+                            'text-gray-400 dark:text-gray-600'
+                          }`}
+                        >
                           {step.icon}
                         </div>
                         <div className="flex-1">
