@@ -5,11 +5,10 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { FaSearch } from 'react-icons/fa';
 import { getTokenLogo, getTokenMetadata } from '../../../utils/tokens';
-import { useTokenPrices } from '../../../hooks/useTokenPrices';
+import { ChainlinkService } from '../../../services/chainlink';
 
 // Constants and configuration
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
 
 /**
  * Cache management for My Pools
@@ -126,7 +125,50 @@ export default function MyPools() {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchAddress, setSearchAddress] = useState('');
-  const { calculateUSDValue, formatUSD } = useTokenPrices();
+  const chainlinkService = new ChainlinkService();
+
+  // Format USD values
+  const formatUSD = (value) => {
+    if (value === null || value === undefined) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+
+  // Calculate USD value using Chainlink price feeds
+  const calculateUSDValue = async (token, amount) => {
+    try {
+      if (!token || !amount) return 0;
+
+      let price;
+      if (token.symbol === 'WETH' || token.symbol === 'ETH') {
+        price = await chainlinkService.getETHPrice();
+      } else if (token.symbol === 'USDT') {
+        price = await chainlinkService.getUSDTPrice();
+      } else if (token.symbol === 'USDC') {
+        price = await chainlinkService.getUSDCPrice();
+      } else {
+        // For other tokens, try to get price from pool ratio
+        price = await chainlinkService.getPriceFromStablePair(token.address);
+      }
+
+      if (!price) return 0;
+
+      const value = Number(ethers.formatUnits(amount, token.decimals)) * price;
+      console.log(`USD Value for ${token.symbol}:`, {
+        amount: ethers.formatUnits(amount, token.decimals),
+        price,
+        value
+      });
+      return value;
+    } catch (error) {
+      console.error('Error calculating USD value:', error);
+      return 0;
+    }
+  };
 
   // Load pools data
   useEffect(() => {
@@ -149,26 +191,20 @@ export default function MyPools() {
           return;
         }
 
-        // Get all pools from factory
-        const factoryPools = await uniswap.getAllPools();
-        console.log('All pools:', factoryPools);
+        // Get user's LP tokens
+        const userPools = await uniswap.getUserPools(address);
+        console.log('Found user pools:', userPools);
 
-        if (!factoryPools || factoryPools.length === 0) {
+        if (!userPools || userPools.length === 0) {
           console.log('No pools found');
           setPools([]);
           return;
         }
 
-        // Get user's LP positions
-        const userPositions = await Promise.all(
-          factoryPools.map(async (poolAddress) => {
+        // Get pool information for each LP token
+        const poolsData = await Promise.all(
+          userPools.map(async (poolAddress) => {
             try {
-              // Get LP token balance
-              const lpBalance = await uniswap.getPoolBalance(poolAddress, address);
-              if (!lpBalance || lpBalance.eq(0)) {
-                return null;
-              }
-
               // Get pool info
               const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
               if (!poolInfo) {
@@ -178,8 +214,8 @@ export default function MyPools() {
 
               // Get token metadata
               const [token0Metadata, token1Metadata] = await Promise.all([
-                getTokenMetadata(poolInfo.token0),
-                getTokenMetadata(poolInfo.token1)
+                getTokenMetadata(poolInfo.token0.address),
+                getTokenMetadata(poolInfo.token1.address)
               ]);
 
               console.log('Pool info found:', {
@@ -194,6 +230,14 @@ export default function MyPools() {
                 calculateUSDValue(token1Metadata, poolInfo.reserves?.reserve1 || '0')
               ]);
 
+              console.log('Pool TVL calculation:', {
+                token0: token0Metadata?.symbol,
+                reserve0USD,
+                token1: token1Metadata?.symbol,
+                reserve1USD,
+                total: (reserve0USD || 0) + (reserve1USD || 0)
+              });
+
               const tvl = (reserve0USD || 0) + (reserve1USD || 0);
 
               return {
@@ -201,16 +245,15 @@ export default function MyPools() {
                 token0: token0Metadata,
                 token1: token1Metadata,
                 pairAddress: poolAddress,
-                lpBalance,
                 tvl,
-                createdAt: poolInfo.volumes?.poolCreatedAt || 0,
+                createdAt: poolInfo.createdAt || Math.floor(Date.now() / 1000),
                 volumes: {
-                  oneDay: poolInfo.volumes?.oneDayVolume || 0,
-                  sevenDay: poolInfo.volumes?.sevenDayVolume || 0,
-                  thirtyDay: poolInfo.volumes?.thirtyDayVolume || 0,
-                  oneDayTxCount: poolInfo.volumes?.oneDayTxCount || 0,
-                  sevenDayTxCount: poolInfo.volumes?.sevenDayTxCount || 0,
-                  thirtyDayTxCount: poolInfo.volumes?.thirtyDayTxCount || 0
+                  oneDay: 0,
+                  sevenDay: 0,
+                  thirtyDay: 0,
+                  oneDayTxCount: 0,
+                  sevenDayTxCount: 0,
+                  thirtyDayTxCount: 0
                 },
                 reserves: {
                   ...poolInfo.reserves,
@@ -225,8 +268,8 @@ export default function MyPools() {
           })
         );
 
-        // Filter out null values (pools where user has no position) and sort by TVL
-        const validPools = userPositions
+        // Filter out null values and sort by TVL
+        const validPools = poolsData
           .filter(pool => pool !== null)
           .sort((a, b) => (b.tvl || 0) - (a.tvl || 0));
           
@@ -244,7 +287,7 @@ export default function MyPools() {
     };
 
     loadPools();
-  }, [uniswap, address, calculateUSDValue]);
+  }, [uniswap, address]);
 
   // Filter pools based on search term
   const filteredPools = pools.filter(pool => {

@@ -83,11 +83,75 @@ const WETH_ABI = [
   'function approve(address spender, uint value) external returns (bool)'
 ];
 
+// Add Chainlink price feed addresses for Optimism
+export const CHAINLINK_FEEDS = {
+  'ETH/USD': '0x13e3ee699d1909e989722e753853ae30b17e08c5',
+  'USDT/USD': '0xECef79E109e997bCA29c1c0897ec9d7b03647F5E'
+};
+
+// Add Chainlink aggregator ABI
+const CHAINLINK_AGGREGATOR_ABI = [
+  'function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)',
+  'function decimals() external view returns (uint8)'
+];
+
 export class UnichainUniswapService {
-  constructor() {
+  constructor(publicClient, walletClient) {
+    this.publicClient = publicClient;
+    this.walletClient = walletClient;
     this.provider = null;
     this.signer = null;
     this.router = null;
+    
+    // Initialize cache
+    this.poolCache = new Map();
+    this.poolInfoCache = new Map();
+    this.lastCacheUpdate = 0;
+    this.CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+    
+    // Load cache from localStorage
+    this.loadCacheFromStorage();
+  }
+
+  // Cache management methods
+  loadCacheFromStorage() {
+    try {
+      const storedCache = localStorage.getItem('unichainPoolCache');
+      if (storedCache) {
+        const { pools, poolInfo, timestamp } = JSON.parse(storedCache);
+        if (Date.now() - timestamp < 60 * 60 * 1000) {
+          this.poolCache = new Map(pools);
+          this.poolInfoCache = new Map(poolInfo);
+          this.lastCacheUpdate = timestamp;
+        }
+      }
+    } catch (error) {
+      console.warn('Error loading cache from storage:', error);
+    }
+  }
+
+  saveCacheToStorage() {
+    try {
+      const cacheData = {
+        pools: Array.from(this.poolCache.entries()),
+        poolInfo: Array.from(this.poolInfoCache.entries()),
+        timestamp: Date.now()
+      };
+      localStorage.setItem('unichainPoolCache', JSON.stringify(cacheData));
+    } catch (error) {
+      console.warn('Error saving cache to storage:', error);
+    }
+  }
+
+  clearCache() {
+    this.poolCache.clear();
+    this.poolInfoCache.clear();
+    this.lastCacheUpdate = 0;
+    localStorage.removeItem('unichainPoolCache');
+  }
+
+  isCacheValid() {
+    return Date.now() - this.lastCacheUpdate < this.CACHE_DURATION;
   }
 
   async init() {
@@ -129,9 +193,26 @@ export class UnichainUniswapService {
   // Get token information
   async getTokenInfo(tokenAddress) {
     try {
-      // Use Unichain RPC provider
-      const provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
-      const token = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+      // Handle ETH specially
+      if (tokenAddress === 'ETH') {
+        return {
+          symbol: 'ETH',
+          name: 'Ethereum',
+          decimals: 18
+        };
+      }
+
+      // Use window.ethereum provider to match user's network
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const token = new ethers.Contract(
+        tokenAddress,
+        [
+          'function symbol() view returns (string)',
+          'function name() view returns (string)',
+          'function decimals() view returns (uint8)'
+        ],
+        provider
+      );
       
       const [symbol, name, decimals] = await Promise.all([
         token.symbol().catch(() => 'Unknown'),
@@ -139,13 +220,19 @@ export class UnichainUniswapService {
         token.decimals().catch(() => 18)
       ]);
       
-    return { symbol, name, decimals };
+      return {
+        symbol,
+        name,
+        decimals,
+        address: tokenAddress
+      };
     } catch (error) {
       console.error('Error in getTokenInfo:', error);
       return {
         symbol: 'Unknown',
         name: 'Unknown Token',
-        decimals: 18
+        decimals: 18,
+        address: tokenAddress
       };
     }
   }
@@ -696,21 +783,29 @@ export class UnichainUniswapService {
     }
   }
 
-  // Add getTokenBalance method
+  // Get token balance
   async getTokenBalance(tokenAddress, userAddress) {
     try {
       if (!this.provider) await this.init();
-      
-      // For ETH balance
+
+      // Handle ETH balance
       if (tokenAddress === 'ETH') {
         const balance = await this.provider.getBalance(userAddress);
         return ethers.formatEther(balance);
       }
 
-      // For ERC20 tokens
-      const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.provider);
-      const balance = await token.balanceOf(userAddress);
-      const decimals = await token.decimals();
+      // Handle ERC20 token balance
+      const token = new ethers.Contract(
+        tokenAddress,
+        ERC20_ABI,
+        this.provider
+      );
+
+      const [balance, decimals] = await Promise.all([
+        token.balanceOf(userAddress),
+        token.decimals()
+      ]);
+
       return ethers.formatUnits(balance, decimals);
     } catch (error) {
       console.error('Error getting token balance:', error);
@@ -798,6 +893,493 @@ export class UnichainUniswapService {
     } catch (error) {
       console.error('Error getting WETH balance:', error);
       return ethers.getBigInt(0);
+    }
+  }
+
+  // Get pools where user has LP tokens
+  async getUserPools(userAddress) {
+    try {
+      if (!this.provider) await this.init();
+      console.log('Getting pools for user:', userAddress);
+
+      // Get factory contract
+      const factory = new ethers.Contract(
+        UNISWAP_ADDRESSES.factory,
+        FACTORY_ABI,
+        this.provider
+      );
+
+      // Get total number of pairs
+      const pairCount = await factory.allPairsLength();
+      console.log('Total pairs:', pairCount.toString());
+
+      // Get all pair addresses
+      const pairAddresses = await Promise.all(
+        Array.from({ length: Number(pairCount) }, (_, i) => factory.allPairs(i))
+      );
+
+      console.log('Got all pair addresses:', pairAddresses.length);
+
+      // Check each pair for user's LP tokens
+      const userPools = await Promise.all(
+        pairAddresses.map(async (pairAddress) => {
+          try {
+            const pair = new ethers.Contract(
+              pairAddress,
+              [
+                'function balanceOf(address) view returns (uint256)',
+                'function token0() view returns (address)',
+                'function token1() view returns (address)'
+              ],
+              this.provider
+            );
+
+            // Get user's balance
+            const balance = await pair.balanceOf(userAddress);
+
+            // If user has LP tokens, get token info
+            if (balance > 0) {
+              const [token0, token1] = await Promise.all([
+                pair.token0(),
+                pair.token1()
+              ]);
+
+              return {
+                pairAddress,
+                token0,
+                token1,
+                balance
+              };
+            }
+            return null;
+          } catch (err) {
+            console.error('Error checking pair:', pairAddress, err);
+            return null;
+          }
+        })
+      );
+
+      // Filter out null values (pairs where user has no balance)
+      const validPools = userPools.filter(pool => pool !== null);
+      console.log('Found user pools:', validPools.length);
+      
+      return validPools.map(pool => pool.pairAddress);
+    } catch (error) {
+      console.error('Error getting user pools:', error);
+      throw error;
+    }
+  }
+
+  // Get pool information
+  async getPoolInfo(token0Address, token1Address) {
+    try {
+      const cacheKey = `${token0Address}-${token1Address}`;
+      
+      // Check cache first
+      if (this.isCacheValid() && this.poolInfoCache.has(cacheKey)) {
+        return this.poolInfoCache.get(cacheKey);
+      }
+
+      if (!this.provider) await this.init();
+
+      // Get factory address from router
+      const factoryAddress = await this.router.factory();
+      const factory = new ethers.Contract(factoryAddress, FACTORY_ABI, this.provider);
+
+      // Get pair address
+      const pairAddress = await factory.getPair(token0Address, token1Address);
+      if (pairAddress === '0x0000000000000000000000000000000000000000') {
+        return null;
+      }
+
+      // Get pair contract
+      const pair = new ethers.Contract(pairAddress, PAIR_ABI, this.provider);
+      const [token0, token1, reserves] = await Promise.all([
+        pair.token0(),
+        pair.token1(),
+        pair.getReserves()
+      ]);
+
+      // Get token metadata
+      const [token0Info, token1Info] = await Promise.all([
+        token0Address === 'ETH' ? { symbol: 'ETH', name: 'Ethereum', decimals: 18 } : this.getTokenInfo(token0),
+        token1Address === 'ETH' ? { symbol: 'ETH', name: 'Ethereum', decimals: 18 } : this.getTokenInfo(token1)
+      ]);
+
+      const poolInfo = {
+        token0: { address: token0Address, ...token0Info },
+        token1: { address: token1Address, ...token1Info },
+        reserves: {
+          reserve0: reserves[0],
+          reserve1: reserves[1],
+          blockTimestampLast: reserves[2]
+        },
+        pairAddress
+      };
+
+      // Update cache
+      this.poolInfoCache.set(cacheKey, poolInfo);
+      this.saveCacheToStorage();
+
+      return poolInfo;
+    } catch (error) {
+      console.error('Error in getPoolInfo:', error);
+      return null;
+    }
+  }
+
+  // Get pool information by address
+  async getPoolInfoByAddress(pairAddress) {
+    try {
+      if (!this.provider) await this.init();
+
+      // Get pair contract
+      const pair = new ethers.Contract(
+        pairAddress,
+        [
+          'function token0() view returns (address)',
+          'function token1() view returns (address)',
+          'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
+          'function balanceOf(address) view returns (uint256)',
+          'function decimals() view returns (uint8)'
+        ],
+        this.provider
+      );
+
+      // Get basic pool info
+      const [token0Address, token1Address, reserves] = await Promise.all([
+        pair.token0(),
+        pair.token1(),
+        pair.getReserves()
+      ]);
+
+      console.log('Pool addresses:', {
+        token0: token0Address,
+        token1: token1Address
+      });
+
+      // Get token metadata
+      const [token0Info, token1Info] = await Promise.all([
+        this.getTokenInfo(token0Address),
+        this.getTokenInfo(token1Address)
+      ]);
+
+      console.log('Pool token info:', {
+        token0: token0Info,
+        token1: token1Info
+      });
+
+      return {
+        token0: { ...token0Info, address: token0Address },
+        token1: { ...token1Info, address: token1Address },
+        reserves: {
+          reserve0: reserves[0],
+          reserve1: reserves[1],
+          blockTimestampLast: reserves[2]
+        },
+        pairAddress
+      };
+    } catch (error) {
+      console.error('Error in getPoolInfoByAddress:', error);
+      return null;
+    }
+  }
+
+  // Add method to get price from Chainlink
+  async getPriceFromChainlink(tokenSymbol) {
+    try {
+      let feedAddress;
+      if (tokenSymbol === 'ETH' || tokenSymbol === 'WETH') {
+        feedAddress = CHAINLINK_FEEDS['ETH/USD'];
+      } else if (tokenSymbol === 'USDT') {
+        feedAddress = CHAINLINK_FEEDS['USDT/USD'];
+      }
+
+      if (!feedAddress) return null;
+
+      const feed = new ethers.Contract(
+        feedAddress,
+        CHAINLINK_AGGREGATOR_ABI,
+        this.provider
+      );
+
+      const [price, decimals] = await Promise.all([
+        feed.latestRoundData().then(data => data.answer),
+        feed.decimals()
+      ]);
+
+      return Number(ethers.formatUnits(price, decimals));
+    } catch (error) {
+      console.error('Error getting Chainlink price:', error);
+      return null;
+    }
+  }
+
+  // Add method to get price from pool ratio
+  async getPriceFromPool(tokenAddress, quoteTokenAddress = UNISWAP_ADDRESSES.USDT) {
+    try {
+      const factory = new ethers.Contract(
+        UNISWAP_ADDRESSES.factory,
+        FACTORY_ABI,
+        this.provider
+      );
+
+      const pairAddress = await factory.getPair(tokenAddress, quoteTokenAddress);
+      if (pairAddress === '0x0000000000000000000000000000000000000000') {
+        return null;
+      }
+
+      const pair = new ethers.Contract(
+        pairAddress,
+        PAIR_ABI,
+        this.provider
+      );
+
+      const [reserves, token0] = await Promise.all([
+        pair.getReserves(),
+        pair.token0()
+      ]);
+
+      const [reserve0, reserve1] = reserves;
+      const isToken0 = tokenAddress.toLowerCase() === token0.toLowerCase();
+
+      // Get token decimals
+      const tokenContract = new ethers.Contract(
+        tokenAddress,
+        ERC20_ABI,
+        this.provider
+      );
+      const quoteTokenContract = new ethers.Contract(
+        quoteTokenAddress,
+        ERC20_ABI,
+        this.provider
+      );
+      const [tokenDecimals, quoteTokenDecimals] = await Promise.all([
+        tokenContract.decimals(),
+        quoteTokenContract.decimals()
+      ]);
+
+      // Calculate price based on reserves
+      if (isToken0) {
+        return Number(ethers.formatUnits(reserve1, quoteTokenDecimals)) / 
+               Number(ethers.formatUnits(reserve0, tokenDecimals));
+      } else {
+        return Number(ethers.formatUnits(reserve0, quoteTokenDecimals)) / 
+               Number(ethers.formatUnits(reserve1, tokenDecimals));
+      }
+    } catch (error) {
+      console.error('Error getting pool price:', error);
+      return null;
+    }
+  }
+
+  // Update getPools method to load more pools faster
+  async getPools(tokenAddress) {
+    if (!tokenAddress) {
+      console.error('tokenAddress is required for getPools');
+      throw new Error('tokenAddress is required');
+    }
+
+    try {
+      // Check cache first
+      if (this.isCacheValid() && this.poolCache.has(tokenAddress)) {
+        return this.poolCache.get(tokenAddress);
+      }
+
+      console.log('Getting pools for token:', tokenAddress);
+      if (!this.provider) await this.init();
+      
+      const factory = new ethers.Contract(
+        UNISWAP_ADDRESSES.factory,
+        FACTORY_ABI,
+        this.provider
+      );
+
+      const pairCount = await factory.allPairsLength();
+      console.log('Total pairs:', pairCount.toString());
+      
+      // Get user address for checking owned pools
+      const userAddress = await this.signer.getAddress();
+      
+      // Create a Set to track unique pair addresses
+      const uniquePairs = new Set();
+      const pairs = [];
+      
+      // Load pools in larger batches
+      const batchSize = 40; // Process 40 pairs at a time
+      const maxPairsToCheck = Math.min(Number(pairCount), 200); // Check up to 200 pairs
+      
+      for (let i = 0; i < maxPairsToCheck; i += batchSize) {
+        const currentBatchSize = Math.min(batchSize, maxPairsToCheck - i);
+        const batch = Array.from({ length: currentBatchSize }, (_, j) => i + j);
+        
+        console.log(`Processing batch ${i} to ${i + currentBatchSize}`);
+        
+        // Get all pair addresses in this batch first
+        const pairAddresses = await Promise.all(
+          batch.map(index => factory.allPairs(index))
+        );
+        
+        // Create contract instances for all pairs in batch
+        const pairContracts = pairAddresses.map(addr => 
+          new ethers.Contract(
+            addr,
+            [...PAIR_ABI, 'function balanceOf(address) view returns (uint256)'],
+            this.provider
+          )
+        );
+        
+        // Get all pair data in parallel
+        const pairDataPromises = pairContracts.map(async (pair, idx) => {
+          try {
+            const pairAddress = pairAddresses[idx];
+            if (uniquePairs.has(pairAddress)) return null;
+            
+            const [balance, token0, token1, reserves] = await Promise.all([
+              pair.balanceOf(userAddress),
+              pair.token0(),
+              pair.token1(),
+              pair.getReserves()
+            ]);
+            
+            if (token0.toLowerCase() === tokenAddress.toLowerCase() || 
+                token1.toLowerCase() === tokenAddress.toLowerCase()) {
+              return {
+                address: pairAddress,
+                token0,
+                token1,
+                reserves,
+                owned: balance > 0
+              };
+            }
+            return null;
+          } catch (error) {
+            console.error(`Error processing pair ${pairAddresses[idx]}:`, error);
+            return null;
+          }
+        });
+        
+        const batchResults = await Promise.all(pairDataPromises);
+        const validResults = batchResults.filter(result => result !== null);
+        
+        for (const result of validResults) {
+          if (!uniquePairs.has(result.address)) {
+            uniquePairs.add(result.address);
+            pairs.push(result);
+          }
+        }
+        
+        // Break if we have enough pairs
+        if (pairs.length >= 40) {
+          console.log('Found 40 pairs, stopping search');
+          break;
+        }
+      }
+
+      // Sort pairs to show owned pools first
+      pairs.sort((a, b) => {
+        if (a.owned === b.owned) return 0;
+        return a.owned ? -1 : 1;
+      });
+
+      // Update cache
+      this.poolCache.set(tokenAddress, pairs);
+      this.lastCacheUpdate = Date.now();
+      this.saveCacheToStorage();
+
+      console.log('Found pairs:', pairs.length);
+      return pairs;
+    } catch (error) {
+      console.error('Error getting pools:', error);
+      throw error;
+    }
+  }
+
+  // Update getTokenBalance method to be more robust
+  async getTokenBalance(tokenAddress, userAddress) {
+    try {
+      if (!this.provider) await this.init();
+
+      // Handle ETH balance
+      if (tokenAddress === 'ETH') {
+        const balance = await this.provider.getBalance(userAddress);
+        return ethers.formatEther(balance);
+      }
+
+      // Handle ERC20 token balance
+      const token = new ethers.Contract(
+        tokenAddress,
+        ERC20_ABI,
+        this.provider
+      );
+
+      const [balance, decimals] = await Promise.all([
+        token.balanceOf(userAddress),
+        token.decimals()
+      ]);
+
+      return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+      console.error('Error getting token balance:', error);
+      return '0';
+    }
+  }
+
+  // Add method to get pool information with caching
+  async getPoolInfo(token0Address, token1Address) {
+    try {
+      const cacheKey = `${token0Address}-${token1Address}`;
+      
+      // Check cache first
+      if (this.isCacheValid() && this.poolInfoCache.has(cacheKey)) {
+        return this.poolInfoCache.get(cacheKey);
+      }
+
+      if (!this.provider) await this.init();
+
+      // Get factory address from router
+      const factoryAddress = await this.router.factory();
+      const factory = new ethers.Contract(factoryAddress, FACTORY_ABI, this.provider);
+
+      // Get pair address
+      const pairAddress = await factory.getPair(token0Address, token1Address);
+      if (pairAddress === '0x0000000000000000000000000000000000000000') {
+        return null;
+      }
+
+      // Get pair contract
+      const pair = new ethers.Contract(pairAddress, PAIR_ABI, this.provider);
+      const [token0, token1, reserves] = await Promise.all([
+        pair.token0(),
+        pair.token1(),
+        pair.getReserves()
+      ]);
+
+      // Get token metadata
+      const [token0Info, token1Info] = await Promise.all([
+        token0Address === 'ETH' ? { symbol: 'ETH', name: 'Ethereum', decimals: 18 } : this.getTokenInfo(token0),
+        token1Address === 'ETH' ? { symbol: 'ETH', name: 'Ethereum', decimals: 18 } : this.getTokenInfo(token1)
+      ]);
+
+      const poolInfo = {
+        token0: { address: token0Address, ...token0Info },
+        token1: { address: token1Address, ...token1Info },
+        reserves: {
+          reserve0: reserves[0],
+          reserve1: reserves[1],
+          blockTimestampLast: reserves[2]
+        },
+        pairAddress
+      };
+
+      // Update cache
+      this.poolInfoCache.set(cacheKey, poolInfo);
+      this.saveCacheToStorage();
+
+      return poolInfo;
+    } catch (error) {
+      console.error('Error in getPoolInfo:', error);
+      return null;
     }
   }
 } 

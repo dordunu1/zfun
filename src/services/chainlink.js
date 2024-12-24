@@ -38,6 +38,12 @@ export const CHAINLINK_FEEDS = {
     ETH_USD: '0x13e3Ee699D1909E989722E753853AE30b17e08c5',
     USDC_USD: '0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3',
     USDT_USD: '0xECef79E109e997bCA29c1c0897ec9d7b03647F5E'
+  },
+  // Unichain (using Optimism feeds since it's OP Stack based)
+  1301: {
+    ETH_USD: '0x13e3Ee699D1909E989722E753853AE30b17e08c5',
+    USDC_USD: '0x16a9FA2FDa030272Ce99B29CF780dFA30361E0f3',
+    USDT_USD: '0xECef79E109e997bCA29c1c0897ec9d7b03647F5E'
   }
 };
 
@@ -72,6 +78,11 @@ export const STABLECOINS = {
   10: {
     USDC: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
     USDT: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'
+  },
+  // Unichain
+  1301: {
+    USDC: '0x9c891326Fd8b1a713982003a9733F03707103837', // Add your actual USDC address
+    USDT: '0x70262e266E50603AcFc5D58997eF73e5a8775844'  // Add your actual USDT address
   }
 };
 
@@ -101,10 +112,12 @@ export class ChainlinkService {
 
   async getLatestPrice(feedAddress) {
     try {
+      // Use Optimism RPC for price feeds since we're using Optimism's feeds
+      const optimismProvider = new ethers.JsonRpcProvider('https://mainnet.optimism.io');
       const aggregator = new ethers.Contract(
         feedAddress,
         AGGREGATOR_ABI,
-        this.provider
+        optimismProvider
       );
       const [roundData] = await Promise.all([
         aggregator.latestRoundData(),
