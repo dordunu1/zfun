@@ -12,12 +12,137 @@ import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 
-const SwapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken }) => {
+// Add these modern DeFi-inspired icons for swap steps
+const Icons = {
+  Preparing: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path className="animate-[spin_1s_linear_infinite]" 
+          d="M12 6v1M12 17v1M7.05 7.05l.707.707M16.243 16.243l.707.707M6 12h1M17 12h1M7.757 16.243l-.707.707M16.95 7.05l-.707.707">
+        </path>
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" 
+          strokeOpacity="0.2" 
+        />
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2" 
+          strokeLinecap="round" 
+          className="origin-center animate-[spin_1.5s_linear_infinite]" 
+        />
+      </g>
+    </svg>
+  ),
+  Approval: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <path className="animate-[draw_1s_ease-in-out]" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} stroke="currentColor"
+        d="M7 11l3 3L19 5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        strokeDasharray="60"
+        strokeDashoffset="60">
+        <animate
+          attributeName="stroke-dashoffset"
+          from="60"
+          to="0"
+          dur="0.6s"
+          fill="freeze"
+        />
+      </path>
+    </svg>
+  ),
+  Swapping: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        {/* Background circle */}
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" 
+          strokeOpacity="0.2" 
+        />
+        
+        {/* Top arrow */}
+        <path 
+          className="origin-center animate-[slideRight_1.5s_ease-in-out_infinite]"
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          d="M6 9h8l-2.5-2.5M6 9l2.5 2.5M6 9"
+        >
+          <animate
+            attributeName="opacity"
+            values="0;1;1;0"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+        </path>
+        
+        {/* Bottom arrow */}
+        <path 
+          className="origin-center animate-[slideLeft_1.5s_ease-in-out_infinite]"
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          d="M18 15h-8l2.5-2.5M18 15l-2.5 2.5M18 15"
+        >
+          <animate
+            attributeName="opacity"
+            values="0;1;1;0"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+        </path>
+
+        {/* Animated dots */}
+        <circle cx="18" cy="9" r="0.5" className="animate-[fadeInOut_1.5s_ease-in-out_infinite]">
+          <animate
+            attributeName="opacity"
+            values="0;1;0"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+        </circle>
+        <circle cx="6" cy="15" r="0.5" className="animate-[fadeInOut_1.5s_ease-in-out_infinite_0.75s]">
+          <animate
+            attributeName="opacity"
+            values="0;1;0"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      </g>
+    </svg>
+  ),
+  Confirming: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+        <path strokeLinecap="round" className="origin-center animate-[spin_2s_linear_infinite]"
+          d="M12 6v6l4 4" />
+      </g>
+    </svg>
+  ),
+  Completed: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g>
+        <path className="animate-[draw_0.6s_ease-in-out]" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} stroke="currentColor"
+          d="M7 13l3 3L17 8" strokeDasharray="60" strokeDashoffset="60">
+          <animate
+            attributeName="stroke-dashoffset"
+            from="60"
+            to="0"
+            dur="0.6s"
+            fill="freeze"
+          />
+        </path>
+        <path fill="currentColor" fillOpacity="0.2" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+      </g>
+    </svg>
+  )
+};
+
+// Add SwapProgressModal component
+const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, needsApproval }) => {
   const steps = [
-    { id: 'approval', title: 'Approval', icon: '🔑' },
-    { id: 'swapping', title: 'Swapping', icon: '💫' },
-    { id: 'confirming', title: 'Confirming', icon: '⏳' },
-    { id: 'completed', title: 'Completed', icon: '✨' }
+    { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
+    ...(needsApproval ? [{ id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> }] : []),
+    { id: 'swapping', title: 'Swapping', icon: <Icons.Swapping /> },
+    { id: 'confirming', title: 'Confirming', icon: <Icons.Confirming /> },
+    { id: 'completed', title: 'Completed', icon: <Icons.Completed /> }
   ];
 
   return (
@@ -51,7 +176,7 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  Swap Progress
+                  Swapping Tokens
                 </Dialog.Title>
 
                 <div className="space-y-4">
@@ -68,7 +193,13 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                           'bg-gray-50 dark:bg-gray-800/20'
                         }`}
                       >
-                        <div className={`text-2xl ${isActive ? 'animate-bounce' : ''}`}>
+                        <div 
+                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
+                            isActive ? 'text-[#00ffbd] animate-pulse' : 
+                            isCompleted ? 'text-[#00ffbd]' : 
+                            'text-gray-400 dark:text-gray-600'
+                          }`}
+                        >
                           {step.icon}
                         </div>
                         <div className="flex-1">
@@ -77,10 +208,11 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                           </h4>
                           {isActive && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              {step.id === 'approval' && `Approving ${fromToken?.symbol}`}
-                              {step.id === 'swapping' && `Swapping ${fromToken?.symbol} to ${toToken?.symbol}`}
-                              {step.id === 'confirming' && 'Waiting for confirmation'}
-                              {step.id === 'completed' && 'Swap successful!'}
+                              {step.id === 'preparing' && 'Preparing transaction...'}
+                              {step.id === 'approval' && `Approving ${tokenIn?.symbol}`}
+                              {step.id === 'swapping' && `Swapping ${tokenIn?.symbol} for ${tokenOut?.symbol}`}
+                              {step.id === 'confirming' && 'Waiting for confirmation...'}
+                              {step.id === 'completed' && `Successfully swapped ${tokenIn?.symbol} for ${tokenOut?.symbol}!`}
                             </p>
                           )}
                         </div>
@@ -118,7 +250,7 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
     { id: 'preparing', title: 'Preparing', icon: '⚡' },
     { id: 'wrapping', title: fromToken?.symbol === 'ETH' ? 'Wrapping' : 'Unwrapping', icon: '🎁' },
     { id: 'confirming', title: 'Confirming', icon: '⏳' },
-    { id: 'completed', title: 'Completed', icon: '✨' }
+    { id: 'completed', title: 'Completed', icon: '��' }
   ];
 
   return (
@@ -462,6 +594,29 @@ export default function TokenSwap() {
     return 'Swap';
   };
 
+  // Add these keyframes to your CSS/Tailwind config
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideRight {
+      0% { transform: translateX(-4px); opacity: 0; }
+      20% { transform: translateX(0); opacity: 1; }
+      80% { transform: translateX(0); opacity: 1; }
+      100% { transform: translateX(4px); opacity: 0; }
+    }
+    @keyframes slideLeft {
+      0% { transform: translateX(4px); opacity: 0; }
+      20% { transform: translateX(0); opacity: 1; }
+      80% { transform: translateX(0); opacity: 1; }
+      100% { transform: translateX(-4px); opacity: 0; }
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+
   return (
     <div className="space-y-6 max-w-lg mx-auto">
       {/* Card Container */}
@@ -741,8 +896,9 @@ export default function TokenSwap() {
             setSwapStep(null);
           }}
           currentStep={swapStep}
-          fromToken={fromToken}
-          toToken={toToken}
+          tokenIn={fromToken}
+          tokenOut={toToken}
+          needsApproval={isWrapUnwrapOperation()}
         />
       )}
     </div>
