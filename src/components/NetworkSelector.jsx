@@ -3,6 +3,7 @@ import { useNetwork, useSwitchNetwork } from 'wagmi';
 import { sepolia, polygon } from 'wagmi/chains';
 import { BiChevronDown } from 'react-icons/bi';
 import toast from 'react-hot-toast';
+import { unichainTestnet } from '../config/wagmi';
 
 // Network configurations with logos and names
 const NETWORKS = [
@@ -17,7 +18,12 @@ const NETWORKS = [
     name: 'Polygon'
   },
   {
-    id: 999,
+    ...unichainTestnet,
+    logo: '/unichain.png',
+    name: 'Unichain Testnet'
+  },
+  {
+    id: 'z-chain',
     logo: '/zchain.png',
     name: 'Z Chain',
     disabled: true

@@ -1,5 +1,5 @@
-require("@nomiclabs/hardhat-waffle");
-require("@nomiclabs/hardhat-etherscan");
+require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-verify");
 require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -20,20 +20,38 @@ module.exports = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 999999
+            runs: 200
           }
         }
       }
     ]
   },
   networks: {
+    hardhat: {},
     sepolia: {
       url: `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY}`,
-      accounts: [`0x${process.env.PRIVATE_KEY}`]
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 11155111
+    },
+    unichain: {
+      url: `https://unichain-sepolia.infura.io/v3/34c3a5f3ecf943498710543fe38b50f4`,
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 1301,
+      gasPrice: 1000000000  // 1 gwei
     }
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY
+    apiKey: process.env.ETHERSCAN_API_KEY,
+    customChains: [
+      {
+        network: "unichain",
+        chainId: 1301,
+        urls: {
+          apiURL: "https://sepolia.uniscan.xyz/api",
+          browserURL: "https://sepolia.uniscan.xyz"
+        }
+      }
+    ]
   },
   paths: {
     sources: "./contracts",

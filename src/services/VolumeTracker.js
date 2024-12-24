@@ -9,21 +9,47 @@ const PAIR_ABI = [
   'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)'
 ];
 
-const VOLUME_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache for volumes
+const VOLUME_CACHE_DURATION = 30 * 1000; // Reduced to 30 seconds for more frequent updates
 
 export class VolumeTracker {
   constructor() {
     this.volumeCache = new Map();
     this.lastCacheUpdate = 0;
+    this.lastKnownBlock = 0;
     this.loadCacheFromStorage();
+    this.setupSwapListener();
+  }
+
+  async setupSwapListener() {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      this.lastKnownBlock = await provider.getBlockNumber();
+
+      // Listen for new blocks to detect potential new swaps
+      provider.on('block', (blockNumber) => {
+        if (blockNumber > this.lastKnownBlock) {
+          this.lastKnownBlock = blockNumber;
+          this.invalidateCache();
+        }
+      });
+    } catch (error) {
+      console.warn('Error setting up swap listener:', error);
+    }
+  }
+
+  invalidateCache() {
+    this.volumeCache.clear();
+    this.lastCacheUpdate = 0;
+    localStorage.removeItem('volumeCache');
   }
 
   loadCacheFromStorage() {
     try {
       const cached = localStorage.getItem('volumeCache');
       if (cached) {
-        const { volumes, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < VOLUME_CACHE_DURATION) {
+        const { volumes, timestamp, lastBlock } = JSON.parse(cached);
+        // Only load cache if it's recent and from the same block range
+        if (Date.now() - timestamp < VOLUME_CACHE_DURATION && lastBlock === this.lastKnownBlock) {
           this.volumeCache = new Map(Object.entries(volumes));
           this.lastCacheUpdate = timestamp;
         }
@@ -38,7 +64,8 @@ export class VolumeTracker {
       const volumes = Object.fromEntries(this.volumeCache);
       localStorage.setItem('volumeCache', JSON.stringify({
         volumes,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        lastBlock: this.lastKnownBlock
       }));
     } catch (error) {
       console.warn('Error saving volume cache:', error);

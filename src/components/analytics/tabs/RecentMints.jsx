@@ -207,10 +207,16 @@ export default function RecentMints() {
 
   const renderTokenInfo = (mint) => {
     console.log('Rendering token info for mint:', mint);
+    const explorerUrl = mint.network === 'polygon' 
+      ? 'https://polygonscan.com' 
+      : mint.network === 'unichain' 
+        ? 'https://unichain-sepolia.blockscout.com'
+        : 'https://sepolia.etherscan.io';
+
     return (
       <div className="flex items-center gap-2 text-sm text-gray-400">
         <a
-          href={`${mint.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/token/${mint.collectionAddress}`}
+          href={`${explorerUrl}/token/${mint.collectionAddress}`}
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-[#00ffbd] transition-colors"
@@ -222,10 +228,16 @@ export default function RecentMints() {
   };
 
   const renderTimeWithHash = (mint) => {
+    const explorerUrl = mint.network === 'polygon' 
+      ? 'https://polygonscan.com' 
+      : mint.network === 'unichain' 
+        ? 'https://unichain-sepolia.blockscout.com'
+        : 'https://sepolia.etherscan.io';
+
     return (
       <div className="text-sm text-gray-400">
         <a
-          href={`${mint.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/tx/${mint.hash}`}
+          href={`${explorerUrl}/tx/${mint.hash}`}
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-[#00ffbd] transition-colors"

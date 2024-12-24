@@ -9,6 +9,63 @@ import { FaEthereum } from 'react-icons/fa';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
+// Memory cache for NFTs
+const CACHE_DURATION = 30000; // 30 seconds
+const nftCache = new Map();
+
+// Helper function to get cached NFTs
+const getCachedNFTs = (address, chainId) => {
+  const cacheKey = `${address}-${chainId}`;
+  const cachedData = nftCache.get(cacheKey);
+  
+  if (cachedData) {
+    const { timestamp, data } = cachedData;
+    if (Date.now() - timestamp < CACHE_DURATION) {
+      console.log('Using cached NFTs');
+      return data;
+    }
+    // Cache expired, remove it
+    nftCache.delete(cacheKey);
+  }
+  
+  // Check localStorage for backup cache
+  const localCache = localStorage.getItem(`nfts-${cacheKey}`);
+  if (localCache) {
+    try {
+      const { timestamp, data } = JSON.parse(localCache);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        console.log('Using localStorage cached NFTs');
+        return data;
+      }
+      // Cache expired, remove it
+      localStorage.removeItem(`nfts-${cacheKey}`);
+    } catch (error) {
+      console.error('Error parsing localStorage cache:', error);
+    }
+  }
+  
+  return null;
+};
+
+// Helper function to cache NFTs
+const cacheNFTs = (address, chainId, nfts) => {
+  const cacheKey = `${address}-${chainId}`;
+  const cacheData = {
+    timestamp: Date.now(),
+    data: nfts
+  };
+  
+  // Update memory cache
+  nftCache.set(cacheKey, cacheData);
+  
+  // Update localStorage cache
+  try {
+    localStorage.setItem(`nfts-${cacheKey}`, JSON.stringify(cacheData));
+  } catch (error) {
+    console.error('Error saving to localStorage:', error);
+  }
+};
+
 export default function AccountPage() {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,32 +106,69 @@ export default function AccountPage() {
       }
 
       try {
+        // Check cache first
+        const cachedNFTs = getCachedNFTs(address, chain?.id);
+        if (cachedNFTs) {
+          setNfts(cachedNFTs);
+          setLoading(false);
+          
+          // Load fresh data in the background
+          loadFreshData();
+          return;
+        }
+
+        await loadFreshData();
+      } catch (error) {
+        console.error('Error loading NFTs:', error);
+        setLoading(false);
+      }
+    };
+
+    const loadFreshData = async () => {
+      try {
+        // Load owned NFTs and token logos in parallel
         const ownedNFTs = await getOwnedNFTs(address);
+        
         // Filter NFTs based on current chain
         const filteredNFTs = ownedNFTs.filter(nft => {
           if (chain?.id === 11155111) { // Sepolia
-            return nft.network === 'sepolia';
+            return nft.network === 'sepolia' || nft.chainId === 11155111;
+          } else if (chain?.id === 1301) { // Unichain
+            return nft.network === 'unichain' || nft.chainId === 1301;
           }
           return false;
         });
 
-        // Get token logos for each NFT's minting token
+        // Get unique token addresses for minting tokens
+        const uniqueTokenAddresses = [...new Set(
+          filteredNFTs
+            .filter(nft => nft.mintToken?.address)
+            .map(nft => nft.mintToken.address.toLowerCase())
+        )];
+
+        // Load all token logos in parallel
         const logos = {};
         await Promise.all(
-          filteredNFTs.map(async (nft) => {
-            if (nft.mintToken?.address) {
-              const tokenDeployment = await getTokenDeploymentByAddress(nft.mintToken.address);
+          uniqueTokenAddresses.map(async (tokenAddress) => {
+            try {
+              const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
               if (tokenDeployment?.logo) {
-                logos[nft.mintToken.address.toLowerCase()] = tokenDeployment.logo;
+                logos[tokenAddress] = tokenDeployment.logo;
               }
+            } catch (error) {
+              console.error(`Error loading logo for token ${tokenAddress}:`, error);
             }
           })
         );
+
+        // Cache the results
+        cacheNFTs(address, chain?.id, filteredNFTs);
+        
         setTokenLogos(logos);
         setNfts(filteredNFTs);
+        setLoading(false);
       } catch (error) {
-        console.error('Error loading NFTs:', error);
-      } finally {
+        console.error('Error loading fresh NFT data:', error);
         setLoading(false);
       }
     };

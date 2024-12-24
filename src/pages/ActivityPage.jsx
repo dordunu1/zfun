@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 import { FaExchangeAlt, FaPlus, FaWater, FaList, FaLayerGroup, FaHistory } from 'react-icons/fa';
-import TokenSwap from '../components/dex/TokenSwap';
-import PoolCreation from '../components/dex/PoolCreation';
-import ManageLiquidity from '../components/dex/ManageLiquidity';
-import MyPools from '../components/dex/MyPools';
-import AllPools from '../components/dex/AllPools';
+import { useNetwork } from 'wagmi';
+import SepoliaTokenSwap from '../components/dex/TokenSwap';
+import UnichainTokenSwap from '../components/dex/unichain/TokenSwap';
+import SepoliaPoolCreation from '../components/dex/PoolCreation';
+import UnichainPoolCreation from '../components/dex/unichain/PoolCreation';
+import SepoliaManageLiquidity from '../components/dex/ManageLiquidity';
+import UnichainManageLiquidity from '../components/dex/unichain/ManageLiquidity';
+import SepoliaMyPools from '../components/dex/MyPools';
+import UnichainMyPools from '../components/dex/unichain/MyPools';
+import SepoliaAllPools from '../components/dex/AllPools';
+import UnichainAllPools from '../components/dex/unichain/AllPools';
 import Transactions from '../components/dex/Transactions';
+import { unichainTestnet } from '../config/wagmi';
 
 const TABS = [
   { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
-  { id: 'transactions', label: 'Transactions', icon: FaHistory },
+  { id: 'transactions', label: 'Transactions (Beta)', icon: FaHistory },
   { id: 'pool', label: 'Create Pool', icon: FaPlus },
   { id: 'liquidity', label: 'Manage Liquidity', icon: FaWater },
   { id: 'my-pools', label: 'My Pools', icon: FaList },
@@ -18,6 +25,77 @@ const TABS = [
 
 export default function ActivityPage() {
   const [activeTab, setActiveTab] = useState('swap');
+  const { chain } = useNetwork();
+
+  // Function to get the appropriate component based on chain
+  const getChainComponent = (componentType) => {
+    if (!chain) return null;
+
+    switch (componentType) {
+      case 'swap':
+        if (chain.id === unichainTestnet.id) {
+          return <UnichainTokenSwap />;
+        } else if (chain.id === 11155111) { // Sepolia chain ID
+          return <SepoliaTokenSwap />;
+        } else {
+          return (
+            <div className="text-center py-8 text-gray-500">
+              Please switch to either Sepolia or Unichain network to swap tokens
+            </div>
+          );
+        }
+      case 'pool':
+        if (chain.id === unichainTestnet.id) {
+          return <UnichainPoolCreation />;
+        } else if (chain.id === 11155111) { // Sepolia chain ID
+          return <SepoliaPoolCreation />;
+        } else {
+          return (
+            <div className="text-center py-8 text-gray-500">
+              Please switch to either Sepolia or Unichain network to create pools
+            </div>
+          );
+        }
+      case 'liquidity':
+        if (chain.id === unichainTestnet.id) {
+          return <UnichainManageLiquidity />;
+        } else if (chain.id === 11155111) { // Sepolia chain ID
+          return <SepoliaManageLiquidity />;
+        } else {
+          return (
+            <div className="text-center py-8 text-gray-500">
+              Please switch to either Sepolia or Unichain network to manage liquidity
+            </div>
+          );
+        }
+      case 'my-pools':
+        if (chain.id === unichainTestnet.id) {
+          return <UnichainMyPools />;
+        } else if (chain.id === 11155111) { // Sepolia chain ID
+          return <SepoliaMyPools />;
+        } else {
+          return (
+            <div className="text-center py-8 text-gray-500">
+              Please switch to either Sepolia or Unichain network to view your pools
+            </div>
+          );
+        }
+      case 'all-pools':
+        if (chain.id === unichainTestnet.id) {
+          return <UnichainAllPools />;
+        } else if (chain.id === 11155111) { // Sepolia chain ID
+          return <SepoliaAllPools />;
+        } else {
+          return (
+            <div className="text-center py-8 text-gray-500">
+              Please switch to either Sepolia or Unichain network to view all pools
+            </div>
+          );
+        }
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
@@ -96,12 +174,12 @@ export default function ActivityPage() {
 
             {/* Tab Content */}
             <div className="h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
-              {activeTab === 'swap' && <TokenSwap />}
+              {activeTab === 'swap' && getChainComponent('swap')}
               {activeTab === 'transactions' && <Transactions />}
-              {activeTab === 'pool' && <PoolCreation />}
-              {activeTab === 'liquidity' && <ManageLiquidity />}
-              {activeTab === 'my-pools' && <MyPools />}
-              {activeTab === 'all-pools' && <AllPools />}
+              {activeTab === 'pool' && getChainComponent('pool')}
+              {activeTab === 'liquidity' && getChainComponent('liquidity')}
+              {activeTab === 'my-pools' && getChainComponent('my-pools')}
+              {activeTab === 'all-pools' && getChainComponent('all-pools')}
             </div>
           </div>
         </div>

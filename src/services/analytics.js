@@ -46,8 +46,12 @@ export const getRecentMints = async (collectionAddress, maxResults = 50) => {
 // Get top holders for a collection using Alchemy API
 export const getTopHolders = async (collectionAddress, maxResults = 50, network = 'sepolia') => {
   try {
+    // Map network name to Alchemy URL key
+    const networkKey = network === 'unichain' ? 'unichain' : 
+                      network === 'polygon' ? 'polygon' : 'sepolia';
+    
     // Get the correct Alchemy URL for the network
-    const baseUrl = ALCHEMY_URLS[network] || ALCHEMY_URLS.sepolia;
+    const baseUrl = ALCHEMY_URLS[networkKey];
     if (!baseUrl) {
       console.warn('Unsupported network for Alchemy:', network);
       return fallbackToFirebase(collectionAddress, maxResults);

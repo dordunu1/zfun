@@ -22,8 +22,9 @@ const ERC1155_TRANSFER_BATCH_ABI = [
   "event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
 ];
 
-// Keep track of active listeners to avoid duplicates
+// Keep track of active listeners and processed transactions to avoid duplicates
 const activeListeners = new Map();
+const processedTransactions = new Set();
 
 export const trackTokenTransfers = async (tokenAddress, provider) => {
   try {
@@ -40,6 +41,11 @@ export const trackTokenTransfers = async (tokenAddress, provider) => {
     const latestBlock = await provider.getBlockNumber();
     console.log('Current block number:', latestBlock);
 
+    // Get the network to determine chain ID
+    const network = await provider.getNetwork();
+    const chainId = network.chainId;
+    console.log('Current chain ID:', chainId);
+
     // Check for any recent transfers (last 10000 blocks)
     const filter = contract.filters.Transfer();
     const startBlock = Math.max(0, latestBlock - 10000);
@@ -50,6 +56,14 @@ export const trackTokenTransfers = async (tokenAddress, provider) => {
 
     // Save historical transfers
     for (const event of events) {
+      const txKey = `${event.transactionHash}-${event.args[0]}-${event.args[1]}-${event.args[2]}`;
+      
+      // Skip if we've already processed this transaction
+      if (processedTransactions.has(txKey)) {
+        console.log('Transaction already processed, skipping:', txKey);
+        continue;
+      }
+
       // Get the block to get the timestamp
       const block = await provider.getBlock(event.blockNumber);
 
@@ -60,24 +74,40 @@ export const trackTokenTransfers = async (tokenAddress, provider) => {
         amount: event.args[2].toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
-        timestamp: block.timestamp * 1000 // Store Etherscan timestamp in milliseconds
+        timestamp: block.timestamp * 1000, // Store timestamp in milliseconds
+        chainId: Number(chainId) // Store the chain ID with the transfer
       };
 
       // Check if this transfer is already recorded
       const existingQuery = query(
         tokenTransfersRef,
-        where('transactionHash', '==', transfer.transactionHash)
+        where('transactionHash', '==', transfer.transactionHash),
+        where('fromAddress', '==', transfer.fromAddress),
+        where('toAddress', '==', transfer.toAddress)
       );
       const existingDocs = await getDocs(existingQuery);
       
       if (existingDocs.empty) {
         await addDoc(tokenTransfersRef, transfer);
         console.log('Saved historical transfer:', transfer);
+      } else {
+        console.log('Transfer already exists in DB, skipping:', transfer);
       }
+
+      // Mark this transaction as processed
+      processedTransactions.add(txKey);
     }
 
     // Set up listener for new transfers
     const listener = contract.on("Transfer", async (from, to, value, event) => {
+      const txKey = `${event.transactionHash}-${from}-${to}-${value}`;
+      
+      // Skip if we've already processed this transaction
+      if (processedTransactions.has(txKey)) {
+        console.log('Transaction already processed, skipping:', txKey);
+        return;
+      }
+
       // Get the block to get the timestamp
       const block = await provider.getBlock(event.blockNumber);
 
@@ -88,20 +118,28 @@ export const trackTokenTransfers = async (tokenAddress, provider) => {
         amount: value.toString(),
         transactionHash: event.transactionHash,
         blockNumber: event.blockNumber,
-        timestamp: block.timestamp * 1000 // Store Etherscan timestamp in milliseconds
+        timestamp: block.timestamp * 1000, // Store timestamp in milliseconds
+        chainId: Number(chainId) // Store the chain ID with the transfer
       };
 
       // Check if this transfer is already recorded
       const existingQuery = query(
         tokenTransfersRef,
-        where('transactionHash', '==', transfer.transactionHash)
+        where('transactionHash', '==', transfer.transactionHash),
+        where('fromAddress', '==', transfer.fromAddress),
+        where('toAddress', '==', transfer.toAddress)
       );
       const existingDocs = await getDocs(existingQuery);
       
       if (existingDocs.empty) {
         await addDoc(tokenTransfersRef, transfer);
         console.log('Saved new transfer:', transfer);
+      } else {
+        console.log('Transfer already exists in DB, skipping:', transfer);
       }
+
+      // Mark this transaction as processed
+      processedTransactions.add(txKey);
     });
 
     activeListeners.set(tokenAddress, listener);
@@ -131,6 +169,11 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
     const latestBlock = await provider.getBlockNumber();
     console.log('Current block number:', latestBlock);
 
+    // Get the network to determine chain ID
+    const network = await provider.getNetwork();
+    const chainId = network.chainId;
+    console.log('Current chain ID:', chainId);
+
     // Check for any recent transfers (last 10000 blocks)
     const startBlock = Math.max(0, latestBlock - 10000);
     console.log('Checking historical transfers from block:', startBlock);
@@ -156,7 +199,8 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
           amount: event.args[4].toString(),
           transactionHash: event.transactionHash,
           blockNumber: event.blockNumber,
-          timestamp: block.timestamp * 1000
+          timestamp: block.timestamp * 1000,
+          chainId: Number(chainId) // Store the chain ID with the transfer
         };
 
         await saveNFTTransfer(transfer);
@@ -177,7 +221,8 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
             amount: amounts[i].toString(),
             transactionHash: event.transactionHash,
             blockNumber: event.blockNumber,
-            timestamp: block.timestamp * 1000
+            timestamp: block.timestamp * 1000,
+            chainId: Number(chainId) // Store the chain ID with the transfer
           };
 
           await saveNFTTransfer(transfer);
@@ -195,7 +240,8 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
           amount: value.toString(),
           transactionHash: event.transactionHash,
           blockNumber: event.blockNumber,
-          timestamp: block.timestamp * 1000
+          timestamp: block.timestamp * 1000,
+          chainId: Number(chainId) // Store the chain ID with the transfer
         };
 
         await saveNFTTransfer(transfer);
@@ -212,7 +258,8 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
             amount: values[i].toString(),
             transactionHash: event.transactionHash,
             blockNumber: event.blockNumber,
-            timestamp: block.timestamp * 1000
+            timestamp: block.timestamp * 1000,
+            chainId: Number(chainId) // Store the chain ID with the transfer
           };
 
           await saveNFTTransfer(transfer);
@@ -235,7 +282,8 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
           amount: '1',
           transactionHash: event.transactionHash,
           blockNumber: event.blockNumber,
-          timestamp: block.timestamp * 1000
+          timestamp: block.timestamp * 1000,
+          chainId: Number(chainId) // Store the chain ID with the transfer
         };
 
         await saveNFTTransfer(transfer);
@@ -252,7 +300,8 @@ export const trackNFTTransfers = async (contractAddress, nftType, provider) => {
           amount: '1',
           transactionHash: event.transactionHash,
           blockNumber: event.blockNumber,
-          timestamp: block.timestamp * 1000
+          timestamp: block.timestamp * 1000,
+          chainId: Number(chainId) // Store the chain ID with the transfer
         };
 
         await saveNFTTransfer(transfer);

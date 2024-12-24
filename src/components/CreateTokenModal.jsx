@@ -14,11 +14,13 @@ import { trackTokenTransfers } from '../services/tokenTransfers';
 const SUPPORTED_CHAINS = import.meta.env.VITE_SUPPORTED_CHAINS.split(',').map(Number);
 const FACTORY_ADDRESSES = {
   11155111: import.meta.env.VITE_FACTORY_ADDRESS_11155111,
-  137: import.meta.env.VITE_FACTORY_ADDRESS_137
+  137: import.meta.env.VITE_FACTORY_ADDRESS_137,
+  1301: import.meta.env.VITE_FACTORY_ADDRESS_1301
 };
 const CHAIN_FEES = {
   11155111: "0.01",  // Sepolia fee in ETH
-  137: "20"          // Polygon fee in MATIC
+  137: "20",         // Polygon fee in MATIC
+  1301: "0.01"       // Unichain fee in ETH
 };
 
 // Update DEX configurations
@@ -95,18 +97,34 @@ export default function CreateTokenModal({ isOpen, onClose }) {
   // Update the handleSuccess function
   const handleSuccess = async (deployedAddress, eventData, logoUrls) => {
     try {
+      // Get chain name based on chain ID
+      const getChainName = (chainId) => {
+        switch (chainId) {
+          case 137:
+            return 'polygon';
+          case 11155111:
+            return 'sepolia';
+          case 1301:
+            return 'unichain';
+          default:
+            return 'unknown';
+        }
+      };
+
+      const chainName = getChainName(currentChainId);
       console.log('Saving token deployment with data:', {
         name: eventData.name,
         symbol: eventData.symbol,
         address: deployedAddress,
         chainId: currentChainId,
-        chainName: currentChainId === 137 ? 'Polygon' : 'Sepolia',
+        chainName,
         logo: logoUrls.httpUrl,
         logoIpfs: logoUrls.ipfsUrl,
         description: formData.description,
         totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
         timestamp: Date.now(),
-        creatorAddress: account.toLowerCase()
+        creatorAddress: account.toLowerCase(),
+        network: chainName // Add network field to match the expected format
       });
 
       await addDeployment({
@@ -114,13 +132,14 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         symbol: eventData.symbol,
         address: deployedAddress,
         chainId: currentChainId,
-        chainName: currentChainId === 137 ? 'Polygon' : 'Sepolia',
+        chainName,
         logo: logoUrls.httpUrl,
         logoIpfs: logoUrls.ipfsUrl,
         description: formData.description,
         totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
         timestamp: Date.now(),
-        creatorAddress: account.toLowerCase()
+        creatorAddress: account.toLowerCase(),
+        network: chainName // Add network field to match the expected format
       });
 
       console.log('Token deployment saved successfully');

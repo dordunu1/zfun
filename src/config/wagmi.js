@@ -1,39 +1,46 @@
 import { createConfig, configureChains } from 'wagmi'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum'
-import { InjectedConnector } from 'wagmi/connectors/injected'
 import { publicProvider } from 'wagmi/providers/public'
 
 const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID
 
-const metadata = {
-  name: 'Token Factory',
-  description: 'Create your own ERC20 tokens',
-  url: 'https://token-factory.com',
-  icons: ['https://avatars.githubusercontent.com/u/37784886']
+// Define Unichain Testnet
+const unichainTestnet = {
+  id: 1301,
+  name: 'Unichain Sepolia Testnet',
+  network: 'unichain-testnet',
+  nativeCurrency: {
+    name: 'ETH',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: { http: ['https://sepolia.unichain.org'] },
+    public: { http: ['https://sepolia.unichain.org'] },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Uniscan',
+      url: 'https://sepolia.uniscan.xyz',
+    },
+  },
+  testnet: true,
 }
 
-const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [mainnet, sepolia],
-  [publicProvider()]
+const { chains, publicClient } = configureChains(
+  [mainnet, sepolia, unichainTestnet],
+  [w3mProvider({ projectId })]
 )
 
-// Configure MetaMask connector
-const metaMask = new InjectedConnector({ 
-  chains,
-  options: {
-    name: 'MetaMask',
-    shimDisconnect: true,
-  }
-})
-
-export const config = createConfig({
+const wagmiConfig = createConfig({
   autoConnect: true,
-  connectors: [
-    metaMask,
-    ...w3mConnectors({ projectId, chains })
-  ],
+  connectors: w3mConnectors({ projectId, chains }),
   publicClient
 })
 
-export const ethereumClient = new EthereumClient(config, chains)
+export const ethereumClient = new EthereumClient(wagmiConfig, chains)
+export const config = wagmiConfig
+
+// Export the chain for use in other files
+export { unichainTestnet }

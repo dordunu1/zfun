@@ -28,19 +28,96 @@ export const COMMON_TOKENS = [
   {
     address: UNISWAP_ADDRESSES.USDT,
     symbol: 'USDT',
-    name: 'Test USDT',
+    name: 'Tether USD',
     decimals: 6,
     logo: '/usdt.png'
   }
 ];
 
-export const getTokenMetadata = async (token) => {
-  if (!token?.address) return null;
+// Helper function to get chain-specific token addresses
+export const getChainTokens = (chainId) => {
+  switch (chainId) {
+    case 1301: // Unichain
+      return [
+        {
+          address: 'ETH',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          decimals: 18,
+          logo: '/eth.png'
+        },
+        {
+          address: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
+          symbol: 'WETH',
+          name: 'Wrapped Ethereum',
+          decimals: 18,
+          logo: '/eth.png'
+        },
+        {
+          address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
+          symbol: 'USDC',
+          name: 'USD Coin',
+          decimals: 6,
+          logo: '/usdc.png'
+        },
+        {
+          address: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
+          symbol: 'USDT',
+          name: 'Tether USD',
+          decimals: 6,
+          logo: '/usdt.png'
+        }
+      ];
+    default:
+      return COMMON_TOKENS.map(token => {
+        if (token.address === 'ETH') return token;
+        
+        const chainAddresses = UNISWAP_ADDRESSES[chainId] || UNISWAP_ADDRESSES;
+        const addressKey = Object.keys(chainAddresses).find(key => 
+          key === token.symbol
+        );
+        
+        return {
+          ...token,
+          address: addressKey ? chainAddresses[addressKey] : token.address
+        };
+      });
+  }
+};
+
+export const getTokenMetadata = async (token, chainId) => {
+  // Return default metadata if token is null/undefined
+  if (!token) {
+    return {
+      address: '',
+      symbol: 'Unknown',
+      name: 'Unknown Token',
+      decimals: 18,
+      logo: '/token-default.png',
+      verified: false
+    };
+  }
+
+  // Handle case where token is just an address string
+  const tokenAddress = typeof token === 'string' ? token : token.address;
+  if (!tokenAddress) {
+    return {
+      address: '',
+      symbol: 'Unknown',
+      name: 'Unknown Token',
+      decimals: 18,
+      logo: '/token-default.png',
+      verified: false
+    };
+  }
 
   // 1. Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => 
-    t.address.toLowerCase() === token.address.toLowerCase()
-  );
+  const chainTokens = getChainTokens(chainId);
+  const commonToken = chainTokens.find(t => {
+    if (!t.address || !tokenAddress) return false;
+    return t.address.toLowerCase() === tokenAddress.toLowerCase();
+  });
+
   if (commonToken) {
     return {
       ...token,
@@ -51,7 +128,7 @@ export const getTokenMetadata = async (token) => {
 
   // 2. Check Firebase for custom tokens
   try {
-    const tokenDeployment = await getTokenDeploymentByAddress(token.address);
+    const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
     if (tokenDeployment) {
       return {
         ...token,
@@ -79,13 +156,16 @@ export const getTokenMetadata = async (token) => {
   };
 };
 
-export const getTokenLogo = (token) => {
+export const getTokenLogo = (token, chainId) => {
   if (!token) return '/token-default.png';
 
   // Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => 
-    t.address?.toLowerCase() === token.address?.toLowerCase()
-  );
+  const chainTokens = getChainTokens(chainId);
+  const commonToken = chainTokens.find(t => {
+    if (!t.address || !token.address) return false;
+    return t.address.toLowerCase() === token.address.toLowerCase();
+  });
+
   if (commonToken) {
     return commonToken.logo;
   }

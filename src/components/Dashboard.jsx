@@ -128,6 +128,19 @@ export default function Dashboard() {
     const isNFT = deployment.type === 'nft';
     const collectionUrl = `/collection/${deployment.symbol}`;
 
+    const getExplorerUrl = (chainName, address) => {
+      switch (chainName.toLowerCase()) {
+        case 'sepolia':
+          return `https://sepolia.etherscan.io/token/${address}`;
+        case 'polygon':
+          return `https://polygonscan.com/token/${address}`;
+        case 'unichain':
+          return `https://unichain-sepolia.blockscout.com/token/${address}`;
+        default:
+          return '#';
+      }
+    };
+
     return (
       <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
         <div className="flex items-center gap-3">
@@ -194,7 +207,7 @@ export default function Dashboard() {
             </Link>
           ) : (
             <a 
-              href={`${deployment.chainName.toLowerCase() === 'sepolia' ? 'https://sepolia.etherscan.io/token/' : 'https://polygonscan.com/token/'}${deployment.address}`}
+              href={getExplorerUrl(deployment.chainName, deployment.address)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"

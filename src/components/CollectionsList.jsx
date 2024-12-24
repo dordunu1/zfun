@@ -53,8 +53,22 @@ export default function CollectionsList() {
   const filteredCollections = useMemo(() => {
     return collections
       .filter(collection => {
-        if (filters.network !== 'all' && collection.network !== filters.network) return false;
+        // Network filter
+        if (filters.network !== 'all') {
+          // Check both network field and chainId
+          if (filters.network === 'unichain') {
+            return collection.network === 'unichain' || collection.chainId === 1301;
+          } else if (filters.network === 'sepolia') {
+            return collection.network === 'sepolia' || collection.chainId === 11155111;
+          } else if (filters.network === 'polygon') {
+            return collection.network === 'polygon' || collection.chainId === 137;
+          }
+          return false;
+        }
+        
+        // Type filter
         if (filters.type !== 'all' && collection.type !== filters.type) return false;
+        
         return true;
       })
       .sort((a, b) => {
@@ -105,7 +119,7 @@ export default function CollectionsList() {
         <option value="all">All Networks</option>
         <option value="sepolia">Sepolia</option>
         <option value="polygon">Polygon</option>
-        <option value="zchain">Z Chain</option>
+        <option value="unichain">Unichain</option>
       </select>
 
       <select
@@ -196,10 +210,12 @@ export default function CollectionsList() {
 
   // Add this function to render currency logo
   const renderCurrencyLogo = (collection) => {
+    // First check if there's a custom token
     const tokenAddress = collection?.mintToken?.address?.toLowerCase();
     const logoUrl = tokenLogos[tokenAddress];
 
-    if (tokenAddress && logoUrl) {
+    // If it's a custom token with a logo, show that
+    if (tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000' && logoUrl) {
       return (
         <img 
           src={logoUrl} 
@@ -213,11 +229,13 @@ export default function CollectionsList() {
       );
     }
     
-    return collection?.network === 'polygon' ? (
-      <img src="/matic.png" alt="MATIC" className="w-5 h-5" />
-    ) : (
-      <FaEthereum className="w-5 h-5 text-[#00ffbd]" />
-    );
+    // Otherwise show the native currency logo based on network
+    if (collection?.network === 'polygon') {
+      return <img src="/matic.png" alt="MATIC" className="w-5 h-5" />;
+    }
+    
+    // For both Sepolia and Unichain, show ETH logo when it's the native currency
+    return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
   };
 
   return (

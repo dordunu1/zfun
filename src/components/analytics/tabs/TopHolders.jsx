@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { FaCrown } from 'react-icons/fa';
 import { RiMedalFill } from 'react-icons/ri';
+import { ethers } from 'ethers';
 
 // Get API key from environment variables
 const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
@@ -20,6 +21,7 @@ const ALCHEMY_URLS = {
   'mumbai': 'https://polygon-mumbai.g.alchemy.com/v2/',
   'arbitrum': 'https://arb-mainnet.g.alchemy.com/v2/',
   'optimism': 'https://opt-mainnet.g.alchemy.com/v2/',
+  'unichain': 'https://unichain-sepolia.g.alchemy.com/v2/',
 };
 
 const formatAddress = (address) => {
@@ -77,7 +79,16 @@ export default function TopHolders({ collection }) {
           throw new Error('No contract address available');
         }
 
-        const baseUrl = ALCHEMY_URLS[collection.network || 'sepolia'];
+        // Special handling for Unichain
+        if (collection.network === 'unichain') {
+          await loadUnichainHolders(collection.contractAddress);
+          return;
+        }
+
+        // Map network name to Alchemy URL key for other networks
+        const networkKey = collection.network === 'polygon' ? 'polygon' : 'sepolia';
+        
+        const baseUrl = ALCHEMY_URLS[networkKey];
         if (!baseUrl) {
           throw new Error(`Unsupported network: ${collection.network}`);
         }
@@ -110,18 +121,72 @@ export default function TopHolders({ collection }) {
           .filter(holder => holder.quantity > 0)
           .sort((a, b) => b.quantity - a.quantity);
 
-        // Add chart data points
-        const chartData = holdersData.map((holder, index) => ({
-          name: index,
-          value: holder.quantity
-        }));
-
-        setHolders(holdersData.map(holder => ({ ...holder, chartData })));
+        setHolders(holdersData);
         setError(null);
       } catch (error) {
         console.error('Error loading holders:', error);
         setError(error.message);
         toast.error(`Failed to load top holders: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Function to load Unichain holders using contract events
+    const loadUnichainHolders = async (contractAddress) => {
+      try {
+        // Initialize ethers provider for Unichain Sepolia
+        const provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
+        const contract = new ethers.Contract(contractAddress, ['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'], provider);
+
+        // Get the latest block number
+        const latestBlock = await provider.getBlockNumber();
+        // Look back 10000 blocks or to contract creation
+        const fromBlock = Math.max(0, latestBlock - 10000);
+
+        // Get all Transfer events
+        const events = await contract.queryFilter('Transfer', fromBlock, latestBlock);
+        console.log('Found transfer events:', events.length);
+        
+        // Process events to track current holders
+        const holdersMap = new Map();
+        
+        for (const event of events) {
+          const { from, to } = event.args;
+          
+          // Decrease count for sender (unless it's the zero address - minting)
+          if (from !== '0x0000000000000000000000000000000000000000') {
+            const fromCount = holdersMap.get(from) || 0;
+            if (fromCount > 1) {
+              holdersMap.set(from, fromCount - 1);
+            } else {
+              holdersMap.delete(from);
+            }
+          }
+          
+          // Increase count for receiver (unless it's the zero address - burning)
+          if (to !== '0x0000000000000000000000000000000000000000') {
+            const toCount = holdersMap.get(to) || 0;
+            holdersMap.set(to, toCount + 1);
+          }
+        }
+
+        // Convert map to array and sort
+        const holdersData = Array.from(holdersMap.entries())
+          .map(([address, quantity]) => ({
+            holderAddress: address,
+            quantity
+          }))
+          .filter(holder => holder.quantity > 0)
+          .sort((a, b) => b.quantity - a.quantity);
+
+        console.log('Processed holders:', holdersData.length);
+        setHolders(holdersData);
+        setError(null);
+      } catch (error) {
+        console.error('Error loading Unichain holders:', error);
+        setError('Failed to load Unichain holders. Please try again later.');
+        toast.error('Failed to load Unichain holders');
       } finally {
         setLoading(false);
       }

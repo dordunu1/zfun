@@ -3,7 +3,8 @@ export function getExplorerUrl(chainId, hash, type = 'tx') {
     1: 'https://etherscan.io',
     11155111: 'https://sepolia.etherscan.io',
     137: 'https://polygonscan.com',
-    80001: 'https://mumbai.polygonscan.com'
+    80001: 'https://mumbai.polygonscan.com',
+    1301: 'https://unichain-sepolia.blockscout.com'
   };
 
   const baseUrl = explorers[chainId] || explorers[1];

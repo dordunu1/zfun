@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useNetwork } from 'wagmi';
 import { formatDistanceToNow } from 'date-fns';
 import { FaEthereum } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
@@ -17,10 +17,68 @@ import { getTokenTransfersForAddress, trackTokenTransfers, getNFTTransfersForAdd
 import { ipfsToHttp } from '../utils/ipfs';
 import { ethers } from 'ethers';
 
+// Memory cache for activities
+const CACHE_DURATION = 30000; // 30 seconds
+const activityCache = new Map();
+
+// Helper function to get cached data
+const getCachedActivities = (address, chainId) => {
+  const cacheKey = `${address}-${chainId}`;
+  const cachedData = activityCache.get(cacheKey);
+  
+  if (cachedData) {
+    const { timestamp, data } = cachedData;
+    if (Date.now() - timestamp < CACHE_DURATION) {
+      console.log('Using cached activities');
+      return data;
+    }
+    // Cache expired, remove it
+    activityCache.delete(cacheKey);
+  }
+  
+  // Check localStorage for backup cache
+  const localCache = localStorage.getItem(cacheKey);
+  if (localCache) {
+    try {
+      const { timestamp, data } = JSON.parse(localCache);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        console.log('Using localStorage cached activities');
+        return data;
+      }
+      // Cache expired, remove it
+      localStorage.removeItem(cacheKey);
+    } catch (error) {
+      console.error('Error parsing localStorage cache:', error);
+    }
+  }
+  
+  return null;
+};
+
+// Helper function to cache activities
+const cacheActivities = (address, chainId, activities) => {
+  const cacheKey = `${address}-${chainId}`;
+  const cacheData = {
+    timestamp: Date.now(),
+    data: activities
+  };
+  
+  // Update memory cache
+  activityCache.set(cacheKey, cacheData);
+  
+  // Update localStorage cache
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+  } catch (error) {
+    console.error('Error saving to localStorage:', error);
+  }
+};
+
 export default function HistoryPage() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const { address } = useAccount();
+  const { chain } = useNetwork();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,12 +92,47 @@ export default function HistoryPage() {
       try {
         console.log('Loading history for address:', address);
 
-        // Load token deployments and get their details
-        const tokenDeployments = await getTokenDeploymentsByWallet(address);
-        console.log('Token deployments loaded:', tokenDeployments);
+        // Check cache first
+        const cachedActivities = getCachedActivities(address, chain?.id);
+        if (cachedActivities) {
+          setActivities(cachedActivities);
+          setLoading(false);
+          
+          // Load fresh data in the background
+          loadFreshData();
+          return;
+        }
+
+        await loadFreshData();
+      } catch (error) {
+        console.error('Error loading history:', error);
+        setLoading(false);
+      }
+    };
+
+    const loadFreshData = async () => {
+      try {
+        // Load all data in parallel
+        const [
+          deployments, 
+          transfers, 
+          transferEvents,
+          collections,
+          allCollectionsData
+        ] = await Promise.all([
+          getTokenDeploymentsByWallet(address),
+          getTokenTransfersForAddress(address),
+          getNFTTransfersForAddress(address),
+          getCollectionsByWallet(address),
+          getAllCollections()
+        ]);
+
+        console.log('Token deployments loaded:', deployments);
+        console.log('Token transfers loaded:', transfers);
+        console.log('NFT transfers loaded:', transferEvents);
         
         // Create token details map first
-        const tokenDetailsMap = tokenDeployments.reduce((acc, token) => {
+        const tokenDetailsMap = deployments.reduce((acc, token) => {
           acc[token.address.toLowerCase()] = {
             name: token.name,
             symbol: token.symbol,
@@ -48,22 +141,9 @@ export default function HistoryPage() {
           };
           return acc;
         }, {});
-        
-        // Initialize token transfer tracking for all tokens
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        console.log('Initializing transfer tracking for tokens:', tokenDeployments.map(t => t.address));
-        await Promise.all(tokenDeployments.map(token => 
-          trackTokenTransfers(token.address, provider).catch(error => 
-            console.error(`Error tracking transfers for token ${token.address}:`, error)
-          )
-        ));
-        console.log('Transfer tracking initialized for all tokens');
-        
-        // Load token transfers
-        const tokenTransfers = await getTokenTransfersForAddress(address);
-        console.log('Token transfers loaded:', tokenTransfers);
-        
-        const formattedTokenTransfers = await Promise.all(tokenTransfers.map(async tx => {
+
+        // Format token transfers
+        const formattedTokenTransfers = await Promise.all(transfers.map(async tx => {
           // First check if token details exist in the map (for deployed tokens)
           let tokenDetails = tokenDetailsMap[tx.tokenAddress.toLowerCase()];
           
@@ -89,6 +169,16 @@ export default function HistoryPage() {
           
           const formattedAmount = ethers.formatUnits(tx.amount, tokenDetails.decimals);
           
+          // Determine the network based on the transaction's chain ID or network field
+          let network = 'sepolia'; // default
+          if (tx.chainId === 1301 || tx.network === 'unichain') {
+            network = 'unichain';
+          } else if (tx.chainId === 137 || tx.network === 'polygon') {
+            network = 'polygon';
+          } else if (tx.chainId === 11155111 || tx.network === 'sepolia') {
+            network = 'sepolia';
+          }
+          
           return {
             id: tx.transactionHash,
             activityType: 'token_transaction',
@@ -101,17 +191,18 @@ export default function HistoryPage() {
               ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
               : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
             address: tx.tokenAddress,
-            network: 'sepolia',
+            network: network,
             transactionHash: tx.transactionHash,
             amount: formattedAmount,
             tokenSymbol: tokenDetails.symbol,
             fromAddress: tx.fromAddress,
-            toAddress: tx.toAddress
+            toAddress: tx.toAddress,
+            chainId: tx.chainId
           };
         }));
-        console.log('Formatted token transfers:', formattedTokenTransfers);
 
-        const formattedTokenDeployments = tokenDeployments.map(token => ({
+        // Format token deployments
+        const formattedTokenDeployments = deployments.map(token => ({
           id: token.address,
           activityType: 'token_creation',
           timestamp: token.createdAt,
@@ -119,92 +210,23 @@ export default function HistoryPage() {
           title: `Created ${token.name}`,
           subtitle: 'Token Creation',
           address: token.address,
-          network: token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia'
+          network: token.chainId === 1301 ? 'unichain' : token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia',
+          chainId: token.chainId
         }));
-        console.log('Formatted token deployments:', formattedTokenDeployments);
 
-        // Get unique token addresses from both deployments and transfers
+        // Get unique token addresses and fetch missing details
         const uniqueTokenAddresses = new Set([
-          ...tokenDeployments.map(t => t.address.toLowerCase()),
-          ...tokenTransfers.map(t => t.tokenAddress.toLowerCase())
+          ...deployments.map(t => t.address.toLowerCase()),
+          ...transfers.map(t => t.tokenAddress.toLowerCase())
         ]);
-        
-        // Fetch details for tokens that weren't deployed by this wallet
-        const missingTokenAddresses = Array.from(uniqueTokenAddresses)
-          .filter(address => !tokenDetailsMap[address]);
 
-        await Promise.all(missingTokenAddresses.map(async (tokenAddress) => {
-          try {
-            const tokenDetails = await getTokenDetails(tokenAddress);
-            if (tokenDetails) {
-              tokenDetailsMap[tokenAddress] = {
-                name: tokenDetails.name,
-                symbol: tokenDetails.symbol,
-                logo: tokenDetails.logo,
-                decimals: tokenDetails.decimals || 18
-              };
-            }
-          } catch (error) {
-            console.error(`Error fetching details for token ${tokenAddress}:`, error);
-          }
-        }));
+        // Create collections map
+        const collectionsMap = new Map(
+          collections.map(collection => [collection.contractAddress.toLowerCase(), collection])
+        );
 
-        console.log('Token details map created:', tokenDetailsMap);
-
-        // Load NFT collections
-        const nftCollections = await getCollectionsByWallet(address);
-        console.log('NFT collections loaded:', nftCollections);
-
-        // Initialize NFT transfer tracking
-        await Promise.all(nftCollections.map(nft => 
-          trackNFTTransfers(nft.contractAddress, nft.type, provider).catch(error => 
-            console.error(`Error tracking transfers for NFT ${nft.contractAddress}:`, error)
-          )
-        ));
-        console.log('NFT transfer tracking initialized');
-
-        const formattedNFTDeployments = nftCollections.map(nft => ({
-          id: nft.contractAddress,
-          activityType: 'nft_creation',
-          timestamp: nft.createdAt,
-          image: nft.previewUrl,
-          title: `Created ${nft.name}`,
-          subtitle: 'Collection Creation',
-          address: nft.contractAddress,
-          network: nft.network,
-          symbol: nft.symbol,
-          artworkType: nft.artworkType
-        }));
-
-        // Load NFT transfers
-        const nftTransfers = await getNFTTransfersForAddress(address);
-        console.log('NFT transfers loaded:', nftTransfers);
-
-        // Create a map of collection addresses to their details
-        const collectionsMap = new Map();
-        for (const nft of nftCollections) {
-          collectionsMap.set(nft.contractAddress.toLowerCase(), nft);
-        }
-
-        // Load any missing collections for NFT transfers
-        const missingCollections = nftTransfers
-          .filter(tx => !collectionsMap.has(tx.contractAddress.toLowerCase()))
-          .map(tx => tx.contractAddress.toLowerCase());
-        
-        const uniqueMissingCollections = [...new Set(missingCollections)];
-        
-        await Promise.all(uniqueMissingCollections.map(async (contractAddress) => {
-          try {
-            const collection = await getCollection(contractAddress);
-            if (collection) {
-              collectionsMap.set(contractAddress, collection);
-            }
-          } catch (error) {
-            console.error(`Error loading collection ${contractAddress}:`, error);
-          }
-        }));
-
-        const formattedNFTTransfers = nftTransfers.map(tx => {
+        // Format NFT transfers
+        const formattedNFTTransfers = transferEvents.map(tx => {
           const collection = collectionsMap.get(tx.contractAddress.toLowerCase());
           return {
             id: `${tx.transactionHash}-${tx.tokenId}`,
@@ -218,7 +240,7 @@ export default function HistoryPage() {
               ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
               : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
             address: tx.contractAddress,
-            network: collection?.network || 'sepolia',
+            network: collection?.network || (chain?.id === 1301 ? 'unichain' : 'sepolia'),
             symbol: collection?.symbol,
             artworkType: collection?.artworkType,
             tokenId: tx.tokenId,
@@ -227,42 +249,60 @@ export default function HistoryPage() {
           };
         });
 
-        // Load NFT mints
-        const allCollections = await getAllCollections();
-        console.log('All collections:', allCollections);
+        // Process mints in parallel
+        const allMints = (await Promise.all(
+          allCollectionsData.map(async (collection) => {
+            const mints = await getRecentMints(collection.contractAddress);
+            return mints
+              .filter(mint => mint.minterAddress?.toLowerCase() === address.toLowerCase())
+              .map(mint => ({
+                id: mint.id || `${collection.contractAddress}-${mint.tokenId}`,
+                activityType: 'nft_mint',
+                timestamp: mint.timestamp,
+                image: mint.image || collection.previewUrl,
+                title: `Minted ${collection.name}`,
+                subtitle: `NFT Mint #${mint.tokenId}`,
+                address: collection.contractAddress,
+                network: collection.network,
+                symbol: collection.symbol,
+                artworkType: collection.artworkType,
+                transactionHash: mint.hash
+              }));
+          })
+        )).flat();
 
-        const mintsPromises = allCollections.map(async (collection) => {
-          console.log('Checking mints for collection:', collection.name);
-          const mints = await getRecentMints(collection.contractAddress);
-          console.log('Mints for collection:', collection.name, mints);
-          
-          return mints
-            .filter(mint => mint.minterAddress?.toLowerCase() === address.toLowerCase())
-            .map(mint => ({
-              id: mint.id || `${collection.contractAddress}-${mint.tokenId}`,
-              activityType: 'nft_mint',
-              timestamp: mint.timestamp,
-              image: mint.image || collection.previewUrl,
-              title: `Minted ${collection.name}`,
-              subtitle: `NFT Mint #${mint.tokenId}`,
-              address: collection.contractAddress,
-              network: collection.network,
-              symbol: collection.symbol,
-              artworkType: collection.artworkType
-            }));
-        });
-
-        const allMints = (await Promise.all(mintsPromises)).flat();
-        console.log('All mints for address:', allMints);
-
-        // Combine and sort all activities
-        const allActivities = [
+        // Filter and sort activities
+        const currentNetwork = chain?.id === 1301 ? 'unichain' : chain?.id === 11155111 ? 'sepolia' : null;
+        const uniqueTransactions = new Set();
+        
+        const filteredActivities = [
           ...formattedTokenDeployments,
           ...formattedTokenTransfers,
-          ...formattedNFTDeployments,
           ...formattedNFTTransfers,
           ...allMints,
-        ].sort((a, b) => {
+        ]
+        .filter(activity => {
+          // If activity has chainId, use that for filtering
+          if (activity.chainId) {
+            return activity.chainId === chain?.id;
+          }
+          // Fallback to network name matching
+          return activity.network === currentNetwork;
+        })
+        // Filter out duplicate transactions
+        .filter(activity => {
+          if (!activity.transactionHash) return true; // Keep activities without transactionHash
+          
+          const txKey = `${activity.transactionHash}-${activity.activityType}`;
+          if (uniqueTransactions.has(txKey)) {
+            console.log('Duplicate transaction found, skipping:', txKey);
+            return false;
+          }
+          
+          uniqueTransactions.add(txKey);
+          return true;
+        })
+        .sort((a, b) => {
           const timeA = a.timestamp instanceof Date ? 
             a.timestamp.getTime() : 
             typeof a.timestamp === 'number' ?
@@ -280,17 +320,19 @@ export default function HistoryPage() {
           return timeB - timeA;
         });
 
-        console.log('Final activities:', allActivities);
-        setActivities(allActivities);
+        // Cache the results before setting state
+        cacheActivities(address, chain?.id, filteredActivities);
+        
+        setActivities(filteredActivities);
         setLoading(false);
       } catch (error) {
-        console.error('Error loading history:', error);
+        console.error('Error loading fresh data:', error);
         setLoading(false);
       }
     };
 
     loadHistory();
-  }, [address]);
+  }, [address, chain]);
 
   const renderMedia = (activity) => {
     const imageUrl = ipfsToHttp(activity.image);
@@ -323,6 +365,17 @@ export default function HistoryPage() {
         />
       </div>
     );
+  };
+
+  const getExplorerUrl = (network) => {
+    switch (network) {
+      case 'unichain':
+        return 'https://unichain-sepolia.blockscout.com';
+      case 'polygon':
+        return 'https://polygonscan.com';
+      default:
+        return 'https://sepolia.etherscan.io';
+    }
   };
 
   const renderActivityCard = (activity) => {
@@ -404,7 +457,7 @@ export default function HistoryPage() {
                 {formatDistanceToNow(timestamp, { addSuffix: true })}
               </span>
             </div>
-            
+
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {activity.subtitle}
@@ -412,14 +465,14 @@ export default function HistoryPage() {
               
               {activity.network && (
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  on {activity.network === 'polygon' ? 'Polygon' : 'Sepolia'}
+                  on {activity.network === 'polygon' ? 'Polygon' : activity.network === 'unichain' ? 'Unichain' : 'Sepolia'}
                 </span>
               )}
 
               {/* Add transaction link */}
-              {isTokenTransaction && activity.transactionHash && (
+              {activity.transactionHash && (
                 <a
-                  href={`https://sepolia.etherscan.io/tx/${activity.transactionHash}`}
+                  href={`${getExplorerUrl(activity.network)}/tx/${activity.transactionHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-[#00ffbd] transition-colors"

@@ -502,7 +502,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       const collectionData = {
         ...formData,
         contractAddress: collectionAddress,
-        network: networkChainId === 137 ? 'polygon' : 'sepolia',
+        network: networkChainId === 1301 ? 'unichain' : networkChainId === 137 ? 'polygon' : 'sepolia',
+        chainId: networkChainId,
         previewUrl: imageHttpUrl,
         imageIpfsUrl: imageIpfsUrl, // Store the actual image IPFS URL
         metadataUrl: metadataUrl,   // Store the metadata URL separately

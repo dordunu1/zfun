@@ -139,11 +139,18 @@ export const subscribeToCollection = (symbol, callback) => {
 
 export const saveTokenDeployment = async (deployment, walletAddress) => {
   try {
+    // Ensure chainId and chainName are included
+    if (!deployment.chainId || !deployment.chainName) {
+      throw new Error('chainId and chainName are required for token deployment');
+    }
+
     await addDoc(tokenDeploymentsRef, {
       ...deployment,
       creatorAddress: walletAddress.toLowerCase(),
       createdAt: Date.now(),
-      type: 'token'
+      type: 'token',
+      chainId: deployment.chainId,
+      chainName: deployment.chainName
     });
   } catch (error) {
     console.error('Error saving token deployment:', error);

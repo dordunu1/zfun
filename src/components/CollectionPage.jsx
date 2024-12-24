@@ -376,6 +376,10 @@ export default function CollectionPage() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
+      // Get the current network
+      const network = await provider.getNetwork();
+      const chainId = Number(network.chainId);
+      
       toast.loading('Preparing metadata...', { id: 'mint' });
 
       // Create a File object from the image URL
@@ -508,7 +512,7 @@ export default function CollectionPage() {
         name: collection.name,
         symbol: collection.symbol,
         artworkType: collection.artworkType || 'image',
-        network: collection.network || 'sepolia',
+        network: chainId === 1301 ? 'unichain' : chainId === 137 ? 'polygon' : 'sepolia',
         mintPrice: formattedMintPrice,
         paymentToken: collection.mintToken || null
       });
@@ -551,7 +555,7 @@ export default function CollectionPage() {
       setWhitelistEntry(foundEntry);
 
       if (isWhitelisted) {
-        toast.success(`Address is whitelisted! Can mint up to ${mintLimit} NFTs 🎉`);
+        toast.success(`Address is whitelisted! Can mint up to ${mintLimit} NFTs ����`);
       } else {
         toast.error('Address is not whitelisted');
       }
@@ -990,7 +994,13 @@ export default function CollectionPage() {
                 {collection.creatorAddress && (
                   <div className="group relative">
                     <a
-                      href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.creatorAddress}`}
+                      href={`${
+                        collection.network === 'polygon' 
+                          ? 'https://polygonscan.com' 
+                          : collection.network === 'unichain' || collection.chainId === 1301
+                            ? 'https://unichain-sepolia.blockscout.com'
+                            : 'https://sepolia.etherscan.io'
+                      }/address/${collection.creatorAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
@@ -1005,7 +1015,13 @@ export default function CollectionPage() {
 
                 <div className="group relative">
                   <a
-                    href={`${collection.network === 'polygon' ? 'https://polygonscan.com' : 'https://sepolia.etherscan.io'}/address/${collection.contractAddress}`}
+                    href={`${
+                      collection.network === 'polygon' 
+                        ? 'https://polygonscan.com' 
+                        : collection.network === 'unichain' || collection.chainId === 1301
+                          ? 'https://unichain-sepolia.blockscout.com'
+                          : 'https://sepolia.etherscan.io'
+                    }/address/${collection.contractAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-gray-600 hover:text-[#00ffbd] dark:text-gray-400 dark:hover:text-[#00ffbd] transition-colors"
