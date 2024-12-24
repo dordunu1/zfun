@@ -135,6 +135,124 @@ const Icons = {
   )
 };
 
+// Add modern icons for wrapping/unwrapping
+const WrapIcons = {
+  Preparing: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path className="animate-[spin_1s_linear_infinite]" 
+          d="M12 6v1M12 17v1M7.05 7.05l.707.707M16.243 16.243l.707.707M6 12h1M17 12h1M7.757 16.243l-.707.707M16.95 7.05l-.707.707">
+        </path>
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" 
+          strokeOpacity="0.2" 
+        />
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2" 
+          strokeLinecap="round" 
+          className="origin-center animate-[spin_1.5s_linear_infinite]" 
+        />
+      </g>
+    </svg>
+  ),
+  Wrapping: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        {/* Box */}
+        <path className="animate-[draw_1s_ease-in-out]" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          d="M12 3l7 4v10l-7 4-7-4V7l7-4z"
+          strokeDasharray="60"
+          strokeDashoffset="60"
+        >
+          <animate
+            attributeName="stroke-dashoffset"
+            from="60"
+            to="0"
+            dur="1s"
+            fill="freeze"
+          />
+        </path>
+        {/* Animated ribbon */}
+        <path 
+          className="origin-center animate-[spin_3s_linear_infinite]"
+          strokeLinecap="round"
+          d="M12 3v18M5 7l14 8M19 7l-14 8"
+          strokeDasharray="4 4"
+        />
+        {/* Animated dots */}
+        <circle cx="12" cy="12" r="1" className="animate-[pulse_2s_ease-in-out_infinite]">
+          <animate
+            attributeName="r"
+            values="0;1;0"
+            dur="2s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      </g>
+    </svg>
+  ),
+  Unwrapping: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        {/* Box opening animation */}
+        <path 
+          className="origin-bottom animate-[openBox_1.5s_ease-in-out_infinite]"
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          d="M12 3l7 4v10l-7 4-7-4V7l7-4z"
+        >
+          <animate
+            attributeName="d"
+            values="M12 3l7 4v10l-7 4-7-4V7l7-4z;M12 3l7 0v14l-7 4-7-4V3l7 0z"
+            dur="1.5s"
+            repeatCount="indefinite"
+          />
+        </path>
+        {/* Animated particles */}
+        <g className="animate-[float_2s_ease-in-out_infinite]">
+          <circle cx="12" cy="12" r="0.5" />
+          <circle cx="14" cy="10" r="0.5" />
+          <circle cx="10" cy="10" r="0.5" />
+          <animate
+            attributeName="opacity"
+            values="0;1;0"
+            dur="2s"
+            repeatCount="indefinite"
+          />
+        </g>
+      </g>
+    </svg>
+  ),
+  Confirming: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+        <path strokeLinecap="round" className="origin-center animate-[spin_2s_linear_infinite]"
+          d="M12 6v6l4 4" />
+      </g>
+    </svg>
+  ),
+  Completed: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g>
+        <path className="animate-[draw_0.6s_ease-in-out]" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} stroke="currentColor"
+          d="M7 13l3 3L17 8" strokeDasharray="60" strokeDashoffset="60">
+          <animate
+            attributeName="stroke-dashoffset"
+            from="60"
+            to="0"
+            dur="0.6s"
+            fill="freeze"
+          />
+        </path>
+        <path fill="currentColor" fillOpacity="0.2" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+      </g>
+    </svg>
+  )
+};
+
 // Add SwapProgressModal component
 const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, needsApproval }) => {
   const steps = [
@@ -245,12 +363,14 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, ne
   );
 };
 
+// Update WrapProgressModal component
 const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken }) => {
+  const isWrapping = fromToken?.symbol === 'ETH';
   const steps = [
-    { id: 'preparing', title: 'Preparing', icon: '⚡' },
-    { id: 'wrapping', title: fromToken?.symbol === 'ETH' ? 'Wrapping' : 'Unwrapping', icon: '🎁' },
-    { id: 'confirming', title: 'Confirming', icon: '⏳' },
-    { id: 'completed', title: 'Completed', icon: '��' }
+    { id: 'preparing', title: 'Preparing', icon: <WrapIcons.Preparing /> },
+    { id: 'wrapping', title: isWrapping ? 'Wrapping' : 'Unwrapping', icon: isWrapping ? <WrapIcons.Wrapping /> : <WrapIcons.Unwrapping /> },
+    { id: 'confirming', title: 'Confirming', icon: <WrapIcons.Confirming /> },
+    { id: 'completed', title: 'Completed', icon: <WrapIcons.Completed /> }
   ];
 
   return (
@@ -284,7 +404,7 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  {fromToken?.symbol === 'ETH' ? 'Wrapping ETH' : 'Unwrapping WETH'}
+                  {isWrapping ? 'Wrapping ETH' : 'Unwrapping WETH'}
                 </Dialog.Title>
 
                 <div className="space-y-4">
@@ -301,7 +421,13 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                           'bg-gray-50 dark:bg-gray-800/20'
                         }`}
                       >
-                        <div className={`text-2xl ${isActive ? 'animate-bounce' : ''}`}>
+                        <div 
+                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
+                            isActive ? 'text-[#00ffbd] animate-pulse' : 
+                            isCompleted ? 'text-[#00ffbd]' : 
+                            'text-gray-400 dark:text-gray-600'
+                          }`}
+                        >
                           {step.icon}
                         </div>
                         <div className="flex-1">
@@ -311,11 +437,11 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                           {isActive && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               {step.id === 'preparing' && 'Preparing transaction...'}
-                              {step.id === 'wrapping' && fromToken?.symbol === 'ETH' 
+                              {step.id === 'wrapping' && (isWrapping 
                                 ? 'Converting ETH to WETH...' 
-                                : 'Converting WETH to ETH...'}
+                                : 'Converting WETH to ETH...')}
                               {step.id === 'confirming' && 'Waiting for confirmation...'}
-                              {step.id === 'completed' && (fromToken?.symbol === 'ETH' 
+                              {step.id === 'completed' && (isWrapping 
                                 ? 'Successfully wrapped ETH to WETH!' 
                                 : 'Successfully unwrapped WETH to ETH!')}
                             </p>
