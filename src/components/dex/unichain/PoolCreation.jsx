@@ -9,6 +9,8 @@ import TokenSelectionModal from './TokenSelectionModal';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { ERC20_ABI } from '../../../services/erc20';
 import { getTokenDeploymentByAddress } from '../../../services/firebase';
+import { Dialog, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
 
 // Common tokens with metadata
 const COMMON_TOKENS = [
@@ -42,6 +44,114 @@ const COMMON_TOKENS = [
   }
 ];
 
+// Add PoolProgressModal component
+const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNewPool }) => {
+  const steps = [
+    { id: 'preparing', title: 'Preparing', icon: '⚡' },
+    { id: 'approval', title: 'Token Approval', icon: '🔑' },
+    ...(isNewPool ? [{ id: 'creating', title: 'Creating Pool', icon: '🌊' }] : []),
+    { id: 'adding', title: 'Adding Liquidity', icon: '💧' },
+    { id: 'confirming', title: 'Confirming', icon: '⏳' },
+    { id: 'completed', title: 'Completed', icon: '✨' }
+  ];
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
+                >
+                  {isNewPool ? 'Creating New Liquidity Pool' : 'Adding Liquidity'}
+                </Dialog.Title>
+
+                <div className="space-y-4">
+                  {steps.map((step, index) => {
+                    const isActive = currentStep === step.id;
+                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    
+                    return (
+                      <div
+                        key={step.id}
+                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
+                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
+                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
+                          'bg-gray-50 dark:bg-gray-800/20'
+                        }`}
+                      >
+                        <div className={`text-2xl ${isActive ? 'animate-bounce' : ''}`}>
+                          {step.icon}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {step.title}
+                          </h4>
+                          {isActive && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {step.id === 'preparing' && 'Preparing transaction...'}
+                              {step.id === 'approval' && `Approving ${token0?.symbol} and ${token1?.symbol}`}
+                              {step.id === 'creating' && `Creating ${token0?.symbol}/${token1?.symbol} pool`}
+                              {step.id === 'adding' && `Adding liquidity for ${token0?.symbol}/${token1?.symbol}`}
+                              {step.id === 'confirming' && 'Waiting for confirmation...'}
+                              {step.id === 'completed' && (isNewPool 
+                                ? `Successfully created ${token0?.symbol}/${token1?.symbol} pool!`
+                                : `Successfully added liquidity to ${token0?.symbol}/${token1?.symbol} pool!`)}
+                            </p>
+                          )}
+                        </div>
+                        {isCompleted && (
+                          <svg className="w-5 h-5 text-[#00ffbd]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {currentStep === 'completed' && (
+                  <div className="mt-6">
+                    <button
+                      onClick={onClose}
+                      className="w-full px-4 py-3 rounded-xl font-medium bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors text-black"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
 export default function PoolCreation() {
   const { address: account, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
@@ -58,6 +168,9 @@ export default function PoolCreation() {
   const [priceRatio, setPriceRatio] = useState(null);
   const [useAutoPrice, setUseAutoPrice] = useState(true);
   const [priceInfo, setPriceInfo] = useState(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [currentStep, setCurrentStep] = useState(null);
+  const [isNewPool, setIsNewPool] = useState(false);
 
   // Add useEffect to get chain ID and listen for changes
   useEffect(() => {
@@ -240,14 +353,26 @@ export default function PoolCreation() {
     }
 
     setLoading(true);
+    setShowProgressModal(true);
+    setCurrentStep('preparing');
+    
     try {
       // Parse amounts
       const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
       const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
 
-      // Create pool and add liquidity
-      toast.loading('Creating pool and adding liquidity...', { id: 'pool-create' });
+      // Check if pool exists
+      const poolExists = await uniswap.checkPoolExists(token0.address, token1.address);
+      setIsNewPool(!poolExists);
 
+      setCurrentStep('approval');
+      
+      // Create pool and add liquidity
+      if (!poolExists) {
+        setCurrentStep('creating');
+      }
+
+      setCurrentStep('adding');
       const result = await uniswap.createPool(
         token0.address,
         token1.address,
@@ -255,8 +380,10 @@ export default function PoolCreation() {
         parsedAmount1
       );
 
-      console.log('Pool created successfully');
-      toast.success('Pool created and liquidity added successfully!', { id: 'pool-create' });
+      setCurrentStep('confirming');
+      // Add small delay to show confirming state
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setCurrentStep('completed');
       
       // Reset form
       setAmount0('');
@@ -265,6 +392,7 @@ export default function PoolCreation() {
       setToken1(null);
     } catch (error) {
       console.error('Error creating pool:', error);
+      setShowProgressModal(false);
       toast.error(
         error.message.includes('insufficient')
           ? 'Insufficient balance for transaction'
@@ -272,8 +400,7 @@ export default function PoolCreation() {
           ? 'Please switch to a supported network'
           : error.message.includes('approve')
           ? error.message
-          : `Failed to create pool: ${error.message}`,
-        { id: 'pool-create' }
+          : `Failed to create pool: ${error.message}`
       );
     } finally {
       setLoading(false);
@@ -578,6 +705,19 @@ export default function PoolCreation() {
         onClose={() => setShowToken1Modal(false)}
         onSelect={handleToken1Select}
         selectedTokenAddress={token1?.address}
+      />
+
+      {/* Add PoolProgressModal */}
+      <PoolProgressModal
+        isOpen={showProgressModal}
+        onClose={() => {
+          setShowProgressModal(false);
+          setCurrentStep(null);
+        }}
+        currentStep={currentStep}
+        token0={token0}
+        token1={token1}
+        isNewPool={isNewPool}
       />
     </div>
   );

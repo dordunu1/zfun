@@ -74,6 +74,14 @@ const PAIR_ABI = [
   'function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)'
 ];
 
+// Add WETH ABI after other ABIs
+const WETH_ABI = [
+  'function deposit() external payable',
+  'function withdraw(uint) external',
+  'function balanceOf(address) external view returns (uint)',
+  'function approve(address spender, uint value) external returns (bool)'
+];
+
 export class UnichainUniswapService {
   constructor() {
     this.provider = null;
@@ -130,7 +138,7 @@ export class UnichainUniswapService {
         token.decimals().catch(() => 18)
       ]);
       
-      return { symbol, name, decimals };
+    return { symbol, name, decimals };
     } catch (error) {
       console.error('Error in getTokenInfo:', error);
       return {
@@ -307,36 +315,36 @@ export class UnichainUniswapService {
             }
           }
         } else {
-          console.log('Creating new pair...');
-          const createPairTx = await factory.createPair(token0Address, token1Address);
-          await createPairTx.wait();
-          console.log('Pair created');
-        }
+        console.log('Creating new pair...');
+        const createPairTx = await factory.createPair(token0Address, token1Address);
+        await createPairTx.wait();
+        console.log('Pair created');
+      }
 
-        // Get token decimals for price calculation
-        const [token0Contract, token1Contract] = await Promise.all([
-          new ethers.Contract(token0Address, ERC20_ABI, this.provider),
-          new ethers.Contract(token1Address, ERC20_ABI, this.provider)
-        ]);
+      // Get token decimals for price calculation
+      const [token0Contract, token1Contract] = await Promise.all([
+        new ethers.Contract(token0Address, ERC20_ABI, this.provider),
+        new ethers.Contract(token1Address, ERC20_ABI, this.provider)
+      ]);
 
-        const [decimals0, decimals1] = await Promise.all([
-          token0Contract.decimals(),
-          token1Contract.decimals()
-        ]);
+      const [decimals0, decimals1] = await Promise.all([
+        token0Contract.decimals(),
+        token1Contract.decimals()
+      ]);
 
-        console.log('Token decimals:', { decimals0, decimals1 });
+      console.log('Token decimals:', { decimals0, decimals1 });
 
         console.log('Final amounts:', {
           amount0: finalAmount0Big.toString(),
           amount1: finalAmount1Big.toString()
-        });
+      });
 
-        // Calculate and log initial price
+      // Calculate and log initial price
         const priceInfo = this.calculateInitialPoolPrice(finalAmount0Big, finalAmount1Big, decimals0, decimals1);
         console.log('Pool prices:', priceInfo);
 
-        // Approve both tokens first
-        await Promise.all([
+      // Approve both tokens first
+      await Promise.all([
           this.approveToken(token0Address, finalAmount0Big),
           this.approveToken(token1Address, finalAmount1Big)
         ]);
@@ -350,35 +358,35 @@ export class UnichainUniswapService {
           token1Address,
           amount0: finalAmount0Big.toString(),
           amount1: finalAmount1Big.toString(),
-          amountAMin: amountAMin.toString(),
-          amountBMin: amountBMin.toString(),
-          account,
-          deadline
+        amountAMin: amountAMin.toString(),
+        amountBMin: amountBMin.toString(),
+        account,
+        deadline
         });
 
         // Call addLiquidity with higher gas limit for safety
-        const tx = await this.router.addLiquidity(
-          token0Address,
-          token1Address,
+      const tx = await this.router.addLiquidity(
+        token0Address,
+        token1Address,
           finalAmount0Big,
           finalAmount1Big,
-          amountAMin,
-          amountBMin,
-          account,
-          deadline,
-          {
+        amountAMin,
+        amountBMin,
+        account,
+        deadline,
+        {
             gasLimit: ethers.getBigInt(1000000)
-          }
-        );
+        }
+      );
 
-        console.log('Transaction sent:', tx.hash);
-        const receipt = await tx.wait();
-        console.log('Transaction confirmed:', receipt);
+      console.log('Transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
 
-        return {
-          receipt,
-          priceInfo
-        };
+      return {
+        receipt,
+        priceInfo
+      };
       }
     } catch (error) {
       console.error('Error in createPool:', error);
@@ -691,6 +699,89 @@ export class UnichainUniswapService {
     } catch (error) {
       console.error('Error getting token balance:', error);
       return '0';
+    }
+  }
+
+  // Add wrapETH method
+  async wrapETH(amount) {
+    try {
+      if (!this.signer) await this.init();
+
+      // Create WETH contract instance
+      const weth = new ethers.Contract(
+        UNISWAP_ADDRESSES.WETH,
+        WETH_ABI,
+        this.signer
+      );
+
+      console.log('Wrapping ETH:', {
+        amount: amount.toString(),
+        wethAddress: UNISWAP_ADDRESSES.WETH
+      });
+
+      // Call deposit with the ETH amount
+      const tx = await weth.deposit({
+        value: amount,
+        gasLimit: ethers.getBigInt(100000)
+      });
+
+      console.log('Wrap transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('ETH wrapped successfully');
+      
+      return receipt;
+    } catch (error) {
+      console.error('Error wrapping ETH:', error);
+      throw error;
+    }
+  }
+
+  // Add unwrapWETH method
+  async unwrapWETH(amount) {
+    try {
+      if (!this.signer) await this.init();
+
+      // Create WETH contract instance
+      const weth = new ethers.Contract(
+        UNISWAP_ADDRESSES.WETH,
+        WETH_ABI,
+        this.signer
+      );
+
+      console.log('Unwrapping WETH:', {
+        amount: amount.toString(),
+        wethAddress: UNISWAP_ADDRESSES.WETH
+      });
+
+      // Call withdraw with the WETH amount
+      const tx = await weth.withdraw(amount);
+      console.log('Unwrap transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('WETH unwrapped successfully');
+      
+      return receipt;
+    } catch (error) {
+      console.error('Error unwrapping WETH:', error);
+      throw error;
+    }
+  }
+
+  // Add getWETHBalance method
+  async getWETHBalance(address) {
+    try {
+      if (!this.provider) await this.init();
+
+      const weth = new ethers.Contract(
+        UNISWAP_ADDRESSES.WETH,
+        WETH_ABI,
+        this.provider
+      );
+
+      const balance = await weth.balanceOf(address);
+      return balance;
+    } catch (error) {
+      console.error('Error getting WETH balance:', error);
+      return ethers.getBigInt(0);
     }
   }
 } 

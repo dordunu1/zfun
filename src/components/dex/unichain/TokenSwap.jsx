@@ -9,6 +9,214 @@ import { useUnichain } from '../../../hooks/useUnichain';
 import TokenSelector from './TokenSelector';
 import { getTokenLogo } from '../../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
+import { Dialog, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
+
+const SwapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken }) => {
+  const steps = [
+    { id: 'approval', title: 'Approval', icon: '🔑' },
+    { id: 'swapping', title: 'Swapping', icon: '💫' },
+    { id: 'confirming', title: 'Confirming', icon: '⏳' },
+    { id: 'completed', title: 'Completed', icon: '✨' }
+  ];
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
+                >
+                  Swap Progress
+                </Dialog.Title>
+
+                <div className="space-y-4">
+                  {steps.map((step, index) => {
+                    const isActive = currentStep === step.id;
+                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    
+                    return (
+                      <div
+                        key={step.id}
+                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
+                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
+                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
+                          'bg-gray-50 dark:bg-gray-800/20'
+                        }`}
+                      >
+                        <div className={`text-2xl ${isActive ? 'animate-bounce' : ''}`}>
+                          {step.icon}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {step.title}
+                          </h4>
+                          {isActive && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {step.id === 'approval' && `Approving ${fromToken?.symbol}`}
+                              {step.id === 'swapping' && `Swapping ${fromToken?.symbol} to ${toToken?.symbol}`}
+                              {step.id === 'confirming' && 'Waiting for confirmation'}
+                              {step.id === 'completed' && 'Swap successful!'}
+                            </p>
+                          )}
+                        </div>
+                        {isCompleted && (
+                          <svg className="w-5 h-5 text-[#00ffbd]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {currentStep === 'completed' && (
+                  <div className="mt-6">
+                    <button
+                      onClick={onClose}
+                      className="w-full px-4 py-3 rounded-xl font-medium bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors text-black"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken }) => {
+  const steps = [
+    { id: 'preparing', title: 'Preparing', icon: '⚡' },
+    { id: 'wrapping', title: fromToken?.symbol === 'ETH' ? 'Wrapping' : 'Unwrapping', icon: '🎁' },
+    { id: 'confirming', title: 'Confirming', icon: '⏳' },
+    { id: 'completed', title: 'Completed', icon: '✨' }
+  ];
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
+                >
+                  {fromToken?.symbol === 'ETH' ? 'Wrapping ETH' : 'Unwrapping WETH'}
+                </Dialog.Title>
+
+                <div className="space-y-4">
+                  {steps.map((step, index) => {
+                    const isActive = currentStep === step.id;
+                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    
+                    return (
+                      <div
+                        key={step.id}
+                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
+                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
+                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
+                          'bg-gray-50 dark:bg-gray-800/20'
+                        }`}
+                      >
+                        <div className={`text-2xl ${isActive ? 'animate-bounce' : ''}`}>
+                          {step.icon}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {step.title}
+                          </h4>
+                          {isActive && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              {step.id === 'preparing' && 'Preparing transaction...'}
+                              {step.id === 'wrapping' && fromToken?.symbol === 'ETH' 
+                                ? 'Converting ETH to WETH...' 
+                                : 'Converting WETH to ETH...'}
+                              {step.id === 'confirming' && 'Waiting for confirmation...'}
+                              {step.id === 'completed' && (fromToken?.symbol === 'ETH' 
+                                ? 'Successfully wrapped ETH to WETH!' 
+                                : 'Successfully unwrapped WETH to ETH!')}
+                            </p>
+                          )}
+                        </div>
+                        {isCompleted && (
+                          <svg className="w-5 h-5 text-[#00ffbd]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {currentStep === 'completed' && (
+                  <div className="mt-6">
+                    <button
+                      onClick={onClose}
+                      className="w-full px-4 py-3 rounded-xl font-medium bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors text-black"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
 
 export default function TokenSwap() {
   const { address, isConnected } = useAccount();
@@ -30,6 +238,8 @@ export default function TokenSwap() {
   const [customSlippage, setCustomSlippage] = useState('');
   const [showCustomSlippage, setShowCustomSlippage] = useState(false);
   const [routeError, setRouteError] = useState(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [swapStep, setSwapStep] = useState(null);
 
   // Add balance display component
   const TokenBalance = ({ token }) => {
@@ -88,7 +298,7 @@ export default function TokenSwap() {
         if (!newRoute || !newToAmount || newToAmount === '0') {
           setToAmount('');
           setRoute(null);
-          setRouteError('No valid route found. Liquidity pools might not exist for this pair.');
+          setRouteError('No valid route found');
           return;
         }
 
@@ -96,7 +306,6 @@ export default function TokenSwap() {
         setToAmount(newToAmount);
         setRouteError(null);
       } catch (error) {
-        console.error('Error updating route:', error);
         setToAmount('');
         setRoute(null);
         setRouteError('Error finding route');
@@ -116,17 +325,12 @@ export default function TokenSwap() {
   };
 
   const handleSwap = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
-    if (!fromToken || !toToken || !fromAmount) {
-      toast.error('Please fill in all fields');
-      return;
-    }
+    if (!address || !fromToken || !toToken || !fromAmount) return;
 
     setLoading(true);
+    setShowProgressModal(true);
+    setSwapStep('approval');
+    
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -139,41 +343,50 @@ export default function TokenSwap() {
       const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100));
       const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
+      setSwapStep('swapping');
+      
       // Get the route path from updateRoute
       const { path } = await uniswap.updateRoute(fromToken, toToken, fromAmount);
-      if (!path) {
-        throw new Error('No valid route found');
+      if (!path) return;
+
+      let actualFromToken = fromToken;
+      let actualPath = path;
+
+      // Check if we need to wrap ETH first
+      if (fromToken.symbol === 'ETH' && path[0] === UNISWAP_ADDRESSES.WETH) {
+        const wethBalance = await uniswap.getWETHBalance(address);
+        if (wethBalance < amountIn) {
+          await uniswap.wrapETH(amountIn);
+          
+          actualFromToken = {
+            ...fromToken,
+            symbol: 'WETH',
+            address: UNISWAP_ADDRESSES.WETH,
+            decimals: 18
+          };
+        }
       }
 
-      console.log('Swap parameters:', {
-        fromToken: fromToken.symbol,
-        toToken: toToken.symbol,
-        amountIn: amountIn.toString(),
-        amountOutMin: amountOutMin.toString(),
-        path: path,
-        deadline: BigInt(Math.floor(Date.now() / 1000) + 60 * 20).toString()
-      });
-
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 
       const tx = await uniswap.swap(
-        fromToken,
+        actualFromToken,
         toToken,
         amountIn,
         amountOutMin,
-        path,
+        actualPath,
         deadline
       );
 
+      setSwapStep('confirming');
       await tx.wait();
-      toast.success('Swap successful!');
+      setSwapStep('completed');
       
       // Reset form
       setFromAmount('');
       setToAmount('');
     } catch (error) {
-      console.error('Error swapping tokens:', error);
-      toast.error(error.reason || 'Failed to swap tokens');
+      setShowProgressModal(false);
     } finally {
       setLoading(false);
     }
@@ -197,6 +410,56 @@ export default function TokenSwap() {
         setSlippage(parseFloat(value));
       }
     }
+  };
+
+  // Add new function for wrapping/unwrapping
+  const handleWrapUnwrap = async () => {
+    if (!address || !fromToken || !fromAmount) return;
+    
+    setLoading(true);
+    setShowProgressModal(true);
+    setSwapStep('preparing');
+    
+    try {
+      const amount = ethers.parseUnits(fromAmount, 18); // Both ETH and WETH use 18 decimals
+
+      setSwapStep('wrapping');
+      if (fromToken.symbol === 'ETH' && toToken?.symbol === 'WETH') {
+        await uniswap.wrapETH(amount);
+      } else if (fromToken.symbol === 'WETH' && toToken?.symbol === 'ETH') {
+        await uniswap.unwrapWETH(amount);
+      }
+
+      setSwapStep('confirming');
+      // Small delay to show the confirming state
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setSwapStep('completed');
+
+      // Reset form
+      setFromAmount('');
+      setToAmount('');
+    } catch (error) {
+      setShowProgressModal(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to determine if it's a wrap/unwrap operation
+  const isWrapUnwrapOperation = () => {
+    return (fromToken?.symbol === 'ETH' && toToken?.symbol === 'WETH') ||
+           (fromToken?.symbol === 'WETH' && toToken?.symbol === 'ETH');
+  };
+
+  // Helper function to get button text
+  const getActionButtonText = () => {
+    if (loading) return 'Processing...';
+    if (!fromToken || !toToken) return 'Select Tokens';
+    if (!fromAmount) return 'Enter Amount';
+    if (routeError && !isWrapUnwrapOperation()) return 'No Route Available';
+    if (fromToken.symbol === 'ETH' && toToken?.symbol === 'WETH') return 'Wrap ETH to WETH';
+    if (fromToken.symbol === 'WETH' && toToken?.symbol === 'ETH') return 'Unwrap WETH to ETH';
+    return 'Swap';
   };
 
   return (
@@ -436,47 +699,19 @@ export default function TokenSwap() {
         </div>
       </div>
 
-      {/* Add error message display */}
-      {routeError && (
-        <div className="mt-4 p-3 bg-red-500/10 dark:bg-red-500/5 rounded-xl border border-red-200 dark:border-red-800">
-          <div className="flex items-start gap-2">
-            <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                Route Unavailable
-              </h3>
-              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                {routeError}
-              </p>
-              {fromToken && toToken && (
-                <p className="text-sm text-red-600 dark:text-red-400 mt-2">
-                  Suggestion: Try using an intermediate token like USDT or create a liquidity pool for this pair.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Swap Button */}
+      {/* Single Action Button */}
       <button
-        onClick={handleSwap}
-        disabled={loading || !fromToken || !toToken || !fromAmount || !toAmount || routeError}
+        onClick={isWrapUnwrapOperation() ? handleWrapUnwrap : handleSwap}
+        disabled={loading || !fromToken || !toToken || !fromAmount || (!toAmount && !isWrapUnwrapOperation())}
         className={`
           w-full px-4 py-4 rounded-xl font-medium text-lg
-          ${loading || !fromToken || !toToken || !fromAmount || !toAmount || routeError
+          ${loading || !fromToken || !toToken || !fromAmount || (!toAmount && !isWrapUnwrapOperation())
             ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed text-gray-500 dark:text-gray-400'
             : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors text-black'
           }
         `}
       >
-        {loading ? 'Swapping...' : 
-         !fromToken || !toToken ? 'Select Tokens' :
-         !fromAmount ? 'Enter Amount' :
-         routeError ? 'No Route Available' :
-         'Swap'}
+        {getActionButtonText()}
       </button>
 
       {/* Token Selector Modal */}
@@ -486,6 +721,30 @@ export default function TokenSwap() {
         onSelect={handleTokenSelect}
         excludeToken={activeSide === 'from' ? toToken : fromToken}
       />
+
+      {isWrapUnwrapOperation() ? (
+        <WrapProgressModal
+          isOpen={showProgressModal}
+          onClose={() => {
+            setShowProgressModal(false);
+            setSwapStep(null);
+          }}
+          currentStep={swapStep}
+          fromToken={fromToken}
+          toToken={toToken}
+        />
+      ) : (
+        <SwapProgressModal
+          isOpen={showProgressModal}
+          onClose={() => {
+            setShowProgressModal(false);
+            setSwapStep(null);
+          }}
+          currentStep={swapStep}
+          fromToken={fromToken}
+          toToken={toToken}
+        />
+      )}
     </div>
   );
 } 
