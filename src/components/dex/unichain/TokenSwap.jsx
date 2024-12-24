@@ -139,7 +139,21 @@ export default function TokenSwap() {
       const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100));
       const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
-      const path = [fromToken.address, toToken.address];
+      // Get the route path from updateRoute
+      const { path } = await uniswap.updateRoute(fromToken, toToken, fromAmount);
+      if (!path) {
+        throw new Error('No valid route found');
+      }
+
+      console.log('Swap parameters:', {
+        fromToken: fromToken.symbol,
+        toToken: toToken.symbol,
+        amountIn: amountIn.toString(),
+        amountOutMin: amountOutMin.toString(),
+        path: path,
+        deadline: BigInt(Math.floor(Date.now() / 1000) + 60 * 20).toString()
+      });
+
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
 
       const tx = await uniswap.swap(
