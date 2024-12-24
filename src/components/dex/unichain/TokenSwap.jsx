@@ -860,11 +860,38 @@ export default function TokenSwap() {
       await new Promise(resolve => setTimeout(resolve, 1000));
       setSwapStep('completed');
 
+      // Show completed state briefly, then close modal and show confetti
+      setTimeout(() => {
+        setShowProgressModal(false);
+        setSwapStep(null);
+        
+        // Show confetti after modal is closed
+        setTimeout(() => {
+          setShowConfetti(true);
+          
+          // Show rating modal after a short delay
+          setTimeout(() => {
+            setShowRatingModal(true);
+          }, 1000);
+          
+          // Reset form and cleanup after confetti (30 seconds)
+          setTimeout(() => {
+            setFromAmount('');
+            setToAmount('');
+            setShowConfetti(false);
+          }, 30000); // 30 seconds
+        }, 100);
+      }, 1000);
+
       // Reset form
       setFromAmount('');
       setToAmount('');
     } catch (error) {
+      console.error('Wrap/Unwrap error:', error);
       setShowProgressModal(false);
+      setSwapStep(null);
+      setShowConfetti(false);
+      toast.error(error.message || 'Transaction failed. Please try again.');
     } finally {
       setLoading(false);
     }
