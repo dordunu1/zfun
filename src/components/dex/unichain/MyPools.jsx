@@ -226,11 +226,30 @@ export default function MyPools() {
                 return null;
               }
 
-              // Get token metadata
-              const [token0Metadata, token1Metadata] = await Promise.all([
-                getTokenMetadata(poolInfo.token0.address),
-                getTokenMetadata(poolInfo.token1.address)
+              // Get token metadata from Firebase first
+              const [token0Firebase, token1Firebase] = await Promise.all([
+                getTokenDeploymentByAddress(poolInfo.token0.address),
+                getTokenDeploymentByAddress(poolInfo.token1.address)
               ]);
+
+              // Merge Firebase data with contract data
+              const token0Metadata = {
+                ...poolInfo.token0,
+                name: token0Firebase?.name || poolInfo.token0.name,
+                symbol: token0Firebase?.symbol || poolInfo.token0.symbol,
+                decimals: token0Firebase?.decimals || poolInfo.token0.decimals,
+                logo: token0Firebase?.logo || '/token-default.png',
+                logoIpfs: token0Firebase?.logoIpfs
+              };
+
+              const token1Metadata = {
+                ...poolInfo.token1,
+                name: token1Firebase?.name || poolInfo.token1.name,
+                symbol: token1Firebase?.symbol || poolInfo.token1.symbol,
+                decimals: token1Firebase?.decimals || poolInfo.token1.decimals,
+                logo: token1Firebase?.logo || '/token-default.png',
+                logoIpfs: token1Firebase?.logoIpfs
+              };
 
               console.log('Pool info found:', {
                 token0: token0Metadata?.symbol,
@@ -395,8 +414,8 @@ export default function MyPools() {
                   <div className="flex items-center gap-2">
                     <div className="flex -space-x-2">
                       <img 
-                        src={getTokenLogo(pool.token0)}
-                        alt={pool.token0?.symbol || 'ERC20 Token'}
+                        src={pool.token0?.logo || '/token-default.png'}
+                        alt={pool.token0?.name || pool.token0?.symbol || 'Token'}
                         className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -404,8 +423,8 @@ export default function MyPools() {
                         }}
                       />
                       <img 
-                        src={getTokenLogo(pool.token1)}
-                        alt={pool.token1?.symbol || 'ERC20 Token'}
+                        src={pool.token1?.logo || '/token-default.png'}
+                        alt={pool.token1?.name || pool.token1?.symbol || 'Token'}
                         className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -414,7 +433,7 @@ export default function MyPools() {
                       />
                     </div>
                     <span className="text-sm text-gray-900 dark:text-white">
-                      {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
+                      {pool.token0?.name || pool.token0?.symbol || 'Token'}/{pool.token1?.name || pool.token1?.symbol || 'Token'}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
