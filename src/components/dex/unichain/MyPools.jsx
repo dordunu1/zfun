@@ -1,14 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { useUnichain } from '../../../hooks/useUnichain';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
+import { getTokenDeploymentByAddress } from '../../../services/firebase';
+import { useUnichain } from '../../../hooks/useUnichain';
+import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { FaSearch } from 'react-icons/fa';
 import { getTokenLogo, getTokenMetadata } from '../../../utils/tokens';
-import { ChainlinkService } from '../../../services/chainlink';
 
 // Constants and configuration
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Common tokens with metadata
+const COMMON_TOKENS = [
+  {
+    address: UNISWAP_ADDRESSES.WETH,
+    symbol: 'ETH',
+    name: 'Ethereum',
+    decimals: 18,
+    logo: '/logos/eth.png'
+  },
+  {
+    address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    logo: '/logos/usdc.png'
+  },
+  {
+    address: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
+    symbol: 'USDT',
+    name: 'Tether USD',
+    decimals: 6,
+    logo: '/logos/usdt.png'
+  }
+];
+
+// Helper function to get token metadata
+const getCommonTokenMetadata = (token) => {
+  // Check if it's a common token
+  const commonToken = COMMON_TOKENS.find(t => t.address?.toLowerCase() === token.address?.toLowerCase());
+  if (commonToken) {
+    return {
+      ...token,
+      ...commonToken,
+      logo: commonToken.logo
+    };
+  }
+
+  return token;
+};
 
 /**
  * Cache management for My Pools
@@ -125,50 +166,6 @@ export default function MyPools() {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchAddress, setSearchAddress] = useState('');
-  const chainlinkService = new ChainlinkService();
-
-  // Format USD values
-  const formatUSD = (value) => {
-    if (value === null || value === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value);
-  };
-
-  // Calculate USD value using Chainlink price feeds
-  const calculateUSDValue = async (token, amount) => {
-    try {
-      if (!token || !amount) return 0;
-
-      let price;
-      if (token.symbol === 'WETH' || token.symbol === 'ETH') {
-        price = await chainlinkService.getETHPrice();
-      } else if (token.symbol === 'USDT') {
-        price = await chainlinkService.getUSDTPrice();
-      } else if (token.symbol === 'USDC') {
-        price = await chainlinkService.getUSDCPrice();
-      } else {
-        // For other tokens, try to get price from pool ratio
-        price = await chainlinkService.getPriceFromStablePair(token.address);
-      }
-
-      if (!price) return 0;
-
-      const value = Number(ethers.formatUnits(amount, token.decimals)) * price;
-      console.log(`USD Value for ${token.symbol}:`, {
-        amount: ethers.formatUnits(amount, token.decimals),
-        price,
-        value
-      });
-      return value;
-    } catch (error) {
-      console.error('Error calculating USD value:', error);
-      return 0;
-    }
-  };
 
   // Load pools data
   useEffect(() => {
@@ -232,24 +229,24 @@ export default function MyPools() {
                 getTokenDeploymentByAddress(poolInfo.token1.address)
               ]);
 
-              // Merge Firebase data with contract data
-              const token0Metadata = {
+              // Merge Firebase data with contract data and check for common tokens
+              const token0Metadata = getCommonTokenMetadata({
                 ...poolInfo.token0,
                 name: token0Firebase?.name || poolInfo.token0.name,
                 symbol: token0Firebase?.symbol || poolInfo.token0.symbol,
                 decimals: token0Firebase?.decimals || poolInfo.token0.decimals,
                 logo: token0Firebase?.logo || '/token-default.png',
                 logoIpfs: token0Firebase?.logoIpfs
-              };
+              });
 
-              const token1Metadata = {
+              const token1Metadata = getCommonTokenMetadata({
                 ...poolInfo.token1,
                 name: token1Firebase?.name || poolInfo.token1.name,
                 symbol: token1Firebase?.symbol || poolInfo.token1.symbol,
                 decimals: token1Firebase?.decimals || poolInfo.token1.decimals,
                 logo: token1Firebase?.logo || '/token-default.png',
                 logoIpfs: token1Firebase?.logoIpfs
-              };
+              });
 
               console.log('Pool info found:', {
                 token0: token0Metadata?.symbol,
@@ -257,28 +254,11 @@ export default function MyPools() {
                 reserves: poolInfo.reserves
               });
 
-              // Calculate TVL using price feeds
-              const [reserve0USD, reserve1USD] = await Promise.all([
-                calculateUSDValue(token0Metadata, poolInfo.reserves?.reserve0 || '0'),
-                calculateUSDValue(token1Metadata, poolInfo.reserves?.reserve1 || '0')
-              ]);
-
-              console.log('Pool TVL calculation:', {
-                token0: token0Metadata?.symbol,
-                reserve0USD,
-                token1: token1Metadata?.symbol,
-                reserve1USD,
-                total: (reserve0USD || 0) + (reserve1USD || 0)
-              });
-
-              const tvl = (reserve0USD || 0) + (reserve1USD || 0);
-
               return {
-                ...poolInfo,
+                pairAddress: poolAddress,
                 token0: token0Metadata,
                 token1: token1Metadata,
-                pairAddress: poolAddress,
-                tvl,
+                reserves: poolInfo.reserves,
                 createdAt: poolInfo.createdAt || Math.floor(Date.now() / 1000),
                 volumes: {
                   oneDay: 0,
@@ -287,15 +267,10 @@ export default function MyPools() {
                   oneDayTxCount: 0,
                   sevenDayTxCount: 0,
                   thirtyDayTxCount: 0
-                },
-                reserves: {
-                  ...poolInfo.reserves,
-                  reserve0Formatted: ethers.formatUnits(poolInfo.reserves?.reserve0 || '0', token0Metadata?.decimals || 18),
-                  reserve1Formatted: ethers.formatUnits(poolInfo.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)
                 }
               };
-            } catch (err) {
-              console.error(`Error fetching pool data:`, err);
+            } catch (error) {
+              console.error('Error getting pool info:', error);
               return null;
             }
           })
@@ -398,10 +373,8 @@ export default function MyPools() {
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-800">
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Pool</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">TVL</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">24h Volume</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">7d Volume</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">30d Volume</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Token 0 Reserve</th>
+              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Token 1 Reserve</th>
             </tr>
           </thead>
           <tbody>
@@ -415,7 +388,7 @@ export default function MyPools() {
                     <div className="flex -space-x-2">
                       <img 
                         src={pool.token0?.logo || '/token-default.png'}
-                        alt={pool.token0?.name || pool.token0?.symbol || 'Token'}
+                        alt={pool.token0?.symbol || 'Token'}
                         className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -424,7 +397,7 @@ export default function MyPools() {
                       />
                       <img 
                         src={pool.token1?.logo || '/token-default.png'}
-                        alt={pool.token1?.name || pool.token1?.symbol || 'Token'}
+                        alt={pool.token1?.symbol || 'Token'}
                         className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                         onError={(e) => {
                           e.target.onerror = null;
@@ -433,7 +406,7 @@ export default function MyPools() {
                       />
                     </div>
                     <span className="text-sm text-gray-900 dark:text-white">
-                      {pool.token0?.name || pool.token0?.symbol || 'Token'}/{pool.token1?.name || pool.token1?.symbol || 'Token'}
+                      {pool.token0?.symbol || 'Token'}/{pool.token1?.symbol || 'Token'}
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
@@ -457,37 +430,10 @@ export default function MyPools() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  {formatUSD(pool.tvl)}
+                  {ethers.formatUnits(pool.reserves?.reserve0 || '0', pool.token0?.decimals || 18)} {pool.token0?.symbol}
                 </td>
                 <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  <div className="group relative inline-block">
-                    {formatUSD(pool.volumes.oneDay)}
-                    {pool.volumes.oneDayTxCount > 0 && (
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full right-0 mb-2 px-3 py-1 text-xs bg-gray-900 text-white rounded-lg whitespace-nowrap">
-                        {pool.volumes.oneDayTxCount} transactions in 24h
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  <div className="group relative inline-block">
-                    {isPoolOlderThan(pool.createdAt, 7) ? formatUSD(pool.volumes.sevenDay) : '-'}
-                    {pool.volumes.sevenDayTxCount > 0 && (
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full right-0 mb-2 px-3 py-1 text-xs bg-gray-900 text-white rounded-lg whitespace-nowrap">
-                        {pool.volumes.sevenDayTxCount} transactions in 7d
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  <div className="group relative inline-block">
-                    {isPoolOlderThan(pool.createdAt, 30) ? formatUSD(pool.volumes.thirtyDay) : '-'}
-                    {pool.volumes.thirtyDayTxCount > 0 && (
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full right-0 mb-2 px-3 py-1 text-xs bg-gray-900 text-white rounded-lg whitespace-nowrap">
-                        {pool.volumes.thirtyDayTxCount} transactions in 30d
-                      </div>
-                    )}
-                  </div>
+                  {ethers.formatUnits(pool.reserves?.reserve1 || '0', pool.token1?.decimals || 18)} {pool.token1?.symbol}
                 </td>
               </tr>
             ))}
