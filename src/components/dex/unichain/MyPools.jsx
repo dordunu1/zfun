@@ -191,19 +191,33 @@ export default function MyPools() {
           return;
         }
 
-        // Get user's LP tokens
-        const userPools = await uniswap.getUserPools(address);
-        console.log('Found user pools:', userPools);
+        // Fetch LP tokens from Blockscout API
+        const response = await fetch(`https://unichain-sepolia.blockscout.com/api/v2/addresses/${address}/token-balances`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch token balances from Blockscout');
+        }
+        
+        const tokens = await response.json();
+        
+        // Filter for LP tokens (UNI-V2 tokens)
+        const lpTokens = tokens.filter(item => 
+          item.token?.type === 'ERC-20' && 
+          item.value && 
+          item.token.address &&
+          (item.token.symbol === 'UNI-V2' || item.token.name?.includes('Uniswap V2'))
+        ).map(item => item.token.address);
 
-        if (!userPools || userPools.length === 0) {
-          console.log('No pools found');
+        console.log('Found LP tokens from Blockscout:', lpTokens);
+
+        if (!lpTokens || lpTokens.length === 0) {
+          console.log('No LP tokens found');
           setPools([]);
           return;
         }
 
         // Get pool information for each LP token
         const poolsData = await Promise.all(
-          userPools.map(async (poolAddress) => {
+          lpTokens.map(async (poolAddress) => {
             try {
               // Get pool info
               const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
