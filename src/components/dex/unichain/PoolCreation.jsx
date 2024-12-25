@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
-import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
 import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../hooks/useUnichain';
@@ -124,11 +123,16 @@ const Icons = {
         <path fill="currentColor" fillOpacity="0.2" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
       </g>
     </svg>
+  ),
+  Error: () => (
+    <svg className="w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
   )
 };
 
 // Add PoolProgressModal component
-const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNewPool }) => {
+const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNewPool, error }) => {
   const steps = [
     { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
     { id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> },
@@ -137,6 +141,25 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
     { id: 'confirming', title: 'Confirming', icon: <Icons.Confirming /> },
     { id: 'completed', title: 'Completed', icon: <Icons.Completed /> }
   ];
+
+  const isError = Boolean(error);
+
+  // Format error message to be more user-friendly
+  const formatErrorMessage = (error) => {
+    if (error?.includes('user rejected')) {
+      return 'Transaction was rejected. Please try again.';
+    }
+    if (error?.includes('insufficient')) {
+      return 'Insufficient balance for transaction.';
+    }
+    if (error?.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
+      return 'Price impact too high, try a smaller amount.';
+    }
+    if (error?.includes('EXCESSIVE_INPUT_AMOUNT')) {
+      return 'Insufficient liquidity for this trade.';
+    }
+    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+  };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -169,37 +192,34 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  {isNewPool ? 'Creating New Liquidity Pool' : 'Adding Liquidity'}
+                  {isError ? 'Error Creating Pool' : (isNewPool ? 'Creating New Pool' : 'Adding Initial Liquidity')}
+                  {!isError && token0 && token1 && (
+                    <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
+                      {token0.symbol} + {token1.symbol}
+                    </div>
+                  )}
                 </Dialog.Title>
 
                 <div className="space-y-4">
                   {steps.map((step, index) => {
                     const isActive = currentStep === step.id;
-                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    const isCompleted = !isError && steps.findIndex(s => s.id === currentStep) > index;
+                    const isErrorStep = isError && currentStep === step.id;
                     
                     return (
                       <div
                         key={step.id}
-                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
-                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
-                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
-                          'bg-gray-50 dark:bg-gray-800/20'
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                          isActive && !isErrorStep ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 
+                          isCompleted ? 'text-[#00ffbd]' : 
+                          isErrorStep ? 'bg-red-500/10 text-red-500' : 
+                          'text-gray-400'
                         }`}
                       >
-                        <div 
-                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
-                            isActive ? 'text-[#00ffbd] animate-pulse' : 
-                            isCompleted ? 'text-[#00ffbd]' : 
-                            'text-gray-400 dark:text-gray-600'
-                          }`}
-                        >
-                          {step.icon}
-                        </div>
+                        {step.icon}
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 dark:text-white">
-                            {step.title}
-                          </h4>
-                          {isActive && (
+                          <span className="font-medium text-gray-900 dark:text-white">{step.title}</span>
+                          {isActive && !isError && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               {step.id === 'preparing' && 'Preparing transaction...'}
                               {step.id === 'approval' && `Approving ${token0?.symbol} and ${token1?.symbol}`}
@@ -221,6 +241,28 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                     );
                   })}
                 </div>
+
+                {isError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-start gap-3">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
+                        <p className="mt-1 text-sm text-red-400">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {currentStep === 'completed' && (
                   <div className="mt-6">
@@ -342,38 +384,6 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
   );
 };
 
-// Update the toast error style
-const showError = (message) => {
-  toast.error(message, {
-    style: {
-      background: '#1a1b1f',
-      color: '#fff',
-      borderLeft: '4px solid #00ffbd',
-    },
-    iconTheme: {
-      primary: '#00ffbd',
-      secondary: '#1a1b1f',
-    },
-    duration: 4000,
-  });
-};
-
-// Update success toast style
-const showSuccess = (message) => {
-  toast.success(message, {
-    style: {
-      background: '#1a1b1f',
-      color: '#fff',
-      borderLeft: '4px solid #00ffbd',
-    },
-    iconTheme: {
-      primary: '#00ffbd',
-      secondary: '#1a1b1f',
-    },
-    duration: 4000,
-  });
-};
-
 export default function PoolCreation() {
   const { address: account, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
@@ -393,6 +403,7 @@ export default function PoolCreation() {
   const [isNewPool, setIsNewPool] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [error, setError] = useState(null);
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -592,31 +603,31 @@ export default function PoolCreation() {
     }
 
     if (!token0 || !token1) {
-      toast.error('Please select both tokens');
+      setError('Please select both tokens');
+      setShowProgressModal(true);
+      setCurrentStep('preparing');
       return;
     }
 
     // Check for WETH at the start
     if (token0?.symbol === 'WETH' || token1?.symbol === 'WETH') {
-      toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
-        duration: 6000,
-        style: {
-          borderRadius: '10px',
-          background: '#333',
-          color: '#fff',
-        },
-      });
+      setError('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.');
+      setShowProgressModal(true);
+      setCurrentStep('preparing');
       return;
     }
 
     if (!amount0 || !amount1) {
-      toast.error('Please enter both amounts');
+      setError('Please enter both amounts');
+      setShowProgressModal(true);
+      setCurrentStep('preparing');
       return;
     }
 
     setLoading(true);
     setShowProgressModal(true);
     setCurrentStep('preparing');
+    setError(null);
     
     try {
       // Parse amounts
@@ -677,18 +688,7 @@ export default function PoolCreation() {
       setToken1(null);
     } catch (error) {
       console.error('Error creating pool:', error);
-      setShowProgressModal(false);
-      setCurrentStep(null);
-      setShowConfetti(false);
-      toast.error(
-        error.message.includes('insufficient')
-          ? 'Insufficient balance for transaction'
-          : error.message.includes('chain')
-          ? 'Please switch to a supported network'
-          : error.message.includes('approve')
-          ? error.message
-          : `Failed to create pool: ${error.message}`
-      );
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -1010,11 +1010,13 @@ export default function PoolCreation() {
         onClose={() => {
           setShowProgressModal(false);
           setCurrentStep(null);
+          setError(null);
         }}
         currentStep={currentStep}
         token0={token0}
         token1={token1}
         isNewPool={isNewPool}
+        error={error}
       />
 
       {/* Add Rating Modal */}
