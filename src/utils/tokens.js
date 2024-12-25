@@ -16,7 +16,7 @@ export const COMMON_TOKENS = [
     symbol: 'WETH',
     name: 'Wrapped Ethereum',
     decimals: 18,
-    logo: '/eth.png'
+    logo: '/weth.png'
   },
   {
     address: UNISWAP_ADDRESSES.USDC,
@@ -51,7 +51,7 @@ export const getChainTokens = (chainId) => {
           symbol: 'WETH',
           name: 'Wrapped Ethereum',
           decimals: 18,
-          logo: '/eth.png'
+          logo: '/weth.png'
         },
         {
           address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',

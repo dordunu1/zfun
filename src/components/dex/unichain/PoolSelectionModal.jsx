@@ -6,6 +6,7 @@ import { ethers } from 'ethers';
 import { FaSearch } from 'react-icons/fa';
 import { getTokenLogo, getTokenMetadata } from '../../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
+import { getTokenDeploymentByAddress } from '../../../services/firebase';
 
 // Add common token list (we'll keep updating this)
 const COMMON_TOKENS = {
@@ -119,22 +120,22 @@ const PoolItem = ({ pool, onSelect }) => {
       <div className="flex items-center gap-3">
         <div className="flex -space-x-2">
           <img
-            src={getTokenLogo(pool.token0)}
-            alt={getDisplaySymbol(pool.token0)}
+            src={pool.token0.logo}
+            alt={pool.token0.symbol}
             className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
           />
           <img
-            src={getTokenLogo(pool.token1)}
-            alt={getDisplaySymbol(pool.token1)}
+            src={pool.token1.logo}
+            alt={pool.token1.symbol}
             className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
           />
         </div>
         <div className="text-left">
           <div className="font-medium text-gray-900 dark:text-white">
-            {getDisplaySymbol(pool.token0)}/{getDisplaySymbol(pool.token1)}
+            {pool.token0.symbol}/{pool.token1.symbol}
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            {getDisplayName(pool.token0)}/{getDisplayName(pool.token1)}
+            {pool.token0.name}/{pool.token1.name}
           </div>
         </div>
       </div>
@@ -171,27 +172,53 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
     try {
       // Get token metadata using the same pattern as the original PoolSelectionModal
       const [token0Metadata, token1Metadata] = await Promise.all([
-        getTokenMetadata(pool.token0),
-        getTokenMetadata(pool.token1)
+        getEnhancedTokenMetadata(pool.token0.address, pool.token0),
+        getEnhancedTokenMetadata(pool.token1.address, pool.token1)
       ]);
 
-      // Ensure WETH is properly displayed as ETH
-      const displayToken0 = token0Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
-        ? { ...token0Metadata, symbol: 'ETH', name: 'Ethereum' }
-        : token0Metadata;
+      // Convert WETH to ETH consistently
+      const isToken0WETH = token0Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+      const isToken1WETH = token1Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
 
-      const displayToken1 = token1Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()
-        ? { ...token1Metadata, symbol: 'ETH', name: 'Ethereum' }
-        : token1Metadata;
+      const displayToken0 = isToken0WETH
+        ? {
+            ...token0Metadata,
+            symbol: 'ETH',
+            name: 'Ethereum',
+            logo: '/eth.png',
+            isWETH: true,  // Add flag to identify WETH tokens
+            originalSymbol: 'WETH'  // Keep original symbol for reference
+          }
+        : {
+            ...token0Metadata,
+            logo: token0Metadata.logo || getTokenLogo(token0Metadata)
+          };
 
-      return {
+      const displayToken1 = isToken1WETH
+        ? {
+            ...token1Metadata,
+            symbol: 'ETH',
+            name: 'Ethereum',
+            logo: '/eth.png',
+            isWETH: true,  // Add flag to identify WETH tokens
+            originalSymbol: 'WETH'  // Keep original symbol for reference
+          }
+        : {
+            ...token1Metadata,
+            logo: token1Metadata.logo || getTokenLogo(token1Metadata)
+          };
+
+      // Ensure addresses are preserved
+      const processedPool = {
         token0: {
           ...displayToken0,
-          logo: getTokenLogo(displayToken0)
+          address: pool.token0.address,
+          isWETH: isToken0WETH
         },
         token1: {
           ...displayToken1,
-          logo: getTokenLogo(displayToken1)
+          address: pool.token1.address,
+          isWETH: isToken1WETH
         },
         pairAddress: pool.address,
         reserves: {
@@ -200,6 +227,9 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
           reserve1Formatted: ethers.formatUnits(pool.reserves?.reserve1 || '0', displayToken1?.decimals || 18)
         }
       };
+
+      console.log('Processed pool:', processedPool);
+      return processedPool;
     } catch (err) {
       console.error(`Error processing pool data:`, err);
       return null;
@@ -252,12 +282,45 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
           // Try to get pool info directly
           const poolInfo = await uniswap.getPoolInfoByAddress(searchTerm);
           if (poolInfo) {
+            // Try to get token metadata from Firebase for both tokens
+            const [token0Deployment, token1Deployment] = await Promise.all([
+              getTokenDeploymentByAddress(poolInfo.token0.address).catch(() => null),
+              getTokenDeploymentByAddress(poolInfo.token1.address).catch(() => null)
+            ]);
+
+            // Enhance token0 metadata if found in Firebase
+            if (token0Deployment) {
+              poolInfo.token0 = {
+                ...poolInfo.token0,
+                name: token0Deployment.name,
+                symbol: token0Deployment.symbol,
+                decimals: token0Deployment.decimals || 18,
+                logo: token0Deployment.logo,
+                logoIpfs: token0Deployment.logoIpfs
+              };
+            }
+
+            // Enhance token1 metadata if found in Firebase
+            if (token1Deployment) {
+              poolInfo.token1 = {
+                ...poolInfo.token1,
+                name: token1Deployment.name,
+                symbol: token1Deployment.symbol,
+                decimals: token1Deployment.decimals || 18,
+                logo: token1Deployment.logo,
+                logoIpfs: token1Deployment.logoIpfs
+              };
+            }
+
             const processedPool = await processPoolData({
               ...poolInfo,
               address: searchTerm
             });
+            
             if (processedPool) {
+              console.log('Found pool by address:', processedPool);
               setSearchResults([processedPool]);
+              setLoading(false);
               return;
             }
           }
@@ -274,7 +337,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
         return (
           pool.token0?.symbol?.toLowerCase().includes(searchLower) ||
           pool.token1?.symbol?.toLowerCase().includes(searchLower) ||
-          pool.pairAddress.toLowerCase().includes(searchLower)
+          pool.pairAddress?.toLowerCase().includes(searchLower)
         );
       });
 

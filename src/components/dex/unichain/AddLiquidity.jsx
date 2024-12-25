@@ -836,7 +836,7 @@ export default function AddLiquidity() {
           {/* Token 0 Input */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {pool.token0.symbol} Amount
+              {pool.token0.isWETH ? 'ETH' : pool.token0.symbol} Amount
             </label>
             <div className="relative">
               <input
@@ -848,12 +848,12 @@ export default function AddLiquidity() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <img
-                  src={getTokenLogo(pool.token0)}
-                  alt={pool.token0.symbol}
+                  src={pool.token0.logo}
+                  alt={pool.token0.isWETH ? 'ETH' : pool.token0.symbol}
                   className="w-6 h-6 rounded-full"
                 />
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {pool.token0.symbol}
+                  {pool.token0.isWETH ? 'ETH' : pool.token0.symbol}
                 </span>
               </div>
             </div>
@@ -863,7 +863,7 @@ export default function AddLiquidity() {
           {/* Token 1 Input */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {pool.token1.symbol} Amount
+              {pool.token1.isWETH ? 'ETH' : pool.token1.symbol} Amount
             </label>
             <div className="relative">
               <input
@@ -875,12 +875,12 @@ export default function AddLiquidity() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <img
-                  src={getTokenLogo(pool.token1)}
-                  alt={pool.token1.symbol}
+                  src={pool.token1.logo}
+                  alt={pool.token1.isWETH ? 'ETH' : pool.token1.symbol}
                   className="w-6 h-6 rounded-full"
                 />
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {pool.token1.symbol}
+                  {pool.token1.isWETH ? 'ETH' : pool.token1.symbol}
                 </span>
               </div>
             </div>
