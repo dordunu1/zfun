@@ -544,6 +544,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   const [progressError, setProgressError] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [isMintingTokenOpen, setIsMintingTokenOpen] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -1537,62 +1538,106 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   Minting Currency
                 </label>
                 <div className="relative">
-                  <select
-                    value={formData.mintingToken}
-                    onChange={(e) => updateFormData({ mintingToken: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 pl-10 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-none"
+                  <button
+                    type="button"
+                    onClick={() => setIsMintingTokenOpen(!isMintingTokenOpen)}
+                    className={clsx(
+                      "w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5",
+                      "border border-gray-200 dark:border-gray-700",
+                      "focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none",
+                      "flex items-center justify-between"
+                    )}
                   >
-                    <option value="native">Native Token (ETH/POL)</option>
-                    <option value="usdc">USDC</option>
-                    <option value="usdt">USDT</option>
-                    <option value="custom">Custom Token</option>
-                  </select>
-                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                    {formData.mintingToken === 'native' && <FaEthereum size={16} className="text-[#00ffbd]" />}
-                    {formData.mintingToken === 'usdc' && (
-                      <img src="/usdc.png" alt="USDC" className="w-4 h-4" />
-                    )}
-                    {formData.mintingToken === 'usdt' && (
-                      <img src="/usdt.png" alt="USDT" className="w-4 h-4" />
-                    )}
-                    {formData.mintingToken === 'custom' && (
-                      <div className="w-4 h-4 rounded-full bg-gray-400" />
-                    )}
-                  </div>
-                  <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                    <BiChevronDown size={20} className="text-gray-500" />
-                  </div>
-                </div>
-              </div>
+                    <div className="flex items-center gap-2">
+                      {formData.mintingToken === 'native' ? (
+                        <>
+                          <FaEthereum className="text-[#00ffbd]" />
+                          <span className="text-gray-900 dark:text-white">Native Token (ETH/POL)</span>
+                        </>
+                      ) : formData.mintingToken === 'custom' ? (
+                        <>
+                          <BiWallet className="text-[#00ffbd]" />
+                          <span className="text-gray-900 dark:text-white">Custom Token</span>
+                        </>
+                      ) : (
+                        <>
+                          <BiWallet className="text-[#00ffbd]" />
+                          <span className="text-gray-900 dark:text-white">Select Token</span>
+                        </>
+                      )}
+                    </div>
+                    <BiChevronDown className={clsx(
+                      "transition-transform text-gray-900 dark:text-white",
+                      isMintingTokenOpen && "rotate-180"
+                    )} />
+                  </button>
 
-              {formData.mintingToken === 'custom' && (
-                <div className="space-y-3 mt-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                      Token Contract Address
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="0x..."
-                      value={formData.customTokenAddress}
-                      onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                      Token Symbol
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Enter token symbol"
-                      value={formData.customTokenSymbol}
-                      onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                    />
-                  </div>
+                  {isMintingTokenOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-[#1a1b1f] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
+                      <button
+                        onClick={() => {
+                          updateFormData({ mintingToken: 'native', customTokenAddress: '', customTokenSymbol: '' });
+                          setIsMintingTokenOpen(false);
+                        }}
+                        className={clsx(
+                          "w-full px-4 py-2 text-left",
+                          "text-gray-900 dark:text-white",
+                          "hover:bg-[#00ffbd]/10",
+                          "flex items-center gap-2"
+                        )}
+                      >
+                        <FaEthereum className="text-[#00ffbd]" />
+                        <span>Native Token (ETH/POL)</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          updateFormData({ mintingToken: 'custom' });
+                          setIsMintingTokenOpen(false);
+                        }}
+                        className={clsx(
+                          "w-full px-4 py-2 text-left",
+                          "text-gray-900 dark:text-white",
+                          "hover:bg-[#00ffbd]/10",
+                          "flex items-center gap-2"
+                        )}
+                      >
+                        <BiWallet className="text-[#00ffbd]" />
+                        <span>Custom Token</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {formData.mintingToken === 'custom' && (
+                  <div className="mt-4 space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                        Custom Token Address
+                      </label>
+                      <input
+                        id="customTokenAddress"
+                        type="text"
+                        value={formData.customTokenAddress}
+                        onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
+                        className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                        placeholder="Enter token contract address"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                        Custom Token Symbol
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.customTokenSymbol}
+                        onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
+                        className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                        placeholder="Enter token symbol"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1650,7 +1695,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                     value={formData.royaltyReceiver || ''}
                     onChange={(e) => updateFormData({ royaltyReceiver: e.target.value })}
                     className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                    placeholder="Enter address (leave empty to use creator address)"
+                    placeholder="Enter address"
                   />
                 </div>
 
