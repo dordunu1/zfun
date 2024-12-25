@@ -114,6 +114,29 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
 
   const currentStepIndex = steps.findIndex(step => step.key === currentStep);
 
+  const getTokenPairDisplay = () => {
+    if (!pool) return '';
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex -space-x-2">
+          <img
+            src={getTokenLogo(pool.token0)}
+            alt={pool.token0.symbol}
+            className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+          />
+          <img
+            src={getTokenLogo(pool.token1)}
+            alt={pool.token1.symbol}
+            className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+          />
+        </div>
+        <span>
+          {pool.token0.symbol} {pool.token1.symbol}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -143,6 +166,11 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
                 <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
                   Remove Liquidity Status
+                  {pool && (
+                    <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
+                      {getTokenPairDisplay()}
+                    </div>
+                  )}
                 </Dialog.Title>
                 <div className="space-y-4">
                   {steps.map((step, index) => {
@@ -159,7 +187,14 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
                         }`}
                       >
                         <Icon />
-                        <span className="font-medium">{step.label}</span>
+                        <div className="flex-1">
+                          <span className="font-medium">{step.label}</span>
+                          {isActive && step.key === 'removing' && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              Removing liquidity for {getTokenPairDisplay()}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
