@@ -396,6 +396,7 @@ export default function CollectionPage() {
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
       
       // Get the current network
       const network = await provider.getNetwork();
@@ -403,8 +404,8 @@ export default function CollectionPage() {
       
       // Validate chain based on collection's network
       const expectedChainId = collection.network === 'unichain' ? 1301 :
-                            collection.network === 'sepolia' ? 11155111 :
-                            collection.network === 'polygon' ? 137 : null;
+                           collection.network === 'sepolia' ? 11155111 :
+                           collection.network === 'polygon' ? 137 : null;
 
       if (chainId !== expectedChainId) {
         const networkName = collection.network.charAt(0).toUpperCase() + collection.network.slice(1);
