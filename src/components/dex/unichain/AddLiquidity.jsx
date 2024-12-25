@@ -190,7 +190,7 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
           />
         </div>
         <span>
-          {pool.token0.symbol}/{pool.token1.symbol}
+          {pool.token0.symbol} {pool.token1.symbol}
         </span>
       </div>
     );
@@ -266,9 +266,17 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               {step.id === 'preparing' && 'Preparing transaction...'}
                               {step.id === 'approval' && `Approving ${pool?.token0?.symbol} and ${pool?.token1?.symbol}`}
-                              {step.id === 'adding' && `Adding liquidity for ${pool?.token0?.symbol}/${pool?.token1?.symbol}`}
+                              {step.id === 'adding' && (
+                                <span className="flex items-center gap-2">
+                                  Adding liquidity for {getTokenPairDisplay()}
+                                </span>
+                              )}
                               {step.id === 'confirming' && 'Waiting for confirmation...'}
-                              {step.id === 'completed' && `Successfully added liquidity to ${pool?.token0?.symbol}/${pool?.token1?.symbol} pool!`}
+                              {step.id === 'completed' && (
+                                <span className="flex items-center gap-2">
+                                  Successfully added liquidity to {getTokenPairDisplay()} pool!
+                                </span>
+                              )}
                             </p>
                           )}
                         </div>
@@ -523,8 +531,8 @@ export default function AddLiquidity() {
       );
 
       // Parse initial amounts
-      let parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
-      let parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
+      let parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals || 18);
+      let parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals || 18);
       let token0Address = pool.token0.address;
       let token1Address = pool.token1.address;
 
@@ -536,42 +544,25 @@ export default function AddLiquidity() {
       if (pairAddress !== '0x0000000000000000000000000000000000000000') {
         console.log('Pair exists, checking current pool ratio...');
         const pairContract = new ethers.Contract(pairAddress, PAIR_ABI, provider);
-        const [reserve0, reserve1] = await pairContract.getReserves();
+        const reserves = await pairContract.getReserves();
         console.log('Current reserves:', {
-          reserve0: reserve0.toString(),
-          reserve1: reserve1.toString()
+          reserve0: reserves[0].toString(),
+          reserve1: reserves[1].toString()
         });
 
-        // Get actual token order in the pair
-        const token0InPair = await pairContract.token0();
-        
-        // Adjust amounts if token order is different
-        if (token0Address.toLowerCase() !== token0InPair.toLowerCase()) {
-          console.log('Token order swapped to match pair');
-          [parsedAmount0, parsedAmount1] = [parsedAmount1, parsedAmount0];
-          [token0Address, token1Address] = [token1Address, token0Address];
-        }
+        // Calculate optimal amounts
+        const reserve0 = reserves[0];
+        const reserve1 = reserves[1];
+        const amount0Desired = parsedAmount0;
+        const amount1Desired = parsedAmount1;
 
-        // Calculate the optimal ratio based on reserves
-        if (reserve0 > 0n && reserve1 > 0n) {
-          try {
-            // Use the router's quote function to get the exact amount needed
-            const quote = await router.quote(
-              parsedAmount0,
-              reserve0,
-              reserve1
-            );
-            
-            // If the quoted amount is significantly different, adjust amount1
-            const difference = (quote - parsedAmount1) * 100n / parsedAmount1;
-            if (difference > 5n || difference < -5n) {
-              parsedAmount1 = quote;
-              console.log('Adjusted amount1 based on pool ratio:', parsedAmount1.toString());
-            }
-          } catch (error) {
-            console.error('Error getting quote:', error);
-            throw new Error('Failed to calculate optimal amounts for the pool ratio');
-          }
+        // Use the same ratio calculation as the router
+        if ((amount0Desired * reserve1) / reserve0 < amount1Desired) {
+          parsedAmount1 = (amount0Desired * reserve1) / reserve0;
+          console.log('Adjusted token1 amount:', ethers.formatUnits(parsedAmount1, pool.token1.decimals || 18));
+        } else if ((amount1Desired * reserve0) / reserve1 < amount0Desired) {
+          parsedAmount0 = (amount1Desired * reserve0) / reserve1;
+          console.log('Adjusted token0 amount:', ethers.formatUnits(parsedAmount0, pool.token0.decimals || 18));
         }
       }
 
@@ -692,7 +683,7 @@ export default function AddLiquidity() {
             setToken0Amount('');
             setToken1Amount('');
             setShowConfetti(false);
-          }, 30000); // 30 seconds
+          }, 30000);
         }, 100);
       }, 1000);
 

@@ -6,6 +6,241 @@ import { ethers } from 'ethers';
 import { useUnichain } from '../../../hooks/useUnichain';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { ipfsToHttp } from '../../../utils/ipfs';
+import { Dialog, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
+import Confetti from 'react-confetti';
+
+// Icons for progress modal
+const Icons = {
+  Preparing: () => (
+    <svg className="w-6 h-6 animate-[spin_3s_linear_infinite]" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" className="animate-[pulse_2s_ease-in-out_infinite]" />
+      </g>
+    </svg>
+  ),
+  Approval: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path 
+          d="M8 12l3 3 5-5" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="animate-[draw_1s_ease-in-out_infinite]"
+          style={{ strokeDasharray: 20, strokeDashoffset: 20, animation: 'draw 1s ease-in-out forwards' }}
+        />
+      </g>
+    </svg>
+  ),
+  Removing: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path 
+          d="M12 8v8M8 12h8" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className="animate-[spin_2s_linear_infinite]" 
+          transform="rotate(45 12 12)"
+        />
+        <path 
+          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+          className="animate-[pulse_2s_ease-in-out_infinite]"
+        />
+      </g>
+    </svg>
+  ),
+  Confirming: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path 
+          d="M12 6v6l4 4" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="animate-[spin_2s_linear_infinite]"
+        />
+      </g>
+    </svg>
+  ),
+  Completed: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path 
+          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" 
+          className="animate-[fadeIn_0.5s_ease-in-out]"
+        />
+        <path 
+          d="M8 12l3 3 5-5" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="animate-[draw_0.5s_ease-in-out_forwards]"
+          style={{ strokeDasharray: 20, strokeDashoffset: 20, animation: 'draw 0.5s ease-in-out forwards' }}
+        />
+      </g>
+    </svg>
+  )
+};
+
+// Add required keyframe animations at the top of the file
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+`;
+document.head.appendChild(style);
+
+// Progress Modal Component
+const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
+  const steps = [
+    { key: 'preparing', label: 'Preparing Transaction', icon: Icons.Preparing },
+    { key: 'approval', label: 'Awaiting Approval', icon: Icons.Approval },
+    { key: 'removing', label: 'Removing Liquidity', icon: Icons.Removing },
+    { key: 'confirming', label: 'Confirming Transaction', icon: Icons.Confirming },
+    { key: 'completed', label: 'Liquidity Removed', icon: Icons.Completed }
+  ];
+
+  const currentStepIndex = steps.findIndex(step => step.key === currentStep);
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                  Remove Liquidity Status
+                </Dialog.Title>
+                <div className="space-y-4">
+                  {steps.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = index === currentStepIndex;
+                    const isCompleted = index < currentStepIndex;
+                    return (
+                      <div
+                        key={step.key}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                          isActive ? 'bg-[#00ffbd]/10 text-[#00ffbd]' :
+                          isCompleted ? 'text-[#00ffbd]' :
+                          'text-gray-400'
+                        }`}
+                      >
+                        <Icon />
+                        <span className="font-medium">{step.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+// Star Rating Modal Component
+const StarRatingModal = ({ isOpen, onClose, onRate }) => {
+  const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white text-center mb-4">
+                  Rate Your Experience
+                </Dialog.Title>
+                <div className="flex justify-center gap-2 mb-6">
+                  {[...Array(9)].map((_, index) => (
+                    <button
+                      key={index}
+                      onMouseEnter={() => setHoveredRating(index + 1)}
+                      onMouseLeave={() => setHoveredRating(0)}
+                      onClick={() => {
+                        setRating(index + 1);
+                        onRate(index + 1);
+                        onClose();
+                      }}
+                      className="focus:outline-none"
+                    >
+                      <svg
+                        className={`w-8 h-8 transition-colors ${
+                          index + 1 <= (hoveredRating || rating) ? 'text-[#00ffbd]' : 'text-gray-300 dark:text-gray-600'
+                        }`}
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
 
 // Common tokens with metadata
 const COMMON_TOKENS = [
@@ -104,6 +339,32 @@ export default function RemoveLiquidity() {
   const [selectedPercentage, setSelectedPercentage] = useState(null);
   const [token0Amount, setToken0Amount] = useState('0');
   const [token1Amount, setToken1Amount] = useState('0');
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [currentStep, setCurrentStep] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+
+  // Add window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleRating = (rating) => {
+    console.log('User rated liquidity removal:', rating);
+    // Here you can implement the logic to save the rating
+  };
 
   // Load pool info and LP token balance when pool is selected
   useEffect(() => {
@@ -191,6 +452,9 @@ export default function RemoveLiquidity() {
     }
 
     setLoading(true);
+    setShowProgressModal(true);
+    setCurrentStep('preparing');
+
     try {
       console.log('Starting remove liquidity with params:', {
         pool: pool.pairAddress,
@@ -231,16 +495,16 @@ export default function RemoveLiquidity() {
       if (allowance < parsedAmount) {
         try {
           console.log('Approving LP tokens...');
-          toast.loading('Approving LP token...', { id: 'approve-lp' });
+          setCurrentStep('approval');
           const approveTx = await pairContract.approve(UNISWAP_ADDRESSES.router, ethers.MaxUint256);
           await approveTx.wait();
           console.log('LP tokens approved');
-          toast.success('LP token approved successfully', { id: 'approve-lp' });
         } catch (error) {
           console.error('Approval error:', error);
-          toast.error('Failed to approve LP token', { id: 'approve-lp' });
+          setShowProgressModal(false);
+          setCurrentStep(null);
           setLoading(false);
-          return; // Exit if approval fails
+          return;
         }
       }
 
@@ -261,8 +525,7 @@ export default function RemoveLiquidity() {
       const isToken1WETH = pool.token1.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
 
       // Remove liquidity
-      toast.loading('Removing liquidity...', { id: 'remove-liquidity' });
-
+      setCurrentStep('removing');
       let receipt;
       if (isToken0WETH || isToken1WETH) {
         // Handle ETH pair
@@ -312,13 +575,41 @@ export default function RemoveLiquidity() {
         );
       }
 
+      setCurrentStep('confirming');
       await receipt.wait();
       console.log('Liquidity removed:', receipt);
-      toast.success('Liquidity removed successfully!', { id: 'remove-liquidity' });
+
+      // Add small delay to show confirming state
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setCurrentStep('completed');
+
+      // Close the Manage Liquidity UI by emitting a custom event
+      window.dispatchEvent(new CustomEvent('closeManageLiquidity'));
+
+      // Show completed state briefly, then close modal and show confetti
+      setTimeout(() => {
+        setShowProgressModal(false);
+        setCurrentStep(null);
+        
+        // Show confetti after modal is closed
+        setTimeout(() => {
+          setShowConfetti(true);
+          
+          // Show rating modal after a short delay
+          setTimeout(() => {
+            setShowRatingModal(true);
+          }, 1000);
+          
+          // Reset form and cleanup after confetti (30 seconds)
+          setTimeout(() => {
+            setLpTokenAmount('');
+            setSelectedPercentage(null);
+            setShowConfetti(false);
+          }, 30000);
+        }, 100);
+      }, 1000);
 
       // Reset form and refresh pool info
-      setLpTokenAmount('');
-      setSelectedPercentage(null);
       const updatedPool = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
       setPool(prev => ({
         ...prev,
@@ -340,14 +631,21 @@ export default function RemoveLiquidity() {
       setLpTokenBalance(ethers.formatUnits(newBalance, 18));
     } catch (error) {
       console.error('Remove liquidity error:', error);
-      toast.error(
-        error.message.includes('insufficient')
-          ? 'Insufficient balance for transaction'
-          : error.message.includes('chain')
-          ? 'Please switch to a supported network'
-          : `Failed to remove liquidity: ${error.message}`,
-        { id: 'remove-liquidity' }
-      );
+      setShowProgressModal(false);
+      setCurrentStep(null);
+      setShowConfetti(false);
+      
+      // More detailed error handling
+      let errorMessage = 'Failed to remove liquidity';
+      if (error.message.includes('insufficient')) {
+        errorMessage = 'Insufficient balance for transaction';
+      } else if (error.message.includes('chain')) {
+        errorMessage = 'Please switch to a supported network';
+      } else {
+        errorMessage = `Transaction failed: ${error.message}`;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -359,6 +657,29 @@ export default function RemoveLiquidity() {
 
   return (
     <div className="space-y-6">
+      {/* Add Confetti component with higher z-index */}
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          numberOfPieces={200}
+          recycle={false}
+          gravity={0.2}
+          initialVelocityX={10}
+          initialVelocityY={10}
+          colors={['#00ffbd', '#00e6a9', '#00cc95', '#00b381', '#00996d']}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 99999,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+
       {/* Pool Selection */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -516,6 +837,24 @@ export default function RemoveLiquidity() {
           setShowPoolModal(false);
           setLpTokenAmount('');
         }}
+      />
+
+      {/* Add Progress Modal */}
+      <ProgressModal
+        isOpen={showProgressModal}
+        onClose={() => {
+          setShowProgressModal(false);
+          setCurrentStep(null);
+        }}
+        currentStep={currentStep}
+        pool={pool}
+      />
+
+      {/* Add Rating Modal */}
+      <StarRatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onRate={handleRating}
       />
     </div>
   );
