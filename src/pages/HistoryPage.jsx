@@ -255,19 +255,44 @@ export default function HistoryPage() {
             const mints = await getRecentMints(collection.contractAddress);
             return mints
               .filter(mint => mint.minterAddress?.toLowerCase() === address.toLowerCase())
-              .map(mint => ({
-                id: mint.id || `${collection.contractAddress}-${mint.tokenId}`,
-                activityType: 'nft_mint',
-                timestamp: mint.timestamp,
-                image: mint.image || collection.previewUrl,
-                title: `Minted ${collection.name}`,
-                subtitle: `NFT Mint #${mint.tokenId}`,
-                address: collection.contractAddress,
-                network: collection.network,
-                symbol: collection.symbol,
-                artworkType: collection.artworkType,
-                transactionHash: mint.hash
-              }));
+              .flatMap(mint => {
+                // Handle multiple mints in a single transaction
+                const quantity = parseInt(mint.quantity || '1');
+                if (quantity > 1) {
+                  return Array(quantity).fill().map((_, index) => ({
+                    id: `${mint.id || `${collection.contractAddress}-${mint.tokenId}`}-${index}`,
+                    activityType: 'nft_mint',
+                    timestamp: mint.timestamp,
+                    image: mint.image || collection.previewUrl,
+                    title: `Minted ${collection.name} #${parseInt(mint.tokenId) + index}`,
+                    subtitle: `NFT Mint #${parseInt(mint.tokenId) + index}`,
+                    address: collection.contractAddress,
+                    network: collection.network,
+                    symbol: collection.symbol,
+                    artworkType: collection.artworkType,
+                    transactionHash: mint.hash,
+                    quantity: quantity,
+                    tokenId: String(parseInt(mint.tokenId) + index)
+                  }));
+                }
+                
+                // Single mint
+                return [{
+                  id: mint.id || `${collection.contractAddress}-${mint.tokenId}`,
+                  activityType: 'nft_mint',
+                  timestamp: mint.timestamp,
+                  image: mint.image || collection.previewUrl,
+                  title: `Minted ${collection.name} #${mint.tokenId}`,
+                  subtitle: `NFT Mint #${mint.tokenId}`,
+                  address: collection.contractAddress,
+                  network: collection.network,
+                  symbol: collection.symbol,
+                  artworkType: collection.artworkType,
+                  transactionHash: mint.hash,
+                  quantity: 1,
+                  tokenId: mint.tokenId
+                }];
+              });
           })
         )).flat();
 
@@ -289,11 +314,15 @@ export default function HistoryPage() {
           // Fallback to network name matching
           return activity.network === currentNetwork;
         })
-        // Filter out duplicate transactions
+        // Filter out duplicate transactions, but keep multiple mints from same transaction
         .filter(activity => {
           if (!activity.transactionHash) return true; // Keep activities without transactionHash
           
-          const txKey = `${activity.transactionHash}-${activity.activityType}`;
+          // For NFT mints, create a unique key that includes the token ID
+          const txKey = activity.activityType === 'nft_mint' 
+            ? `${activity.transactionHash}-${activity.activityType}-${activity.tokenId}`
+            : `${activity.transactionHash}-${activity.activityType}`;
+          
           if (uniqueTransactions.has(txKey)) {
             console.log('Duplicate transaction found, skipping:', txKey);
             return false;
