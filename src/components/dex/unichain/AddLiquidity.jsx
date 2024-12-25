@@ -124,18 +124,20 @@ const FACTORY_ABI = [
 // Icons for progress modal
 const Icons = {
   Preparing: () => (
-    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" style={{ animation: 'rotate 2s linear infinite' }}>
       <g strokeWidth={1.5} stroke="currentColor">
         <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
-        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" />
+        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite' }} />
+        <path d="M7.75 7.75l1.5 1.5m5.5 5.5l1.5 1.5m0-8.5l-1.5 1.5m-5.5 5.5l-1.5 1.5" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite', animationDelay: '0.2s' }} />
       </g>
     </svg>
   ),
   Error: () => (
-    <svg className="w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="none">
-      <g strokeWidth={1.5} stroke="currentColor">
-        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-        <path d="M12 8v5m0 3v.01" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor" style={{ animation: 'shake 0.5s ease-in-out' }}>
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="text-red-500" />
+        <path d="M12 8v5" strokeLinecap="round" className="text-red-500" />
+        <path d="M12 16v.01" strokeLinecap="round" className="text-red-500" />
       </g>
     </svg>
   ),
@@ -143,15 +145,16 @@ const Icons = {
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
       <g strokeWidth={1.5} stroke="currentColor">
         <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
-        <path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_0.6s_ease-in-out]" />
       </g>
     </svg>
   ),
   Adding: () => (
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
       <g strokeWidth={1.5} stroke="currentColor">
-        <path d="M12 8v8m-4-4h8" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_0.6s_ease-in-out]" />
-        <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" className="animate-[pulse_2s_ease-in-out_infinite]" />
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 8v8m-4-4h8" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'draw 2s ease-in-out infinite' }} />
+        <circle cx="12" cy="12" r="3" style={{ animation: 'rotate 4s linear infinite', opacity: 0.2 }} />
       </g>
     </svg>
   ),
@@ -166,18 +169,9 @@ const Icons = {
   ),
   Completed: () => (
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-      <g>
-        <path className="animate-[draw_0.6s_ease-in-out]" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} stroke="currentColor"
-          d="M7 13l3 3L17 8" strokeDasharray="60" strokeDashoffset="60">
-          <animate
-            attributeName="stroke-dashoffset"
-            from="60"
-            to="0"
-            dur="0.6s"
-            fill="freeze"
-          />
-        </path>
-        <path fill="currentColor" fillOpacity="0.2" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="animate-[fadeIn_0.5s_ease-in-out]" />
+        <path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_0.5s_ease-in-out_forwards]" style={{ strokeDasharray: 20, strokeDashoffset: 20 }} />
       </g>
     </svg>
   )
