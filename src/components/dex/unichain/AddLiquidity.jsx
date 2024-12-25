@@ -372,7 +372,20 @@ export default function AddLiquidity() {
       setToken0Amount('');
       setToken1Amount('');
       const updatedPool = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
-      setPool(prev => ({ ...prev, ...updatedPool }));
+      setPool(prev => ({
+        ...prev,
+        ...updatedPool,
+        token0: {
+          ...prev.token0,
+          ...updatedPool.token0,
+          logo: prev.token0.logo || getTokenLogo(updatedPool.token0)
+        },
+        token1: {
+          ...prev.token1,
+          ...updatedPool.token1,
+          logo: prev.token1.logo || getTokenLogo(updatedPool.token1)
+        }
+      }));
     } catch (error) {
       console.error('Add liquidity error:', error);
       
