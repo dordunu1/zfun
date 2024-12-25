@@ -689,27 +689,26 @@ export default function RemoveLiquidity() {
       setCurrentStep('completed');
       setShowConfetti(true);
 
-      // Close progress modal and show rating after a delay
+      // Close progress modal immediately and show rating after a delay
+      setShowProgressModal(false);
+      setCurrentStep(null);
+      
+      // Show rating modal after a short delay
       setTimeout(() => {
-        setShowProgressModal(false);
-        setCurrentStep(null);
-        
-        // Show rating modal after a short delay
-        setTimeout(() => {
-          setShowRatingModal(true);
-        }, 1000);
-        
-        // Cleanup confetti after some time
-        setTimeout(() => {
-          setShowConfetti(false);
-        }, 30000);
-      }, 2000);
+        setShowRatingModal(true);
+      }, 1000);
+      
+      // Cleanup confetti after some time
+      setTimeout(() => {
+        setShowConfetti(false);
+      }, 30000);
 
       // Reset form and refresh balances
       const newBalance = await pairContract.balanceOf(address);
       setLpTokenBalance(ethers.formatUnits(newBalance, 18));
 
-      toast.success('Liquidity removed successfully');
+      // Remove the success toast notification
+      // toast.success('Liquidity removed successfully');
     } catch (error) {
       console.error('Remove liquidity error:', error);
       setProgressError(error.message || 'Failed to remove liquidity');
