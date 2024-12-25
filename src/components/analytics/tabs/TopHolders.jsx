@@ -25,8 +25,10 @@ const ALCHEMY_URLS = {
 };
 
 const formatAddress = (address) => {
-  if (typeof address !== 'string') return 'Invalid Address';
-  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+  if (!address || typeof address !== 'string') return 'Invalid Address';
+  // Ensure the address is properly formatted with 0x prefix
+  const formattedAddress = address.startsWith('0x') ? address : `0x${address}`;
+  return `${formattedAddress.substring(0, 6)}...${formattedAddress.substring(formattedAddress.length - 4)}`;
 };
 
 const getBadgeIcon = (index) => {
@@ -132,34 +134,27 @@ export default function TopHolders({ collection }) {
       }
     };
 
-    // Function to load Unichain holders using contract events
+    // Function to load Unichain holders using ethers.js
     const loadUnichainHolders = async (contractAddress) => {
       try {
         // Initialize ethers provider for Unichain Sepolia
         const provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
         const contract = new ethers.Contract(contractAddress, ['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'], provider);
 
-        // Get the latest block number
-        const latestBlock = await provider.getBlockNumber();
-        // Look back 100000 blocks or to contract creation
-        const fromBlock = Math.max(0, latestBlock - 100000);
-
-        // Get all Transfer events
-        const events = await contract.queryFilter('Transfer', fromBlock, latestBlock);
+        // Get all Transfer events from block 0
+        console.log('Fetching all transfer events from genesis...');
+        const events = await contract.queryFilter('Transfer', 0, 'latest');
         console.log('Found transfer events:', events.length);
         
-        // Process events to track current holders
-        const holdersMap = new Map();
-        const tokenOwners = new Map(); // Track current owner of each token
-        
+        // Track current token ownership
+        const tokenOwners = new Map();
         for (const event of events) {
-          const { from, to, tokenId } = event.args;
-          
-          // Update token ownership
+          const { to, tokenId } = event.args;
           tokenOwners.set(tokenId.toString(), to);
         }
-        
-        // Count tokens per holder based on current ownership
+
+        // Create a map of addresses to their token counts
+        const holdersMap = new Map();
         for (const owner of tokenOwners.values()) {
           if (owner !== '0x0000000000000000000000000000000000000000') {
             const currentCount = holdersMap.get(owner) || 0;
@@ -167,13 +162,16 @@ export default function TopHolders({ collection }) {
           }
         }
 
-        // Convert map to array and sort
+        // Convert to our format and sort
         const holdersData = Array.from(holdersMap.entries())
           .map(([address, quantity]) => ({
             holderAddress: address,
             quantity
           }))
-          .filter(holder => holder.quantity > 0)
+          .filter(holder => 
+            holder.quantity > 0 && 
+            holder.holderAddress !== '0x0000000000000000000000000000000000000000'
+          )
           .sort((a, b) => b.quantity - a.quantity);
 
         console.log('Processed holders:', holdersData.length);
