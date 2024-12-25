@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import { FaEthereum, FaDiscord, FaTwitter, FaTelegram } from 'react-icons/fa';
 import { BiMinus, BiPlus, BiCopy, BiCheck, BiX, BiWorld } from 'react-icons/bi';
 import toast from 'react-hot-toast';
@@ -12,6 +12,9 @@ import { ipfsToHttp } from '../utils/ipfs';
 import AnalyticsTabs from './analytics/AnalyticsTabs';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { prepareAndUploadMetadata } from '../services/metadata';
+import { Dialog, Transition } from '@headlessui/react';
+import Confetti from 'react-confetti';
+import clsx from 'clsx';
 
 
 const validateAddress = (address) => {
@@ -120,6 +123,254 @@ function RemainingMintAmount({ userMintedAmount, maxPerWallet }) {
   );
 }
 
+// Icons for minting progress modal
+const Icons = {
+  Preparing: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" style={{ animation: 'rotate 2s linear infinite' }}>
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite' }} />
+        <path d="M7.75 7.75l1.5 1.5m5.5 5.5l1.5 1.5m0-8.5l-1.5 1.5m-5.5 5.5l-1.5 1.5" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite', animationDelay: '0.2s' }} />
+      </g>
+    </svg>
+  ),
+  UploadingMetadata: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 18V8m0 0l-4 4m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'bounce 1s ease-in-out infinite' }} />
+        <path d="M8 18h8" strokeLinecap="round" style={{ animation: 'fadeIn 1s ease-in-out infinite', animationDelay: '0.5s' }} />
+      </g>
+    </svg>
+  ),
+  Minting: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M7 8h10M7 12h10M7 16h10" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite' }} />
+        <path d="M12 6v12" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite', animationDelay: '0.5s' }} />
+        <circle cx="12" cy="12" r="3" style={{ animation: 'rotate 4s linear infinite' }} />
+      </g>
+    </svg>
+  ),
+  Completed: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="animate-[fadeIn_0.5s_ease-in-out]" />
+        <path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_0.5s_ease-in-out_forwards]" style={{ strokeDasharray: 20, strokeDashoffset: 20 }} />
+      </g>
+    </svg>
+  ),
+  Error: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor" style={{ animation: 'shake 0.5s ease-in-out' }}>
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="text-red-500" />
+        <path d="M12 8v5" strokeLinecap="round" className="text-red-500" />
+        <path d="M12 16v.01" strokeLinecap="round" className="text-red-500" />
+      </g>
+    </svg>
+  )
+};
+
+// Progress Modal Component
+const ProgressModal = ({ isOpen, onClose, currentStep, error }) => {
+  const steps = [
+    { key: 'preparing', label: 'Preparing Transaction', icon: Icons.Preparing },
+    { key: 'uploading', label: 'Uploading Metadata', icon: Icons.UploadingMetadata },
+    { key: 'minting', label: 'Minting NFT', icon: Icons.Minting },
+    { key: 'completed', label: 'Minting Completed', icon: Icons.Completed }
+  ];
+
+  const currentStepIndex = steps.findIndex(step => step.key === currentStep);
+  const isError = Boolean(error);
+
+  // Format error message to be more user-friendly
+  const formatErrorMessage = (error) => {
+    if (error?.includes('user rejected action')) {
+      return 'Transaction was rejected. Please try again.';
+    }
+    if (error?.includes('insufficient funds')) {
+      return 'Insufficient funds to complete the transaction.';
+    }
+    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+  };
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                  {isError ? 'Error Minting NFT' : 'Minting NFT'}
+                </Dialog.Title>
+                <div className="space-y-4">
+                  {steps.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = index === currentStepIndex;
+                    const isCompleted = !isError && index < currentStepIndex;
+                    const isErrorStep = isError && index === currentStepIndex;
+
+                    return (
+                      <div
+                        key={step.key}
+                        className={clsx(
+                          'flex items-center gap-3 p-3 rounded-xl transition-colors',
+                          {
+                            'bg-[#00ffbd]/10 text-[#00ffbd]': isActive && !isErrorStep,
+                            'text-[#00ffbd]': isCompleted,
+                            'bg-red-500/10 text-red-500': isErrorStep,
+                            'text-gray-400': !isActive && !isCompleted && !isErrorStep
+                          }
+                        )}
+                      >
+                        <Icon />
+                        <div className="flex-1">
+                          <span className="font-medium text-gray-900 dark:text-white">{step.label}</span>
+                        </div>
+                        {isCompleted && (
+                          <svg className="w-5 h-5 text-[#00ffbd]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {isError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-start gap-3">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
+                        <p className="mt-1 text-sm text-red-400">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {currentStep === 'completed' && (
+                  <div className="mt-6 text-center">
+                    <p className="text-[#00ffbd] font-medium">NFT minted successfully!</p>
+                  </div>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+// Star Rating Modal Component
+const StarRatingModal = ({ isOpen, onClose, onRate }) => {
+  const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white text-center mb-4">
+                  Rate Your Minting Experience
+                </Dialog.Title>
+                <div className="flex justify-center gap-2 mb-6">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onMouseEnter={() => setHoveredRating(star)}
+                      onMouseLeave={() => setHoveredRating(0)}
+                      onClick={() => {
+                        setRating(star);
+                        onRate(star);
+                        setTimeout(onClose, 500);
+                      }}
+                      className="p-1 transition-transform hover:scale-110"
+                    >
+                      <svg
+                        className={`w-8 h-8 ${
+                          star <= (hoveredRating || rating)
+                            ? 'text-[#00ffbd]'
+                            : 'text-gray-300 dark:text-gray-600'
+                        } transition-colors`}
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+                  {hoveredRating === 1 && "Could be better"}
+                  {hoveredRating === 2 && "It's okay"}
+                  {hoveredRating === 3 && "Good"}
+                  {hoveredRating === 4 && "Great"}
+                  {hoveredRating === 5 && "Excellent!"}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
 export default function CollectionPage() {
   const { symbol } = useParams();
   const navigate = useNavigate();
@@ -140,6 +391,15 @@ export default function CollectionPage() {
   const [paymentTokenInfo, setPaymentTokenInfo] = useState(null);
   const [tokenLogos, setTokenLogos] = useState({});
   const [currentChainId, setCurrentChainId] = useState(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressStep, setProgressStep] = useState(null);
+  const [progressError, setProgressError] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
   // Add chain ID effect at component level
   useEffect(() => {
@@ -380,6 +640,19 @@ export default function CollectionPage() {
     return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
   };
 
+  // Add window size effect
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (loading || !collection) {
     return (
       <div className="min-h-screen bg-[#0a0b0f] flex items-center justify-center">
@@ -413,14 +686,17 @@ export default function CollectionPage() {
         return;
       }
 
-      toast.loading('Preparing metadata...', { id: 'mint' });
+      // Show progress modal and set initial step
+      setShowProgressModal(true);
+      setProgressStep('preparing');
+      setProgressError(null);
 
-      // Create a File object from the image URL
+      // Prepare metadata before minting
+      setProgressStep('uploading');
       const imageResponse = await fetch(collection.previewUrl);
       const imageBlob = await imageResponse.blob();
       const artworkFile = new File([imageBlob], 'artwork.png', { type: 'image/png' });
       
-      // Prepare metadata before minting
       const { metadataUrl } = await prepareAndUploadMetadata(
         {
           ...collection,
@@ -436,7 +712,7 @@ export default function CollectionPage() {
       // Extract IPFS hash without the protocol prefix
       const ipfsHash = metadataUrl.replace('ipfs://', '').trim();
       
-      toast.loading('Minting in progress...', { id: 'mint' });
+      setProgressStep('minting');
 
       const nftContract = new ethers.Contract(
         collection.contractAddress,
@@ -455,106 +731,38 @@ export default function CollectionPage() {
       }
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      // Handle token approvals if needed
-      if (paymentToken && paymentToken !== '0x0000000000000000000000000000000000000000') {
-        const tokenContract = new ethers.Contract(
-          paymentToken,
-          [
-            'function approve(address spender, uint256 amount) public returns (bool)',
-            'function allowance(address owner, address spender) view returns (uint256)',
-            'function balanceOf(address account) view returns (uint256)'
-          ],
-          signer
-        );
-
-        try {
-          // Check token balance first
-          const balance = await tokenContract.balanceOf(account);
-          if (balance < totalCost) {
-            toast.error('Insufficient token balance', { id: 'mint' });
-            return;
-          }
-
-          // Check and approve if needed
-          const currentAllowance = await tokenContract.allowance(account, collection.contractAddress);
-          if (currentAllowance < totalCost) {
-            toast.loading('Approving token spend...', { id: 'approve' });
-            const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
-            await approveTx.wait();
-            toast.success('Token approved!', { id: 'approve' });
-          }
-        } catch (error) {
-          console.error('Token approval error:', error);
-          toast.error('Failed to approve token', { id: 'mint' });
-          return;
-        }
-      }
-
-      // Mint with metadata in a single transaction
-      const mintOptions = {
-        value: paymentToken === '0x0000000000000000000000000000000000000000' ? totalCost : BigInt(0),
-        gasLimit: 1000000
-      };
-
-      let tx;
-      if (collection.type === 'ERC1155') {
-        const tokenId = 0;
-        tx = await nftContract.mint(tokenId, mintAmount, ipfsHash, mintOptions);
-      } else {
-        tx = await nftContract.mint(mintAmount, ipfsHash, mintOptions);
-      }
-
-      console.log('Mint transaction sent:', tx);
-      const receipt = await tx.wait();
-      console.log('Mint receipt:', receipt);
-
-      // Update states
-      const [newTotal, newUserMinted] = await Promise.all([
-        nftContract.totalSupply(),
-        nftContract.mintedPerWallet(account)
-      ]);
-
-      setTotalMinted(Number(newTotal));
-      setUserMintedAmount(Number(newUserMinted));
-      await updateCollectionMinted(symbol, Number(newTotal));
-
-      // Format values for Firebase
-      let formattedValue = '0';
-      let formattedMintPrice = '0';
-      
-      try {
-        if (collection.mintPrice) {
-          formattedMintPrice = parseFloat(collection.mintPrice).toFixed(6);
-          const ethValue = ethers.formatEther(totalCost);
-          formattedValue = parseFloat(ethValue).toFixed(6);
-        }
-      } catch (error) {
-        console.error('Error formatting values:', error);
-      }
-
-      // Save mint data to Firebase with proper ETH value formatting
-      await saveMintData({
-        collectionAddress: collection.contractAddress,
-        minterAddress: account,
-        tokenId: collection.type === 'ERC1155' ? '0' : String(newTotal),
-        quantity: String(mintAmount),
-        hash: receipt.hash,
-        image: collection.previewUrl,
-        value: formattedValue,
-        type: collection.type,
-        name: collection.name,
-        symbol: collection.symbol,
-        artworkType: collection.artworkType || 'image',
-        network: chainId === 1301 ? 'unichain' : chainId === 137 ? 'polygon' : 'sepolia',
-        mintPrice: formattedMintPrice,
-        paymentToken: collection.mintToken || null
+      // Mint the NFT
+      const tx = await nftContract.mint(mintAmount, ipfsHash, {
+        value: totalCost
       });
 
-      toast.success(`Successfully minted ${mintAmount} NFT${mintAmount > 1 ? 's' : ''}!`, { id: 'mint' });
+      await tx.wait();
+
+      // Show completed state and trigger confetti
+      setProgressStep('completed');
+      setShowConfetti(true);
+
+      // Close progress modal and show rating after a delay
+      setTimeout(() => {
+        setShowProgressModal(false);
+        setProgressStep(null);
+        setProgressError(null);
+        
+        // Show rating modal after a short delay
+        setTimeout(() => {
+          setShowRatingModal(true);
+        }, 1000);
+        
+        // Cleanup confetti after some time
+        setTimeout(() => {
+          setShowConfetti(false);
+        }, 30000);
+      }, 2000);
 
     } catch (error) {
-      console.error('Mint error:', error);
-      toast.error('Failed to mint NFT: ' + error.message);
+      console.error('Error minting NFT:', error);
+      setProgressStep('error');
+      setProgressError(error.message || 'Failed to mint NFT. Please try again.');
     }
   };
 
@@ -977,7 +1185,7 @@ export default function CollectionPage() {
                     <h3 className="text-gray-900 dark:text-white font-semibold">Whitelist Checker</h3>
                     {whitelistChecked && isWhitelisted && (
                       <span className="text-xs bg-[#00ffbd]/10 text-[#00ffbd] px-2 py-1 rounded-full">
-                        Whitelisted ✓
+                        Whitelisted
                       </span>
                     )}
                   </div>
@@ -1122,6 +1330,47 @@ export default function CollectionPage() {
           </FuturisticCard>
         </div>
       </div>
+
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          numberOfPieces={200}
+          recycle={false}
+          gravity={0.2}
+          initialVelocityX={10}
+          initialVelocityY={10}
+          colors={['#00ffbd', '#00e6a9', '#00cc95', '#00b381', '#00996d']}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 99999,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+      
+      <ProgressModal
+        isOpen={showProgressModal}
+        onClose={() => {
+          setShowProgressModal(false);
+          setProgressStep(null);
+        }}
+        currentStep={progressStep}
+        error={progressError}
+      />
+      
+      <StarRatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onRate={(rating) => {
+          console.log('User rated minting experience:', rating);
+          // Here you can implement the logic to save the rating
+        }}
+      />
     </div>
   );
 } 
