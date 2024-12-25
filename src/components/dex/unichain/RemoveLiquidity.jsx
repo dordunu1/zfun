@@ -86,6 +86,12 @@ const TokenBalance = ({ token }) => {
   );
 };
 
+// Add Router ABI
+const ROUTER_ABI = [
+  'function removeLiquidity(address tokenA, address tokenB, uint liquidity, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB)',
+  'function removeLiquidityETH(address token, uint liquidity, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external returns (uint amountToken, uint amountETH)'
+];
+
 export default function RemoveLiquidity() {
   const { address } = useAccount();
   const uniswap = useUnichain();
@@ -95,6 +101,9 @@ export default function RemoveLiquidity() {
   const [showPoolModal, setShowPoolModal] = useState(false);
   const [lpTokenBalance, setLpTokenBalance] = useState('0');
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [selectedPercentage, setSelectedPercentage] = useState(null);
+  const [token0Amount, setToken0Amount] = useState('0');
+  const [token1Amount, setToken1Amount] = useState('0');
 
   // Load pool info and LP token balance when pool is selected
   useEffect(() => {
@@ -128,6 +137,48 @@ export default function RemoveLiquidity() {
     loadPoolInfo();
   }, [pool?.pairAddress, address, uniswap]);
 
+  // Add percentage selection effect
+  useEffect(() => {
+    if (!selectedPercentage || !lpTokenBalance) return;
+
+    const percentage = selectedPercentage;
+    const totalLPTokens = parseFloat(lpTokenBalance);
+    const lpAmount = (totalLPTokens * percentage) / 100;
+    
+    setLpTokenAmount(lpAmount.toString());
+  }, [selectedPercentage, lpTokenBalance]);
+
+  // Add effect to calculate expected amounts when LP token amount changes
+  useEffect(() => {
+    const calculateAmounts = async () => {
+      if (!pool || !lpTokenAmount || !address) return;
+
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const pairContract = new ethers.Contract(pool.pairAddress, [
+          'function getReserves() view returns (uint112, uint112, uint32)',
+          'function totalSupply() view returns (uint256)'
+        ], provider);
+
+        const [reserves, totalSupply] = await Promise.all([
+          pairContract.getReserves(),
+          pairContract.totalSupply()
+        ]);
+
+        const parsedAmount = ethers.parseUnits(lpTokenAmount, 18);
+        const amount0 = (reserves[0] * parsedAmount) / totalSupply;
+        const amount1 = (reserves[1] * parsedAmount) / totalSupply;
+
+        setToken0Amount(ethers.formatUnits(amount0, pool.token0.decimals || 18));
+        setToken1Amount(ethers.formatUnits(amount1, pool.token1.decimals || 18));
+      } catch (error) {
+        console.error('Error calculating amounts:', error);
+      }
+    };
+
+    calculateAmounts();
+  }, [pool, lpTokenAmount, address]);
+
   const handleRemoveLiquidity = async () => {
     if (!address) {
       toast.error('Please connect your wallet');
@@ -141,49 +192,133 @@ export default function RemoveLiquidity() {
 
     setLoading(true);
     try {
+      console.log('Starting remove liquidity with params:', {
+        pool: pool.pairAddress,
+        lpTokenAmount,
+        userAddress: address,
+        expectedAmounts: {
+          token0: token0Amount,
+          token1: token1Amount
+        }
+      });
+
       // Parse amount with proper decimals
-      const parsedAmount = ethers.parseUnits(lpTokenAmount, 18); // LP tokens typically have 18 decimals
+      const parsedAmount = ethers.parseUnits(lpTokenAmount, 18);
+      console.log('Parsed LP amount:', parsedAmount.toString());
 
       // First ensure approval is completed
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
+      // Create router contract instance
+      const routerContract = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        ROUTER_ABI,
+        signer
+      );
+      
       const pairContract = new ethers.Contract(pool.pairAddress, [
         'function allowance(address,address) view returns (uint256)',
-        'function approve(address,uint256) returns (bool)'
+        'function approve(address,uint256) returns (bool)',
+        'function balanceOf(address) view returns (uint256)'
       ], signer);
 
       // Check allowance
-      const allowance = await pairContract.allowance(address, uniswap.router.address);
+      const allowance = await pairContract.allowance(address, UNISWAP_ADDRESSES.router);
+      console.log('Current allowance:', allowance.toString());
 
       // Handle approval if needed
       if (allowance < parsedAmount) {
         try {
+          console.log('Approving LP tokens...');
           toast.loading('Approving LP token...', { id: 'approve-lp' });
-          const approveTx = await pairContract.approve(uniswap.router.address, ethers.MaxUint256);
+          const approveTx = await pairContract.approve(UNISWAP_ADDRESSES.router, ethers.MaxUint256);
           await approveTx.wait();
+          console.log('LP tokens approved');
           toast.success('LP token approved successfully', { id: 'approve-lp' });
         } catch (error) {
+          console.error('Approval error:', error);
           toast.error('Failed to approve LP token', { id: 'approve-lp' });
           setLoading(false);
           return; // Exit if approval fails
         }
       }
 
+      // Calculate minimum amounts (1% slippage)
+      const amount0Min = ethers.parseUnits(token0Amount, pool.token0.decimals || 18) * 99n / 100n;
+      const amount1Min = ethers.parseUnits(token1Amount, pool.token1.decimals || 18) * 99n / 100n;
+
+      console.log('Minimum amounts (with 1% slippage):', {
+        token0Min: ethers.formatUnits(amount0Min, pool.token0.decimals || 18),
+        token1Min: ethers.formatUnits(amount1Min, pool.token1.decimals || 18)
+      });
+
+      // Set deadline 20 minutes from now
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+
+      // Check if one of the tokens is WETH
+      const isToken0WETH = pool.token0.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+      const isToken1WETH = pool.token1.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+
       // Remove liquidity
       toast.loading('Removing liquidity...', { id: 'remove-liquidity' });
-      const receipt = await uniswap.removeLiquidity(
-        pool.token0.address,
-        pool.token1.address,
-        parsedAmount,
-        address
-      );
 
+      let receipt;
+      if (isToken0WETH || isToken1WETH) {
+        // Handle ETH pair
+        const token = isToken0WETH ? pool.token1.address : pool.token0.address;
+        const amountTokenMin = isToken0WETH ? amount1Min : amount0Min;
+        const amountETHMin = isToken0WETH ? amount0Min : amount1Min;
+
+        console.log('Removing ETH liquidity with params:', {
+          token,
+          liquidity: parsedAmount.toString(),
+          amountTokenMin: amountTokenMin.toString(),
+          amountETHMin: amountETHMin.toString(),
+          to: address,
+          deadline: deadline.toString()
+        });
+
+        receipt = await routerContract.removeLiquidityETH(
+          token,
+          parsedAmount,
+          amountTokenMin,
+          amountETHMin,
+          address,
+          deadline,
+          { gasLimit: ethers.getBigInt(1000000) }
+        );
+      } else {
+        // Handle token-token pair
+        console.log('Removing token liquidity with params:', {
+          tokenA: pool.token0.address,
+          tokenB: pool.token1.address,
+          liquidity: parsedAmount.toString(),
+          amountAMin: amount0Min.toString(),
+          amountBMin: amount1Min.toString(),
+          to: address,
+          deadline: deadline.toString()
+        });
+
+        receipt = await routerContract.removeLiquidity(
+          pool.token0.address,
+          pool.token1.address,
+          parsedAmount,
+          amount0Min,
+          amount1Min,
+          address,
+          deadline,
+          { gasLimit: ethers.getBigInt(1000000) }
+        );
+      }
+
+      await receipt.wait();
       console.log('Liquidity removed:', receipt);
       toast.success('Liquidity removed successfully!', { id: 'remove-liquidity' });
 
       // Reset form and refresh pool info
       setLpTokenAmount('');
+      setSelectedPercentage(null);
       const updatedPool = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
       setPool(prev => ({ ...prev, ...updatedPool }));
 
@@ -254,6 +389,28 @@ export default function RemoveLiquidity() {
 
       {pool && (
         <>
+          {/* Add Percentage Selection */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Select Percentage
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {[25, 50, 75, 100].map((percentage) => (
+                <button
+                  key={percentage}
+                  onClick={() => setSelectedPercentage(percentage)}
+                  className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+                    selectedPercentage === percentage
+                      ? 'bg-[#00ffbd] text-black'
+                      : 'bg-white/5 dark:bg-[#2d2f36] text-gray-700 dark:text-gray-300 hover:bg-[#00ffbd]/10'
+                  }`}
+                >
+                  {percentage}%
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* LP Token Input */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -263,7 +420,10 @@ export default function RemoveLiquidity() {
               <input
                 type="text"
                 value={lpTokenAmount}
-                onChange={(e) => setLpTokenAmount(e.target.value)}
+                onChange={(e) => {
+                  setLpTokenAmount(e.target.value);
+                  setSelectedPercentage(null); // Reset percentage when manually entering amount
+                }}
                 placeholder="0.0"
                 className="w-full px-4 py-3 bg-white/5 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               />
@@ -276,6 +436,45 @@ export default function RemoveLiquidity() {
             </div>
             <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Balance: {isLoadingBalance ? 'Loading...' : Number(lpTokenBalance).toLocaleString()} LP Tokens
+            </div>
+          </div>
+
+          {/* Add Expected Return Display */}
+          <div className="p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-4">
+              You Will Receive
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={getTokenLogo(pool.token0)}
+                    alt={pool.token0.symbol}
+                    className="w-6 h-6 rounded-full"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {pool.token0.symbol}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {Number(token0Amount).toFixed(6)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={getTokenLogo(pool.token1)}
+                    alt={pool.token1.symbol}
+                    className="w-6 h-6 rounded-full"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {pool.token1.symbol}
+                  </span>
+                </div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {Number(token1Amount).toFixed(6)}
+                </span>
+              </div>
             </div>
           </div>
 

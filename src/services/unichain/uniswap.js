@@ -1461,4 +1461,70 @@ export class UnichainUniswapService {
       return null;
     }
   }
+
+  // Add removeLiquidity function
+  async removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to) {
+    try {
+      if (!this.router) await this.init();
+
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+
+      // Check if one of the tokens is WETH
+      const isTokenAWETH = tokenA.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+      const isTokenBWETH = tokenB.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+
+      console.log('Removing liquidity with params:', {
+        tokenA,
+        tokenB,
+        liquidity: liquidity.toString(),
+        amountAMin: amountAMin.toString(),
+        amountBMin: amountBMin.toString(),
+        to,
+        deadline: deadline.toString(),
+        isETHPair: isTokenAWETH || isTokenBWETH
+      });
+
+      let tx;
+      if (isTokenAWETH || isTokenBWETH) {
+        // Use removeLiquidityETH for ETH pairs
+        const token = isTokenAWETH ? tokenB : tokenA;
+        const amountTokenMin = isTokenAWETH ? amountBMin : amountAMin;
+        const amountETHMin = isTokenAWETH ? amountAMin : amountBMin;
+
+        tx = await this.router.removeLiquidityETH(
+          token,
+          liquidity,
+          amountTokenMin,
+          amountETHMin,
+          to,
+          deadline,
+          {
+            gasLimit: ethers.getBigInt(1000000)
+          }
+        );
+      } else {
+        // Use regular removeLiquidity for token-token pairs
+        tx = await this.router.removeLiquidity(
+          tokenA,
+          tokenB,
+          liquidity,
+          amountAMin,
+          amountBMin,
+          to,
+          deadline,
+          {
+            gasLimit: ethers.getBigInt(1000000)
+          }
+        );
+      }
+
+      console.log('Transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+      return receipt;
+    } catch (error) {
+      console.error('Error in removeLiquidity:', error);
+      throw error;
+    }
+  }
 } 
