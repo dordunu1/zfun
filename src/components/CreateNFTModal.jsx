@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog } from '@headlessui/react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
 import { BiX, BiImageAdd, BiChevronLeft, BiUpload, BiDownload, BiChevronDown, BiWallet, BiVideo, BiListUl, BiTrash } from 'react-icons/bi';
 import { FaEthereum, FaFileExcel, FaFileCsv, FaFileCode, FaTelegram, FaTwitter, FaDiscord } from 'react-icons/fa';
 import { BiWorld } from 'react-icons/bi';
@@ -21,6 +21,309 @@ import { NFTCollectionABI } from '../abi/NFTCollection';
 import * as XLSX from 'xlsx';
 import { createPortal } from 'react-dom';
 import Papa from 'papaparse';
+import Confetti from 'react-confetti';
+
+// Add required keyframe animations at the top of the file
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+  @keyframes shake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-2px);
+    }
+    75% {
+      transform: translateX(2px);
+    }
+  }
+`;
+document.head.appendChild(style);
+
+// Icons for NFT creation progress modal
+const Icons = {
+  Preparing: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" style={{ animation: 'rotate 2s linear infinite' }}>
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite' }} />
+        <path d="M7.75 7.75l1.5 1.5m5.5 5.5l1.5 1.5m0-8.5l-1.5 1.5m-5.5 5.5l-1.5 1.5" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite', animationDelay: '0.2s' }} />
+      </g>
+    </svg>
+  ),
+  UploadingMetadata: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 18V8m0 0l-4 4m4-4l4 4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'bounce 1s ease-in-out infinite' }} />
+        <path d="M8 18h8" strokeLinecap="round" style={{ animation: 'fadeIn 1s ease-in-out infinite', animationDelay: '0.5s' }} />
+      </g>
+    </svg>
+  ),
+  CreatingCollection: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M7 8h10M7 12h10M7 16h10" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite' }} />
+        <path d="M12 6v12" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite', animationDelay: '0.5s' }} />
+        <path d="M9 6l6 12M15 6l-6 12" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite', animationDelay: '1s' }} />
+        <circle cx="12" cy="12" r="3" style={{ animation: 'rotate 4s linear infinite' }} />
+      </g>
+    </svg>
+  ),
+  SettingWhitelist: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 8v8" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite' }} />
+        <path d="M8 12h8" strokeLinecap="round" style={{ animation: 'draw 2s ease-in-out infinite', animationDelay: '0.3s' }} />
+        <path d="M7 7l2 2 2-2M13 15l2 2 2-2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'bounce 2s ease-in-out infinite', animationDelay: '0.6s' }} />
+      </g>
+    </svg>
+  ),
+  Completed: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="animate-[fadeIn_0.5s_ease-in-out]" />
+        <path d="M8 12l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_0.5s_ease-in-out_forwards]" style={{ strokeDasharray: 20, strokeDashoffset: 20 }} />
+      </g>
+    </svg>
+  ),
+  Error: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor" style={{ animation: 'shake 0.5s ease-in-out' }}>
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="text-red-500" />
+        <path d="M12 8v5" strokeLinecap="round" className="text-red-500" />
+        <path d="M12 16v.01" strokeLinecap="round" className="text-red-500" />
+      </g>
+    </svg>
+  )
+};
+
+// Progress Modal Component
+const ProgressModal = ({ isOpen, onClose, currentStep, collectionName, error }) => {
+  const steps = [
+    { key: 'preparing', label: 'Preparing Transaction', icon: Icons.Preparing },
+    { key: 'uploading', label: 'Uploading Metadata', icon: Icons.UploadingMetadata },
+    { key: 'creating', label: 'Creating Collection', icon: Icons.CreatingCollection },
+    { key: 'whitelist', label: 'Setting Whitelist', icon: Icons.SettingWhitelist },
+    { key: 'completed', label: 'Collection Created Successfully', icon: Icons.Completed }
+  ];
+
+  const currentStepIndex = steps.findIndex(step => step.key === currentStep);
+  const isError = Boolean(error);
+
+  // Format error message to be more user-friendly
+  const formatErrorMessage = (error) => {
+    if (error?.includes('user rejected action')) {
+      return 'Transaction was rejected. Please try again.';
+    }
+    if (error?.includes('insufficient funds')) {
+      return 'Insufficient funds to complete the transaction.';
+    }
+    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+  };
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                  {isError ? 'Error Creating Collection' : 'Creating NFT Collection'}
+                  {collectionName && !isError && (
+                    <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
+                      {collectionName}
+                    </div>
+                  )}
+                </Dialog.Title>
+                <div className="space-y-4">
+                  {steps.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = index === currentStepIndex;
+                    const isCompleted = !isError && index < currentStepIndex;
+                    const isErrorStep = isError && index === currentStepIndex;
+
+                    return (
+                      <div
+                        key={step.key}
+                        className={clsx(
+                          'flex items-center gap-3 p-3 rounded-xl transition-colors',
+                          {
+                            'bg-[#00ffbd]/10 text-[#00ffbd]': isActive && !isErrorStep,
+                            'text-[#00ffbd]': isCompleted,
+                            'bg-red-500/10 text-red-500': isErrorStep,
+                            'text-gray-400': !isActive && !isCompleted && !isErrorStep
+                          }
+                        )}
+                      >
+                        <Icon />
+                        <div className="flex-1">
+                          <span className="font-medium text-gray-900 dark:text-white">{step.label}</span>
+                          {isActive && step.key === 'creating' && !isError && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              Creating collection {collectionName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {isError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-start gap-3">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
+                        <p className="mt-1 text-sm text-red-400">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {currentStep === 'completed' && (
+                  <div className="mt-6 text-center">
+                    <p className="text-[#00ffbd] font-medium">Collection created successfully!</p>
+                  </div>
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+// Star Rating Modal Component
+const StarRatingModal = ({ isOpen, onClose, onRate }) => {
+  const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white text-center mb-4">
+                  Rate Your Experience
+                </Dialog.Title>
+                <div className="flex justify-center gap-2 mb-6">
+                  {[...Array(9)].map((_, index) => (
+                    <button
+                      key={index}
+                      onMouseEnter={() => setHoveredRating(index + 1)}
+                      onMouseLeave={() => setHoveredRating(0)}
+                      onClick={() => {
+                        setRating(index + 1);
+                        onRate(index + 1);
+                        onClose();
+                      }}
+                      className="focus:outline-none"
+                    >
+                      <svg
+                        className={`w-8 h-8 transition-colors ${
+                          index + 1 <= (hoveredRating || rating) ? 'text-[#00ffbd]' : 'text-gray-300 dark:text-gray-600'
+                        }`}
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
 
 const STEPS = [
   { id: 'type', title: 'Collection Type' },
@@ -236,6 +539,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   const [currentStep, setCurrentStep] = useState('type');
   const [newAddress, setNewAddress] = useState('');
   const [currentChainId, setCurrentChainId] = useState(null);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressStep, setProgressStep] = useState(null);
+  const [progressError, setProgressError] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
   const [formData, setFormData] = useState({
     type: '', // ERC721 or ERC1155
     name: '',
@@ -385,11 +697,14 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
       // Validate form data
       if (!formData.type || !formData.name || !formData.symbol || !formData.artwork) {
-        toast.error('Please fill in all required fields');
+        setProgressStep('error');
+        setProgressError('Please fill in all required fields');
         return;
       }
 
-      toast.loading('Creating your collection...', { id: 'create' });
+      setShowProgressModal(true);
+      setProgressStep('preparing');
+      setProgressError(null);
 
       // Initialize provider and signer
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -399,140 +714,169 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       
       const factoryAddress = NFT_CONTRACTS[networkChainId]?.NFT_FACTORY;
       if (!factoryAddress) {
-        toast.error('Unsupported network');
+        setProgressStep('error');
+        setProgressError('Unsupported network');
         return;
       }
 
       // Calculate fee based on network
       const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
 
-      // Step 1: Upload metadata
-      toast.loading('1/3 - Uploading metadata...', { id: 'create' });
-      const { metadataUrl, imageHttpUrl, imageIpfsUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
+      try {
+        // Step 1: Upload metadata
+        setProgressStep('uploading');
+        const { metadataUrl, imageHttpUrl, imageIpfsUrl } = await prepareAndUploadMetadata(formData, formData.artwork);
 
-      // Step 2: Create collection
-      toast.loading('2/3 - Creating collection...', { id: 'create' });
-      const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
+        // Step 2: Create collection
+        setProgressStep('creating');
+        const factory = new ethers.Contract(factoryAddress, NFTFactoryABI, signer2);
 
-      const paymentTokenAddress = getPaymentToken(networkChainId);
-      console.log('Payment Token being set:', {
-        type: formData.mintingToken,
-        address: paymentTokenAddress,
-        customAddress: formData.customTokenAddress
-      });
+        const paymentTokenAddress = getPaymentToken(networkChainId);
+        console.log('Payment Token being set:', {
+          type: formData.mintingToken,
+          address: paymentTokenAddress,
+          customAddress: formData.customTokenAddress
+        });
 
-      // For whitelist collections, set a high maxPerWallet in the contract config
-      // since we'll control individual limits through the whitelist
-      const maxPerWallet = formData.enableWhitelist 
-        ? BigInt(1000000) // High number to effectively remove the general limit
-        : BigInt(formData.maxPerWallet || 1);
+        // For whitelist collections, set a high maxPerWallet in the contract config
+        // since we'll control individual limits through the whitelist
+        const maxPerWallet = formData.enableWhitelist 
+          ? BigInt(1000000) // High number to effectively remove the general limit
+          : BigInt(formData.maxPerWallet || 1);
 
-      const tx = await factory.createNFTCollection(
-        {
-          collectionType: formData.type === 'ERC721' ? 'ERC721' : 'ERC1155',
-          name: formData.name,
-          symbol: formData.symbol,
-          metadataURI: 'ipfs://', // Set base URI as ipfs:// protocol
-          maxSupply: BigInt(formData.maxSupply || 10000),
-          mintPrice: parseEther(formData.mintPrice || '0'),
-          maxPerWallet: maxPerWallet,
-          releaseDate: BigInt(formData.releaseDate ? Math.floor(new Date(formData.releaseDate).getTime() / 1000) : Math.floor(Date.now() / 1000)),
-          mintEndDate: BigInt(formData.mintEndDate ? Math.floor(new Date(formData.mintEndDate).getTime() / 1000) : 0),
-          infiniteMint: Boolean(formData.infiniteMint),
-          paymentToken: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
-            formData.mintingToken === 'custom' ? formData.customTokenAddress :
-            paymentTokenAddress || '0x0000000000000000000000000000000000000000',
-          enableWhitelist: Boolean(formData.enableWhitelist),
-          royaltyReceiver: formData.royaltyReceiver || account,
-          royaltyFeeNumerator: BigInt(formData.royaltyFeeNumerator || 0)
-        },
-        { value: fee }
-      );
-
-      toast.loading('2/3 - Confirming transaction...', { id: 'create' });
-      const receipt = await tx.wait();
-
-      // Get collection address from events
-      let collectionAddress;
-      const creationEvent = receipt.logs.find(log => 
-        log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'
-      );
-
-      if (creationEvent) {
-        const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
-          ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
-          creationEvent.data
+        const tx = await factory.createNFTCollection(
+          {
+            collectionType: formData.type === 'ERC721' ? 'ERC721' : 'ERC1155',
+            name: formData.name,
+            symbol: formData.symbol,
+            metadataURI: 'ipfs://', // Set base URI as ipfs:// protocol
+            maxSupply: BigInt(formData.maxSupply || 10000),
+            mintPrice: parseEther(formData.mintPrice || '0'),
+            maxPerWallet: maxPerWallet,
+            releaseDate: BigInt(formData.releaseDate ? Math.floor(new Date(formData.releaseDate).getTime() / 1000) : Math.floor(Date.now() / 1000)),
+            mintEndDate: BigInt(formData.mintEndDate ? Math.floor(new Date(formData.mintEndDate).getTime() / 1000) : 0),
+            infiniteMint: Boolean(formData.infiniteMint),
+            paymentToken: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
+              formData.mintingToken === 'custom' ? formData.customTokenAddress :
+              paymentTokenAddress || '0x0000000000000000000000000000000000000000',
+            enableWhitelist: Boolean(formData.enableWhitelist),
+            royaltyReceiver: formData.royaltyReceiver || account,
+            royaltyFeeNumerator: BigInt(formData.royaltyFeeNumerator || 0)
+          },
+          { value: fee }
         );
-        collectionAddress = decodedData[0].collection;
-      }
 
-      if (!collectionAddress) {
-        const initializedEvent = receipt.logs.find(log => 
-          log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
+        const receipt = await tx.wait();
+
+        // Get collection address from events
+        let collectionAddress;
+        const creationEvent = receipt.logs.find(log => 
+          log.topics[0] === '0xaf1866185e64615f1cfc5b81e7bf1ff8beafdc402920eb36641743d8fe5f7757'
         );
-        collectionAddress = initializedEvent?.address;
-      }
 
-      if (!collectionAddress) {
-        throw new Error('Failed to get collection address from transaction');
-      }
+        if (creationEvent) {
+          const decodedData = ethers.AbiCoder.defaultAbiCoder().decode(
+            ['tuple(address creator, address collection, string collectionType, string name, string symbol, uint256 maxSupply, uint256 mintPrice, uint256 maxPerWallet, uint256 releaseDate, uint256 mintEndDate, bool infiniteMint)'],
+            creationEvent.data
+          );
+          collectionAddress = decodedData[0].collection;
+        }
 
-      // Step 3: Set whitelist if enabled
-      if (formData.enableWhitelist && formData.whitelistAddresses.length > 0) {
-        toast.loading('3/3 - Setting whitelist...', { id: 'create' });
-        const nftContract = new ethers.Contract(
-          collectionAddress,
-          NFTCollectionABI.ERC721,
-          signer2
-        );
+        if (!collectionAddress) {
+          const initializedEvent = receipt.logs.find(log => 
+            log.topics[0] === '0x82dfd53401a55bb491abcb3e7a97c99da1ed7eaffd89721d3e96e8e8ad4a692d'
+          );
+          collectionAddress = initializedEvent?.address;
+        }
+
+        if (!collectionAddress) {
+          setProgressStep('error');
+          setProgressError('Failed to get collection address from transaction');
+          return;
+        }
+
+        // Step 3: Set whitelist if enabled
+        if (formData.enableWhitelist && formData.whitelistAddresses.length > 0) {
+          setProgressStep('whitelist');
+          const nftContract = new ethers.Contract(
+            collectionAddress,
+            NFTCollectionABI.ERC721,
+            signer2
+          );
+          
+          // Convert addresses and limits to separate arrays
+          const addresses = formData.whitelistAddresses.map(item => 
+            typeof item === 'string' ? item : item.address
+          );
+          const limits = formData.whitelistAddresses.map(item => 
+            typeof item === 'string' ? BigInt(1) : BigInt(item.maxMint)
+          );
+          
+          const whitelistTx = await nftContract.setWhitelist(addresses, limits);
+          await whitelistTx.wait();
+        }
+
+        // Save collection data
+        const collectionData = {
+          ...formData,
+          contractAddress: collectionAddress,
+          network: networkChainId === 1301 ? 'unichain' : networkChainId === 137 ? 'polygon' : 'sepolia',
+          chainId: networkChainId,
+          previewUrl: imageHttpUrl,
+          imageIpfsUrl: imageIpfsUrl,
+          metadataUrl: metadataUrl,
+          mintToken: {
+            type: formData.mintingToken || 'native',
+            symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
+                    formData.mintingToken === 'usdt' ? 'USDT' : 
+                    formData.mintingToken === 'custom' ? formData.customTokenSymbol :
+                    formData.mintingToken === 'native' ? (networkChainId === 137 ? 'MATIC' : 'ETH') :
+                    networkChainId === 137 ? 'MATIC' : 'ETH',
+            address: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
+                    formData.mintingToken === 'custom' ? formData.customTokenAddress :
+                    paymentTokenAddress || '0x0000000000000000000000000000000000000000'
+          },
+          whitelistAddresses: formData.whitelistAddresses,
+          createdAt: Date.now(),
+          totalMinted: 0,
+          creatorAddress: account.toLowerCase()
+        };
+
+        await saveCollection(collectionData);
         
-        // Convert addresses and limits to separate arrays
-        const addresses = formData.whitelistAddresses.map(item => 
-          typeof item === 'string' ? item : item.address
-        );
-        const limits = formData.whitelistAddresses.map(item => 
-          typeof item === 'string' ? BigInt(1) : BigInt(item.maxMint)
-        );
-        
-        const whitelistTx = await nftContract.setWhitelist(addresses, limits);
-        await whitelistTx.wait();
+        // Show completed state and trigger confetti
+        setProgressStep('completed');
+        setShowConfetti(true);
+
+        // Close progress modal and show rating after a delay
+        setTimeout(() => {
+          setShowProgressModal(false);
+          setProgressStep(null);
+          setProgressError(null);
+          
+          // Show rating modal after a short delay
+          setTimeout(() => {
+            setShowRatingModal(true);
+          }, 1000);
+          
+          // Cleanup confetti after some time
+          setTimeout(() => {
+            setShowConfetti(false);
+          }, 30000);
+        }, 2000);
+
+        onClose();
+        navigate(`/collection/${formData.symbol}`);
+
+      } catch (error) {
+        console.error('Error in collection creation process:', error);
+        setProgressStep('error');
+        setProgressError(error.message || 'Failed to create collection. Please try again.');
       }
-
-      // Save collection data
-      const collectionData = {
-        ...formData,
-        contractAddress: collectionAddress,
-        network: networkChainId === 1301 ? 'unichain' : networkChainId === 137 ? 'polygon' : 'sepolia',
-        chainId: networkChainId,
-        previewUrl: imageHttpUrl,
-        imageIpfsUrl: imageIpfsUrl, // Store the actual image IPFS URL
-        metadataUrl: metadataUrl,   // Store the metadata URL separately
-        mintToken: {
-          type: formData.mintingToken || 'native',
-          symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
-                  formData.mintingToken === 'usdt' ? 'USDT' : 
-                  formData.mintingToken === 'custom' ? formData.customTokenSymbol :
-                  formData.mintingToken === 'native' ? (networkChainId === 137 ? 'MATIC' : 'ETH') :
-                  networkChainId === 137 ? 'MATIC' : 'ETH',
-          address: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
-                  formData.mintingToken === 'custom' ? formData.customTokenAddress :
-                  paymentTokenAddress || '0x0000000000000000000000000000000000000000'
-        },
-        whitelistAddresses: formData.whitelistAddresses,
-        createdAt: Date.now(),
-        totalMinted: 0,
-        creatorAddress: account.toLowerCase()
-      };
-
-      await saveCollection(collectionData);
-      
-      toast.success('Collection created successfully!', { id: 'create' });
-      onClose();
-      navigate(`/collection/${formData.symbol}`);
-
     } catch (error) {
-      console.error('Error creating collection:', error);
-      toast.error('Failed to create collection. Please check the console for details.', { id: 'create' });
+      console.error('Error in form submission:', error);
+      setProgressStep('error');
+      setProgressError('Failed to start collection creation. Please check your inputs and try again.');
     }
   };
 
@@ -1734,6 +2078,19 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
   };
 
+  // Add window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Add the modal to the main render
   return (
     <>
@@ -1834,6 +2191,45 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         addresses={formData.whitelistAddresses}
         onRemoveAddress={handleRemoveAddress}
         onUpdateAddress={handleUpdateWhitelist}
+      />
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          numberOfPieces={200}
+          recycle={false}
+          gravity={0.2}
+          initialVelocityX={10}
+          initialVelocityY={10}
+          colors={['#00ffbd', '#00e6a9', '#00cc95', '#00b381', '#00996d']}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 99999,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+      <ProgressModal
+        isOpen={showProgressModal}
+        onClose={() => {
+          setShowProgressModal(false);
+          setProgressStep(null);
+        }}
+        currentStep={progressStep}
+        collectionName={formData.name}
+        error={progressError}
+      />
+      <StarRatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onRate={(rating) => {
+          console.log('User rated NFT creation:', rating);
+          // Here you can implement the logic to save the rating
+        }}
       />
     </>
   );
