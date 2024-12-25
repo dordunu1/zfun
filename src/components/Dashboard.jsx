@@ -13,9 +13,9 @@ export default function Dashboard() {
   const { prices } = useTokenPrices();
   const uniswap = useUniswap();
   const [poolStats, setPoolStats] = useState({
-    volume24h: 0,
-    liquidity: 0,
-    holders: 0
+    volume24h: 369,
+    liquidity: 639,
+    holders: 420,
   });
   const [loading, setLoading] = useState(true);
 
