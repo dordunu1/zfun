@@ -31,7 +31,7 @@ const COMMON_TOKENS = [
     logo: '/eth.png'
   },
   {
-    address: UNISWAP_ADDRESSES.USDC,
+    address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
     symbol: 'USDC',
     name: 'USD Coin',
     decimals: 6,
@@ -75,49 +75,54 @@ function TokenRow({ token, userAddress, onSelect, isSelected }) {
 
       try {
         setIsLoadingBalance(true);
-        // Use the connected wallet provider
-        const provider = window.ethereum;
+        const provider = new ethers.BrowserProvider(window.ethereum);
         let rawBalance, decimals;
 
         if (token.address === 'ETH') {
           // Get ETH balance
-          rawBalance = await provider.request({
-            method: 'eth_getBalance',
-            params: [userAddress, 'latest']
-          });
+          rawBalance = await provider.getBalance(userAddress);
           decimals = 18;
         } else {
+          // Create contract instance
+          const contract = new ethers.Contract(
+            token.address,
+            [
+              'function balanceOf(address) view returns (uint256)',
+              'function decimals() view returns (uint8)'
+            ],
+            provider
+          );
+
           try {
-            // Get token balance using the wallet's provider
-            const data = ethers.AbiCoder.defaultAbiCoder().encode(
+            // Get both balance and decimals in parallel
+            [rawBalance, decimals] = await Promise.all([
+              contract.balanceOf(userAddress),
+              contract.decimals().catch(() => token.decimals || 18)
+            ]);
+          } catch (error) {
+            console.error(`Contract call failed for ${token.symbol}:`, error);
+            // Fallback to direct RPC calls if contract calls fail
+            const balanceData = ethers.AbiCoder.defaultAbiCoder().encode(
               ['address'],
               [userAddress]
             ).slice(2);
 
-            const balanceHex = await provider.request({
-              method: 'eth_call',
-              params: [{
-                to: token.address,
-                data: '0x70a08231' + data // balanceOf(address)
-              }, 'latest']
+            const balanceHex = await provider.call({
+              to: token.address,
+              data: '0x70a08231' + balanceData // balanceOf(address)
             });
 
-            rawBalance = balanceHex;
-            decimals = token.decimals || 18;
-          } catch (error) {
-            console.log(`Balance check failed for token ${token.symbol}:`, error);
-            // Don't return, let it show 0 balance
-            rawBalance = '0x0';
+            rawBalance = ethers.getBigInt(balanceHex);
             decimals = token.decimals || 18;
           }
         }
 
-        // Convert the hex balance to a number
-        const balance = ethers.getBigInt(rawBalance || '0x0');
-        const formatted = Number(ethers.formatUnits(balance, decimals));
+        // Format the balance with proper decimals
+        const formatted = Number(ethers.formatUnits(rawBalance, decimals));
         const displayBalance = new Intl.NumberFormat('en-US', {
           minimumFractionDigits: 0,
-          maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6
+          maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6,
+          useGrouping: true
         }).format(formatted);
 
         setBalance(displayBalance);
@@ -190,36 +195,170 @@ function TokenRow({ token, userAddress, onSelect, isSelected }) {
   );
 }
 
+const scanForTokens = async (provider, userAddress) => {
+  try {
+    // Create a list of known token addresses to scan
+    const knownTokens = [
+      '0x31d0220469e10c4E71834a79b1f276d740d3768F', // USDC
+      UNISWAP_ADDRESSES.WETH,
+      UNISWAP_ADDRESSES.USDT,
+      // Add any other known token addresses here
+    ];
+
+    // Fetch tokens from Blockscout API
+    const apiTokens = await fetch(`https://unichain-sepolia.blockscout.com/api/v2/addresses/${userAddress}/token-balances`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      }
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`API request failed with status ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(async (tokens) => {
+        // Filter out non-ERC20 tokens, LP tokens, and map to our format
+        const erc20Tokens = tokens
+          .filter(item => {
+            // Check if it's an ERC-20 token and has required fields
+            const isERC20 = item.token?.type === 'ERC-20' && item.value && item.token.address;
+            
+            // Check if it's not a LP token (exclude UNI-V2 tokens)
+            const isNotLPToken = item.token?.symbol !== 'UNI-V2' && 
+                               !item.token?.name?.includes('Uniswap V2') &&
+                               !item.token?.symbol?.includes('UNI-V2') &&
+                               !item.token?.symbol?.includes('LP');
+            
+            return isERC20 && isNotLPToken;
+          })
+          .map(item => ({
+            address: item.token.address,
+            symbol: item.token.symbol || 'Unknown',
+            name: item.token.name || 'Unknown Token',
+            decimals: parseInt(item.token.decimals || '18'),
+            balance: item.value,
+            verified: true,
+            totalSupply: item.token.total_supply,
+            holders: item.token.holders
+          }));
+
+        console.log('Blockscout API tokens (excluding LP tokens):', erc20Tokens);
+        return erc20Tokens;
+      })
+      .catch(error => {
+        console.error('Error fetching tokens from Blockscout API:', error);
+        return [];
+      });
+
+    // Also scan known tokens in case they're not in the API response
+    const contractScannedTokens = await Promise.all(
+      knownTokens
+        .filter(addr => !apiTokens.some(t => t.address?.toLowerCase() === addr.toLowerCase()))
+        .map(async (tokenAddress) => {
+          try {
+            const contract = new ethers.Contract(
+              tokenAddress,
+              [
+                'function balanceOf(address) view returns (uint256)',
+                'function symbol() view returns (string)',
+                'function name() view returns (string)',
+                'function decimals() view returns (uint8)',
+                'function totalSupply() view returns (uint256)'
+              ],
+              provider
+            );
+
+            const [balance, symbol, name, decimals, totalSupply] = await Promise.all([
+              contract.balanceOf(userAddress),
+              contract.symbol().catch(() => 'Unknown'),
+              contract.name().catch(() => 'Unknown Token'),
+              contract.decimals().catch(() => 18),
+              contract.totalSupply().catch(() => '0')
+            ]);
+
+            // Only include tokens with non-zero balance and exclude LP tokens
+            const isNotLPToken = 
+              symbol !== 'UNI-V2' && 
+              !name?.includes('Uniswap V2') &&
+              !symbol?.includes('UNI-V2') &&
+              !symbol?.includes('LP');
+
+            if (balance > 0n && isNotLPToken) {
+              return {
+                address: tokenAddress,
+                symbol,
+                name,
+                decimals,
+                balance: balance.toString(),
+                totalSupply: totalSupply.toString(),
+                verified: true
+              };
+            }
+            return null;
+          } catch (error) {
+            console.error(`Error scanning token ${tokenAddress}:`, error);
+            return null;
+          }
+        })
+    );
+
+    // Combine both sources of tokens and remove duplicates
+    const allTokens = [...apiTokens, ...contractScannedTokens.filter(t => t !== null)];
+    
+    // Log the tokens found for debugging
+    console.log('API Tokens found:', apiTokens);
+    console.log('Contract scanned tokens found:', contractScannedTokens);
+    
+    const uniqueTokens = Array.from(
+      new Map(allTokens.map(token => [token.address?.toLowerCase(), token]))
+        .values()
+    ).filter(token => token && token.address);
+
+    console.log('Final unique tokens:', uniqueTokens);
+    
+    return uniqueTokens;
+  } catch (error) {
+    console.error('Error scanning for tokens:', error);
+    return [];
+  }
+};
+
 const getWalletTokens = async (provider, userAddress) => {
   try {
-    // Get tokens directly from the wallet
-    const tokens = await provider.request({
-      method: 'eth_accounts'
-    }).then(async (accounts) => {
-      if (accounts.length === 0) return [];
-
-      // Get token balances
-      const tokenBalances = await provider.request({
+    const ethersProvider = new ethers.BrowserProvider(provider);
+    
+    // Get tokens from wallet and from scanning
+    const [walletTokens, scannedTokens] = await Promise.all([
+      provider.request({
         method: 'wallet_getPermissions'
       }).then(permissions => {
         const tokenPermission = permissions.find(p => p.parentCapability === 'eth_accounts');
         return tokenPermission?.caveats?.[0]?.value || [];
-      });
+      }).catch(() => []),
+      scanForTokens(ethersProvider, userAddress)
+    ]);
 
-      // Format tokens properly
-      return (tokenBalances || [])
-        .filter(token => token && typeof token === 'object')
-        .map(token => ({
-          address: token.address || '',
-          symbol: token.symbol || 'Unknown',
-          name: token.name || 'Unknown Token',
-          decimals: token.decimals || 18,
-          logo: token.logo || '/token-default.png',
-          verified: true
-        }));
-    });
+    // Combine and format tokens
+    const formattedWalletTokens = (walletTokens || [])
+      .filter(token => token && typeof token === 'object')
+      .map(token => ({
+        address: token.address || '',
+        symbol: token.symbol || 'Unknown',
+        name: token.name || 'Unknown Token',
+        decimals: token.decimals || 18,
+        logo: token.logo || '/token-default.png',
+        verified: true
+      }));
 
-    return tokens.filter(token => token && token.address);
+    // Combine tokens and remove duplicates
+    const allTokens = [...formattedWalletTokens, ...scannedTokens];
+    const uniqueTokens = Array.from(new Map(
+      allTokens.map(token => [token.address.toLowerCase(), token])
+    ).values());
+
+    return uniqueTokens.filter(token => token && token.address);
   } catch (error) {
     console.error('Error getting wallet tokens:', error);
     return [];
