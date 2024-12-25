@@ -15,7 +15,7 @@ import {
   FaTwitter,
   FaChartBar 
 } from 'react-icons/fa';
-import { BiHome, BiCollection, BiHistory, BiHomeAlt } from 'react-icons/bi';
+import { BiHome, BiCollection, BiHistory, BiHomeAlt, BiCoin } from 'react-icons/bi';
 import { AiOutlinePlus } from 'react-icons/ai'
 import { BsCollection, BsClockHistory } from 'react-icons/bs'
 import { HiOutlineHome } from 'react-icons/hi'
@@ -31,8 +31,9 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   const isActive = (path) => location.pathname === path;
 
   const menuItems = [
+    // Primary Actions Group
     {
-      icon: AiOutlinePlus,
+      icon: BiCoin,
       label: 'Create Token',
       action: onOpenModal,
       primary: true,
@@ -42,6 +43,9 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       label: 'Create NFT',
       action: onOpenNFTModal,
     },
+    // Divider
+    { type: 'divider' },
+    // Main Navigation Group
     {
       icon: HiOutlineHome,
       label: 'Dashboard',
@@ -55,19 +59,9 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       isRouterLink: true,
       noDefaultHighlight: true,
     },
-    {
-      icon: RiUserLine,
-      label: 'Account',
-      to: '/account',
-      isRouterLink: true,
-      noDefaultHighlight: true,
-    },
-    {
-      icon: TbChartCandle,
-      label: 'Trending Tokens',
-      to: '/trending',
-      isRouterLink: true,
-    },
+    // Divider
+    { type: 'divider' },
+    // Trading & Analytics Group
     {
       icon: FaChartLine,
       label: 'Trading',
@@ -75,10 +69,28 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       isRouterLink: true,
     },
     {
+      icon: TbChartCandle,
+      label: 'Trending Tokens',
+      to: '#',
+      isRouterLink: true,
+      comingSoon: true
+    },
+    {
       icon: BsClockHistory,
       label: 'Recent Tokens',
-      to: '/recent',
+      to: '#',
       isRouterLink: true,
+      comingSoon: true
+    },
+    // Divider
+    { type: 'divider' },
+    // User Section
+    {
+      icon: RiUserLine,
+      label: 'Account',
+      to: '/account',
+      isRouterLink: true,
+      noDefaultHighlight: true,
     },
     {
       icon: BiHistory,
@@ -96,10 +108,17 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   ];
 
   const renderMenuItem = (item, index) => {
-    const commonClasses = `w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200
+    // Handle divider
+    if (item.type === 'divider') {
+      return (
+        <div key={`divider-${index}`} className="my-2 border-b border-gray-200 dark:border-gray-800" />
+      );
+    }
+
+    const commonClasses = `w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 relative group
       ${item.primary 
         ? 'text-gray-800 dark:text-gray-200 hover:text-black dark:hover:text-black hover:bg-[#00ffbd] font-semibold' 
-        : `text-gray-800 dark:text-gray-200 hover:text-black dark:hover:text-black hover:bg-[#00ffbd] 
+        : `text-gray-800 dark:text-gray-200 ${!item.comingSoon ? 'hover:text-black dark:hover:text-black hover:bg-[#00ffbd]' : 'cursor-default opacity-50'} 
            ${item.isRouterLink && isActive(item.to) && !item.noDefaultHighlight ? 'text-[#00ffbd]' : ''}`}
       ${isCollapsed ? 'justify-center' : ''}
     `;
@@ -110,10 +129,16 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
           key={index}
           to={item.to}
           className={commonClasses}
+          onClick={item.comingSoon ? (e) => e.preventDefault() : undefined}
         >
           <item.icon size={20} className={`flex-shrink-0 ${item.isRouterLink && isActive(item.to) && !item.noDefaultHighlight ? 'text-[#00ffbd]' : ''}`} />
           {!isCollapsed && (
             <span className="truncate">{item.label}</span>
+          )}
+          {item.comingSoon && !isCollapsed && (
+            <span className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+              Coming Soon
+            </span>
           )}
         </Link>
       );
