@@ -13,6 +13,30 @@ import { Fragment } from 'react';
 import Confetti from 'react-confetti';
 import { FaStar } from 'react-icons/fa';
 
+// Add CSS keyframes at the top of the file
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes bounce {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(0.8);
+      opacity: 0.5;
+    }
+  }
+`;
+document.head.appendChild(style);
+
 // Common tokens with metadata
 const COMMON_TOKENS = [
   {
@@ -48,20 +72,11 @@ const COMMON_TOKENS = [
 // Replace the Icons object with modern DeFi-inspired icons
 const Icons = {
   Preparing: () => (
-    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" style={{ animation: 'rotate 2s linear infinite' }}>
       <g strokeWidth={1.5} stroke="currentColor">
-        <path className="animate-[spin_1s_linear_infinite]" 
-          d="M12 6v1M12 17v1M7.05 7.05l.707.707M16.243 16.243l.707.707M6 12h1M17 12h1M7.757 16.243l-.707.707M16.95 7.05l-.707.707">
-        </path>
-        <path 
-          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" 
-          strokeOpacity="0.2" 
-        />
-        <path 
-          d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2" 
-          strokeLinecap="round" 
-          className="origin-center animate-[spin_1.5s_linear_infinite]" 
-        />
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
+        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite' }} />
+        <path d="M7.75 7.75l1.5 1.5m5.5 5.5l1.5 1.5m0-8.5l-1.5 1.5m-5.5 5.5l-1.5 1.5" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite', animationDelay: '0.2s' }} />
       </g>
     </svg>
   ),
