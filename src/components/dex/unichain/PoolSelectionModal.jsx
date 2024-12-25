@@ -7,6 +7,67 @@ import { FaSearch } from 'react-icons/fa';
 import { getTokenLogo, getTokenMetadata } from '../../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 
+// Add common token list (we'll keep updating this)
+const COMMON_TOKENS = {
+  [UNISWAP_ADDRESSES.WETH.toLowerCase()]: {
+    name: 'Wrapped Ether',
+    symbol: 'WETH',
+    decimals: 18,
+    logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png'
+  },
+  [UNISWAP_ADDRESSES.USDT.toLowerCase()]: {
+    name: 'Tether USD',
+    symbol: 'USDT',
+    decimals: 6,
+    logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png'
+  },
+  // Add more common tokens as needed
+};
+
+// Enhanced token metadata fetcher
+const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
+  try {
+    // First check if it's a common token
+    const commonToken = COMMON_TOKENS[tokenAddress.toLowerCase()];
+    if (commonToken) {
+      return {
+        ...existingMetadata,
+        ...commonToken,
+        address: tokenAddress,
+        logoURI: commonToken.logoURI
+      };
+    }
+
+    // Try to get from Unichain scan API if available
+    try {
+      const response = await fetch(`https://api.unichainscanner.com/api/v1/tokens/${tokenAddress}`);
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          ...existingMetadata,
+          name: data.name,
+          symbol: data.symbol,
+          decimals: data.decimals,
+          logoURI: data.logo || getTokenLogo({ address: tokenAddress }),
+          address: tokenAddress
+        };
+      }
+    } catch (error) {
+      console.log('Unichain scan fetch failed, falling back to existing metadata');
+    }
+
+    // Fall back to existing metadata
+    return {
+      ...existingMetadata,
+      logoURI: getTokenLogo({ address: tokenAddress }),
+      address: tokenAddress
+    };
+  } catch (error) {
+    console.error('Error in enhanced token metadata:', error);
+    return existingMetadata;
+  }
+};
+
 export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   const uniswap = useUnichain();
   const { address } = useAccount();
@@ -19,9 +80,16 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   // Function to process pool data
   const processPoolData = async (pool) => {
     try {
-      const [token0Metadata, token1Metadata] = await Promise.all([
+      // Get basic metadata first using existing method
+      const [token0BasicMetadata, token1BasicMetadata] = await Promise.all([
         getTokenMetadata(pool.token0),
         getTokenMetadata(pool.token1)
+      ]);
+
+      // Enhance the metadata
+      const [token0Metadata, token1Metadata] = await Promise.all([
+        getEnhancedTokenMetadata(pool.token0, token0BasicMetadata),
+        getEnhancedTokenMetadata(pool.token1, token1BasicMetadata)
       ]);
 
       return {
@@ -175,8 +243,8 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                     <div className="flex items-center gap-3">
                       <div className="flex -space-x-3">
                         <img
-                          src={getTokenLogo(pool.token0)}
-                          alt={pool.token0?.symbol || 'ERC20 Token'}
+                          src={pool.token0?.logoURI || getTokenLogo(pool.token0)}
+                          alt={pool.token0?.symbol || 'Token'}
                           className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                           onError={(e) => {
                             e.target.onerror = null;
@@ -184,8 +252,8 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                           }}
                         />
                         <img
-                          src={getTokenLogo(pool.token1)}
-                          alt={pool.token1?.symbol || 'ERC20 Token'}
+                          src={pool.token1?.logoURI || getTokenLogo(pool.token1)}
+                          alt={pool.token1?.symbol || 'Token'}
                           className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                           onError={(e) => {
                             e.target.onerror = null;
@@ -194,7 +262,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                         />
                       </div>
                       <span className="font-medium text-gray-900 dark:text-white text-lg">
-                        {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
+                        {pool.token0?.symbol || 'Token'}/{pool.token1?.symbol || 'Token'}
                       </span>
                     </div>
                   </div>
@@ -202,7 +270,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {pool.token0?.symbol || 'ERC20 Token'} Reserves
+                        {pool.token0?.symbol || 'Token'} Reserves
                       </div>
                       <div className="text-base font-medium text-gray-900 dark:text-white">
                         {pool.reserves.reserve0Formatted}
@@ -210,7 +278,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {pool.token1?.symbol || 'ERC20 Token'} Reserves
+                        {pool.token1?.symbol || 'Token'} Reserves
                       </div>
                       <div className="text-base font-medium text-gray-900 dark:text-white">
                         {pool.reserves.reserve1Formatted}

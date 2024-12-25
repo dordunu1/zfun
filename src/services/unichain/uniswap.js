@@ -483,27 +483,44 @@ export class UnichainUniswapService {
   }
 
   // Add ETH liquidity
-  async addLiquidityETH(tokenAddress, amountToken, amountETH) {
+  async addLiquidityETH(tokenAddress, amountToken, amountETH, target) {
     try {
       if (!this.router) await this.init();
 
-      const account = await this.signer.getAddress();
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
 
-      // Approve token
+      // Approve token first
       await this.approveToken(tokenAddress, amountToken);
 
-      const tx = await this.router.addLiquidityETH(
+      // Calculate minimum amounts (1% slippage)
+      const amountTokenMin = (amountToken * 990n) / 1000n;
+      const amountETHMin = (amountETH * 990n) / 1000n;
+
+      console.log('Adding ETH liquidity with params:', {
         tokenAddress,
+        amountToken: amountToken.toString(),
+        amountETH: amountETH.toString(),
+        amountTokenMin: amountTokenMin.toString(),
+        amountETHMin: amountETHMin.toString(),
+        target,
+        deadline: deadline.toString()
+      });
+
+      // Replace WETH with actual token address if it's WETH
+      const actualTokenAddress = tokenAddress.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
+        ? UNISWAP_ADDRESSES.WETH 
+        : tokenAddress;
+
+      const tx = await this.router.addLiquidityETH(
+        actualTokenAddress,
         amountToken,
-        0, // amountTokenMin (allow for some slippage)
-        0, // amountETHMin (allow for some slippage)
-        account,
+        amountTokenMin,
+        amountETHMin,
+        target,
         deadline,
         {
           value: amountETH,
-          gasLimit: 500000,
-          type: 0 // Use legacy transaction type
+          gasLimit: ethers.getBigInt(1000000)
         }
       );
 
@@ -513,6 +530,61 @@ export class UnichainUniswapService {
       return receipt;
     } catch (error) {
       console.error('Error in addLiquidityETH:', error);
+      throw error;
+    }
+  }
+
+  // Add regular token-token liquidity
+  async addLiquidity(token0Address, token1Address, amount0, amount1, account) {
+    try {
+      if (!this.router) await this.init();
+
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+
+      // Approve both tokens
+      await Promise.all([
+        this.approveToken(token0Address, amount0),
+        this.approveToken(token1Address, amount1)
+      ]);
+
+      // Calculate minimum amounts (allow for some slippage)
+      const amount0Min = (amount0 * 990n) / 1000n; // 1% slippage
+      const amount1Min = (amount1 * 990n) / 1000n; // 1% slippage
+
+      console.log('Adding liquidity with params:', {
+        token0Address,
+        token1Address,
+        amount0: amount0.toString(),
+        amount1: amount1.toString(),
+        amount0Min: amount0Min.toString(),
+        amount1Min: amount1Min.toString(),
+        account,
+        deadline: deadline.toString()
+      });
+
+      // Get the signer's address if account is not provided
+      const target = account || await this.signer.getAddress();
+
+      const tx = await this.router.addLiquidity(
+        token0Address,
+        token1Address,
+        amount0,
+        amount1,
+        amount0Min,
+        amount1Min,
+        target,
+        deadline,
+        {
+          gasLimit: ethers.getBigInt(1000000)
+        }
+      );
+
+      console.log('Transaction sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
+      return receipt;
+    } catch (error) {
+      console.error('Error in addLiquidity:', error);
       throw error;
     }
   }

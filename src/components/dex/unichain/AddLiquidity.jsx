@@ -87,6 +87,25 @@ const TokenBalance = ({ token }) => {
   );
 };
 
+// Router ABI for the functions we need
+const ROUTER_ABI = [
+  'function addLiquidity(address tokenA, address tokenB, uint amountADesired, uint amountBDesired, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB, uint liquidity)',
+  'function addLiquidityETH(address token, uint amountTokenDesired, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external payable returns (uint amountToken, uint amountETH, uint liquidity)',
+  'function quote(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB)',
+  'function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) external view returns (uint amountOut)'
+];
+
+// Add PAIR_ABI at the top with other ABIs
+const PAIR_ABI = [
+  'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
+  'function token0() view returns (address)',
+  'function token1() view returns (address)'
+];
+
+const FACTORY_ABI = [
+  'function getPair(address tokenA, address tokenB) view returns (address)'
+];
+
 export default function AddLiquidity() {
   const { address } = useAccount();
   const uniswap = useUnichain();
@@ -185,107 +204,167 @@ export default function AddLiquidity() {
   };
 
   const handleAddLiquidity = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
-    if (!pool || !token0Amount || !token1Amount) {
-      toast.error('Please fill in all fields');
-      return;
-    }
+    if (!pool || !token0Amount || !token1Amount) return;
 
     setLoading(true);
     try {
-      // Parse amounts with proper decimals
-      const parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
-      const parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
-
-      // First ensure approvals are completed
+      // Get the provider and signer
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      
-      // Only approve if the token is not ETH
-      if (pool.token0.symbol !== 'ETH') {
-        const token0Contract = new ethers.Contract(pool.token0.address, [
-          'function allowance(address,address) view returns (uint256)',
-          'function approve(address,uint256) returns (bool)'
-        ], signer);
+      const account = await signer.getAddress();
 
-        // Check allowance
-        const allowance0 = await token0Contract.allowance(address, uniswap.router.address);
+      // Create router contract instance
+      const router = new ethers.Contract(
+        UNISWAP_ADDRESSES.router,
+        ROUTER_ABI,
+        signer
+      );
 
-        // Handle token0 approval if needed
-        if (allowance0 < parsedAmount0) {
+      // Create factory contract instance
+      const factory = new ethers.Contract(
+        UNISWAP_ADDRESSES.factory,
+        FACTORY_ABI,
+        provider
+      );
+
+      // Parse initial amounts
+      let parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
+      let parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
+      let token0Address = pool.token0.address;
+      let token1Address = pool.token1.address;
+
+      // Get pair address and check if it exists
+      const pairAddress = await factory.getPair(token0Address, token1Address);
+      console.log('Pair address:', pairAddress);
+
+      // If pair exists, adjust amounts based on reserves
+      if (pairAddress !== '0x0000000000000000000000000000000000000000') {
+        console.log('Pair exists, checking current pool ratio...');
+        const pairContract = new ethers.Contract(pairAddress, PAIR_ABI, provider);
+        const [reserve0, reserve1] = await pairContract.getReserves();
+        console.log('Current reserves:', {
+          reserve0: reserve0.toString(),
+          reserve1: reserve1.toString()
+        });
+
+        // Get actual token order in the pair
+        const token0InPair = await pairContract.token0();
+        
+        // Adjust amounts if token order is different
+        if (token0Address.toLowerCase() !== token0InPair.toLowerCase()) {
+          console.log('Token order swapped to match pair');
+          [parsedAmount0, parsedAmount1] = [parsedAmount1, parsedAmount0];
+          [token0Address, token1Address] = [token1Address, token0Address];
+        }
+
+        // Calculate the optimal ratio based on reserves
+        if (reserve0 > 0n && reserve1 > 0n) {
           try {
-            toast.loading('Approving ' + pool.token0.symbol + '...', { id: 'approve0' });
-            const approve0Tx = await token0Contract.approve(uniswap.router.address, ethers.MaxUint256);
-            await approve0Tx.wait();
-            toast.success(pool.token0.symbol + ' approved successfully', { id: 'approve0' });
+            // Use the router's quote function to get the exact amount needed
+            const quote = await router.quote(
+              parsedAmount0,
+              reserve0,
+              reserve1
+            );
+            
+            // If the quoted amount is significantly different, adjust amount1
+            const difference = (quote - parsedAmount1) * 100n / parsedAmount1;
+            if (difference > 5n || difference < -5n) {
+              parsedAmount1 = quote;
+              console.log('Adjusted amount1 based on pool ratio:', parsedAmount1.toString());
+            }
           } catch (error) {
-            toast.error('Failed to approve ' + pool.token0.symbol, { id: 'approve0' });
-            setLoading(false);
-            return;
+            console.error('Error getting quote:', error);
+            throw new Error('Failed to calculate optimal amounts for the pool ratio');
           }
         }
       }
 
-      // Only approve if the token is not ETH
-      if (pool.token1.symbol !== 'ETH') {
-        const token1Contract = new ethers.Contract(pool.token1.address, [
-          'function allowance(address,address) view returns (uint256)',
-          'function approve(address,uint256) returns (bool)'
-        ], signer);
+      // Calculate minimum amounts (1% slippage)
+      const amount0Min = (parsedAmount0 * 990n) / 1000n;
+      const amount1Min = (parsedAmount1 * 990n) / 1000n;
 
-        // Check allowance
-        const allowance1 = await token1Contract.allowance(address, uniswap.router.address);
+      // Calculate deadline (20 minutes from now)
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 
-        // Handle token1 approval if needed
-        if (allowance1 < parsedAmount1) {
-          try {
-            toast.loading('Approving ' + pool.token1.symbol + '...', { id: 'approve1' });
-            const approve1Tx = await token1Contract.approve(uniswap.router.address, ethers.MaxUint256);
-            await approve1Tx.wait();
-            toast.success(pool.token1.symbol + ' approved successfully', { id: 'approve1' });
-          } catch (error) {
-            toast.error('Failed to approve ' + pool.token1.symbol, { id: 'approve1' });
-            setLoading(false);
-            return;
-          }
-        }
-      }
+      // Check if either token is ETH/WETH
+      const isToken0WETH = token0Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() || pool.token0.symbol === 'ETH';
+      const isToken1WETH = token1Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() || pool.token1.symbol === 'ETH';
+      const isETHPair = isToken0WETH || isToken1WETH;
 
-      // Add liquidity
-      toast.loading('Adding liquidity...', { id: 'add-liquidity' });
+      let tx;
 
-      // Check if one of the tokens is ETH
-      const isToken0ETH = pool.token0.symbol === 'ETH';
-      const isToken1ETH = pool.token1.symbol === 'ETH';
+      if (isETHPair) {
+        // For ETH pairs, we need to handle the token order correctly
+        const tokenAddress = isToken0WETH ? token1Address : token0Address;
+        const ethAmount = isToken0WETH ? parsedAmount0 : parsedAmount1;
+        const tokenAmount = isToken0WETH ? parsedAmount1 : parsedAmount0;
+        const tokenAmountMin = isToken0WETH ? amount1Min : amount0Min;
+        const ethAmountMin = isToken0WETH ? amount0Min : amount1Min;
 
-      let receipt;
-      if (isToken0ETH || isToken1ETH) {
-        // Handle ETH pair
-        const tokenAddress = isToken0ETH ? pool.token1.address : pool.token0.address;
-        const tokenAmount = isToken0ETH ? parsedAmount1 : parsedAmount0;
-        const ethAmount = isToken0ETH ? parsedAmount0 : parsedAmount1;
+        // Only approve the token (not ETH)
+        await uniswap.approveToken(tokenAddress, tokenAmount);
 
-        receipt = await uniswap.addLiquidityETH(
+        console.log('Adding ETH liquidity with params:', {
+          tokenAddress,
+          tokenAmount: tokenAmount.toString(),
+          ethAmount: ethAmount.toString(),
+          tokenAmountMin: tokenAmountMin.toString(),
+          ethAmountMin: ethAmountMin.toString(),
+          account,
+          deadline: deadline.toString()
+        });
+
+        // Call addLiquidityETH
+        tx = await router.addLiquidityETH(
           tokenAddress,
           tokenAmount,
-          ethAmount,
-          address
+          tokenAmountMin,
+          ethAmountMin,
+          account,
+          deadline,
+          {
+            value: ethAmount,
+            gasLimit: ethers.getBigInt(1000000)
+          }
         );
       } else {
-        // Handle token-token pair
-        receipt = await uniswap.addLiquidity(
-          pool.token0.address,
-          pool.token1.address,
+        // Regular ERC20-ERC20 pair
+        // Approve both tokens first
+        await Promise.all([
+          uniswap.approveToken(token0Address, parsedAmount0),
+          uniswap.approveToken(token1Address, parsedAmount1)
+        ]);
+
+        console.log('Adding ERC20 liquidity with params:', {
+          token0: token0Address,
+          token1: token1Address,
+          amount0: parsedAmount0.toString(),
+          amount1: parsedAmount1.toString(),
+          amount0Min: amount0Min.toString(),
+          amount1Min: amount1Min.toString(),
+          account,
+          deadline: deadline.toString()
+        });
+
+        // Add liquidity for ERC20-ERC20 pair
+        tx = await router.addLiquidity(
+          token0Address,
+          token1Address,
           parsedAmount0,
           parsedAmount1,
-          address
+          amount0Min,
+          amount1Min,
+          account,
+          deadline,
+          {
+            gasLimit: ethers.getBigInt(1000000)
+          }
         );
       }
 
+      toast.loading('Adding liquidity...', { id: 'add-liquidity' });
+      const receipt = await tx.wait();
       console.log('Liquidity added:', receipt);
       toast.success('Liquidity added successfully!', { id: 'add-liquidity' });
 
@@ -296,14 +375,26 @@ export default function AddLiquidity() {
       setPool(prev => ({ ...prev, ...updatedPool }));
     } catch (error) {
       console.error('Add liquidity error:', error);
-      toast.error(
-        error.message.includes('insufficient')
-          ? 'Insufficient balance for transaction'
-          : error.message.includes('chain')
-          ? 'Please switch to a supported network'
-          : `Failed to add liquidity: ${error.message}`,
-        { id: 'add-liquidity' }
-      );
+      
+      // More detailed error handling
+      let errorMessage = 'Failed to add liquidity';
+      if (error.message.includes('insufficient')) {
+        errorMessage = 'Insufficient balance for transaction';
+      } else if (error.message.includes('chain')) {
+        errorMessage = 'Please switch to a supported network';
+      } else if (error.message.includes('INSUFFICIENT_A_AMOUNT')) {
+        errorMessage = 'Insufficient amount for token A';
+      } else if (error.message.includes('INSUFFICIENT_B_AMOUNT')) {
+        errorMessage = 'Insufficient amount for token B';
+      } else if (error.message.includes('K')) {
+        errorMessage = 'Price impact too high. Try a smaller amount or different ratio.';
+      } else if (error.message.includes('optimal amounts')) {
+        errorMessage = 'Failed to calculate optimal amounts. Try a different ratio.';
+      } else {
+        errorMessage = `Transaction failed: ${error.message}`;
+      }
+      
+      toast.error(errorMessage, { id: 'add-liquidity' });
     } finally {
       setLoading(false);
     }
