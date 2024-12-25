@@ -133,6 +133,11 @@ const Icons = {
         <path fill="currentColor" fillOpacity="0.2" d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
       </g>
     </svg>
+  ),
+  Error: () => (
+    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
   )
 };
 
@@ -255,14 +260,33 @@ const WrapIcons = {
 };
 
 // Add SwapProgressModal component
-const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, needsApproval }) => {
+const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, error }) => {
   const steps = [
     { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
-    ...(needsApproval ? [{ id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> }] : []),
+    { id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> },
     { id: 'swapping', title: 'Swapping', icon: <Icons.Swapping /> },
     { id: 'confirming', title: 'Confirming', icon: <Icons.Confirming /> },
     { id: 'completed', title: 'Completed', icon: <Icons.Completed /> }
   ];
+
+  const isError = Boolean(error);
+
+  // Format error message to be more user-friendly
+  const formatErrorMessage = (error) => {
+    if (error?.includes('user rejected')) {
+      return 'Transaction was rejected. Please try again.';
+    }
+    if (error?.includes('insufficient')) {
+      return 'Insufficient balance for swap.';
+    }
+    if (error?.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
+      return 'Price impact too high, try a smaller amount.';
+    }
+    if (error?.includes('EXCESSIVE_INPUT_AMOUNT')) {
+      return 'Insufficient liquidity for this trade.';
+    }
+    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+  };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -295,37 +319,34 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, ne
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  Swapping Tokens
+                  {isError ? 'Error Swapping Tokens' : 'Swapping Tokens'}
+                  {!isError && tokenIn && tokenOut && (
+                    <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
+                      {tokenIn.symbol} → {tokenOut.symbol}
+                    </div>
+                  )}
                 </Dialog.Title>
 
                 <div className="space-y-4">
                   {steps.map((step, index) => {
                     const isActive = currentStep === step.id;
-                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    const isCompleted = !isError && steps.findIndex(s => s.id === currentStep) > index;
+                    const isErrorStep = isError && currentStep === step.id;
                     
                     return (
                       <div
                         key={step.id}
-                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
-                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
-                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
-                          'bg-gray-50 dark:bg-gray-800/20'
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                          isActive && !isErrorStep ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 
+                          isCompleted ? 'text-[#00ffbd]' : 
+                          isErrorStep ? 'bg-red-500/10 text-red-500' : 
+                          'text-gray-400'
                         }`}
                       >
-                        <div 
-                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
-                            isActive ? 'text-[#00ffbd] animate-pulse' : 
-                            isCompleted ? 'text-[#00ffbd]' : 
-                            'text-gray-400 dark:text-gray-600'
-                          }`}
-                        >
-                          {step.icon}
-                        </div>
+                        {step.icon}
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 dark:text-white">
-                            {step.title}
-                          </h4>
-                          {isActive && (
+                          <span className="font-medium text-gray-900 dark:text-white">{step.title}</span>
+                          {isActive && !isError && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               {step.id === 'preparing' && 'Preparing transaction...'}
                               {step.id === 'approval' && `Approving ${tokenIn?.symbol}`}
@@ -344,6 +365,28 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, ne
                     );
                   })}
                 </div>
+
+                {isError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-start gap-3">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
+                        <p className="mt-1 text-sm text-red-400">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {currentStep === 'completed' && (
                   <div className="mt-6">
@@ -606,6 +649,7 @@ export default function TokenSwap() {
     height: window.innerHeight,
   });
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [swapError, setSwapError] = useState(null);
 
   // Add window resize handler
   useEffect(() => {
@@ -715,29 +759,47 @@ export default function TokenSwap() {
   };
 
   const handleSwap = async () => {
-    if (!address || !fromToken || !toToken || !fromAmount) return;
+    if (!address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
 
+    if (!fromToken || !toToken || !fromAmount) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (routeError) {
+      setShowProgressModal(true);
+      setSwapStep('preparing');
+      setSwapError('No valid route found for this swap. Please try a different amount or token pair.');
+      return;
+    }
+    
     setLoading(true);
     setShowProgressModal(true);
     setSwapStep('preparing');
-    
+    setSwapError(null);
+
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
-      // Parse amounts
-      const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
-      const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
-      
-      // Calculate slippage
-      const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100));
-      const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
-
       // Get the route path from updateRoute
       const { path } = await uniswap.updateRoute(fromToken, toToken, fromAmount);
       if (!path) {
         throw new Error('No valid route found');
       }
+
+      // Parse input amount with proper decimals
+      const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
+      
+      // Parse output amount with proper decimals (especially for USDC)
+      const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
+      
+      // Calculate slippage using user-defined slippage value
+      const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100)); // Convert percentage to basis points
+      const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
       let actualFromToken = fromToken;
       let actualPath = path;
@@ -758,7 +820,28 @@ export default function TokenSwap() {
         }
       }
 
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
+
+      // First approve if needed
+      if (actualFromToken.symbol !== 'ETH') {
+        setSwapStep('approval');
+        const tokenContract = new ethers.Contract(
+          actualFromToken.address,
+          [
+            'function approve(address spender, uint256 amount) external returns (bool)',
+            'function allowance(address owner, address spender) external view returns (uint256)'
+          ],
+          signer
+        );
+        
+        const allowance = await tokenContract.allowance(address, UNISWAP_ADDRESSES.router);
+        if (allowance < amountIn) {
+          console.log('Approving tokens...');
+          const approveTx = await tokenContract.approve(UNISWAP_ADDRESSES.router, amountIn);
+          await approveTx.wait();
+          console.log('Tokens approved');
+        }
+      }
 
       setSwapStep('swapping');
       const tx = await uniswap.swap(
@@ -770,48 +853,44 @@ export default function TokenSwap() {
         deadline
       );
 
-      // Start watching for confirmation
+      console.log('Swap transaction sent:', tx.hash);
       setSwapStep('confirming');
-      
-      // Wait for transaction confirmation
       const receipt = await tx.wait();
+      console.log('Swap receipt:', receipt);
       
-      if (receipt.status === 1) { // 1 means success
-        // Set completed state
-        setSwapStep('completed');
+      // Remove the updateBalances call and use the existing balance update mechanism
+      // Trigger a balance refresh by updating the fromAmount
+      setFromAmount('');
+      
+      setSwapStep('completed');
+      
+      // Show completed state briefly, then close modal and show confetti
+      setTimeout(() => {
+        setShowProgressModal(false);
+        setSwapStep(null);
         
-        // Show completed state briefly, then close modal and show confetti
+        // Show confetti after modal is closed
         setTimeout(() => {
-          setShowProgressModal(false);
-          setSwapStep(null);
+          setShowConfetti(true);
           
-          // Show confetti after modal is closed
+          // Show rating modal after a short delay
           setTimeout(() => {
-            setShowConfetti(true);
-            
-            // Show rating modal after a short delay
-            setTimeout(() => {
-              setShowRatingModal(true);
-            }, 1000);
-            
-            // Reset form and cleanup after confetti (30 seconds)
-            setTimeout(() => {
-              setFromAmount('');
-              setToAmount('');
-              setShowConfetti(false);
-            }, 30000); // 30 seconds
-          }, 100);
-        }, 1000);
-      } else {
-        throw new Error('Transaction failed');
-      }
+            setShowRatingModal(true);
+          }, 1000);
+          
+          // Reset form and cleanup after confetti (30 seconds)
+          setTimeout(() => {
+            setFromAmount('');
+            setToAmount('');
+            setShowConfetti(false);
+          }, 30000); // 30 seconds
+        }, 100);
+      }, 1000);
       
+      // Remove the unnecessary refresh trigger
     } catch (error) {
       console.error('Swap error:', error);
-      setShowProgressModal(false);
-      setSwapStep(null);
-      setShowConfetti(false);
-      toast.error(error.message || 'Transaction failed. Please try again.');
+      setSwapError(error.message || 'Failed to swap tokens');
     } finally {
       setLoading(false);
     }
@@ -1246,7 +1325,7 @@ export default function TokenSwap() {
           currentStep={swapStep}
           tokenIn={fromToken}
           tokenOut={toToken}
-          needsApproval={isWrapUnwrapOperation()}
+          error={swapError}
         />
       )}
 
