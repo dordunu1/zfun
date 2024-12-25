@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract ERC20Template is ERC20 {
     uint8 private _decimals;
     bool private initialized;
+    string private _storedName;
+    string private _storedSymbol;
 
     // Empty constructor
     constructor() ERC20("", "") {}
@@ -22,29 +24,22 @@ contract ERC20Template is ERC20 {
         
         initialized = true;
         _decimals = decimals_;
-        
-        // Set name and symbol using internal functions
-        _update_name(name_);
-        _update_symbol(symbol_);
+        _storedName = name_;
+        _storedSymbol = symbol_;
         
         // Mint initial supply
         _mint(owner_, initialSupply_);
     }
 
+    function name() public view virtual override returns (string memory) {
+        return _storedName;
+    }
+
+    function symbol() public view virtual override returns (string memory) {
+        return _storedSymbol;
+    }
+
     function decimals() public view virtual override returns (uint8) {
         return _decimals;
-    }
-
-    // Internal functions to update name and symbol
-    function _update_name(string memory name_) internal {
-        assembly {
-            sstore(0x0, name_)
-        }
-    }
-
-    function _update_symbol(string memory symbol_) internal {
-        assembly {
-            sstore(0x1, symbol_)
-        }
     }
 } 
