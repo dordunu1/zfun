@@ -1307,19 +1307,26 @@ export class UnichainUniswapService {
             const pairAddress = pairAddresses[idx];
             if (uniquePairs.has(pairAddress)) return null;
             
-            const [balance, token0, token1, reserves] = await Promise.all([
+            const [balance, token0Address, token1Address, reserves] = await Promise.all([
               pair.balanceOf(userAddress),
               pair.token0(),
               pair.token1(),
               pair.getReserves()
             ]);
             
-            if (token0.toLowerCase() === tokenAddress.toLowerCase() || 
-                token1.toLowerCase() === tokenAddress.toLowerCase()) {
+            if (token0Address.toLowerCase() === tokenAddress.toLowerCase() || 
+                token1Address.toLowerCase() === tokenAddress.toLowerCase()) {
+              
+              // Get token metadata immediately
+              const [token0Info, token1Info] = await Promise.all([
+                this.getTokenInfo(token0Address),
+                this.getTokenInfo(token1Address)
+              ]);
+
               return {
                 address: pairAddress,
-                token0,
-                token1,
+                token0: { address: token0Address, ...token0Info },
+                token1: { address: token1Address, ...token1Info },
                 reserves,
                 owned: balance > 0
               };

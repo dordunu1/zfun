@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { useUnichain } from '../../../hooks/useUnichain';
 import { useAccount } from 'wagmi';
@@ -34,8 +34,33 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
         ...existingMetadata,
         ...commonToken,
         address: tokenAddress,
-        logoURI: commonToken.logoURI
+        logo: commonToken.logo || getTokenLogo({ address: tokenAddress }),
+        verified: true
       };
+    }
+
+    // Try to get from Firebase first
+    try {
+      const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
+      if (tokenDeployment) {
+        const logo = tokenDeployment.logo || getTokenLogo({ 
+          ...tokenDeployment,
+          address: tokenAddress 
+        });
+        
+        return {
+          ...existingMetadata,
+          name: tokenDeployment.name || existingMetadata.name,
+          symbol: tokenDeployment.symbol || existingMetadata.symbol,
+          decimals: tokenDeployment.decimals || existingMetadata.decimals || 18,
+          logo,
+          logoIpfs: tokenDeployment.logoIpfs,
+          address: tokenAddress,
+          verified: true
+        };
+      }
+    } catch (error) {
+      console.log('Firebase fetch failed:', error);
     }
 
     // Try to get from Unichain scan API if available
@@ -45,22 +70,24 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
         const data = await response.json();
         return {
           ...existingMetadata,
-          name: data.name,
-          symbol: data.symbol,
-          decimals: data.decimals,
-          logoURI: data.logo || getTokenLogo({ address: tokenAddress }),
-          address: tokenAddress
+          name: data.name || existingMetadata.name,
+          symbol: data.symbol || existingMetadata.symbol,
+          decimals: data.decimals || existingMetadata.decimals || 18,
+          logo: data.logo || getTokenLogo({ address: tokenAddress }),
+          address: tokenAddress,
+          verified: true
         };
       }
     } catch (error) {
       console.log('Unichain scan fetch failed, falling back to existing metadata');
     }
 
-    // Fall back to existing metadata
+    // Fall back to existing metadata with default logo
     return {
       ...existingMetadata,
-      logoURI: getTokenLogo({ address: tokenAddress }),
-      address: tokenAddress
+      logo: existingMetadata.logo || getTokenLogo({ address: tokenAddress }),
+      address: tokenAddress,
+      verified: false
     };
   } catch (error) {
     console.error('Error in enhanced token metadata:', error);
@@ -80,26 +107,35 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   // Function to process pool data
   const processPoolData = async (pool) => {
     try {
-      // Get basic metadata first using existing method
-      const [token0BasicMetadata, token1BasicMetadata] = await Promise.all([
+      // Get token metadata using the same pattern as the original PoolSelectionModal
+      const [token0Metadata, token1Metadata] = await Promise.all([
         getTokenMetadata(pool.token0),
         getTokenMetadata(pool.token1)
       ]);
 
-      // Enhance the metadata
-      const [token0Metadata, token1Metadata] = await Promise.all([
-        getEnhancedTokenMetadata(pool.token0, token0BasicMetadata),
-        getEnhancedTokenMetadata(pool.token1, token1BasicMetadata)
-      ]);
+      // Ensure WETH is properly displayed as WETH
+      const displayToken0 = token0Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
+        ? { ...token0Metadata, symbol: 'WETH', name: 'Wrapped Ether' }
+        : token0Metadata;
+
+      const displayToken1 = token1Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()
+        ? { ...token1Metadata, symbol: 'WETH', name: 'Wrapped Ether' }
+        : token1Metadata;
 
       return {
-        token0: token0Metadata,
-        token1: token1Metadata,
+        token0: {
+          ...displayToken0,
+          logo: getTokenLogo(displayToken0)
+        },
+        token1: {
+          ...displayToken1,
+          logo: getTokenLogo(displayToken1)
+        },
         pairAddress: pool.address,
         reserves: {
           ...pool.reserves,
-          reserve0Formatted: ethers.formatUnits(pool.reserves?.reserve0 || '0', token0Metadata?.decimals || 18),
-          reserve1Formatted: ethers.formatUnits(pool.reserves?.reserve1 || '0', token1Metadata?.decimals || 18)
+          reserve0Formatted: ethers.formatUnits(pool.reserves?.reserve0 || '0', displayToken0?.decimals || 18),
+          reserve1Formatted: ethers.formatUnits(pool.reserves?.reserve1 || '0', displayToken1?.decimals || 18)
         }
       };
     } catch (err) {
@@ -243,8 +279,8 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                     <div className="flex items-center gap-3">
                       <div className="flex -space-x-3">
                         <img
-                          src={pool.token0?.logoURI || getTokenLogo(pool.token0)}
-                          alt={pool.token0?.symbol || 'Token'}
+                          src={pool.token0?.logo || getTokenLogo(pool.token0)}
+                          alt={pool.token0?.symbol || 'ERC20 Token'}
                           className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                           onError={(e) => {
                             e.target.onerror = null;
@@ -252,8 +288,8 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                           }}
                         />
                         <img
-                          src={pool.token1?.logoURI || getTokenLogo(pool.token1)}
-                          alt={pool.token1?.symbol || 'Token'}
+                          src={pool.token1?.logo || getTokenLogo(pool.token1)}
+                          alt={pool.token1?.symbol || 'ERC20 Token'}
                           className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                           onError={(e) => {
                             e.target.onerror = null;
@@ -261,9 +297,14 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                           }}
                         />
                       </div>
-                      <span className="font-medium text-gray-900 dark:text-white text-lg">
-                        {pool.token0?.symbol || 'Token'}/{pool.token1?.symbol || 'Token'}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900 dark:text-white text-lg">
+                          {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {pool.token0?.name || pool.token0?.symbol || 'ERC20 Token'} / {pool.token1?.name || pool.token1?.symbol || 'ERC20 Token'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
