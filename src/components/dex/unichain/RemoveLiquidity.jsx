@@ -14,10 +14,20 @@ import { ChevronDownIcon } from '@heroicons/react/20/solid';
 // Icons for progress modal
 const Icons = {
   Preparing: () => (
-    <svg className="w-6 h-6 animate-[spin_3s_linear_infinite]" viewBox="0 0 24 24" fill="none">
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" style={{ animation: 'rotate 2s linear infinite' }}>
       <g strokeWidth={1.5} stroke="currentColor">
         <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" strokeOpacity="0.2" />
-        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" className="animate-[pulse_2s_ease-in-out_infinite]" />
+        <path d="M12 6v2m0 8v2M6 12h2m8 0h2" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite' }} />
+        <path d="M7.75 7.75l1.5 1.5m5.5 5.5l1.5 1.5m0-8.5l-1.5 1.5m-5.5 5.5l-1.5 1.5" strokeLinecap="round" style={{ animation: 'bounce 1.5s ease-in-out infinite', animationDelay: '0.2s' }} />
+      </g>
+    </svg>
+  ),
+  Error: () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor" style={{ animation: 'shake 0.5s ease-in-out' }}>
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" className="text-red-500" />
+        <path d="M12 8v5" strokeLinecap="round" className="text-red-500" />
+        <path d="M12 16v.01" strokeLinecap="round" className="text-red-500" />
       </g>
     </svg>
   ),
@@ -104,7 +114,7 @@ style.textContent = `
 document.head.appendChild(style);
 
 // Progress Modal Component
-const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
+const ProgressModal = ({ isOpen, onClose, currentStep, pool, error }) => {
   const steps = [
     { key: 'preparing', label: 'Preparing Transaction', icon: Icons.Preparing },
     { key: 'approval', label: 'Awaiting Approval', icon: Icons.Approval },
@@ -114,6 +124,13 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
   ];
 
   const currentStepIndex = steps.findIndex(step => step.key === currentStep);
+
+  const formatErrorMessage = (error) => {
+    if (!error) return '';
+    if (error.includes('user rejected')) return 'Transaction was rejected by user';
+    if (error.includes('insufficient funds')) return 'Insufficient funds for transaction';
+    return error;
+  };
 
   const getTokenPairDisplay = () => {
     if (!pool) return '';
@@ -199,10 +216,31 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
                       </div>
                     );
                   })}
+                  {error && (
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-red-500/10">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <span className="block font-medium text-red-500">Transaction Failed</span>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {currentStep === 'completed' && (
                   <div className="mt-6 text-center">
                     <p className="text-[#00ffbd] font-medium">Liquidity removed successfully!</p>
+                  </div>
+                )}
+                {error && (
+                  <div className="mt-6">
+                    <button
+                      onClick={onClose}
+                      className="w-full px-4 py-3 rounded-xl font-medium text-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                    >
+                      Close
+                    </button>
                   </div>
                 )}
               </Dialog.Panel>
@@ -473,6 +511,7 @@ export default function RemoveLiquidity() {
     width: window.innerWidth,
     height: window.innerHeight,
   });
+  const [progressError, setProgressError] = useState(null);
 
   // Add window resize handler
   useEffect(() => {
@@ -564,6 +603,7 @@ export default function RemoveLiquidity() {
     setLoading(true);
     setShowProgressModal(true);
     setCurrentStep('preparing');
+    setProgressError(null);
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -672,10 +712,9 @@ export default function RemoveLiquidity() {
       toast.success('Liquidity removed successfully');
     } catch (error) {
       console.error('Remove liquidity error:', error);
-      setShowProgressModal(false);
+      setProgressError(error.message || 'Failed to remove liquidity');
       setCurrentStep(null);
       setShowConfetti(false);
-      toast.error(error.message || 'Failed to remove liquidity');
     } finally {
       setLoading(false);
     }
@@ -879,9 +918,11 @@ export default function RemoveLiquidity() {
         onClose={() => {
           setShowProgressModal(false);
           setCurrentStep(null);
+          setProgressError(null);
         }}
         currentStep={currentStep}
         pool={selectedPool}
+        error={progressError}
       />
 
       {/* Rating Modal */}
