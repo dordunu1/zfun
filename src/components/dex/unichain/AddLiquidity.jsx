@@ -131,6 +131,14 @@ const Icons = {
       </g>
     </svg>
   ),
+  Error: () => (
+    <svg className="w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="none">
+      <g strokeWidth={1.5} stroke="currentColor">
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+        <path d="M12 8v5m0 3v.01" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </svg>
+  ),
   Approval: () => (
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
       <g strokeWidth={1.5} stroke="currentColor">
@@ -176,7 +184,7 @@ const Icons = {
 };
 
 // Progress Modal Component
-const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
+const ProgressModal = ({ isOpen, onClose, currentStep, pool, error }) => {
   const steps = [
     { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
     { id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> },
@@ -184,6 +192,25 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
     { id: 'confirming', title: 'Confirming', icon: <Icons.Confirming /> },
     { id: 'completed', title: 'Completed', icon: <Icons.Completed /> }
   ];
+
+  const isError = Boolean(error);
+
+  // Format error message to be more user-friendly
+  const formatErrorMessage = (error) => {
+    if (error?.includes('user rejected')) {
+      return 'Transaction was rejected. Please try again.';
+    }
+    if (error?.includes('insufficient')) {
+      return 'Insufficient balance for adding liquidity.';
+    }
+    if (error?.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
+      return 'Price impact too high, try a smaller amount.';
+    }
+    if (error?.includes('EXCESSIVE_INPUT_AMOUNT')) {
+      return 'Insufficient liquidity for this trade.';
+    }
+    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+  };
 
   const getTokenPairDisplay = () => {
     if (!pool) return '';
@@ -253,8 +280,8 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  Adding Liquidity
-                  {pool && (
+                  {isError ? 'Error Adding Liquidity' : 'Adding Liquidity'}
+                  {!isError && pool && (
                     <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
                       {getTokenPairDisplay()}
                     </div>
@@ -264,37 +291,29 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
                 <div className="space-y-4">
                   {steps.map((step, index) => {
                     const isActive = currentStep === step.id;
-                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    const isCompleted = !isError && steps.findIndex(s => s.id === currentStep) > index;
+                    const isErrorStep = isError && currentStep === step.id;
                     
                     return (
                       <div
                         key={step.id}
-                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
-                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
-                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
-                          'bg-gray-50 dark:bg-gray-800/20'
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                          isActive && !isErrorStep ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 
+                          isCompleted ? 'text-[#00ffbd]' : 
+                          isErrorStep ? 'bg-red-500/10 text-red-500' : 
+                          'text-gray-400'
                         }`}
                       >
-                        <div 
-                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
-                            isActive ? 'text-[#00ffbd] animate-pulse' : 
-                            isCompleted ? 'text-[#00ffbd]' : 
-                            'text-gray-400 dark:text-gray-600'
-                          }`}
-                        >
-                          {step.icon}
-                        </div>
+                        {step.icon}
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 dark:text-white">
-                            {step.title}
-                          </h4>
-                          {isActive && (
+                          <span className="font-medium text-gray-900 dark:text-white">{step.title}</span>
+                          {isActive && !isError && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               {step.id === 'preparing' && 'Preparing transaction...'}
                               {step.id === 'approval' && `Approving ${pool?.token0?.symbol} and ${pool?.token1?.symbol}`}
                               {step.id === 'adding' && (
                                 <span className="flex items-center gap-2">
-                                  Adding liquidity for {getTokenPairDisplay()}
+                                  Adding liquidity to {getTokenPairDisplay()} pool
                                 </span>
                               )}
                               {step.id === 'confirming' && 'Waiting for confirmation...'}
@@ -315,6 +334,28 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
                     );
                   })}
                 </div>
+
+                {isError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-start gap-3">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
+                        <p className="mt-1 text-sm text-red-400">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {currentStep === 'completed' && (
                   <div className="mt-6">
@@ -424,6 +465,7 @@ export default function AddLiquidity() {
     width: window.innerWidth,
     height: window.innerHeight,
   });
+  const [addLiquidityError, setAddLiquidityError] = useState(null);
 
   // Add window resize handler
   useEffect(() => {
@@ -530,11 +572,20 @@ export default function AddLiquidity() {
   };
 
   const handleAddLiquidity = async () => {
-    if (!pool || !token0Amount || !token1Amount) return;
+    if (!address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    if (!pool || !token0Amount || !token1Amount) {
+      toast.error('Please fill in all fields');
+      return;
+    }
 
     setLoading(true);
     setShowProgressModal(true);
     setCurrentStep('preparing');
+    setAddLiquidityError(null);
 
     try {
       // Get the provider and signer
@@ -736,29 +787,7 @@ export default function AddLiquidity() {
       }));
     } catch (error) {
       console.error('Add liquidity error:', error);
-      setShowProgressModal(false);
-      setCurrentStep(null);
-      setShowConfetti(false);
-      
-      // More detailed error handling
-      let errorMessage = 'Failed to add liquidity';
-      if (error.message.includes('insufficient')) {
-        errorMessage = 'Insufficient balance for transaction';
-      } else if (error.message.includes('chain')) {
-        errorMessage = 'Please switch to a supported network';
-      } else if (error.message.includes('INSUFFICIENT_A_AMOUNT')) {
-        errorMessage = 'Insufficient amount for token A';
-      } else if (error.message.includes('INSUFFICIENT_B_AMOUNT')) {
-        errorMessage = 'Insufficient amount for token B';
-      } else if (error.message.includes('K')) {
-        errorMessage = 'Price impact too high. Try a different ratio.';
-      } else if (error.message.includes('optimal amounts')) {
-        errorMessage = 'Failed to calculate optimal amounts. Try a different ratio.';
-      } else {
-        errorMessage = `Transaction failed: ${error.message}`;
-      }
-      
-      toast.error(errorMessage, { id: 'add-liquidity' });
+      setAddLiquidityError(error.message || 'Failed to add liquidity');
     } finally {
       setLoading(false);
     }
@@ -921,9 +950,11 @@ export default function AddLiquidity() {
         onClose={() => {
           setShowProgressModal(false);
           setCurrentStep(null);
+          setAddLiquidityError(null);
         }}
         currentStep={currentStep}
         pool={pool}
+        error={addLiquidityError}
       />
 
       {/* Add Rating Modal */}
