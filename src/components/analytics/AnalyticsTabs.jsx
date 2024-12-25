@@ -7,8 +7,8 @@ import VolumeMetrics from './tabs/VolumeMetrics';
 const TABS = [
   { id: 'recent', label: '🔥 Recent Mints' },
   { id: 'holders', label: '👑 Top Holders' },
-  { id: 'chads', label: '🚀 Chad Minters' },
-  { id: 'volume', label: '📈 Volume' },
+  { id: 'chads', label: '🚀 Chad Minters', comingSoon: true },
+  { id: 'volume', label: '📈 Volume', comingSoon: true },
 ];
 
 export default function AnalyticsTabs({ collection }) {
@@ -24,34 +24,43 @@ export default function AnalyticsTabs({ collection }) {
       {/* Tab Navigation */}
       <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar">
         {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`
-              px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap
-              transition-all duration-200 relative group
-              ${activeTab === tab.id 
-                ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
-                : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
-              }
-              border border-gray-100 dark:border-gray-800
-            `}
-          >
-            {/* Glow Effect */}
-            {activeTab === tab.id && (
-              <div className="absolute inset-0 rounded-lg bg-[#00ffbd]/5 blur-xl -z-10" />
+          <div key={tab.id} className="relative group">
+            <button
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap
+                transition-all duration-200 relative group
+                ${activeTab === tab.id 
+                  ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
+                  : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
+                }
+                border border-gray-100 dark:border-gray-800
+              `}
+            >
+              {/* Glow Effect */}
+              {activeTab === tab.id && (
+                <div className="absolute inset-0 rounded-lg bg-[#00ffbd]/5 blur-xl -z-10" />
+              )}
+              
+              {/* Tab Label */}
+              <span className="relative z-10">{tab.label}</span>
+              
+              {/* Active Indicator */}
+              <div className={`
+                absolute bottom-0 left-0 right-0 h-0.5 rounded-full
+                transition-all duration-200
+                ${activeTab === tab.id ? 'bg-[#00ffbd]' : 'bg-transparent group-hover:bg-[#00ffbd]/30'}
+              `} />
+            </button>
+
+            {/* Coming Soon Tooltip */}
+            {tab.comingSoon && (
+              <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                Coming Soon
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-2 h-2 bg-gray-900 rotate-45" />
+              </div>
             )}
-            
-            {/* Tab Label */}
-            <span className="relative z-10">{tab.label}</span>
-            
-            {/* Active Indicator */}
-            <div className={`
-              absolute bottom-0 left-0 right-0 h-0.5 rounded-full
-              transition-all duration-200
-              ${activeTab === tab.id ? 'bg-[#00ffbd]' : 'bg-transparent group-hover:bg-[#00ffbd]/30'}
-            `} />
-          </button>
+          </div>
         ))}
       </div>
 
@@ -97,8 +106,8 @@ export default function AnalyticsTabs({ collection }) {
           <div className="p-6 h-[400px] md:h-[600px]">
             {activeTab === 'recent' && <RecentMints />}
             {activeTab === 'holders' && <TopHolders collection={collection} />}
-            {activeTab === 'chads' && <ChadMinters />}
-            {activeTab === 'volume' && <VolumeMetrics />}
+            {activeTab === 'chads' && <div className="flex items-center justify-center h-full text-gray-500">Coming Soon</div>}
+            {activeTab === 'volume' && <div className="flex items-center justify-center h-full text-gray-500">Coming Soon</div>}
           </div>
         </div>
       </div>
