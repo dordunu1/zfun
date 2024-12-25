@@ -731,10 +731,20 @@ export default function CollectionPage() {
       }
       const totalCost = mintPriceWei * BigInt(mintAmount);
 
-      // Mint the NFT
-      const tx = await nftContract.mint(mintAmount, ipfsHash, {
-        value: totalCost
-      });
+      // Mint the NFT with proper parameters based on contract type
+      let tx;
+      if (collection.type === 'ERC1155') {
+        // For ERC1155, we need to pass tokenId (usually 0 for new mints), amount, and metadata
+        tx = await nftContract.mint(0, mintAmount, ipfsHash, {
+          value: totalCost
+        });
+      } else {
+        // For ERC721, we pass amount and metadata
+        tx = await nftContract.mint(mintAmount, ipfsHash, {
+          value: totalCost,
+          gasLimit: 500000 * mintAmount // Adjust gas limit based on mint amount
+        });
+      }
 
       const receipt = await tx.wait();
 
