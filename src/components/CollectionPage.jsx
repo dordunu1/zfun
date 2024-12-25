@@ -736,7 +736,49 @@ export default function CollectionPage() {
         value: totalCost
       });
 
-      await tx.wait();
+      const receipt = await tx.wait();
+
+      // Update states after successful mint
+      const [newTotal, newUserMinted] = await Promise.all([
+        nftContract.totalSupply(),
+        nftContract.mintedPerWallet(account)
+      ]);
+
+      setTotalMinted(Number(newTotal));
+      setUserMintedAmount(Number(newUserMinted));
+      await updateCollectionMinted(symbol, Number(newTotal));
+
+      // Format values for Firebase
+      let formattedValue = '0';
+      let formattedMintPrice = '0';
+      
+      try {
+        if (collection.mintPrice) {
+          formattedMintPrice = parseFloat(collection.mintPrice).toFixed(6);
+          const ethValue = ethers.formatEther(totalCost);
+          formattedValue = parseFloat(ethValue).toFixed(6);
+        }
+      } catch (error) {
+        console.error('Error formatting values:', error);
+      }
+
+      // Save mint data to Firebase
+      await saveMintData({
+        collectionAddress: collection.contractAddress,
+        minterAddress: account,
+        tokenId: collection.type === 'ERC1155' ? '0' : String(newTotal),
+        quantity: String(mintAmount),
+        hash: receipt.hash,
+        image: collection.previewUrl,
+        value: formattedValue,
+        type: collection.type,
+        name: collection.name,
+        symbol: collection.symbol,
+        artworkType: collection.artworkType || 'image',
+        network: chainId === 1301 ? 'unichain' : chainId === 137 ? 'polygon' : 'sepolia',
+        mintPrice: formattedMintPrice,
+        paymentToken: collection.mintToken || null
+      });
 
       // Show completed state and trigger confetti
       setProgressStep('completed');
