@@ -8,6 +8,93 @@ import { Link } from 'react-router-dom';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useUniswap } from '../hooks/useUniswap';
 
+// Animated Cat Component
+const AnimatedCat = ({ onAnimationComplete }) => {
+  const [position, setPosition] = useState(-100); // Start from left side
+  const [isDone, setIsDone] = useState(false);
+
+  useEffect(() => {
+    // Start animation after a short delay
+    setTimeout(() => {
+      setPosition(75); // Move to right side position
+      setTimeout(() => {
+        setIsDone(true);
+        onAnimationComplete();
+      }, 1000); // Wait for cat to center before showing welcome text
+    }, 500);
+  }, []);
+
+  return (
+    <div 
+      className={`absolute ${isDone ? 'top-24' : 'top-8'} transition-all duration-1000 ease-out`}
+      style={{ 
+        left: `${position}%`,
+        transform: 'translate(-50%, 0)',
+      }}
+    >
+      <div className="relative w-40 h-40">
+        {/* Cat Body */}
+        <div className={`absolute w-40 h-32 bg-[#00ffbd]/20 rounded-[50%] animate-[float_3s_ease-in-out_infinite]`}>
+          {/* Cat Head */}
+          <div className="absolute w-32 h-28 bg-[#00ffbd]/20 rounded-full -left-4 -top-8">
+            {/* Eyes */}
+            <div className="absolute top-10 left-8 w-4 h-4 bg-[#00ffbd] rounded-full animate-[blink_4s_ease-in-out_infinite]" />
+            <div className="absolute top-10 right-8 w-4 h-4 bg-[#00ffbd] rounded-full animate-[blink_4s_ease-in-out_infinite]" />
+            {/* Nose */}
+            <div className="absolute top-14 left-1/2 -translate-x-1/2 w-3 h-2 bg-[#00ffbd] rounded-full" />
+            {/* Whiskers */}
+            <div className="absolute top-16 left-6 w-8 h-0.5 bg-[#00ffbd]/60 rotate-[15deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+            <div className="absolute top-17 left-6 w-8 h-0.5 bg-[#00ffbd]/60 -rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+            <div className="absolute top-16 right-6 w-8 h-0.5 bg-[#00ffbd]/60 -rotate-[15deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+            <div className="absolute top-17 right-6 w-8 h-0.5 bg-[#00ffbd]/60 rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+          </div>
+          {/* Ears */}
+          <div className="absolute -top-14 left-2 w-10 h-10 bg-[#00ffbd]/20 rounded-tr-[50%] rounded-tl-[50%] -rotate-[15deg] animate-[earTwitch_5s_ease-in-out_infinite]" />
+          <div className="absolute -top-14 right-8 w-10 h-10 bg-[#00ffbd]/20 rounded-tr-[50%] rounded-tl-[50%] rotate-[15deg] animate-[earTwitch_5s_ease-in-out_infinite_0.5s]" />
+          {/* Legs */}
+          <div className="absolute bottom-0 left-2 w-5 h-10 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite]" />
+          <div className="absolute bottom-0 left-10 w-5 h-10 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite_0.5s]" />
+          <div className="absolute bottom-0 right-10 w-5 h-10 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite_1s]" />
+          <div className="absolute bottom-0 right-2 w-5 h-10 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite_1.5s]" />
+          {/* Tail */}
+          <div className="absolute -right-14 top-1/2 w-14 h-4 bg-[#00ffbd]/20 rounded-full origin-left animate-[tailWag_3s_ease-in-out_infinite]" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Add keyframes for the animations
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes blink {
+    0%, 95%, 100% { transform: scaleY(1); }
+    97.5% { transform: scaleY(0); }
+  }
+  @keyframes tailWag {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(20deg); }
+    75% { transform: rotate(-20deg); }
+  }
+  @keyframes legSwing {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(15deg); }
+  }
+  @keyframes whiskerMove {
+    0%, 100% { transform: rotate(var(--rotate, 0deg)); }
+    50% { transform: rotate(calc(var(--rotate, 0deg) + 5deg)); }
+  }
+  @keyframes earTwitch {
+    0%, 90%, 100% { transform: rotate(var(--rotate, 0deg)); }
+    95% { transform: rotate(calc(var(--rotate, 0deg) + 5deg)); }
+  }
+`;
+document.head.appendChild(style);
+
 export default function Dashboard() {
   const { deployments } = useDeployments();
   const { prices } = useTokenPrices();
@@ -18,6 +105,7 @@ export default function Dashboard() {
     holders: 420,
   });
   const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
     const loadPoolStats = async () => {
@@ -222,14 +310,19 @@ export default function Dashboard() {
 
   return (
     <main className="mt-16 p-8">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-white">
-          Welcome to Token Factory
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-          Launch your own tokens and NFTs on Unichain and other EVM chains (coming soon). 
-          Create, trade, and manage your crypto assets with our powerful platform.
-        </p>
+      <div className="text-center mb-12 relative h-32">
+        <div 
+          className={`transition-all duration-1000 ${showWelcome ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform -translate-y-10'}`}
+        >
+          <h1 className="text-4xl font-bold mb-4 text-gray-900 dark:text-white">
+            Welcome to Token Factory
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            Launch your own tokens and NFTs on Unichain and other EVM chains (coming soon). 
+            Create, trade, and manage your crypto assets with our powerful platform.
+          </p>
+        </div>
+        <AnimatedCat onAnimationComplete={() => setShowWelcome(true)} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-12">
