@@ -13,11 +13,6 @@ const NETWORKS = [
     name: 'Sepolia'
   },
   {
-    ...polygon,
-    logo: '/polygon.png',
-    name: 'Polygon'
-  },
-  {
     ...unichainTestnet,
     logo: '/unichain.png',
     name: 'Unichain Testnet'

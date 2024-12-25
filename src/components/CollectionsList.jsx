@@ -60,8 +60,6 @@ export default function CollectionsList() {
             return collection.network === 'unichain' || collection.chainId === 1301;
           } else if (filters.network === 'sepolia') {
             return collection.network === 'sepolia' || collection.chainId === 11155111;
-          } else if (filters.network === 'polygon') {
-            return collection.network === 'polygon' || collection.chainId === 137;
           }
           return false;
         }
@@ -118,7 +116,6 @@ export default function CollectionsList() {
       >
         <option value="all">All Networks</option>
         <option value="sepolia">Sepolia</option>
-        <option value="polygon">Polygon</option>
         <option value="unichain">Unichain</option>
       </select>
 
