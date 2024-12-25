@@ -11,6 +11,72 @@ const TABS = [
   { id: 'volume', label: '📈 Volume', comingSoon: true },
 ];
 
+// Animated Cat Component for Coming Soon
+const ComingSoonCat = () => (
+  <div className="flex flex-col items-center justify-center h-full space-y-6">
+    <div className="relative w-48 h-48">
+      {/* Cat Body */}
+      <div className="absolute w-32 h-24 bg-[#00ffbd]/20 rounded-[50%] left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 animate-[float_3s_ease-in-out_infinite]">
+        {/* Cat Head */}
+        <div className="absolute w-24 h-20 bg-[#00ffbd]/20 rounded-full -left-4 -top-8">
+          {/* Eyes */}
+          <div className="absolute top-8 left-6 w-3 h-3 bg-[#00ffbd] rounded-full animate-[blink_4s_ease-in-out_infinite]" />
+          <div className="absolute top-8 right-6 w-3 h-3 bg-[#00ffbd] rounded-full animate-[blink_4s_ease-in-out_infinite]" />
+          {/* Nose */}
+          <div className="absolute top-11 left-1/2 -translate-x-1/2 w-2 h-1.5 bg-[#00ffbd] rounded-full" />
+          {/* Whiskers */}
+          <div className="absolute top-12 left-4 w-6 h-0.5 bg-[#00ffbd]/60 rotate-[15deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+          <div className="absolute top-13 left-4 w-6 h-0.5 bg-[#00ffbd]/60 -rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+          <div className="absolute top-12 right-4 w-6 h-0.5 bg-[#00ffbd]/60 -rotate-[15deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+          <div className="absolute top-13 right-4 w-6 h-0.5 bg-[#00ffbd]/60 rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
+        </div>
+        {/* Ears */}
+        <div className="absolute -top-12 left-2 w-8 h-8 bg-[#00ffbd]/20 rounded-tr-[50%] rounded-tl-[50%] -rotate-[15deg] animate-[earTwitch_5s_ease-in-out_infinite]" />
+        <div className="absolute -top-12 right-8 w-8 h-8 bg-[#00ffbd]/20 rounded-tr-[50%] rounded-tl-[50%] rotate-[15deg] animate-[earTwitch_5s_ease-in-out_infinite_0.5s]" />
+        {/* Legs */}
+        <div className="absolute bottom-0 left-2 w-4 h-8 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite]" />
+        <div className="absolute bottom-0 left-8 w-4 h-8 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite_0.5s]" />
+        <div className="absolute bottom-0 right-8 w-4 h-8 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite_1s]" />
+        <div className="absolute bottom-0 right-2 w-4 h-8 bg-[#00ffbd]/20 rounded-b-full animate-[legSwing_2s_ease-in-out_infinite_1.5s]" />
+        {/* Tail */}
+        <div className="absolute -right-12 top-1/2 w-12 h-3 bg-[#00ffbd]/20 rounded-full origin-left animate-[tailWag_3s_ease-in-out_infinite]" />
+      </div>
+    </div>
+    <div className="text-[#00ffbd] font-medium text-xl animate-pulse">Coming Soon...</div>
+  </div>
+);
+
+// Add keyframes for the animations
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes float {
+    0%, 100% { transform: translate(-50%, -50%) translateY(0px); }
+    50% { transform: translate(-50%, -50%) translateY(-10px); }
+  }
+  @keyframes blink {
+    0%, 95%, 100% { transform: scaleY(1); }
+    97.5% { transform: scaleY(0); }
+  }
+  @keyframes tailWag {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(20deg); }
+    75% { transform: rotate(-20deg); }
+  }
+  @keyframes legSwing {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(15deg); }
+  }
+  @keyframes whiskerMove {
+    0%, 100% { transform: rotate(var(--rotate, 0deg)); }
+    50% { transform: rotate(calc(var(--rotate, 0deg) + 5deg)); }
+  }
+  @keyframes earTwitch {
+    0%, 90%, 100% { transform: rotate(var(--rotate, 0deg)); }
+    95% { transform: rotate(calc(var(--rotate, 0deg) + 5deg)); }
+  }
+`;
+document.head.appendChild(style);
+
 export default function AnalyticsTabs({ collection }) {
   const [activeTab, setActiveTab] = useState('recent');
 
@@ -106,8 +172,8 @@ export default function AnalyticsTabs({ collection }) {
           <div className="p-6 h-[400px] md:h-[600px]">
             {activeTab === 'recent' && <RecentMints />}
             {activeTab === 'holders' && <TopHolders collection={collection} />}
-            {activeTab === 'chads' && <div className="flex items-center justify-center h-full text-gray-500">Coming Soon</div>}
-            {activeTab === 'volume' && <div className="flex items-center justify-center h-full text-gray-500">Coming Soon</div>}
+            {activeTab === 'chads' && <ComingSoonCat />}
+            {activeTab === 'volume' && <ComingSoonCat />}
           </div>
         </div>
       </div>
