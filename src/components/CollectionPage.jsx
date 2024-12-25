@@ -139,6 +139,28 @@ export default function CollectionPage() {
   const [whitelistEntry, setWhitelistEntry] = useState(null);
   const [paymentTokenInfo, setPaymentTokenInfo] = useState(null);
   const [tokenLogos, setTokenLogos] = useState({});
+  const [currentChainId, setCurrentChainId] = useState(null);
+
+  // Add chain ID effect at component level
+  useEffect(() => {
+    const getChainId = async () => {
+      if (window.ethereum) {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        setCurrentChainId(parseInt(chainId, 16));
+      }
+    };
+    getChainId();
+
+    // Listen for chain changes
+    const handleChainChanged = (chainId) => {
+      setCurrentChainId(parseInt(chainId, 16));
+    };
+    window.ethereum?.on('chainChanged', handleChainChanged);
+
+    return () => {
+      window.ethereum?.removeListener('chainChanged', handleChainChanged);
+    };
+  }, []);
 
   // Load on-chain data when wallet connects
   useEffect(() => {
@@ -374,12 +396,22 @@ export default function CollectionPage() {
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
       
       // Get the current network
       const network = await provider.getNetwork();
       const chainId = Number(network.chainId);
       
+      // Validate chain based on collection's network
+      const expectedChainId = collection.network === 'unichain' ? 1301 :
+                            collection.network === 'sepolia' ? 11155111 :
+                            collection.network === 'polygon' ? 137 : null;
+
+      if (chainId !== expectedChainId) {
+        const networkName = collection.network.charAt(0).toUpperCase() + collection.network.slice(1);
+        toast.error(`Please switch to ${networkName} network to mint this NFT`);
+        return;
+      }
+
       toast.loading('Preparing metadata...', { id: 'mint' });
 
       // Create a File object from the image URL
@@ -555,7 +587,7 @@ export default function CollectionPage() {
       setWhitelistEntry(foundEntry);
 
       if (isWhitelisted) {
-        toast.success(`Address is whitelisted! Can mint up to ${mintLimit} NFTs ����`);
+        toast.success(`Address is whitelisted! Can mint up to ${mintLimit} NFTs`);
       } else {
         toast.error('Address is not whitelisted');
       }
@@ -629,6 +661,13 @@ export default function CollectionPage() {
     const mintEndDate = collection.mintEndDate ? new Date(collection.mintEndDate) : null;
     const isMintEnded = !collection.infiniteMint && mintEndDate && now >= mintEndDate;
 
+    // Determine if on wrong network
+    const expectedChainId = collection.network === 'unichain' ? 1301 :
+                           collection.network === 'sepolia' ? 11155111 :
+                           collection.network === 'polygon' ? 137 : null;
+    
+    const isWrongNetwork = currentChainId && currentChainId !== expectedChainId;
+
     return (
       <div className="flex flex-col gap-2">
         {!collection.infiniteMint && (
@@ -642,7 +681,7 @@ export default function CollectionPage() {
           <button
             onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
             className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!isLive || mintAmount <= 1 || (
+            disabled={!isLive || mintAmount <= 1 || isWrongNetwork || (
               collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
             )}
           >
@@ -660,7 +699,7 @@ export default function CollectionPage() {
               setMintAmount(Math.min(remaining, mintAmount + 1));
             }}
             className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!isLive || (
+            disabled={!isLive || isWrongNetwork || (
               collection.enableWhitelist ? (
                 !whitelistChecked || 
                 !isWhitelisted || 
@@ -688,6 +727,7 @@ export default function CollectionPage() {
           disabled={
             !isLive || 
             isMintEnded ||
+            isWrongNetwork ||
             (collection.enableWhitelist ? (
               !whitelistChecked || 
               !isWhitelisted || 
@@ -699,13 +739,15 @@ export default function CollectionPage() {
           }
           className={`w-full py-3 ${
             isMintEnded ? 'bg-gray-400 cursor-not-allowed' :
+            isWrongNetwork ? 'bg-yellow-500 hover:bg-yellow-600 text-black' :
             collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
               ? 'bg-gray-200 dark:bg-[#1a1b1f] text-gray-900 dark:text-white'
               : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
           } disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-lg transition-colors`}
         >
           {isMintEnded ? 'Mint Ended' :
-           !isLive ? 'Not Live Yet' : 
+           !isLive ? 'Not Live Yet' :
+           isWrongNetwork ? `Switch to ${collection.network.charAt(0).toUpperCase() + collection.network.slice(1)} Network` :
            collection.enableWhitelist ? (
              !whitelistChecked ? 'Check Whitelist Status First' :
              !isWhitelisted ? 'Address Not Whitelisted' :

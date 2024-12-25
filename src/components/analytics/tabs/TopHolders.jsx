@@ -141,8 +141,8 @@ export default function TopHolders({ collection }) {
 
         // Get the latest block number
         const latestBlock = await provider.getBlockNumber();
-        // Look back 10000 blocks or to contract creation
-        const fromBlock = Math.max(0, latestBlock - 10000);
+        // Look back 100000 blocks or to contract creation
+        const fromBlock = Math.max(0, latestBlock - 100000);
 
         // Get all Transfer events
         const events = await contract.queryFilter('Transfer', fromBlock, latestBlock);
@@ -150,24 +150,20 @@ export default function TopHolders({ collection }) {
         
         // Process events to track current holders
         const holdersMap = new Map();
+        const tokenOwners = new Map(); // Track current owner of each token
         
         for (const event of events) {
-          const { from, to } = event.args;
+          const { from, to, tokenId } = event.args;
           
-          // Decrease count for sender (unless it's the zero address - minting)
-          if (from !== '0x0000000000000000000000000000000000000000') {
-            const fromCount = holdersMap.get(from) || 0;
-            if (fromCount > 1) {
-              holdersMap.set(from, fromCount - 1);
-            } else {
-              holdersMap.delete(from);
-            }
-          }
-          
-          // Increase count for receiver (unless it's the zero address - burning)
-          if (to !== '0x0000000000000000000000000000000000000000') {
-            const toCount = holdersMap.get(to) || 0;
-            holdersMap.set(to, toCount + 1);
+          // Update token ownership
+          tokenOwners.set(tokenId.toString(), to);
+        }
+        
+        // Count tokens per holder based on current ownership
+        for (const owner of tokenOwners.values()) {
+          if (owner !== '0x0000000000000000000000000000000000000000') {
+            const currentCount = holdersMap.get(owner) || 0;
+            holdersMap.set(owner, currentCount + 1);
           }
         }
 

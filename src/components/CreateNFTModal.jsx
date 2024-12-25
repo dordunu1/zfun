@@ -578,7 +578,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     infiniteMint: false,
     royaltyFeePercent: '',
     royaltyFeeNumerator: '',
-    royaltyReceiver: '',
+    royaltyReceiver: ''
   });
 
   const { address: account, isConnected } = useAccount();
@@ -703,22 +703,24 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         return;
       }
 
+      // Initialize provider and signer
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+      const networkChainId = parseInt(currentChainId, 16);
+
+      // Get factory address for current chain
+      const factoryAddress = NFT_CONTRACTS[networkChainId]?.NFT_FACTORY;
+      if (!factoryAddress) {
+        setProgressStep('error');
+        setProgressError('Please switch to a supported network (Unichain or Sepolia)');
+        return;
+      }
+
       setShowProgressModal(true);
       setProgressStep('preparing');
       setProgressError(null);
 
-      // Initialize provider and signer
-      const provider = new ethers.BrowserProvider(window.ethereum);
       const signer2 = await provider.getSigner();
-      const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-      const networkChainId = parseInt(currentChainId, 16);
-      
-      const factoryAddress = NFT_CONTRACTS[networkChainId]?.NFT_FACTORY;
-      if (!factoryAddress) {
-        setProgressStep('error');
-        setProgressError('Unsupported network');
-        return;
-      }
 
       // Calculate fee based on network
       const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
@@ -821,7 +823,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         const collectionData = {
           ...formData,
           contractAddress: collectionAddress,
-          network: networkChainId === 1301 ? 'unichain' : networkChainId === 137 ? 'polygon' : 'sepolia',
+          network: networkChainId === 1301 ? 'unichain' : networkChainId === 11155111 ? 'sepolia' : networkChainId === 137 ? 'polygon' : 'unknown',
           chainId: networkChainId,
           previewUrl: imageHttpUrl,
           imageIpfsUrl: imageIpfsUrl,
