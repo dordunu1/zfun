@@ -128,39 +128,61 @@ export default function AccountPage() {
       try {
         // Load owned NFTs and token logos in parallel
         const ownedNFTs = await getOwnedNFTs(address);
+        console.log('Raw owned NFTs:', ownedNFTs);
         
         // Process NFTs to handle multiple mints in a single transaction
-        const processedNFTs = ownedNFTs.reduce((acc, nft) => {
-          const quantity = parseInt(nft.quantity || '1');
-          const baseTokenId = parseInt(nft.tokenId || '0');
-          
-          if (quantity > 1) {
-            // For multiple NFTs minted in one transaction, create separate entries
-            return [...acc, ...Array(quantity).fill().map((_, index) => ({
+        const processedNFTs = ownedNFTs.flatMap(nft => {
+          // For ERC1155, use balance
+          if (nft.type === 'ERC1155') {
+            const balance = parseInt(nft.balance || '1');
+            return Array(balance).fill().map((_, index) => ({
               ...nft,
-              tokenId: nft.type === 'ERC1155' ? '0' : String(baseTokenId + index),
-              uniqueId: `${nft.contractAddress}-${nft.type === 'ERC1155' ? '0' : String(baseTokenId + index)}-${index}`,
-              individualMintPrice: nft.value ? String(Number(nft.value) / quantity) : '0'
-            }))];
+              tokenId: nft.tokenId || '0',
+              uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${index}`,
+              individualMintPrice: nft.value ? String(Number(nft.value) / balance) : '0'
+            }));
           }
           
-          // For single NFTs, keep original data but add uniqueId
-          return [...acc, {
+          // For ERC721 with multiple mints in one transaction
+          const quantity = parseInt(nft.quantity || '1');
+          if (quantity > 1) {
+            return Array(quantity).fill().map((_, index) => {
+              const tokenId = String(parseInt(nft.tokenId || '0') + index);
+              return {
+                ...nft,
+                tokenId,
+                uniqueId: `${nft.contractAddress}-${tokenId}-${nft.type}-${Date.now()}-${index}`,
+                individualMintPrice: nft.value ? String(Number(nft.value) / quantity) : '0'
+              };
+            });
+          }
+          
+          // For single NFTs
+          return [{
             ...nft,
-            uniqueId: `${nft.contractAddress}-${nft.tokenId}`,
+            uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${Date.now()}`,
             individualMintPrice: nft.value
           }];
-        }, []);
-
-        // Filter NFTs based on current chain
-        const filteredNFTs = processedNFTs.filter(nft => {
-          if (chain?.id === 11155111) { // Sepolia
-            return nft.network === 'sepolia' || nft.chainId === 11155111;
-          } else if (chain?.id === 1301) { // Unichain
-            return nft.network === 'unichain' || nft.chainId === 1301;
-          }
-          return false;
         });
+        
+        console.log('Processed NFTs:', processedNFTs);
+
+        // Filter NFTs based on current chain - improved chain detection
+        const filteredNFTs = processedNFTs.filter(nft => {
+          if (!chain?.id) return true; // Show all if no chain selected
+          
+          // Check all possible chain identifiers
+          const nftChainId = nft.chainId || 
+            (nft.network === 'sepolia' ? 11155111 : 
+             nft.network === 'unichain' ? 1301 : null);
+          
+          // Match against current chain
+          return chain.id === nftChainId || 
+            (chain.id === 11155111 && nft.network === 'sepolia') ||
+            (chain.id === 1301 && nft.network === 'unichain');
+        });
+        
+        console.log('Filtered NFTs:', filteredNFTs);
 
         // Sort NFTs by mint date (newest first)
         const sortedNFTs = filteredNFTs.sort((a, b) => {
