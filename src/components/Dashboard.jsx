@@ -87,39 +87,39 @@ export default function Dashboard() {
 
   const features = [
     {
-      icon: BiRocket,
-      title: "Launch in Minutes",
-      description: "Create your own ERC20 tokens with just a few clicks. No coding required.",
-      gradient: "from-[#00ffbd] to-[#00e6a9]"
-    },
-    {
       icon: BiShield,
       title: "Security First",
-      description: "All smart contracts are audited and secured by industry experts.",
-      gradient: "from-blue-500 to-blue-600"
+      description: "Built with battle-tested OpenZeppelin and Uniswap V2 contracts.",
+      gradient: "from-[#00ffbd] to-[#00e6a9]"
     },
     {
       icon: BiCoin,
       title: "Token Types",
-      description: "Create standard, mintable, burnable, or pausable tokens.",
-      gradient: "from-purple-500 to-purple-600"
+      description: "Create immutable ERC20 tokens with fixed supply for enhanced security and trust.",
+      gradient: "from-blue-500 to-blue-600"
     },
     {
-      icon: BiPalette,
-      title: "NFT Collections",
-      description: "Launch your NFT collection with customizable traits and rarity.",
-      gradient: "from-pink-500 to-pink-600"
+      icon: BiRocket,
+      title: "Launch in Minutes",
+      description: "Create your own ERC20 tokens with just a few clicks. No coding required.",
+      gradient: "from-purple-500 to-purple-600"
     },
     {
       icon: BiCog,
       title: "Full Control",
-      description: "Manage supply, transfers, and other token features post-launch.",
-      gradient: "from-yellow-500 to-yellow-600"
+      description: "Transfer tokens, manage allowances, and track balances with standard ERC20 features.",
+      gradient: "from-pink-500 to-pink-600"
     },
     {
       icon: BiWater,
       title: "Liquidity Tools",
       description: "Easily add liquidity and create trading pairs on DEXes.",
+      gradient: "from-yellow-500 to-yellow-600"
+    },
+    {
+      icon: BiPalette,
+      title: "NFT Collections",
+      description: "Launch your NFT collection with customizable traits and rarity.",
       gradient: "from-green-500 to-green-600"
     }
   ];
@@ -227,8 +227,8 @@ export default function Dashboard() {
           Welcome to Token Factory
         </h1>
         <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-          Launch your own tokens and NFTs on Polygon Mainnet and Z Chain (coming soon). 
-          Start creating now with our simple, secure, and powerful platform.
+          Launch your own tokens and NFTs on Unichain and other EVM chains (coming soon). 
+          Create, trade, and manage your crypto assets with our powerful platform.
         </p>
       </div>
 
@@ -268,13 +268,9 @@ export default function Dashboard() {
               List your token on popular DEXes and create trading pairs
             </p>
             <div className="flex flex-wrap gap-3">
-              <a href="https://quickswap.exchange/#/pools" target="_blank" rel="noopener noreferrer" 
-                 className="text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20 px-3 py-1 rounded-full text-sm hover:bg-purple-200 dark:hover:bg-purple-900/30 transition-colors">
-                QuickSwap
-              </a>
-              <a href="https://app.sushi.com/pools" target="_blank" rel="noopener noreferrer"
-                 className="text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20 px-3 py-1 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors">
-                SushiSwap
+              <a href="https://tokenfactory.xyz/trading" target="_blank" rel="noopener noreferrer" 
+                 className="text-[#00ffbd] bg-[#00ffbd]/10 px-3 py-1 rounded-full text-sm hover:bg-[#00ffbd]/20 transition-colors">
+                Token Factory Swap
               </a>
               <a href="https://app.uniswap.org/#/pools" target="_blank" rel="noopener noreferrer"
                  className="text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/20 px-3 py-1 rounded-full text-sm hover:bg-pink-200 dark:hover:bg-pink-900/30 transition-colors">

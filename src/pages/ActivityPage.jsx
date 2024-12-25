@@ -122,7 +122,7 @@ export default function ActivityPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            DEX Activity
+            Trading
           </h1>
           {/* Only show dev mode indicator when enabled */}
           {devModeEnabled && (

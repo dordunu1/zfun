@@ -9,28 +9,28 @@ export const COMMON_TOKENS = [
     symbol: 'ETH',
     name: 'Ethereum',
     decimals: 18,
-    logo: '/eth.png'
+    logo: '/logos/eth.png'
   },
   {
     address: UNISWAP_ADDRESSES.WETH,
     symbol: 'WETH',
     name: 'Wrapped Ethereum',
     decimals: 18,
-    logo: '/weth.png'
+    logo: '/logos/eth.png'
   },
   {
     address: UNISWAP_ADDRESSES.USDC,
     symbol: 'USDC',
     name: 'USD Coin',
     decimals: 6,
-    logo: '/usdc.png'
+    logo: '/logos/usdc.png'
   },
   {
     address: UNISWAP_ADDRESSES.USDT,
     symbol: 'USDT',
     name: 'Tether USD',
     decimals: 6,
-    logo: '/usdt.png'
+    logo: '/logos/usdt.png'
   }
 ];
 
@@ -44,28 +44,28 @@ export const getChainTokens = (chainId) => {
           symbol: 'ETH',
           name: 'Ethereum',
           decimals: 18,
-          logo: '/eth.png'
+          logo: '/logos/eth.png'
         },
         {
           address: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14',
           symbol: 'WETH',
           name: 'Wrapped Ethereum',
           decimals: 18,
-          logo: '/weth.png'
+          logo: '/logos/eth.png'
         },
         {
           address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
           symbol: 'USDC',
           name: 'USD Coin',
           decimals: 6,
-          logo: '/usdc.png'
+          logo: '/logos/usdc.png'
         },
         {
           address: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
           symbol: 'USDT',
           name: 'Tether USD',
           decimals: 6,
-          logo: '/usdt.png'
+          logo: '/logos/usdt.png'
         }
       ];
     default:
@@ -159,7 +159,7 @@ export const getTokenMetadata = async (token, chainId) => {
 export const getTokenLogo = (token, chainId) => {
   if (!token) return '/token-default.png';
 
-  // Check if it's a common token
+  // Check if it's a common token by address
   const chainTokens = getChainTokens(chainId);
   const commonToken = chainTokens.find(t => {
     if (!t.address || !token.address) return false;

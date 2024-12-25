@@ -33,7 +33,7 @@ export const router = createBrowserRouter([
         element: <AccountPage />,
       },
       {
-        path: '/activity',
+        path: '/trading',
         element: <ActivityPage />,
       },
     ],

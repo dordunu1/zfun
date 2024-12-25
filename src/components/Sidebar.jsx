@@ -69,9 +69,9 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       isRouterLink: true,
     },
     {
-      icon: MdOutlineLocalActivity,
-      label: 'Activity',
-      to: '/activity',
+      icon: FaChartLine,
+      label: 'Trading',
+      to: '/trading',
       isRouterLink: true,
     },
     {

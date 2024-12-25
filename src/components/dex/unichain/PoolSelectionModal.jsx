@@ -29,13 +29,17 @@ const COMMON_TOKENS = {
 const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
   try {
     // First check if it's a common token
-    const commonToken = COMMON_TOKENS[tokenAddress.toLowerCase()];
+    const chainTokens = getChainTokens(1301); // Unichain chainId
+    const commonToken = chainTokens.find(t => 
+      t.address.toLowerCase() === tokenAddress.toLowerCase()
+    );
+
     if (commonToken) {
       return {
         ...existingMetadata,
         ...commonToken,
         address: tokenAddress,
-        logo: commonToken.logo || getTokenLogo({ address: tokenAddress }),
+        logo: commonToken.logo,
         verified: true
       };
     }
@@ -47,7 +51,7 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
         const logo = tokenDeployment.logo || getTokenLogo({ 
           ...tokenDeployment,
           address: tokenAddress 
-        });
+        }, 1301);
         
         return {
           ...existingMetadata,
@@ -74,7 +78,7 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
           name: data.name || existingMetadata.name,
           symbol: data.symbol || existingMetadata.symbol,
           decimals: data.decimals || existingMetadata.decimals || 18,
-          logo: data.logo || getTokenLogo({ address: tokenAddress }),
+          logo: data.logo || getTokenLogo({ address: tokenAddress }, 1301),
           address: tokenAddress,
           verified: true
         };
@@ -86,7 +90,7 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
     // Fall back to existing metadata with default logo
     return {
       ...existingMetadata,
-      logo: existingMetadata.logo || getTokenLogo({ address: tokenAddress }),
+      logo: existingMetadata.logo || getTokenLogo({ address: tokenAddress }, 1301),
       address: tokenAddress,
       verified: false
     };
@@ -176,6 +180,10 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
         getEnhancedTokenMetadata(pool.token1.address, pool.token1)
       ]);
 
+      // Special handling for USDT
+      const isToken0USDT = token0Metadata.address?.toLowerCase() === '0x70262e266E50603AcFc5D58997eF73e5a8775844'.toLowerCase();
+      const isToken1USDT = token1Metadata.address?.toLowerCase() === '0x70262e266E50603AcFc5D58997eF73e5a8775844'.toLowerCase();
+
       // Convert WETH to ETH consistently
       const isToken0WETH = token0Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
       const isToken1WETH = token1Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
@@ -185,9 +193,14 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
             ...token0Metadata,
             symbol: 'ETH',
             name: 'Ethereum',
-            logo: '/eth.png',
-            isWETH: true,  // Add flag to identify WETH tokens
-            originalSymbol: 'WETH'  // Keep original symbol for reference
+            logo: '/logos/eth.png',
+            isWETH: true,
+            originalSymbol: 'WETH'
+          }
+        : isToken0USDT
+        ? {
+            ...token0Metadata,
+            logo: '/logos/usdt.png'
           }
         : {
             ...token0Metadata,
@@ -199,9 +212,14 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
             ...token1Metadata,
             symbol: 'ETH',
             name: 'Ethereum',
-            logo: '/eth.png',
-            isWETH: true,  // Add flag to identify WETH tokens
-            originalSymbol: 'WETH'  // Keep original symbol for reference
+            logo: '/logos/eth.png',
+            isWETH: true,
+            originalSymbol: 'WETH'
+          }
+        : isToken1USDT
+        ? {
+            ...token1Metadata,
+            logo: '/logos/usdt.png'
           }
         : {
             ...token1Metadata,
