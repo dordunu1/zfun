@@ -132,15 +132,24 @@ export default function AccountPage() {
         // Process NFTs to handle multiple mints in a single transaction
         const processedNFTs = ownedNFTs.reduce((acc, nft) => {
           const quantity = parseInt(nft.quantity || '1');
+          const baseTokenId = parseInt(nft.tokenId || '0');
+          
           if (quantity > 1) {
             // For multiple NFTs minted in one transaction, create separate entries
             return [...acc, ...Array(quantity).fill().map((_, index) => ({
               ...nft,
-              tokenId: nft.type === 'ERC1155' ? '0' : String(Number(nft.tokenId) + index),
-              uniqueId: `${nft.contractAddress}-${nft.type === 'ERC1155' ? '0' : String(Number(nft.tokenId) + index)}-${index}`
+              tokenId: nft.type === 'ERC1155' ? '0' : String(baseTokenId + index),
+              uniqueId: `${nft.contractAddress}-${nft.type === 'ERC1155' ? '0' : String(baseTokenId + index)}-${index}`,
+              individualMintPrice: nft.value ? String(Number(nft.value) / quantity) : '0'
             }))];
           }
-          return [...acc, { ...nft, uniqueId: `${nft.contractAddress}-${nft.tokenId}` }];
+          
+          // For single NFTs, keep original data but add uniqueId
+          return [...acc, {
+            ...nft,
+            uniqueId: `${nft.contractAddress}-${nft.tokenId}`,
+            individualMintPrice: nft.value
+          }];
         }, []);
 
         // Filter NFTs based on current chain
@@ -153,9 +162,16 @@ export default function AccountPage() {
           return false;
         });
 
+        // Sort NFTs by mint date (newest first)
+        const sortedNFTs = filteredNFTs.sort((a, b) => {
+          const dateA = new Date(a.mintedAt || 0);
+          const dateB = new Date(b.mintedAt || 0);
+          return dateB - dateA;
+        });
+
         // Get unique token addresses for minting tokens
         const uniqueTokenAddresses = [...new Set(
-          filteredNFTs
+          sortedNFTs
             .filter(nft => nft.mintToken?.address)
             .map(nft => nft.mintToken.address.toLowerCase())
         )];
@@ -176,10 +192,10 @@ export default function AccountPage() {
         );
 
         // Cache the results
-        cacheNFTs(address, chain?.id, filteredNFTs);
+        cacheNFTs(address, chain?.id, sortedNFTs);
         
         setTokenLogos(logos);
-        setNfts(filteredNFTs);
+        setNfts(sortedNFTs);
         setLoading(false);
       } catch (error) {
         console.error('Error loading fresh NFT data:', error);
@@ -193,27 +209,49 @@ export default function AccountPage() {
   const formatMintPrice = (price, nft) => {
     if (!price) return '0';
     try {
+      // Get the individual NFT price by dividing total value by quantity
+      const quantity = parseInt(nft.quantity || '1');
+      let individualPrice = price;
+      
+      if (quantity > 1) {
+        // If it's a number or numeric string, divide by quantity
+        if (!isNaN(price)) {
+          individualPrice = String(Number(price) / quantity);
+        } else {
+          // For Wei/ETH values, convert to number first
+          const cleanValue = price.toString().replace(/,/g, '');
+          try {
+            const valueInWei = ethers.parseUnits(cleanValue, 'wei');
+            const totalEthValue = ethers.formatEther(valueInWei);
+            individualPrice = String(Number(totalEthValue) / quantity);
+          } catch {
+            const totalEthValue = ethers.formatEther(cleanValue);
+            individualPrice = String(Number(totalEthValue) / quantity);
+          }
+        }
+      }
+
       // For custom tokens, we don't need to convert from Wei
       if (nft?.mintToken?.type === 'custom' || 
           nft?.mintToken?.type === 'usdc' || 
           nft?.mintToken?.type === 'usdt') {
-        return parseFloat(price).toLocaleString('en-US', {
+        return parseFloat(individualPrice).toLocaleString('en-US', {
           maximumFractionDigits: 6,
           minimumFractionDigits: 0
         });
       }
 
-      // For native tokens (ETH/MATIC), convert from Wei
+      // For native tokens (ETH/MATIC), ensure proper conversion
       let valueInWei;
-      if (typeof price === 'string') {
-        const cleanValue = price.replace(/,/g, '');
+      if (typeof individualPrice === 'string') {
+        const cleanValue = individualPrice.replace(/,/g, '');
         try {
           valueInWei = ethers.parseUnits(cleanValue, 'wei');
         } catch {
           valueInWei = ethers.parseEther(cleanValue);
         }
       } else {
-        valueInWei = BigInt(price.toString());
+        valueInWei = BigInt(individualPrice.toString());
       }
 
       const ethValue = ethers.formatEther(valueInWei);
