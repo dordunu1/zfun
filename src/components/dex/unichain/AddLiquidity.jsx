@@ -54,10 +54,10 @@ const getTokenLogo = (token) => {
 
 // Add balance display component
 const TokenBalance = ({ token }) => {
-  const { address: userAddress } = useAccount();
   const [balance, setBalance] = useState('0');
   const [isLoading, setIsLoading] = useState(false);
   const uniswap = useUnichain();
+  const { address: userAddress } = useAccount();
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -65,11 +65,18 @@ const TokenBalance = ({ token }) => {
       
       try {
         setIsLoading(true);
-        const balance = await uniswap.getTokenBalance(
-          token.symbol === 'ETH' ? 'ETH' : token.address,
-          userAddress
-        );
-        setBalance(balance);
+        // If the token is WETH, show ETH balance instead
+        if (token.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const ethBalance = await provider.getBalance(userAddress);
+          setBalance(ethers.formatEther(ethBalance));
+        } else {
+          const balance = await uniswap.getTokenBalance(
+            token.address,
+            userAddress
+          );
+          setBalance(balance);
+        }
       } catch (error) {
         console.error('Error fetching balance:', error);
         setBalance('0');
@@ -83,9 +90,14 @@ const TokenBalance = ({ token }) => {
 
   if (!token) return null;
 
+  // Show ETH instead of WETH in the display
+  const displaySymbol = token.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
+    ? 'ETH' 
+    : token.symbol;
+
   return (
     <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-      Balance: {isLoading ? 'Loading...' : balance} {token.symbol}
+      Balance: {isLoading ? 'Loading...' : balance} {displaySymbol}
     </div>
   );
 };
@@ -175,22 +187,36 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool }) => {
 
   const getTokenPairDisplay = () => {
     if (!pool) return '';
+
+    // Convert WETH to ETH for display
+    const displayToken0 = {
+      ...pool.token0,
+      symbol: pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token0.symbol,
+      name: pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'Ethereum' : pool.token0.name
+    };
+
+    const displayToken1 = {
+      ...pool.token1,
+      symbol: pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token1.symbol,
+      name: pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'Ethereum' : pool.token1.name
+    };
+
     return (
       <div className="flex items-center gap-2">
         <div className="flex -space-x-2">
           <img
-            src={getTokenLogo(pool.token0)}
-            alt={pool.token0.symbol}
+            src={getTokenLogo(displayToken0)}
+            alt={displayToken0.symbol}
             className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
           />
           <img
-            src={getTokenLogo(pool.token1)}
-            alt={pool.token1.symbol}
+            src={getTokenLogo(displayToken1)}
+            alt={displayToken1.symbol}
             className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
           />
         </div>
         <span>
-          {pool.token0.symbol} {pool.token1.symbol}
+          {displayToken0.symbol} {displayToken1.symbol}
         </span>
       </div>
     );
@@ -581,12 +607,17 @@ export default function AddLiquidity() {
       let tx;
 
       if (isETHPair) {
-        // For ETH pairs, we need to handle the token order correctly
+        // For ETH pairs, we need to handle the token order correctly and always use ETH
         const tokenAddress = isToken0WETH ? token1Address : token0Address;
         const ethAmount = isToken0WETH ? parsedAmount0 : parsedAmount1;
         const tokenAmount = isToken0WETH ? parsedAmount1 : parsedAmount0;
         const tokenAmountMin = isToken0WETH ? amount1Min : amount0Min;
         const ethAmountMin = isToken0WETH ? amount0Min : amount1Min;
+
+        // If user selected WETH, show an error message
+        if ((isToken0WETH && pool.token0.symbol === 'WETH') || (isToken1WETH && pool.token1.symbol === 'WETH')) {
+          throw new Error('Please use ETH instead of WETH. The router will automatically handle the conversion.');
+        }
 
         setCurrentStep('approval');
         // Only approve the token (not ETH)
@@ -782,7 +813,8 @@ export default function AddLiquidity() {
                 />
               </div>
               <span className="font-medium text-gray-900 dark:text-white">
-                {pool.token0.symbol}/{pool.token1.symbol}
+                {pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token0.symbol}/
+                {pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token1.symbol}
               </span>
             </div>
           ) : (

@@ -362,6 +362,45 @@ const ROUTER_ABI = [
   'function removeLiquidityETH(address token, uint liquidity, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external returns (uint amountToken, uint amountETH)'
 ];
 
+const getDisplaySymbol = (token) => {
+  if (token?.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+    return 'ETH';
+  }
+  return token?.symbol || 'Unknown';
+};
+
+const getDisplayName = (token) => {
+  if (token?.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+    return 'Ethereum';
+  }
+  return token?.name || 'Unknown Token';
+};
+
+// Update the pool display in the button
+const PoolDisplay = ({ pool }) => {
+  if (!pool) return <span className="text-gray-500">Select a pool</span>;
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex -space-x-2">
+        <img
+          src={getTokenLogo(pool.token0)}
+          alt={getDisplaySymbol(pool.token0)}
+          className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+        />
+        <img
+          src={getTokenLogo(pool.token1)}
+          alt={getDisplaySymbol(pool.token1)}
+          className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+        />
+      </div>
+      <span className="font-medium text-gray-900 dark:text-white">
+        {getDisplaySymbol(pool.token0)}/{getDisplaySymbol(pool.token1)}
+      </span>
+    </div>
+  );
+};
+
 export default function RemoveLiquidity() {
   const { address } = useAccount();
   const uniswap = useUnichain();
@@ -724,27 +763,7 @@ export default function RemoveLiquidity() {
           onClick={() => setShowPoolModal(true)}
           className="w-full px-4 py-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[#00ffbd] dark:hover:border-[#00ffbd] transition-colors flex items-center justify-between group"
         >
-          {pool ? (
-            <div className="flex items-center gap-3">
-              <div className="flex -space-x-2">
-                <img
-                  src={getTokenLogo(pool.token0)}
-                  alt={pool.token0.symbol}
-                  className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                />
-                <img
-                  src={getTokenLogo(pool.token1)}
-                  alt={pool.token1.symbol}
-                  className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                />
-              </div>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {pool.token0.symbol}/{pool.token1.symbol}
-              </span>
-            </div>
-          ) : (
-            <span className="text-gray-500">Select a pool</span>
-          )}
+          <PoolDisplay pool={pool} />
           <svg
             className="w-5 h-5 text-gray-400 group-hover:text-[#00ffbd] transition-colors"
             fill="none"

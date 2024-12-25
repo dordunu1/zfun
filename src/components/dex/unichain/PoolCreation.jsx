@@ -342,6 +342,38 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
   );
 };
 
+// Update the toast error style
+const showError = (message) => {
+  toast.error(message, {
+    style: {
+      background: '#1a1b1f',
+      color: '#fff',
+      borderLeft: '4px solid #00ffbd',
+    },
+    iconTheme: {
+      primary: '#00ffbd',
+      secondary: '#1a1b1f',
+    },
+    duration: 4000,
+  });
+};
+
+// Update success toast style
+const showSuccess = (message) => {
+  toast.success(message, {
+    style: {
+      background: '#1a1b1f',
+      color: '#fff',
+      borderLeft: '4px solid #00ffbd',
+    },
+    iconTheme: {
+      primary: '#00ffbd',
+      secondary: '#1a1b1f',
+    },
+    duration: 4000,
+  });
+};
+
 export default function PoolCreation() {
   const { address: account, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
@@ -393,6 +425,19 @@ export default function PoolCreation() {
   // Handle token selection
   const handleToken0Select = async (token) => {
     try {
+      // Check for WETH and show warning
+      if (token.symbol === 'WETH') {
+        toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
+          duration: 6000,
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        });
+        return;
+      }
+
       if (token.symbol === 'ETH') {
         setToken0({
           ...token,
@@ -445,6 +490,19 @@ export default function PoolCreation() {
 
   const handleToken1Select = async (token) => {
     try {
+      // Check for WETH and show warning
+      if (token.symbol === 'WETH') {
+        toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
+          duration: 6000,
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        });
+        return;
+      }
+
       if (token.symbol === 'ETH') {
         setToken1({
           ...token,
@@ -535,6 +593,19 @@ export default function PoolCreation() {
 
     if (!token0 || !token1) {
       toast.error('Please select both tokens');
+      return;
+    }
+
+    // Check for WETH at the start
+    if (token0?.symbol === 'WETH' || token1?.symbol === 'WETH') {
+      toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
+        duration: 6000,
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      });
       return;
     }
 

@@ -95,6 +95,68 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
   }
 };
 
+const getDisplaySymbol = (token) => {
+  if (token?.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+    return 'ETH';
+  }
+  return token?.symbol || 'Unknown';
+};
+
+const getDisplayName = (token) => {
+  if (token?.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+    return 'Ethereum';
+  }
+  return token?.name || 'Unknown Token';
+};
+
+// Update the pool display in the list
+const PoolItem = ({ pool, onSelect }) => {
+  return (
+    <button
+      onClick={() => onSelect(pool)}
+      className="w-full px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-between group"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex -space-x-2">
+          <img
+            src={getTokenLogo(pool.token0)}
+            alt={getDisplaySymbol(pool.token0)}
+            className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+          />
+          <img
+            src={getTokenLogo(pool.token1)}
+            alt={getDisplaySymbol(pool.token1)}
+            className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
+          />
+        </div>
+        <div className="text-left">
+          <div className="font-medium text-gray-900 dark:text-white">
+            {getDisplaySymbol(pool.token0)}/{getDisplaySymbol(pool.token1)}
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            {getDisplayName(pool.token0)}/{getDisplayName(pool.token1)}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {pool.tvl && (
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            TVL: ${Number(pool.tvl).toLocaleString()}
+          </span>
+        )}
+        <svg
+          className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+    </button>
+  );
+};
+
 export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   const uniswap = useUnichain();
   const { address } = useAccount();
@@ -113,13 +175,13 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
         getTokenMetadata(pool.token1)
       ]);
 
-      // Ensure WETH is properly displayed as WETH
+      // Ensure WETH is properly displayed as ETH
       const displayToken0 = token0Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
-        ? { ...token0Metadata, symbol: 'WETH', name: 'Wrapped Ether' }
+        ? { ...token0Metadata, symbol: 'ETH', name: 'Ethereum' }
         : token0Metadata;
 
       const displayToken1 = token1Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()
-        ? { ...token1Metadata, symbol: 'WETH', name: 'Wrapped Ether' }
+        ? { ...token1Metadata, symbol: 'ETH', name: 'Ethereum' }
         : token1Metadata;
 
       return {
@@ -270,67 +332,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
               </div>
             ) : (
               displayPools.map((pool) => (
-                <button
-                  key={pool.pairAddress}
-                  onClick={() => onSelect(pool)}
-                  className="w-full p-6 bg-white/5 dark:bg-[#2d2f36] hover:bg-gray-50 dark:hover:bg-[#2d2f36]/80 rounded-xl border border-gray-200 dark:border-gray-800 transition-colors text-left"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex -space-x-3">
-                        <img
-                          src={pool.token0?.logo || getTokenLogo(pool.token0)}
-                          alt={pool.token0?.symbol || 'ERC20 Token'}
-                          className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = '/token-default.png';
-                          }}
-                        />
-                        <img
-                          src={pool.token1?.logo || getTokenLogo(pool.token1)}
-                          alt={pool.token1?.symbol || 'ERC20 Token'}
-                          className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = '/token-default.png';
-                          }}
-                        />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-gray-900 dark:text-white text-lg">
-                          {pool.token0?.symbol || 'ERC20 Token'}/{pool.token1?.symbol || 'ERC20 Token'}
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {pool.token0?.name || pool.token0?.symbol || 'ERC20 Token'} / {pool.token1?.name || pool.token1?.symbol || 'ERC20 Token'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {pool.token0?.symbol || 'Token'} Reserves
-                      </div>
-                      <div className="text-base font-medium text-gray-900 dark:text-white">
-                        {pool.reserves.reserve0Formatted}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {pool.token1?.symbol || 'Token'} Reserves
-                      </div>
-                      <div className="text-base font-medium text-gray-900 dark:text-white">
-                        {pool.reserves.reserve1Formatted}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {pool.pairAddress}
-                  </div>
-                </button>
+                <PoolItem key={pool.pairAddress} pool={pool} onSelect={onSelect} />
               ))
             )}
           </div>
