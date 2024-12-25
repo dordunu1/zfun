@@ -129,8 +129,22 @@ export default function AccountPage() {
         // Load owned NFTs and token logos in parallel
         const ownedNFTs = await getOwnedNFTs(address);
         
+        // Process NFTs to handle multiple mints in a single transaction
+        const processedNFTs = ownedNFTs.reduce((acc, nft) => {
+          const quantity = parseInt(nft.quantity || '1');
+          if (quantity > 1) {
+            // For multiple NFTs minted in one transaction, create separate entries
+            return [...acc, ...Array(quantity).fill().map((_, index) => ({
+              ...nft,
+              tokenId: nft.type === 'ERC1155' ? '0' : String(Number(nft.tokenId) + index),
+              uniqueId: `${nft.contractAddress}-${nft.type === 'ERC1155' ? '0' : String(Number(nft.tokenId) + index)}-${index}`
+            }))];
+          }
+          return [...acc, { ...nft, uniqueId: `${nft.contractAddress}-${nft.tokenId}` }];
+        }, []);
+
         // Filter NFTs based on current chain
-        const filteredNFTs = ownedNFTs.filter(nft => {
+        const filteredNFTs = processedNFTs.filter(nft => {
           if (chain?.id === 11155111) { // Sepolia
             return nft.network === 'sepolia' || nft.chainId === 11155111;
           } else if (chain?.id === 1301) { // Unichain
@@ -275,7 +289,7 @@ export default function AccountPage() {
     const displayName = nft.name?.replace(/ #0$/, '');
 
     return (
-      <div key={`${nft.contractAddress}-${nft.tokenId}`} className="block">
+      <div key={nft.uniqueId} className="block">
         <div className="relative">
           {/* L-shaped corners */}
           <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
