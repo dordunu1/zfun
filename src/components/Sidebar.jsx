@@ -13,7 +13,8 @@ import {
   FaTelegram, 
   FaDiscord, 
   FaTwitter,
-  FaChartBar 
+  FaChartBar,
+  FaLink
 } from 'react-icons/fa';
 import { BiHome, BiCollection, BiHistory, BiHomeAlt, BiCoin } from 'react-icons/bi';
 import { AiOutlinePlus } from 'react-icons/ai'
@@ -66,6 +67,12 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       icon: FaChartLine,
       label: 'Trading',
       to: '/trading',
+      isRouterLink: true,
+    },
+    {
+      icon: FaLink,
+      label: 'Bridge',
+      to: '/bridge',
       isRouterLink: true,
     },
     {

@@ -6,6 +6,7 @@ import CollectionPage from './components/CollectionPage';
 import HistoryPage from './pages/HistoryPage';
 import AccountPage from './pages/AccountPage';
 import ActivityPage from './pages/ActivityPage';
+import BridgePage from './pages/bridge';
 
 export const router = createBrowserRouter([
   {
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
       {
         path: '/trading',
         element: <ActivityPage />,
+      },
+      {
+        path: '/bridge',
+        element: <BridgePage />,
       },
     ],
   },
