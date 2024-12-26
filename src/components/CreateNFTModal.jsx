@@ -1554,7 +1554,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       {formData.mintingToken === 'native' ? (
                         <>
                           <FaEthereum className="text-[#00ffbd]" />
-                          <span className="text-gray-900 dark:text-white">Native Token (ETH/POL)</span>
+                          <span className="text-gray-900 dark:text-white">Native Token (ETH)</span>
                         </>
                       ) : formData.mintingToken === 'custom' ? (
                         <>
