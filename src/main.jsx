@@ -18,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       </ThemeProvider>
     </WagmiConfig>
     <Web3Modal 
-      projectId={projectId} 
+      projectId={projectId}
       ethereumClient={ethereumClient}
       themeMode="dark"
       themeVariables={{
