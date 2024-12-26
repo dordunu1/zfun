@@ -249,6 +249,20 @@ export default function HistoryPage() {
           };
         });
 
+        // Format NFT creations
+        const formattedNFTCreations = collections.map(collection => ({
+          id: collection.contractAddress,
+          activityType: 'nft_creation',
+          timestamp: collection.createdAt,
+          image: collection.previewUrl,
+          title: `Created ${collection.name}`,
+          subtitle: 'NFT Collection',
+          address: collection.contractAddress,
+          network: collection.network,
+          chainId: collection.chainId,
+          symbol: collection.symbol
+        }));
+
         // Process mints in parallel
         const allMints = (await Promise.all(
           allCollectionsData.map(async (collection) => {
@@ -304,6 +318,7 @@ export default function HistoryPage() {
           ...formattedTokenDeployments,
           ...formattedTokenTransfers,
           ...formattedNFTTransfers,
+          ...formattedNFTCreations,
           ...allMints,
         ]
         .filter(activity => {
