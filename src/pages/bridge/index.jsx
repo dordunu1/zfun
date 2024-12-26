@@ -123,7 +123,7 @@ const TermsModal = ({ isOpen, onClose, onAccept, isReversed }) => {
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
-                        className="mt-1 text-[#00ffbd] focus:ring-[#00ffbd]"
+                        className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
                         checked={acceptedTerms.time}
                         onChange={(e) => setAcceptedTerms(prev => ({ ...prev, time: e.target.checked }))}
                       />
@@ -134,7 +134,7 @@ const TermsModal = ({ isOpen, onClose, onAccept, isReversed }) => {
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
-                        className="mt-1 text-[#00ffbd] focus:ring-[#00ffbd]"
+                        className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
                         checked={acceptedTerms.cancellation}
                         onChange={(e) => setAcceptedTerms(prev => ({ ...prev, cancellation: e.target.checked }))}
                       />
@@ -145,7 +145,7 @@ const TermsModal = ({ isOpen, onClose, onAccept, isReversed }) => {
                     <label className="flex items-start gap-3 cursor-pointer group">
                       <input
                         type="checkbox"
-                        className="mt-1 text-[#00ffbd] focus:ring-[#00ffbd]"
+                        className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
                         checked={acceptedTerms.fees}
                         onChange={(e) => setAcceptedTerms(prev => ({ ...prev, fees: e.target.checked }))}
                       />
@@ -179,6 +179,25 @@ const TermsModal = ({ isOpen, onClose, onAccept, isReversed }) => {
   );
 };
 
+const AnimatedClock = () => (
+  <div className="relative w-5 h-5">
+    <div className="absolute inset-0 border-2 border-[#00ffbd] rounded-full" />
+    <div 
+      className="absolute top-1/2 left-1/2 w-[1px] h-[40%] bg-[#00ffbd] origin-bottom"
+      style={{ 
+        transform: 'translate(-50%, -100%) rotate(0deg)',
+        animation: 'rotate 2s linear infinite'
+      }}
+    />
+    <style jsx>{`
+      @keyframes rotate {
+        from { transform: translate(-50%, -100%) rotate(0deg); }
+        to { transform: translate(-50%, -100%) rotate(360deg); }
+      }
+    `}</style>
+  </div>
+);
+
 const CountdownTimer = ({ targetTime }) => {
   const [timeLeft, setTimeLeft] = useState(targetTime);
 
@@ -196,13 +215,27 @@ const CountdownTimer = ({ targetTime }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
+  const formatTime = (seconds) => {
+    if (seconds > 86400) { // More than a day
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      return `${days}d ${hours}h remaining`;
+    } else if (seconds > 3600) { // More than an hour
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m remaining`;
+    } else {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes}m ${secs}s remaining`;
+    }
+  };
 
   return (
-    <span className="text-sm text-gray-500 dark:text-gray-400">
-      ~{minutes} mins {seconds} secs to go
-    </span>
+    <div className="flex items-center gap-2 text-[#00ffbd]">
+      <AnimatedClock />
+      <span className="text-sm">{formatTime(timeLeft)}</span>
+    </div>
   );
 };
 
@@ -261,7 +294,7 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
       title: 'Wait ~3 mins',
       description: 'Transaction processing',
       status: currentStep === 'waiting' ? 'current' : currentStep === 'complete' ? 'complete' : 'upcoming',
-      timer: currentStep === 'waiting' ? 180 - Math.floor((Date.now() - startTime) / 1000) : null
+      timer: currentStep === 'waiting' ? 180 : null
     },
     {
       title: 'Get ETH on Unichain Sepolia',
@@ -330,13 +363,12 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {step.description}
-                            {step.timer && step.timer > 0 && (
-                              <div className="mt-1 flex items-center gap-2">
-                                <BiTime className="text-gray-400" />
-                                <CountdownTimer targetTime={step.timer} />
-                              </div>
-                            )}
                           </div>
+                          {step.timer && step.status === 'current' && (
+                            <div className="mt-2">
+                              <CountdownTimer targetTime={step.timer} />
+                            </div>
+                          )}
                           {step.link && (
                             <a
                               href={step.link}
@@ -346,14 +378,6 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
                             >
                               View in explorer ↗
                             </a>
-                          )}
-                          {step.action && (
-                            <button
-                              onClick={step.action}
-                              className="mt-2 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black text-sm font-medium rounded-lg transition-colors"
-                            >
-                              {step.title.split(' ')[0]}
-                            </button>
                           )}
                         </div>
                       </div>
