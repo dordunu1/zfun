@@ -10,7 +10,6 @@ import { FaGasPump, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
-import { CheckIcon } from '@heroicons/react/24/outline';
 
 const BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
 const BRIDGE_ABI = [
@@ -127,48 +126,33 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
   );
 };
 
-const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed }) => {
-  const getExplorerUrl = (hash, network) => {
-    if (network === 'unichain') {
+const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed, txHash }) => {
+  const getExplorerUrl = (chain, hash) => {
+    if (chain === 'sepolia') {
+      return `https://sepolia.etherscan.io/tx/${hash}`;
+    } else {
       return `https://unichain-sepolia.blockscout.com/tx/${hash}`;
     }
-    return `https://sepolia.etherscan.io/tx/${hash}`;
   };
 
-  const steps = [
-    {
-      title: `Start on ${isReversed ? 'Unichain Sepolia' : 'Sepolia'}`,
-      description: 'Bridge transaction initiated',
-      status: currentStep === 'start' ? 'current' : currentStep ? 'complete' : 'upcoming',
-      link: txHash ? getExplorerUrl(txHash, isReversed ? 'unichain' : 'sepolia') : null
-    },
-    {
-      title: 'Wait 1 hour',
-      description: 'Waiting for state root',
-      status: currentStep === 'waiting' ? 'current' : currentStep === 'prove' || currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming'
-    },
-    {
-      title: `Prove on ${isReversed ? 'Sepolia' : 'Unichain Sepolia'}`,
-      description: 'Prove your withdrawal',
-      status: currentStep === 'prove' ? 'current' : currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming',
-      action: currentStep === 'prove' ? handleProveWithdrawal : null
-    },
-    {
-      title: 'Wait 7 days',
-      description: 'Challenge period',
-      status: currentStep === 'challenge' ? 'current' : currentStep === 'complete' ? 'complete' : 'upcoming'
-    },
-    {
-      title: `Get ETH on ${isReversed ? 'Sepolia' : 'Unichain Sepolia'}`,
-      description: 'Finalize withdrawal',
-      status: currentStep === 'complete' ? 'complete' : 'upcoming',
-      action: currentStep === 'complete' ? handleFinalizeWithdrawal : null
-    }
-  ];
+  const fromChain = isReversed ? 'unichain' : 'sepolia';
+  const toChain = isReversed ? 'sepolia' : 'unichain';
+
+  // Don't show destination explorer link for Sepolia to Unichain
+  const showDestinationExplorer = isReversed;
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog 
+        as="div" 
+        className="relative z-50" 
+        onClose={() => {
+          // Only allow closing if transaction is complete
+          if (currentStep === 'complete') {
+            onClose();
+          }
+        }}
+      >
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -178,7 +162,7 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -192,73 +176,71 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
-                <Dialog.Title
-                  as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
-                >
-                  Bridge Progress
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
+                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-1">
+                  Bridge {amount} ETH
                 </Dialog.Title>
-
-                <div className="mt-4 space-y-6">
-                  {steps.map((step, index) => (
-                    <div key={index} className="relative">
-                      {index !== steps.length - 1 && (
-                        <div className={`absolute left-3.5 top-8 w-0.5 h-full ${
-                          step.status === 'complete' ? 'bg-[#00ffbd]' : 'bg-gray-200 dark:bg-gray-700'
-                        }`} />
-                      )}
-                      <div className="relative flex items-start">
-                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                          step.status === 'complete' ? 'bg-[#00ffbd]' :
-                          step.status === 'current' ? 'bg-blue-500' :
-                          'bg-gray-200 dark:bg-gray-700'
-                        }`}>
-                          {step.status === 'complete' ? (
-                            <CheckIcon className="h-4 w-4 text-black" />
-                          ) : step.status === 'current' ? (
-                            <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                          ) : null}
-                        </div>
-                        <div className="ml-4 min-w-0 flex-1">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {step.title}
-                          </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {step.description}
-                          </div>
-                          {step.link && (
-                            <a
-                              href={step.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-[#00ffbd] hover:text-[#00e6a9] mt-1 inline-block"
-                            >
-                              View in explorer ↗
-                            </a>
-                          )}
-                          {step.action && (
-                            <button
-                              onClick={step.action}
-                              className="mt-2 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black text-sm font-medium rounded-lg transition-colors"
-                            >
-                              {step.title.split(' ')[0]}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-sm text-gray-500 mb-4">
+                  Via Native Bridge
                 </div>
 
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    className="w-full rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none"
-                    onClick={onClose}
-                  >
-                    Close
-                  </button>
+                <div className="mt-4">
+                  <div className="space-y-4">
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
+                      currentStep === 'start' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
+                    }`}>
+                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
+                        {currentStep === 'start' ? '1' : currentStep === 'waiting' || currentStep === 'complete' ? '✓' : '1'}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Start on {isReversed ? 'Unichain Sepolia' : 'Sepolia'}</div>
+                        {txHash && (currentStep === 'waiting' || currentStep === 'complete') ? (
+                          <a 
+                            href={getExplorerUrl(fromChain, txHash)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+                          >
+                            View in explorer ↗
+                          </a>
+                        ) : (
+                          <div className="text-sm text-gray-500">Waiting for transaction...</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
+                      currentStep === 'waiting' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
+                    }`}>
+                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
+                        {currentStep === 'waiting' ? '2' : currentStep === 'complete' ? '✓' : '2'}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Wait ~3 mins</div>
+                      </div>
+                    </div>
+
+                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
+                      currentStep === 'complete' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
+                    }`}>
+                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
+                        {currentStep === 'complete' ? '✓' : '3'}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">Get ETH on {isReversed ? 'Sepolia' : 'Unichain Sepolia'}</div>
+                        {currentStep === 'complete' && showDestinationExplorer && (
+                          <a 
+                            href={getExplorerUrl(toChain, txHash)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+                          >
+                            View in explorer ↗
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -462,36 +444,10 @@ function Bridge() {
       console.log('Bridge transaction confirmed:', receipt);
       setCurrentStep('waiting');
       
-      // Wait for state root (1 hour)
-      if (isReversed) {
-        // For Unichain to Sepolia direction
-        toast.success('Bridge initiated! Please wait 1 hour before proving your withdrawal.');
-        
-        // After 1 hour, enable the prove button
-        setTimeout(() => {
-          setCurrentStep('prove');
-          toast.success('Ready to prove withdrawal! Click the Prove button.');
-        }, 3600000); // 1 hour
-        
-        // After proving and 7 days
-        // Note: In reality, you'd want to persist this state and check it when the user returns
-        setTimeout(() => {
-          setCurrentStep('challenge');
-          toast.success('In challenge period. Please wait 7 days before finalizing.');
-        }, 3600000 + 60000); // 1 hour + 1 minute (for demo)
-        
-        setTimeout(() => {
-          setCurrentStep('complete');
-          toast.success('Ready to claim your ETH! Click the Get ETH button.');
-          setLoading(false);
-        }, 3600000 + 120000); // 1 hour + 2 minutes (for demo)
-      } else {
-        // For Sepolia to Unichain direction
-        setTimeout(() => {
-          setCurrentStep('complete');
-          setLoading(false);
-        }, 180000); // 3 minutes
-      }
+      setTimeout(() => {
+        setCurrentStep('complete');
+        setLoading(false);
+      }, 180000);
       
     } catch (error) {
       console.error('Bridge error:', error);
@@ -756,8 +712,9 @@ function Bridge() {
         isOpen={showProgress}
         onClose={() => setShowProgress(false)}
         currentStep={currentStep}
-        txHash={txHash}
+        amount={amount}
         isReversed={isReversed}
+        txHash={txHash}
       />
     </div>
   );
