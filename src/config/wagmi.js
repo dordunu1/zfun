@@ -30,13 +30,21 @@ const unichainTestnet = {
 
 const { chains, publicClient } = configureChains(
   [mainnet, sepolia, unichainTestnet],
-  [w3mProvider({ projectId })]
+  [
+    w3mProvider({ projectId }),
+    publicProvider() // Add public provider as fallback
+  ]
 )
 
 const wagmiConfig = createConfig({
   autoConnect: true,
-  connectors: w3mConnectors({ projectId, chains }),
-  publicClient
+  connectors: w3mConnectors({ 
+    projectId, 
+    chains,
+    version: 2, // Use latest version
+    showQrModal: true // Enable QR code for mobile
+  }),
+  publicClient,
 })
 
 export const ethereumClient = new EthereumClient(wagmiConfig, chains)
