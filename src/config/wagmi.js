@@ -2,6 +2,8 @@ import { createConfig, configureChains } from 'wagmi'
 import { mainnet, sepolia } from 'wagmi/chains'
 import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum'
 import { publicProvider } from 'wagmi/providers/public'
+import { InjectedConnector } from 'wagmi/connectors/injected'
+import { WalletConnectConnector } from 'wagmi/connectors/walletConnect'
 
 const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID
 
@@ -32,19 +34,38 @@ const { chains, publicClient } = configureChains(
   [mainnet, sepolia, unichainTestnet],
   [
     w3mProvider({ projectId }),
-    publicProvider() // Add public provider as fallback
+    publicProvider()
   ]
 )
 
+const metadata = {
+  name: 'TokenFactory',
+  description: 'Create and manage tokens on Unichain',
+  url: 'https://tokenfactory.xyz',
+  icons: ['https://tokenfactory.xyz/logo.png']
+}
+
 const wagmiConfig = createConfig({
-  autoConnect: true,
-  connectors: w3mConnectors({ 
-    projectId, 
-    chains,
-    version: 2, // Use latest version
-    showQrModal: true // Enable QR code for mobile
-  }),
-  publicClient,
+  autoConnect: false, // Disable autoConnect to prevent provider errors
+  connectors: [
+    ...w3mConnectors({ chains, projectId, version: '2', showQrModal: true }),
+    new InjectedConnector({ 
+      chains,
+      options: {
+        name: 'Browser Wallet',
+        shimDisconnect: true,
+      }
+    }),
+    new WalletConnectConnector({
+      chains,
+      options: {
+        projectId,
+        metadata,
+        showQrModal: true,
+      },
+    })
+  ],
+  publicClient
 })
 
 export const ethereumClient = new EthereumClient(wagmiConfig, chains)
