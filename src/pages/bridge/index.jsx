@@ -9,10 +9,20 @@ import { BiWallet, BiTime } from 'react-icons/bi';
 import { FaGasPump, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const BRIDGE_ABI = [{"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"stateMutability":"payable","type":"fallback"},{"inputs":[],"name":"getImplementation","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"getOwner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes","name":"_code","type":"bytes"}],"name":"setCode","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"name":"setOwner","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"_key","type":"bytes32"},{"internalType":"bytes32","name":"_value","type":"bytes32"}],"name":"setStorage","outputs":[],"stateMutability":"nonpayable","type":"function"},{"stateMutability":"payable","type":"receive"}];
+import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
+import { CheckIcon } from '@heroicons/react/24/outline';
 
 const BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
+const BRIDGE_ABI = [
+  {"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},
+  {"stateMutability":"payable","type":"fallback"},
+  {"inputs":[],"name":"getImplementation","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[],"name":"getOwner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"bytes","name":"_code","type":"bytes"}],"name":"setCode","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"name":"setOwner","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"bytes32","name":"_key","type":"bytes32"},{"internalType":"bytes32","name":"_value","type":"bytes32"}],"name":"setStorage","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"stateMutability":"payable","type":"receive"}
+];
 
 const TermsModal = ({ isOpen, onClose, onAccept }) => {
   const [acceptedTerms, setAcceptedTerms] = useState({
@@ -117,30 +127,48 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
   );
 };
 
-const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed, txHash }) => {
-  const getExplorerUrl = (chain, hash) => {
-    if (chain === 'sepolia') {
-      return `https://sepolia.etherscan.io/tx/${hash}`;
-    } else {
+const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed }) => {
+  const getExplorerUrl = (hash, network) => {
+    if (network === 'unichain') {
       return `https://unichain-sepolia.blockscout.com/tx/${hash}`;
     }
+    return `https://sepolia.etherscan.io/tx/${hash}`;
   };
 
-  const fromChain = isReversed ? 'unichain' : 'sepolia';
-  const toChain = isReversed ? 'sepolia' : 'unichain';
+  const steps = [
+    {
+      title: `Start on ${isReversed ? 'Unichain Sepolia' : 'Sepolia'}`,
+      description: 'Bridge transaction initiated',
+      status: currentStep === 'start' ? 'current' : currentStep ? 'complete' : 'upcoming',
+      link: txHash ? getExplorerUrl(txHash, isReversed ? 'unichain' : 'sepolia') : null
+    },
+    {
+      title: 'Wait 1 hour',
+      description: 'Waiting for state root',
+      status: currentStep === 'waiting' ? 'current' : currentStep === 'prove' || currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming'
+    },
+    {
+      title: `Prove on ${isReversed ? 'Sepolia' : 'Unichain Sepolia'}`,
+      description: 'Prove your withdrawal',
+      status: currentStep === 'prove' ? 'current' : currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming',
+      action: currentStep === 'prove' ? handleProveWithdrawal : null
+    },
+    {
+      title: 'Wait 7 days',
+      description: 'Challenge period',
+      status: currentStep === 'challenge' ? 'current' : currentStep === 'complete' ? 'complete' : 'upcoming'
+    },
+    {
+      title: `Get ETH on ${isReversed ? 'Sepolia' : 'Unichain Sepolia'}`,
+      description: 'Finalize withdrawal',
+      status: currentStep === 'complete' ? 'complete' : 'upcoming',
+      action: currentStep === 'complete' ? handleFinalizeWithdrawal : null
+    }
+  ];
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog 
-        as="div" 
-        className="relative z-50" 
-        onClose={() => {
-          // Only allow closing if transaction is complete
-          if (currentStep === 'complete') {
-            onClose();
-          }
-        }}
-      >
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -150,7 +178,7 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed,
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black bg-opacity-25" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -164,71 +192,73 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed,
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
-                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-1">
-                  Bridge {amount} ETH
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
+                >
+                  Bridge Progress
                 </Dialog.Title>
-                <div className="text-sm text-gray-500 mb-4">
-                  Via Native Bridge
+
+                <div className="mt-4 space-y-6">
+                  {steps.map((step, index) => (
+                    <div key={index} className="relative">
+                      {index !== steps.length - 1 && (
+                        <div className={`absolute left-3.5 top-8 w-0.5 h-full ${
+                          step.status === 'complete' ? 'bg-[#00ffbd]' : 'bg-gray-200 dark:bg-gray-700'
+                        }`} />
+                      )}
+                      <div className="relative flex items-start">
+                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                          step.status === 'complete' ? 'bg-[#00ffbd]' :
+                          step.status === 'current' ? 'bg-blue-500' :
+                          'bg-gray-200 dark:bg-gray-700'
+                        }`}>
+                          {step.status === 'complete' ? (
+                            <CheckIcon className="h-4 w-4 text-black" />
+                          ) : step.status === 'current' ? (
+                            <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                          ) : null}
+                        </div>
+                        <div className="ml-4 min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {step.title}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {step.description}
+                          </div>
+                          {step.link && (
+                            <a
+                              href={step.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-[#00ffbd] hover:text-[#00e6a9] mt-1 inline-block"
+                            >
+                              View in explorer ↗
+                            </a>
+                          )}
+                          {step.action && (
+                            <button
+                              onClick={step.action}
+                              className="mt-2 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black text-sm font-medium rounded-lg transition-colors"
+                            >
+                              {step.title.split(' ')[0]}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="mt-4">
-                  <div className="space-y-4">
-                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
-                      currentStep === 'start' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
-                    }`}>
-                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'start' ? '1' : currentStep === 'waiting' || currentStep === 'complete' ? '✓' : '1'}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Start on {isReversed ? 'Unichain Sepolia' : 'Sepolia'}</div>
-                        {txHash && (currentStep === 'waiting' || currentStep === 'complete') ? (
-                          <a 
-                            href={getExplorerUrl(fromChain, txHash)} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
-                          >
-                            View in explorer ↗
-                          </a>
-                        ) : (
-                          <div className="text-sm text-gray-500">Waiting for transaction...</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
-                      currentStep === 'waiting' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
-                    }`}>
-                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'waiting' ? '2' : currentStep === 'complete' ? '✓' : '2'}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Wait ~3 mins</div>
-                      </div>
-                    </div>
-
-                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
-                      currentStep === 'complete' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
-                    }`}>
-                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'complete' ? '✓' : '3'}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Get ETH on {isReversed ? 'Sepolia' : 'Unichain Sepolia'}</div>
-                        {currentStep === 'complete' && (
-                          <a 
-                            href={getExplorerUrl(toChain, txHash)} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
-                          >
-                            View in explorer ↗
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    className="w-full rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none"
+                    onClick={onClose}
+                  >
+                    Close
+                  </button>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -296,11 +326,15 @@ export default function BridgePage() {
   );
 }
 
-// Rename the existing Bridge component to BridgeComponent
 function Bridge() {
+  // Network and wallet hooks
   const { address, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
+  const { chain } = useNetwork();
+  const { switchNetwork } = useSwitchNetwork();
   const uniswap = useUnichain();
+  
+  // All state hooks
   const [amount, setAmount] = useState('');
   const [showTerms, setShowTerms] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
@@ -308,14 +342,12 @@ function Bridge() {
   const [ethBalance, setEthBalance] = useState('0');
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
-  const { chain } = useNetwork();
-  const { switchNetwork } = useSwitchNetwork();
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
-  
-  // Set initial reversed state based on current chain
   const [isReversed, setIsReversed] = useState(false);
+  const [bridgeFee, setBridgeFee] = useState(null);
+  const [isEstimatingFee, setIsEstimatingFee] = useState(false);
 
-  // Update isReversed when chain changes
+  // Network change effect
   useEffect(() => {
     if (chain?.id === 1301) { // Unichain
       setIsReversed(true);
@@ -324,50 +356,54 @@ function Bridge() {
     }
   }, [chain?.id]);
 
-  // Fetch ETH balance with network awareness
-  const fetchBalance = async () => {
-    if (!address) return;
-    setIsLoadingBalance(true);
-    try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const balance = await provider.getBalance(address);
-      setEthBalance(ethers.formatEther(balance));
-    } catch (error) {
-      console.error('Error fetching balance:', error);
-    } finally {
-      setIsLoadingBalance(false);
-    }
-  };
-
+  // Balance update effect
   useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      setIsLoadingBalance(true);
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const balance = await provider.getBalance(address);
+        setEthBalance(ethers.formatEther(balance));
+      } catch (error) {
+        console.error('Error fetching balance:', error);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    };
+
     fetchBalance();
     const interval = setInterval(fetchBalance, 10000);
     return () => clearInterval(interval);
   }, [address, chain?.id]);
 
-  // If not connected, show connect wallet UI
-  if (!isConnected) {
-    return (
-      <div className="text-center py-8">
-        <div className="mb-4">
-          <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-          Connect Your Wallet
-        </h3>
-        <p className="text-gray-500 dark:text-gray-400 mb-6">
-          Please connect your wallet to start bridging
-        </p>
-        <button
-          onClick={openConnectModal}
-          className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
-        >
-          Connect Wallet
-        </button>
-      </div>
-    );
-  }
+  // Gas estimation effect
+  useEffect(() => {
+    const updateGasEstimate = async () => {
+      if (!amount || !window.ethereum) return;
+      
+      setIsEstimatingFee(true);
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const estimator = createBridgeGasEstimator(
+          provider,
+          isReversed ? 'unichain' : 'sepolia'
+        );
+        
+        const estimate = await estimator.estimateGasFee(amount);
+        setBridgeFee(estimate.gasFee);
+      } catch (error) {
+        console.error('Error estimating gas:', error);
+        setBridgeFee('0.019');
+      } finally {
+        setIsEstimatingFee(false);
+      }
+    };
 
+    updateGasEstimate();
+  }, [amount, isReversed]);
+
+  // Event handlers
   const handleAmountChange = (e) => {
     const value = e.target.value;
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -376,19 +412,19 @@ function Bridge() {
   };
 
   const handleReviewBridge = () => {
-    if (!amount) return;
+    if (!amount || !bridgeFee) return;
     
-    // Validate amount
     const amountNum = parseFloat(amount);
     const balanceNum = parseFloat(ethBalance);
+    const bridgeFeeNum = parseFloat(bridgeFee);
     
     if (amountNum <= 0) {
       toast.error('Please enter a valid amount');
       return;
     }
     
-    if (amountNum > balanceNum) {
-      toast.error('Insufficient ETH balance');
+    if (amountNum + bridgeFeeNum > balanceNum) {
+      toast.error('Insufficient ETH balance (including gas fee)');
       return;
     }
 
@@ -404,29 +440,58 @@ function Bridge() {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const bridgeContract = new ethers.Contract(BRIDGE_ADDRESS, BRIDGE_ABI, signer);
       
-      // Convert amount to wei
-      const amountInWei = ethers.parseEther(amount);
+      // Get latest gas estimate before sending transaction
+      const estimator = createBridgeGasEstimator(
+        provider,
+        isReversed ? 'unichain' : 'sepolia'
+      );
+      const estimate = await estimator.estimateGasFee(amount);
       
-      // Send transaction to bridge contract
-      const tx = await bridgeContract.fallback({
-        value: amountInWei
+      // Send ETH directly to bridge contract
+      const tx = await signer.sendTransaction({
+        to: BRIDGE_ADDRESS,
+        value: ethers.parseEther(amount),
+        gasLimit: BigInt(estimate.estimatedGas)
       });
       
       setTxHash(tx.hash);
       console.log('Bridge transaction sent:', tx.hash);
       
-      // Wait for transaction confirmation
       const receipt = await tx.wait();
       console.log('Bridge transaction confirmed:', receipt);
       setCurrentStep('waiting');
       
-      // Wait for bridge completion (approximately 3 minutes)
-      setTimeout(() => {
-        setCurrentStep('complete');
-        setLoading(false);
-      }, 180000); // 3 minutes
+      // Wait for state root (1 hour)
+      if (isReversed) {
+        // For Unichain to Sepolia direction
+        toast.success('Bridge initiated! Please wait 1 hour before proving your withdrawal.');
+        
+        // After 1 hour, enable the prove button
+        setTimeout(() => {
+          setCurrentStep('prove');
+          toast.success('Ready to prove withdrawal! Click the Prove button.');
+        }, 3600000); // 1 hour
+        
+        // After proving and 7 days
+        // Note: In reality, you'd want to persist this state and check it when the user returns
+        setTimeout(() => {
+          setCurrentStep('challenge');
+          toast.success('In challenge period. Please wait 7 days before finalizing.');
+        }, 3600000 + 60000); // 1 hour + 1 minute (for demo)
+        
+        setTimeout(() => {
+          setCurrentStep('complete');
+          toast.success('Ready to claim your ETH! Click the Get ETH button.');
+          setLoading(false);
+        }, 3600000 + 120000); // 1 hour + 2 minutes (for demo)
+      } else {
+        // For Sepolia to Unichain direction
+        setTimeout(() => {
+          setCurrentStep('complete');
+          setLoading(false);
+        }, 180000); // 3 minutes
+      }
       
     } catch (error) {
       console.error('Bridge error:', error);
@@ -440,16 +505,15 @@ function Bridge() {
 
   const handleNetworkSwitch = async () => {
     const newIsReversed = !isReversed;
-    const targetNetwork = newIsReversed ? 1301 : 11155111; // Unichain: 1301, Sepolia: 11155111
+    const targetNetwork = newIsReversed ? 1301 : 11155111;
     
     try {
       if (targetNetwork === 1301) {
-        // Add Unichain network if not already added
         try {
           await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: '0x515',  // 1301 in hex
+              chainId: '0x515',
               chainName: 'Unichain Sepolia',
               nativeCurrency: {
                 name: 'ETH',
@@ -472,8 +536,30 @@ function Bridge() {
     }
   };
 
-  const bridgeFee = '0.0000026639';
   const estimatedTime = '~3 mins';
+
+  // Early return for wallet connection
+  if (!isConnected) {
+    return (
+      <div className="text-center py-8">
+        <div className="mb-4">
+          <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Connect Your Wallet
+        </h3>
+        <p className="text-gray-500 dark:text-gray-400 mb-6">
+          Please connect your wallet to start bridging
+        </p>
+        <button
+          onClick={openConnectModal}
+          className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
+        >
+          Connect Wallet
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto">
@@ -595,7 +681,30 @@ function Bridge() {
                 <FaGasPump className="text-gray-500 dark:text-gray-400" size={16} />
                 <span>Bridge fee</span>
               </div>
-              <span className="text-sm text-gray-900 dark:text-white">{bridgeFee} ETH</span>
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={isEstimatingFee ? 'loading' : bridgeFee}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-sm text-gray-900 dark:text-white"
+                >
+                  {isEstimatingFee ? (
+                    <span className="inline-flex items-center">
+                      Estimating...
+                      <motion.span
+                        animate={{ opacity: [1, 0.5, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="ml-1"
+                      >
+                        ⋯
+                      </motion.span>
+                    </span>
+                  ) : (
+                    `${bridgeFee} ETH`
+                  )}
+                </motion.span>
+              </AnimatePresence>
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -647,9 +756,8 @@ function Bridge() {
         isOpen={showProgress}
         onClose={() => setShowProgress(false)}
         currentStep={currentStep}
-        amount={amount}
-        isReversed={isReversed}
         txHash={txHash}
+        isReversed={isReversed}
       />
     </div>
   );
