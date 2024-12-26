@@ -28,12 +28,18 @@ export async function uploadTokenLogo(file) {
     });
 
     if (!response.ok) {
-      throw new Error('Upload failed');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Upload failed with status ${response.status}`);
     }
 
     const data = await response.json();
+    
+    if (!data.IpfsHash) {
+      throw new Error('No IPFS hash returned from Pinata');
+    }
+
     const ipfsUrl = `ipfs://${data.IpfsHash}`;
-    const httpUrl = ipfsUrl.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
+    const httpUrl = `https://gateway.pinata.cloud/ipfs/${data.IpfsHash}`;
 
     return {
       ipfsUrl,
@@ -41,6 +47,12 @@ export async function uploadTokenLogo(file) {
     };
   } catch (error) {
     console.error('Upload Error:', error);
-    throw new Error(`Upload failed: ${error.message}`);
+    if (error.message.includes('401')) {
+      throw new Error('Invalid Pinata API key. Please check your configuration.');
+    } else if (error.message.includes('413')) {
+      throw new Error('File size too large. Please use a smaller image.');
+    } else {
+      throw new Error(`Upload failed: ${error.message}`);
+    }
   }
 }

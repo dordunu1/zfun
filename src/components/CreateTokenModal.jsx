@@ -220,8 +220,47 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
                   </div>
                 )}
                 {currentStep === 'completed' && (
-                  <div className="mt-6 text-center">
-                    <p className="text-[#00ffbd] font-medium">Token created successfully!</p>
+                  <div className="mt-6 space-y-4">
+                    <div className="text-center">
+                      <p className="text-[#00ffbd] font-medium text-lg">Token created successfully! 🎉</p>
+                      <p className="text-gray-500 dark:text-gray-400 mt-2">Your token is now ready for trading</p>
+                    </div>
+                    
+                    <div className="bg-[#0a0b0f] p-4 rounded-xl border border-[#00ffbd]/20">
+                      <h3 className="text-white font-medium mb-3">Next Steps</h3>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd]">1</div>
+                          <div>
+                            <p className="text-white font-medium">Add Liquidity</p>
+                            <p className="text-sm text-gray-400">Provide liquidity to enable trading of your token</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd]">2</div>
+                          <div>
+                            <p className="text-white font-medium">Start Trading</p>
+                            <p className="text-sm text-gray-400">Use TokenFactory Swap, our Uniswap V2 fork, to trade your token</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex justify-center">
+                        <a 
+                          href="https://tokenfactory.xyz/trading" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors gap-2"
+                        >
+                          Go to TokenFactory Swap
+                          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 )}
               </Dialog.Panel>
@@ -461,49 +500,26 @@ export default function CreateTokenModal({ isOpen, onClose }) {
       // Clear any existing toasts
       toast.dismiss();
       
-      // Delay the success toast slightly to let confetti start
+      // Show completed state and trigger confetti
+      setProgressStep('completed');
+      setShowConfetti(true);
+
+      // Close progress modal and show rating after a delay
       setTimeout(() => {
-        const dexes = DEX_CONFIGS[currentChainId] || [];
+        setShowProgressModal(false);
+        setProgressStep(null);
+        setProgressError(null);
         
-        toast.custom((t) => (
-          <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-[#1a1b1f] shadow-lg rounded-lg pointer-events-auto flex flex-col`}>
-            <div className="p-4">
-              <div className="flex items-center">
-                <div className="flex-shrink-0 pt-0.5">
-                  <img src="/success-icon.png" alt="Success" className="h-10 w-10" />
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-lg font-medium text-[#00ffbd]">
-                    Token created successfully! 🎉
-                  </p>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    Add liquidity to make your token tradeable:
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 space-y-2">
-                {dexes.map((dex) => (
-                  <a
-                    key={dex.name}
-                    href={dex.addLiquidityUrl(deployedAddress)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-[#2d2f36] hover:bg-gray-100 dark:hover:bg-[#3d3f46] transition-colors"
-                  >
-                    <img src={dex.logo} alt={dex.name} className="w-6 h-6" />
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      Add liquidity on {dex.name}
-                    </span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        ), {
-          duration: 15000,
-          position: 'top-center',
-        });
-      }, 100);
+        // Show rating modal after a short delay
+        setTimeout(() => {
+          setShowRatingModal(true);
+        }, 1000);
+        
+        // Cleanup confetti after some time
+        setTimeout(() => {
+          setShowConfetti(false);
+        }, 30000);
+      }, 8000);
 
       onClose();
       setFormData({
@@ -628,7 +644,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         setTimeout(() => {
           setShowConfetti(false);
         }, 30000);
-      }, 2000);
+      }, 8000);
 
       onClose();
       setFormData({
@@ -657,8 +673,8 @@ export default function CreateTokenModal({ isOpen, onClose }) {
       setWindowSize({
         width: window.innerWidth,
         height: window.innerHeight,
-      });
-    };
+    });
+  };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
