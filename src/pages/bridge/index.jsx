@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
 import { ethers } from 'ethers';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
@@ -8,6 +8,7 @@ import { useWeb3Modal } from '@web3modal/react';
 import { BiWallet, BiTime } from 'react-icons/bi';
 import { FaGasPump, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const BRIDGE_ABI = [{"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"stateMutability":"payable","type":"fallback"},{"inputs":[],"name":"getImplementation","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"getOwner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes","name":"_code","type":"bytes"}],"name":"setCode","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"name":"setOwner","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes32","name":"_key","type":"bytes32"},{"internalType":"bytes32","name":"_value","type":"bytes32"}],"name":"setStorage","outputs":[],"stateMutability":"nonpayable","type":"function"},{"stateMutability":"payable","type":"receive"}];
 
@@ -266,26 +267,42 @@ function Bridge() {
   const [currentStep, setCurrentStep] = useState(null);
   const [ethBalance, setEthBalance] = useState('0');
   const [loading, setLoading] = useState(false);
+  const { chain } = useNetwork();
+  const { switchNetwork } = useSwitchNetwork();
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  
+  // Set initial reversed state based on current chain
   const [isReversed, setIsReversed] = useState(false);
 
-  // Fetch ETH balance
+  // Update isReversed when chain changes
   useEffect(() => {
-    const fetchBalance = async () => {
-      if (!address) return;
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const balance = await provider.getBalance(address);
-        setEthBalance(ethers.formatEther(balance));
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-      }
-    };
+    if (chain?.id === 1301) { // Unichain
+      setIsReversed(true);
+    } else if (chain?.id === 11155111) { // Sepolia
+      setIsReversed(false);
+    }
+  }, [chain?.id]);
 
+  // Fetch ETH balance with network awareness
+  const fetchBalance = async () => {
+    if (!address) return;
+    setIsLoadingBalance(true);
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const balance = await provider.getBalance(address);
+      setEthBalance(ethers.formatEther(balance));
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  };
+
+  useEffect(() => {
     fetchBalance();
-    // Set up interval to refresh balance
     const interval = setInterval(fetchBalance, 10000);
     return () => clearInterval(interval);
-  }, [address]);
+  }, [address, chain?.id]);
 
   // If not connected, show connect wallet UI
   if (!isConnected) {
@@ -385,8 +402,38 @@ function Bridge() {
     }
   };
 
-  const handleNetworkSwitch = () => {
-    setIsReversed(!isReversed);
+  const handleNetworkSwitch = async () => {
+    const newIsReversed = !isReversed;
+    const targetNetwork = newIsReversed ? 1301 : 11155111; // Unichain: 1301, Sepolia: 11155111
+    
+    try {
+      if (targetNetwork === 1301) {
+        // Add Unichain network if not already added
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x515',  // 1301 in hex
+              chainName: 'Unichain Sepolia',
+              nativeCurrency: {
+                name: 'ETH',
+                symbol: 'ETH',
+                decimals: 18
+              },
+              rpcUrls: ['https://sepolia.unichain.org'],
+              blockExplorerUrls: ['https://unichain-sepolia.blockscout.com']
+            }]
+          });
+        } catch (addError) {
+          console.log('Network might already be added');
+        }
+      }
+      await switchNetwork?.(targetNetwork);
+      setIsReversed(newIsReversed);
+    } catch (error) {
+      console.error('Failed to switch network:', error);
+      toast.error('Please switch your network manually');
+    }
   };
 
   const bridgeFee = '0.0000026639';
@@ -442,13 +489,35 @@ function Bridge() {
         {/* Amount Input */}
         <div className="space-y-4">
           <div>
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-2">
-                <BiWallet className="text-gray-500 dark:text-gray-400" size={20} />
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Balance: {parseFloat(ethBalance).toFixed(4)} ETH
-                </span>
-              </div>
+            <div className="flex justify-end items-center mb-2">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={isLoadingBalance ? 'loading' : 'loaded'}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-2"
+                >
+                  <BiWallet className="text-gray-500 dark:text-gray-400" size={20} />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {isLoadingBalance ? (
+                      <span className="inline-flex items-center">
+                        Loading...
+                        <motion.span
+                          animate={{ opacity: [1, 0.5, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="ml-2"
+                        >
+                          ⋯
+                        </motion.span>
+                      </span>
+                    ) : (
+                      `Balance: ${parseFloat(ethBalance).toFixed(4)} ETH`
+                    )}
+                  </span>
+                </motion.div>
+              </AnimatePresence>
             </div>
             <div className="relative">
               <input
