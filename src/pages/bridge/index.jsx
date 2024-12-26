@@ -10,18 +10,71 @@ import { FaGasPump, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
+import { CheckIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 
-const BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
-const BRIDGE_ABI = [
-  {"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},
-  {"stateMutability":"payable","type":"fallback"},
-  {"inputs":[],"name":"getImplementation","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},
-  {"inputs":[],"name":"getOwner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},
-  {"inputs":[{"internalType":"bytes","name":"_code","type":"bytes"}],"name":"setCode","outputs":[],"stateMutability":"nonpayable","type":"function"},
-  {"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"name":"setOwner","outputs":[],"stateMutability":"nonpayable","type":"function"},
-  {"inputs":[{"internalType":"bytes32","name":"_key","type":"bytes32"},{"internalType":"bytes32","name":"_value","type":"bytes32"}],"name":"setStorage","outputs":[],"stateMutability":"nonpayable","type":"function"},
+const L1_BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
+const L2_BRIDGE_PROXY = '0x4200000000000000000000000000000000000010';
+const L2_BRIDGE_IMPLEMENTATION = '0xC0d3c0d3c0D3c0d3C0D3c0D3C0d3C0D3C0D30010';
+
+const L1_BRIDGE_ABI = [
+  {"inputs":[{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeETH","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeETHTo","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_l1Token","type":"address"},{"internalType":"address","name":"_l2Token","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"depositERC20","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_l1Token","type":"address"},{"internalType":"address","name":"_l2Token","type":"address"},{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"depositERC20To","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"depositETH","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"depositETHTo","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[],"name":"messenger","outputs":[{"internalType":"contract CrossDomainMessenger","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"version","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"}
+];
+
+const L2_BRIDGE_ABI = [
+  {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"l1Token","type":"address"},{"indexed":true,"internalType":"address","name":"l2Token","type":"address"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"bytes","name":"extraData","type":"bytes"}],"name":"DepositFinalized","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"localToken","type":"address"},{"indexed":true,"internalType":"address","name":"remoteToken","type":"address"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"bytes","name":"extraData","type":"bytes"}],"name":"ERC20BridgeFinalized","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"localToken","type":"address"},{"indexed":true,"internalType":"address","name":"remoteToken","type":"address"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"bytes","name":"extraData","type":"bytes"}],"name":"ERC20BridgeInitiated","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"bytes","name":"extraData","type":"bytes"}],"name":"ETHBridgeFinalized","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"bytes","name":"extraData","type":"bytes"}],"name":"ETHBridgeInitiated","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint8","name":"version","type":"uint8"}],"name":"Initialized","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"l1Token","type":"address"},{"indexed":true,"internalType":"address","name":"l2Token","type":"address"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"bytes","name":"extraData","type":"bytes"}],"name":"WithdrawalInitiated","type":"event"},
+  {"inputs":[],"name":"MESSENGER","outputs":[{"internalType":"contract ICrossDomainMessenger","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"OTHER_BRIDGE","outputs":[{"internalType":"contract StandardBridge","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_localToken","type":"address"},{"internalType":"address","name":"_remoteToken","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeERC20","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_localToken","type":"address"},{"internalType":"address","name":"_remoteToken","type":"address"},{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeERC20To","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeETH","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeETHTo","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"address","name":"","type":"address"}],"name":"deposits","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_from","type":"address"},{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"finalizeBridgeERC20","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_from","type":"address"},{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"finalizeBridgeETH","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"contract StandardBridge","name":"_otherBridge","type":"address"}],"name":"initialize","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[],"name":"l1TokenBridge","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"messenger","outputs":[{"internalType":"contract ICrossDomainMessenger","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"otherBridge","outputs":[{"internalType":"contract StandardBridge","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"paused","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"version","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"pure","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_l2Token","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"withdraw","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"_l2Token","type":"address"},{"internalType":"address","name":"_to","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"withdrawTo","outputs":[],"stateMutability":"payable","type":"function"},
   {"stateMutability":"payable","type":"receive"}
 ];
+
+const Tooltip = ({ children, content }) => {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+      >
+        {children}
+      </div>
+      {show && (
+        <div className="absolute z-50 px-3 py-2 text-sm bg-gray-900 text-white rounded-lg shadow-lg whitespace-nowrap">
+          {content}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const TermsModal = ({ isOpen, onClose, onAccept }) => {
   const [acceptedTerms, setAcceptedTerms] = useState({
@@ -126,33 +179,210 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
   );
 };
 
-const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed, txHash }) => {
-  const getExplorerUrl = (chain, hash) => {
-    if (chain === 'sepolia') {
-      return `https://sepolia.etherscan.io/tx/${hash}`;
-    } else {
+const CountdownTimer = ({ targetTime }) => {
+  const [timeLeft, setTimeLeft] = useState(targetTime);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 0) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+
+  return (
+    <span className="text-sm text-gray-500 dark:text-gray-400">
+      ~{minutes} mins {seconds} secs to go
+    </span>
+  );
+};
+
+const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed }) => {
+  const [startTime] = useState(Date.now());
+
+  const getExplorerUrl = (hash, network) => {
+    if (network === 'unichain') {
       return `https://unichain-sepolia.blockscout.com/tx/${hash}`;
     }
+    return `https://sepolia.etherscan.io/tx/${hash}`;
   };
 
-  const fromChain = isReversed ? 'unichain' : 'sepolia';
-  const toChain = isReversed ? 'sepolia' : 'unichain';
-
-  // Don't show destination explorer link for Sepolia to Unichain
-  const showDestinationExplorer = isReversed;
+  // Define steps based on direction
+  const steps = isReversed ? [
+    // Unichain to Sepolia steps (5 steps)
+    {
+      title: 'Start on Unichain Sepolia',
+      description: 'Bridge transaction initiated',
+      status: currentStep === 'start' ? 'current' : currentStep ? 'complete' : 'upcoming',
+      link: txHash ? getExplorerUrl(txHash, 'unichain') : null
+    },
+    {
+      title: 'Wait 1 hour',
+      description: 'Waiting for state root',
+      status: currentStep === 'waiting' ? 'current' : currentStep === 'prove' || currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming',
+      timer: currentStep === 'waiting' ? 3600 - Math.floor((Date.now() - startTime) / 1000) : null
+    },
+    {
+      title: 'Prove on Sepolia',
+      description: 'Prove your withdrawal',
+      status: currentStep === 'prove' ? 'current' : currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming',
+      action: currentStep === 'prove' ? handleProveWithdrawal : null
+    },
+    {
+      title: 'Wait 7 days',
+      description: 'Challenge period',
+      status: currentStep === 'challenge' ? 'current' : currentStep === 'complete' ? 'complete' : 'upcoming',
+      timer: currentStep === 'challenge' ? 604800 - Math.floor((Date.now() - startTime) / 1000) : null
+    },
+    {
+      title: 'Get ETH on Sepolia',
+      description: 'Finalize withdrawal',
+      status: currentStep === 'complete' ? 'complete' : 'upcoming',
+      action: currentStep === 'complete' ? handleFinalizeWithdrawal : null
+    }
+  ] : [
+    // Sepolia to Unichain steps (3 steps)
+    {
+      title: 'Start on Sepolia',
+      description: 'Bridge transaction initiated',
+      status: currentStep === 'start' ? 'current' : currentStep ? 'complete' : 'upcoming',
+      link: txHash ? getExplorerUrl(txHash, 'sepolia') : null
+    },
+    {
+      title: 'Wait ~3 mins',
+      description: 'Transaction processing',
+      status: currentStep === 'waiting' ? 'current' : currentStep === 'complete' ? 'complete' : 'upcoming',
+      timer: currentStep === 'waiting' ? 180 - Math.floor((Date.now() - startTime) / 1000) : null
+    },
+    {
+      title: 'Get ETH on Unichain Sepolia',
+      description: 'Bridge complete',
+      status: currentStep === 'complete' ? 'complete' : 'upcoming'
+    }
+  ];
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog 
-        as="div" 
-        className="relative z-50" 
-        onClose={() => {
-          // Only allow closing if transaction is complete
-          if (currentStep === 'complete') {
-            onClose();
-          }
-        }}
-      >
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black bg-opacity-25" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Title
+                  as="h3"
+                  className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
+                >
+                  Bridge Progress
+                </Dialog.Title>
+
+                <div className="mt-4 space-y-6">
+                  {steps.map((step, index) => (
+                    <div key={index} className="relative">
+                      {index !== steps.length - 1 && (
+                        <div className={`absolute left-3.5 top-8 w-0.5 h-full ${
+                          step.status === 'complete' ? 'bg-[#00ffbd]' : 'bg-gray-200 dark:bg-gray-700'
+                        }`} />
+                      )}
+                      <div className="relative flex items-start">
+                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                          step.status === 'complete' ? 'bg-[#00ffbd]' :
+                          step.status === 'current' ? 'bg-blue-500' :
+                          'bg-gray-200 dark:bg-gray-700'
+                        }`}>
+                          {step.status === 'complete' ? (
+                            <CheckIcon className="h-4 w-4 text-black" />
+                          ) : step.status === 'current' ? (
+                            <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                          ) : null}
+                        </div>
+                        <div className="ml-4 min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {step.title}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {step.description}
+                            {step.timer && step.timer > 0 && (
+                              <div className="mt-1 flex items-center gap-2">
+                                <BiTime className="text-gray-400" />
+                                <CountdownTimer targetTime={step.timer} />
+                              </div>
+                            )}
+                          </div>
+                          {step.link && (
+                            <a
+                              href={step.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-[#00ffbd] hover:text-[#00e6a9] mt-1 inline-block"
+                            >
+                              View in explorer ↗
+                            </a>
+                          )}
+                          {step.action && (
+                            <button
+                              onClick={step.action}
+                              className="mt-2 px-4 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black text-sm font-medium rounded-lg transition-colors"
+                            >
+                              {step.title.split(' ')[0]}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    className="w-full rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none"
+                    onClick={onClose}
+                  >
+                    Close
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
+const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee, isReversed }) => {
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -177,70 +407,84 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed,
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
-                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-1">
-                  Bridge {amount} ETH
+                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
+                  Transaction Summary
                 </Dialog.Title>
-                <div className="text-sm text-gray-500 mb-4">
-                  Via Native Bridge
-                </div>
 
-                <div className="mt-4">
-                  <div className="space-y-4">
-                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
-                      currentStep === 'start' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
-                    }`}>
-                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'start' ? '1' : currentStep === 'waiting' || currentStep === 'complete' ? '✓' : '1'}
+                <div className="mt-4 space-y-4">
+                  {/* Network Flow */}
+                  <div className="flex items-center justify-between bg-gray-50 dark:bg-[#2d2f36] p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={isReversed ? "/unichain-logo.png" : "/sepolia-logo.png"}
+                        alt="From Network"
+                        className="w-6 h-6"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {isReversed ? "Unichain Sepolia" : "Sepolia"}
+                      </span>
                       </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Start on {isReversed ? 'Unichain Sepolia' : 'Sepolia'}</div>
-                        {txHash && (currentStep === 'waiting' || currentStep === 'complete') ? (
-                          <a 
-                            href={getExplorerUrl(fromChain, txHash)} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
-                          >
-                            View in explorer ↗
-                          </a>
-                        ) : (
-                          <div className="text-sm text-gray-500">Waiting for transaction...</div>
-                        )}
+                    <FaExchangeAlt className="text-gray-400" size={12} />
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={isReversed ? "/sepolia-logo.png" : "/unichain-logo.png"}
+                        alt="To Network"
+                        className="w-6 h-6"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {isReversed ? "Sepolia" : "Unichain Sepolia"}
+                      </span>
+                    </div>
+                      </div>
+
+                  {/* Amount Details */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Amount</span>
+                      <div className="flex items-center gap-2">
+                        <img src="/eth-logo.png" alt="ETH" className="w-5 h-5" />
+                        <span className="text-base font-medium text-gray-900 dark:text-white">
+                          {amount} ETH
+                        </span>
                       </div>
                     </div>
-
-                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
-                      currentStep === 'waiting' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
-                    }`}>
-                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'waiting' ? '2' : currentStep === 'complete' ? '✓' : '2'}
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Bridge Fee</span>
+                      <span className="text-sm text-gray-900 dark:text-white">{bridgeFee} ETH</span>
                       </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Wait ~3 mins</div>
-                      </div>
-                    </div>
-
-                    <div className={`flex items-center gap-3 p-3 rounded-xl ${
-                      currentStep === 'complete' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
-                    }`}>
-                      <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'complete' ? '✓' : '3'}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Get ETH on {isReversed ? 'Sepolia' : 'Unichain Sepolia'}</div>
-                        {currentStep === 'complete' && showDestinationExplorer && (
-                          <a 
-                            href={getExplorerUrl(toChain, txHash)} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
-                          >
-                            View in explorer ↗
-                          </a>
-                        )}
-                      </div>
+                    <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Total</span>
+                      <span className="text-base font-medium text-gray-900 dark:text-white">
+                        {(parseFloat(amount) + parseFloat(bridgeFee)).toFixed(6)} ETH
+                      </span>
                     </div>
                   </div>
+
+                  {/* Estimated Time */}
+                  <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                    <BiTime className="text-blue-500" size={20} />
+                    <span className="text-sm text-blue-600 dark:text-blue-400">
+                      Estimated completion time: {isReversed ? '~1 hour' : '~3 mins'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <button
+                    type="button"
+                    className="w-full px-4 py-3 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium rounded-xl transition-colors"
+                    onClick={onConfirm}
+                  >
+                    Confirm Bridge
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700 font-medium rounded-xl transition-colors"
+                    onClick={onClose}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -328,6 +572,11 @@ function Bridge() {
   const [isReversed, setIsReversed] = useState(false);
   const [bridgeFee, setBridgeFee] = useState(null);
   const [isEstimatingFee, setIsEstimatingFee] = useState(false);
+  const [networkStatus, setNetworkStatus] = useState({
+    isCorrectNetwork: false,
+    message: ''
+  });
+  const [showSummary, setShowSummary] = useState(false);
 
   // Network change effect
   useEffect(() => {
@@ -410,7 +659,7 @@ function Bridge() {
       return;
     }
 
-    setShowTerms(true);
+    setShowSummary(true);
   };
 
   const handleAcceptTerms = async () => {
@@ -422,20 +671,48 @@ function Bridge() {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
       
-      // Get latest gas estimate before sending transaction
+      // Get latest gas estimate
       const estimator = createBridgeGasEstimator(
         provider,
         isReversed ? 'unichain' : 'sepolia'
       );
       const estimate = await estimator.estimateGasFee(amount);
       
-      // Send ETH directly to bridge contract
-      const tx = await signer.sendTransaction({
-        to: BRIDGE_ADDRESS,
-        value: ethers.parseEther(amount),
-        gasLimit: BigInt(estimate.estimatedGas)
-      });
+      let tx;
+      if (isReversed) {
+        // Unichain -> Sepolia: Use L1StandardBridge
+        const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
+        
+        const minGasLimit = 200000; // Increased gas limit for L1 to L2 bridging
+        const txValue = ethers.parseEther(amount);
+
+        tx = await l1Bridge.bridgeETH(
+          minGasLimit,
+          '0x', // No extra data needed
+          {
+            value: txValue,
+            gasLimit: 300000n
+          }
+        );
+      } else {
+        // Sepolia -> Unichain: Use L1StandardBridge
+        const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
+        
+        const minGasLimit = 200000; // Gas limit for L1 to L2 bridging
+        const txValue = ethers.parseEther(amount);
+
+        tx = await l1Bridge.bridgeETHTo(
+          userAddress, // destination address
+          minGasLimit,
+          '0x', // No extra data needed
+          {
+            value: txValue,
+            gasLimit: 300000n
+          }
+        );
+      }
       
       setTxHash(tx.hash);
       console.log('Bridge transaction sent:', tx.hash);
@@ -444,10 +721,18 @@ function Bridge() {
       console.log('Bridge transaction confirmed:', receipt);
       setCurrentStep('waiting');
       
-      setTimeout(() => {
-        setCurrentStep('complete');
-        setLoading(false);
-      }, 180000);
+      if (isReversed) {
+        toast.success('Bridge initiated! Please wait 1 hour before proving your withdrawal.');
+        setTimeout(() => {
+          setCurrentStep('prove');
+          toast.success('Ready to prove withdrawal! Click the Prove button.');
+        }, 3600000);
+      } else {
+        setTimeout(() => {
+          setCurrentStep('complete');
+          setLoading(false);
+        }, 180000);
+      }
       
     } catch (error) {
       console.error('Bridge error:', error);
@@ -461,15 +746,23 @@ function Bridge() {
 
   const handleNetworkSwitch = async () => {
     const newIsReversed = !isReversed;
-    const targetNetwork = newIsReversed ? 1301 : 11155111;
+    const targetChainId = newIsReversed ? 1301 : 11155111;
+    const targetHexChainId = `0x${targetChainId.toString(16)}`;
     
     try {
-      if (targetNetwork === 1301) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: '0x515',
+      // First try to switch to the network
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetHexChainId }],
+        });
+        setIsReversed(newIsReversed);
+      } catch (switchError) {
+        // This error code indicates that the chain has not been added to MetaMask
+        if (switchError.code === 4902 || switchError.message.includes('Unrecognized chain ID')) {
+          try {
+            const chainParams = targetChainId === 1301 ? {
+              chainId: targetHexChainId,
               chainName: 'Unichain Sepolia',
               nativeCurrency: {
                 name: 'ETH',
@@ -478,21 +771,62 @@ function Bridge() {
               },
               rpcUrls: ['https://sepolia.unichain.org'],
               blockExplorerUrls: ['https://unichain-sepolia.blockscout.com']
-            }]
-          });
-        } catch (addError) {
-          console.log('Network might already be added');
+            } : {
+              chainId: targetHexChainId,
+              chainName: 'Sepolia',
+              nativeCurrency: {
+                name: 'ETH',
+                symbol: 'ETH',
+                decimals: 18
+              },
+              rpcUrls: ['https://sepolia.infura.io/v3/'],
+              blockExplorerUrls: ['https://sepolia.etherscan.io']
+            };
+
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [chainParams],
+            });
+            setIsReversed(newIsReversed);
+          } catch (addError) {
+            console.error('Error adding network:', addError);
+            toast.error('Failed to add network. Please add it manually.');
+          }
+        } else {
+          console.error('Error switching network:', switchError);
+          toast.error('Failed to switch network. Please try again.');
         }
       }
-      await switchNetwork?.(targetNetwork);
-      setIsReversed(newIsReversed);
     } catch (error) {
-      console.error('Failed to switch network:', error);
-      toast.error('Please switch your network manually');
+      console.error('Network switch failed:', error);
+      toast.error('Please switch your network manually in your wallet');
     }
   };
 
   const estimatedTime = '~3 mins';
+
+  // Update network change effect
+  useEffect(() => {
+    if (!isConnected) return;
+    
+    if (isReversed && chain?.id === 1301) {
+      setNetworkStatus({
+        isCorrectNetwork: true,
+        message: 'Connected to Unichain Sepolia'
+      });
+    } else if (!isReversed && chain?.id === 11155111) {
+      setNetworkStatus({
+        isCorrectNetwork: true,
+        message: 'Connected to Sepolia'
+      });
+    } else {
+      setNetworkStatus({
+        isCorrectNetwork: false,
+        message: `Please switch to ${isReversed ? 'Unichain Sepolia' : 'Sepolia'}`
+      });
+      // Removed auto network switch to prevent lag and unresponsiveness
+    }
+  }, [chain?.id, isReversed, isConnected]);
 
   // Early return for wallet connection
   if (!isConnected) {
@@ -539,12 +873,13 @@ function Bridge() {
               </div>
             </div>
 
-            <button
-              onClick={handleNetworkSwitch}
-              className="w-10 h-10 rounded-full bg-white dark:bg-[#1a1b1f] flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors z-10 border border-gray-200 dark:border-gray-700"
-            >
-              <FaExchangeAlt size={16} className="text-gray-600 dark:text-gray-400" />
-            </button>
+            <div onClick={handleNetworkSwitch} className="relative">
+              <Tooltip content="Switch direction">
+                <button className="w-10 h-10 rounded-full bg-white dark:bg-[#1a1b1f] flex items-center justify-center border border-gray-200 dark:border-gray-700">
+                  <FaExchangeAlt size={16} className="text-gray-600 dark:text-gray-400" />
+                </button>
+              </Tooltip>
+            </div>
 
             <div className="flex-1 text-right">
               <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">To</div>
@@ -555,19 +890,53 @@ function Bridge() {
                     alt={isReversed ? "Sepolia" : "Unichain"} 
                     className="w-7 h-7" 
                   />
-                </div>
+          </div>
                 <span className="text-gray-900 dark:text-white font-medium">
                   {isReversed ? "Sepolia" : "Unichain Sepolia"}
                 </span>
-              </div>
+          </div>
             </div>
           </div>
+          
+          {/* Network Status Indicator */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={networkStatus.isCorrectNetwork ? 'correct' : 'incorrect'}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className={`mt-3 text-sm flex items-center gap-2 ${
+                networkStatus.isCorrectNetwork 
+                  ? 'text-green-500' 
+                  : 'text-yellow-500'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                networkStatus.isCorrectNetwork 
+                  ? 'bg-green-500' 
+                  : 'bg-yellow-500'
+              }`} />
+              {networkStatus.message}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
-        {/* Amount Input */}
+        {/* Amount Input with enhanced loading states */}
         <div className="space-y-4">
           <div>
-            <div className="flex justify-end items-center mb-2">
+            <div className="flex justify-between items-center mb-2">
+              <Tooltip content={
+                <div>
+                  Min: 0.001 ETH<br />
+                  Max: 100 ETH
+                </div>
+              }>
+                <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 cursor-help">
+                  <InformationCircleIcon className="h-4 w-4" />
+                  Bridge Limits
+                </div>
+              </Tooltip>
+              
               <AnimatePresence mode="wait">
                 <motion.div
                   key={isLoadingBalance ? 'loading' : 'loaded'}
@@ -578,52 +947,57 @@ function Bridge() {
                   className="flex items-center gap-2"
                 >
                   <BiWallet className="text-gray-500 dark:text-gray-400" size={20} />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                     {isLoadingBalance ? (
-                      <span className="inline-flex items-center">
-                        Loading...
-                        <motion.span
-                          animate={{ opacity: [1, 0.5, 1] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                          className="ml-2"
-                        >
-                          ⋯
-                        </motion.span>
-                      </span>
+                      <motion.div
+                        className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
+                      />
                     ) : (
                       `Balance: ${parseFloat(ethBalance).toFixed(4)} ETH`
                     )}
-                  </span>
+              </span>
                 </motion.div>
               </AnimatePresence>
             </div>
+            
+            {/* Enhanced input loading state */}
             <div className="relative">
               <input
                 type="text"
                 value={amount}
                 onChange={handleAmountChange}
                 placeholder="0.0"
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-2xl font-medium"
+                className={`w-full px-4 py-3 bg-gray-50 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-2xl font-medium ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={loading}
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="flex items-center gap-2 bg-white dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
-                  <span className="text-gray-900 dark:text-white font-medium">ETH</span>
-                  <div className="relative w-4 h-4">
-                    <img 
-                      src={isReversed ? "/sepolia-logo.png" : "/unichain-logo.png"}
-                      alt={isReversed ? "Sepolia" : "Unichain"} 
-                      className="w-3 h-3 absolute -bottom-1 -right-1" 
-                    />
-                  </div>
-                </div>
+              <AnimatePresence mode="wait">
+                {loading && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex items-center justify-center bg-gray-900/10 dark:bg-gray-900/20 rounded-xl backdrop-blur-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-5 h-5 border-2 border-[#00ffbd] border-t-transparent rounded-full"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Processing...
+                      </span>
               </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
-          {/* Bridge Details */}
+          {/* Bridge Details with tooltips */}
           <div className="p-4 bg-gray-50 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
-            {/* Native Bridge Tag */}
             <div className="flex justify-between items-center mb-2">
               <span className="text-base text-gray-900 dark:text-white font-medium">Get on {isReversed ? "Sepolia" : "Unichain Sepolia"}</span>
               <div className="flex items-center gap-2 bg-[#FF3B9A]/10 dark:bg-[#FF3B9A]/20 px-3 py-1.5 rounded-lg">
@@ -633,10 +1007,14 @@ function Bridge() {
             </div>
 
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <FaGasPump className="text-gray-500 dark:text-gray-400" size={16} />
-                <span>Bridge fee</span>
-              </div>
+              <Tooltip content="Fee includes gas for the bridge transaction">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-help">
+                  <FaGasPump className="text-gray-500 dark:text-gray-400" size={16} />
+                  <span>Bridge fee</span>
+                  <InformationCircleIcon className="h-4 w-4" />
+                </div>
+              </Tooltip>
+              
               <AnimatePresence mode="wait">
                 <motion.span
                   key={isEstimatingFee ? 'loading' : bridgeFee}
@@ -646,16 +1024,9 @@ function Bridge() {
                   className="text-sm text-gray-900 dark:text-white"
                 >
                   {isEstimatingFee ? (
-                    <span className="inline-flex items-center">
-                      Estimating...
-                      <motion.span
-                        animate={{ opacity: [1, 0.5, 1] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                        className="ml-1"
-                      >
-                        ⋯
-                      </motion.span>
-                    </span>
+                    <motion.div
+                      className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
+                    />
                   ) : (
                     `${bridgeFee} ETH`
                   )}
@@ -702,6 +1073,18 @@ function Bridge() {
         </button>
       </div>
 
+      <TransactionSummaryModal
+        isOpen={showSummary}
+        onClose={() => setShowSummary(false)}
+        onConfirm={() => {
+          setShowSummary(false);
+          setShowTerms(true);
+        }}
+        amount={amount}
+        bridgeFee={bridgeFee}
+        isReversed={isReversed}
+      />
+
       <TermsModal
         isOpen={showTerms}
         onClose={() => setShowTerms(false)}
@@ -712,9 +1095,8 @@ function Bridge() {
         isOpen={showProgress}
         onClose={() => setShowProgress(false)}
         currentStep={currentStep}
-        amount={amount}
-        isReversed={isReversed}
         txHash={txHash}
+        isReversed={isReversed}
       />
     </div>
   );
