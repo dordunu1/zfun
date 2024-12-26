@@ -198,7 +198,37 @@ const AnimatedClock = () => (
   </div>
 );
 
-const CountdownTimer = ({ targetTime }) => {
+const AnimatedHourglass = () => (
+  <div className="relative w-5 h-5">
+    <div className="absolute inset-0 border-2 border-[#00ffbd] rounded-lg" />
+    <div 
+      className="absolute inset-[2px] bg-[#00ffbd]/10"
+      style={{ 
+        clipPath: 'polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%, 50% 50%)',
+        animation: 'flip 2s linear infinite'
+      }}
+    />
+    <div 
+      className="absolute top-1/2 left-1/2 w-[2px] h-[2px] bg-[#00ffbd] rounded-full"
+      style={{ 
+        transform: 'translate(-50%, -50%)',
+        animation: 'pulse 1s ease-in-out infinite'
+      }}
+    />
+    <style jsx>{`
+      @keyframes flip {
+        0%, 80% { transform: rotate(0deg); }
+        100% { transform: rotate(180deg); }
+      }
+      @keyframes pulse {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); }
+        50% { transform: translate(-50%, -50%) scale(1.5); }
+      }
+    `}</style>
+  </div>
+);
+
+const CountdownTimer = ({ targetTime, isLongPeriod = false }) => {
   const [timeLeft, setTimeLeft] = useState(targetTime);
 
   useEffect(() => {
@@ -233,7 +263,7 @@ const CountdownTimer = ({ targetTime }) => {
 
   return (
     <div className="flex items-center gap-2 text-[#00ffbd]">
-      <AnimatedClock />
+      {isLongPeriod ? <AnimatedHourglass /> : <AnimatedClock />}
       <span className="text-sm">{formatTime(timeLeft)}</span>
     </div>
   );
@@ -262,7 +292,8 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
       title: 'Wait 1 hour',
       description: 'Waiting for state root',
       status: currentStep === 'waiting' ? 'current' : currentStep === 'prove' || currentStep === 'challenge' || currentStep === 'complete' ? 'complete' : 'upcoming',
-      timer: currentStep === 'waiting' ? 3600 - Math.floor((Date.now() - startTime) / 1000) : null
+      timer: currentStep === 'waiting' ? 3600 : null,
+      isLongPeriod: false
     },
     {
       title: 'Prove on Sepolia',
@@ -274,13 +305,13 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
       title: 'Wait 7 days',
       description: 'Challenge period',
       status: currentStep === 'challenge' ? 'current' : currentStep === 'complete' ? 'complete' : 'upcoming',
-      timer: currentStep === 'challenge' ? 604800 - Math.floor((Date.now() - startTime) / 1000) : null
+      timer: currentStep === 'challenge' ? 604800 : null,
+      isLongPeriod: true
     },
     {
       title: 'Get ETH on Sepolia',
       description: 'Finalize withdrawal',
-      status: currentStep === 'complete' ? 'complete' : 'upcoming',
-      action: currentStep === 'complete' ? handleFinalizeWithdrawal : null
+      status: currentStep === 'complete' ? 'complete' : 'upcoming'
     }
   ] : [
     // Sepolia to Unichain steps (3 steps)
@@ -366,7 +397,7 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, isReversed 
                           </div>
                           {step.timer && step.status === 'current' && (
                             <div className="mt-2">
-                              <CountdownTimer targetTime={step.timer} />
+                              <CountdownTimer targetTime={step.timer} isLongPeriod={step.isLongPeriod} />
                             </div>
                           )}
                           {step.link && (
@@ -856,13 +887,13 @@ function Bridge() {
       
       let tx;
       if (isReversed) {
-        // Unichain -> Sepolia: Use L1StandardBridge
-        const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
+        // Unichain -> Sepolia: Use L2StandardBridge
+        const l2Bridge = new ethers.Contract(L2_BRIDGE_PROXY, L2_BRIDGE_ABI, signer);
         
-        const minGasLimit = 200000; // Increased gas limit for L1 to L2 bridging
+        const minGasLimit = 200000; // Gas limit for L2 to L1 bridging
         const txValue = ethers.parseEther(amount);
 
-        tx = await l1Bridge.bridgeETH(
+        tx = await l2Bridge.bridgeETH(
           minGasLimit,
           '0x', // No extra data needed
           {
@@ -871,7 +902,7 @@ function Bridge() {
           }
         );
       } else {
-        // Sepolia -> Unichain: Use L1StandardBridge
+        // Sepolia -> Unichain: Use L1StandardBridge (unchanged)
         const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
         
         const minGasLimit = 200000; // Gas limit for L1 to L2 bridging
@@ -1075,11 +1106,11 @@ function Bridge() {
                     alt={isReversed ? "Sepolia" : "Unichain"} 
                     className="w-7 h-7" 
                   />
-          </div>
+                </div>
                 <span className="text-gray-900 dark:text-white font-medium">
                   {isReversed ? "Sepolia" : "Unichain Sepolia"}
                 </span>
-          </div>
+              </div>
             </div>
           </div>
           
