@@ -117,10 +117,30 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
   );
 };
 
-const BridgeProgressModal = ({ isOpen, onClose, currentStep }) => {
+const BridgeProgressModal = ({ isOpen, onClose, currentStep, amount, isReversed, txHash }) => {
+  const getExplorerUrl = (chain, hash) => {
+    if (chain === 'sepolia') {
+      return `https://sepolia.etherscan.io/tx/${hash}`;
+    } else {
+      return `https://unichain-sepolia.blockscout.com/tx/${hash}`;
+    }
+  };
+
+  const fromChain = isReversed ? 'unichain' : 'sepolia';
+  const toChain = isReversed ? 'sepolia' : 'unichain';
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog 
+        as="div" 
+        className="relative z-50" 
+        onClose={() => {
+          // Only allow closing if transaction is complete
+          if (currentStep === 'complete') {
+            onClose();
+          }
+        }}
+      >
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -145,12 +165,12 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep }) => {
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
-                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
-                  Bridge 0.12 ETH
-                  <div className="mt-1 text-sm font-normal text-gray-500">
-                    Via Native Bridge
-                  </div>
+                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-1">
+                  Bridge {amount} ETH
                 </Dialog.Title>
+                <div className="text-sm text-gray-500 mb-4">
+                  Via Native Bridge
+                </div>
 
                 <div className="mt-4">
                   <div className="space-y-4">
@@ -158,11 +178,22 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep }) => {
                       currentStep === 'start' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
                     }`}>
                       <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        {currentStep === 'start' ? '1' : '✓'}
+                        {currentStep === 'start' ? '1' : currentStep === 'waiting' || currentStep === 'complete' ? '✓' : '1'}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Start on Sepolia</div>
-                        <div className="text-sm text-gray-500">View in explorer ↗</div>
+                        <div className="font-medium text-gray-900 dark:text-white">Start on {isReversed ? 'Unichain Sepolia' : 'Sepolia'}</div>
+                        {txHash && (currentStep === 'waiting' || currentStep === 'complete') ? (
+                          <a 
+                            href={getExplorerUrl(fromChain, txHash)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+                          >
+                            View in explorer ↗
+                          </a>
+                        ) : (
+                          <div className="text-sm text-gray-500">Waiting for transaction...</div>
+                        )}
                       </div>
                     </div>
 
@@ -181,11 +212,20 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep }) => {
                       currentStep === 'complete' ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-400'
                     }`}>
                       <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center">
-                        3
+                        {currentStep === 'complete' ? '✓' : '3'}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">Get ETH on Unichain Sepolia</div>
-                        <div className="text-sm text-gray-500">View in explorer ↗</div>
+                        <div className="font-medium text-gray-900 dark:text-white">Get ETH on {isReversed ? 'Sepolia' : 'Unichain Sepolia'}</div>
+                        {currentStep === 'complete' && (
+                          <a 
+                            href={getExplorerUrl(toChain, txHash)} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm text-[#00ffbd] hover:text-[#00e6a9] transition-colors"
+                          >
+                            View in explorer ↗
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -267,6 +307,7 @@ function Bridge() {
   const [currentStep, setCurrentStep] = useState(null);
   const [ethBalance, setEthBalance] = useState('0');
   const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState(null);
   const { chain } = useNetwork();
   const { switchNetwork } = useSwitchNetwork();
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
@@ -373,24 +414,18 @@ function Bridge() {
         value: amountInWei
       });
       
+      setTxHash(tx.hash);
       console.log('Bridge transaction sent:', tx.hash);
-      setCurrentStep('waiting');
       
       // Wait for transaction confirmation
       const receipt = await tx.wait();
       console.log('Bridge transaction confirmed:', receipt);
+      setCurrentStep('waiting');
       
       // Wait for bridge completion (approximately 3 minutes)
       setTimeout(() => {
         setCurrentStep('complete');
         setLoading(false);
-        
-        // Reset form after completion
-        setTimeout(() => {
-          setAmount('');
-          setShowProgress(false);
-          setCurrentStep(null);
-        }, 3000);
       }, 180000); // 3 minutes
       
     } catch (error) {
@@ -399,6 +434,7 @@ function Bridge() {
       setLoading(false);
       setShowProgress(false);
       setCurrentStep(null);
+      setTxHash(null);
     }
   };
 
@@ -611,6 +647,9 @@ function Bridge() {
         isOpen={showProgress}
         onClose={() => setShowProgress(false)}
         currentStep={currentStep}
+        amount={amount}
+        isReversed={isReversed}
+        txHash={txHash}
       />
     </div>
   );
