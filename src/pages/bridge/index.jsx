@@ -495,11 +495,160 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee
   );
 };
 
+const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentStep, setTxHash, setIsReversed }) => {
+  const [activities, setActivities] = useState([]);
+
+  useEffect(() => {
+    // Here you would fetch the bridge history for the address
+    // For now using mock data
+    setActivities([
+      {
+        amount: '0.1',
+        timestamp: Date.now() - 180000, // 3 minutes ago
+        status: 'complete',
+        fromNetwork: 'Sepolia',
+        toNetwork: 'Unichain Sepolia',
+        txHash: '0x123...',
+      },
+      {
+        amount: '0.025',
+        timestamp: Date.now() - 480000, // 8 minutes ago
+        status: 'complete',
+        fromNetwork: 'Sepolia',
+        toNetwork: 'Unichain Sepolia',
+        txHash: '0x456...',
+      },
+      {
+        amount: '0.02',
+        timestamp: Date.now() - 3600000, // 1 hour ago
+        status: 'proving',
+        fromNetwork: 'Unichain Sepolia',
+        toNetwork: 'Sepolia',
+        txHash: '0x789...',
+      }
+    ]);
+  }, [address]);
+
+  const formatAddress = (addr) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white">
+                      Activity
+                    </Dialog.Title>
+                    <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                      {formatAddress(address)}
+                    </div>
+                  </div>
+                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4 mt-6">
+                  {activities.map((activity, index) => (
+                    <div
+                      key={index}
+                      className="bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-5 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors cursor-pointer"
+                      onClick={() => {
+                        if (activity.status === 'proving') {
+                          onClose();
+                          setShowProgress(true);
+                          setCurrentStep('prove');
+                          setTxHash(activity.txHash);
+                          setIsReversed(activity.fromNetwork === 'Unichain Sepolia');
+                        }
+                      }}
+                    >
+                      <div className="flex items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-3">
+                            <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
+                            <span className="text-xl font-bold text-gray-900 dark:text-white">{activity.amount} ETH</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                            <span className="text-sm">Via Native Bridge</span>
+                            <div className="flex items-center gap-1">
+                              <img 
+                                src={`/${activity.fromNetwork === 'Unichain Sepolia' ? 'unichain-logo' : 'sepolia-logo'}.png`}
+                                alt={activity.fromNetwork}
+                                className="w-4 h-4"
+                              />
+                              <img 
+                                src={`/${activity.toNetwork === 'Unichain Sepolia' ? 'unichain-logo' : 'sepolia-logo'}.png`}
+                                alt={activity.toNetwork}
+                                className="w-4 h-4"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end justify-between h-full">
+                          <span className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                            {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {activity.status === 'proving' ? (
+                            <span className="px-4 py-1.5 bg-gray-100 dark:bg-[#1a1b1f] text-[#00ffbd] rounded-full text-sm">
+                              Ready to prove
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2 text-[#00ffbd]">
+                              <CheckIcon className="h-4 w-4" />
+                              <span className="text-sm">Bridge successful</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+};
+
 export default function BridgePage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center mb-6">
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Bridge
           </h1>
@@ -561,6 +710,7 @@ function Bridge() {
   const uniswap = useUnichain();
   
   // All state hooks
+  const [showActivity, setShowActivity] = useState(false);
   const [amount, setAmount] = useState('');
   const [showTerms, setShowTerms] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
@@ -854,6 +1004,17 @@ function Bridge() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="bg-white dark:bg-[#1a1b1f] rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+        {/* Action needed button */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowActivity(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-[#1a1b1f] rounded-full text-gray-900 dark:text-white text-sm hover:bg-gray-200 dark:hover:bg-[#2d2f36] transition-colors border border-gray-200 dark:border-[#00ffbd]/20"
+          >
+            <BiTime className="text-gray-500 dark:text-[#00ffbd]" />
+            <span>Action needed</span>
+          </button>
+        </div>
+
         {/* Networks Section */}
         <div className="relative bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-4 mb-6">
           <div className="flex items-center justify-between">
@@ -1073,16 +1234,14 @@ function Bridge() {
         </button>
       </div>
 
-      <TransactionSummaryModal
-        isOpen={showSummary}
-        onClose={() => setShowSummary(false)}
-        onConfirm={() => {
-          setShowSummary(false);
-          setShowTerms(true);
-        }}
-        amount={amount}
-        bridgeFee={bridgeFee}
-        isReversed={isReversed}
+      <ActivityModal
+        isOpen={showActivity}
+        onClose={() => setShowActivity(false)}
+        address={address}
+        setShowProgress={setShowProgress}
+        setCurrentStep={setCurrentStep}
+        setTxHash={setTxHash}
+        setIsReversed={setIsReversed}
       />
 
       <TermsModal
@@ -1096,6 +1255,18 @@ function Bridge() {
         onClose={() => setShowProgress(false)}
         currentStep={currentStep}
         txHash={txHash}
+        isReversed={isReversed}
+      />
+
+      <TransactionSummaryModal
+        isOpen={showSummary}
+        onClose={() => setShowSummary(false)}
+        onConfirm={() => {
+          setShowSummary(false);
+          setShowTerms(true);
+        }}
+        amount={amount}
+        bridgeFee={bridgeFee}
         isReversed={isReversed}
       />
     </div>
