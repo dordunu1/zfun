@@ -5,6 +5,9 @@ import { publicProvider } from 'wagmi/providers/public'
 
 const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID
 
+// Check if we're on mobile
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '');
+
 // Define Unichain Testnet
 const unichainTestnet = {
   id: 1301,
@@ -31,7 +34,11 @@ const unichainTestnet = {
 const { chains, publicClient } = configureChains(
   [mainnet, sepolia, unichainTestnet],
   [
-    w3mProvider({ projectId }),
+    w3mProvider({ 
+      projectId,
+      // Only try to use injected provider on desktop
+      disableInjected: isMobile 
+    }),
     publicProvider()
   ]
 )
@@ -41,7 +48,13 @@ const wagmiConfig = createConfig({
   connectors: w3mConnectors({
     projectId,
     chains,
-    version: '2'
+    version: '2',
+    options: {
+      // Skip injected wallet check on mobile
+      skipInjectedWalletCheck: isMobile,
+      // Show QR code immediately on mobile
+      showQrModal: true
+    }
   }),
   publicClient
 })
