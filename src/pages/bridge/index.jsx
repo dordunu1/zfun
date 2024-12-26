@@ -76,7 +76,7 @@ const Tooltip = ({ children, content }) => {
   );
 };
 
-const TermsModal = ({ isOpen, onClose, onAccept }) => {
+const TermsModal = ({ isOpen, onClose, onAccept, isReversed }) => {
   const [acceptedTerms, setAcceptedTerms] = useState({
     time: false,
     cancellation: false,
@@ -128,7 +128,7 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
                         onChange={(e) => setAcceptedTerms(prev => ({ ...prev, time: e.target.checked }))}
                       />
                       <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                        I understand it will take ~3 mins until my funds are on Unichain Sepolia
+                        I understand it will take {isReversed ? '~7 days' : '~3 mins'} until my funds are on {isReversed ? 'Sepolia' : 'Unichain Sepolia'}
                       </span>
                     </label>
                     <label className="flex items-start gap-3 cursor-pointer group">
@@ -465,7 +465,7 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee
                   <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                     <BiTime className="text-blue-500" size={20} />
                     <span className="text-sm text-blue-600 dark:text-blue-400">
-                      Estimated completion time: {isReversed ? '~1 hour' : '~3 mins'}
+                      Estimated completion time: {isReversed ? '~7 days' : '~3 mins'}
                     </span>
                   </div>
                 </div>
@@ -953,7 +953,7 @@ function Bridge() {
     }
   };
 
-  const estimatedTime = '~3 mins';
+  const estimatedTime = isReversed ? '~7 days' : '~3 mins';
 
   // Update network change effect
   useEffect(() => {
@@ -1248,6 +1248,7 @@ function Bridge() {
         isOpen={showTerms}
         onClose={() => setShowTerms(false)}
         onAccept={handleAcceptTerms}
+        isReversed={isReversed}
       />
 
       <BridgeProgressModal
