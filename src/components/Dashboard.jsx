@@ -375,7 +375,7 @@ export default function Dashboard() {
               List your token on popular DEXes and create trading pairs
             </p>
             <div className="flex flex-wrap gap-3">
-              <a href="https://tokenfactory.xyz/trading" target="_blank" rel="noopener noreferrer" 
+              <a href="https://token-factory.xyz/trading" target="_blank" rel="noopener noreferrer" 
                  className="text-[#00ffbd] bg-[#00ffbd]/10 px-3 py-1 rounded-full text-sm hover:bg-[#00ffbd]/20 transition-colors">
                 Token Factory Swap
               </a>
