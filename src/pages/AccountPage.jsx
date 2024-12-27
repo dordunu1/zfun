@@ -8,6 +8,7 @@ import { ipfsToHttp } from '../utils/ipfs';
 import { FaEthereum } from 'react-icons/fa';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import axios from 'axios';
 
 // Memory cache for NFTs
 const CACHE_DURATION = 30000; // 30 seconds
@@ -66,6 +67,26 @@ const cacheNFTs = (address, chainId, nfts) => {
   }
 };
 
+// Update the Blockscout API function to handle multiple networks
+const fetchBlockscoutNFTs = async (address, chainId) => {
+  try {
+    let baseUrl;
+    if (chainId === 11155111) {
+      baseUrl = 'https://eth-sepolia.blockscout.com';
+    } else if (chainId === 1301) {
+      baseUrl = 'https://unichain-sepolia.blockscout.com';
+    } else {
+      return [];
+    }
+
+    const response = await axios.get(`${baseUrl}/api/v2/addresses/${address}/nft?type=ERC-721%2CERC-404%2CERC-1155`);
+    return response.data.items;
+  } catch (error) {
+    console.error('Error fetching from Blockscout:', error);
+    return [];
+  }
+};
+
 export default function AccountPage() {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +95,7 @@ export default function AccountPage() {
   const [tokenLogos, setTokenLogos] = useState({});
   const [filters, setFilters] = useState({
     type: 'all',       // 'all', 'ERC721', 'ERC1155'
+    network: 'all'     // 'all', 'sepolia', 'unichain', 'unichain-mainnet'
   });
 
   // Function to get token details from Firebase
@@ -126,21 +148,36 @@ export default function AccountPage() {
 
     const loadFreshData = async () => {
       try {
-        // Load owned NFTs and token logos in parallel
+        // Load owned NFTs from Firebase
         const ownedNFTs = await getOwnedNFTs(address);
         console.log('Raw owned NFTs:', ownedNFTs);
         
-        // Process NFTs to handle multiple mints in a single transaction
+        // Fetch Blockscout NFTs for accurate balances based on chain
+        const chainId = chain?.id;
+        const blockscoutNFTs = await fetchBlockscoutNFTs(address, chainId);
+        console.log('Blockscout NFTs:', blockscoutNFTs);
+        
+        // Create a map of NFT balances from Blockscout
+        const balanceMap = new Map();
+        blockscoutNFTs.forEach(nft => {
+          const key = `${nft.token.address}-${nft.id}`;
+          balanceMap.set(key, parseInt(nft.value || '1'));
+        });
+        
+        // Process NFTs with accurate balances
         const processedNFTs = ownedNFTs.flatMap(nft => {
-          // For ERC1155, use balance
+          const blockscoutKey = `${nft.contractAddress}-${nft.tokenId || '0'}`;
+          const blockscoutBalance = balanceMap.get(blockscoutKey) || 1;
+          
+          // For ERC1155, use balance from Blockscout
           if (nft.type === 'ERC1155') {
-            const balance = parseInt(nft.balance || '1');
-            return Array(balance).fill().map((_, index) => ({
+            return [{
               ...nft,
               tokenId: nft.tokenId || '0',
-              uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${index}`,
-              individualMintPrice: nft.value ? String(Number(nft.value) / balance) : '0'
-            }));
+              uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}`,
+              balance: blockscoutBalance,
+              individualMintPrice: nft.value ? String(Number(nft.value) / blockscoutBalance) : '0'
+            }];
           }
           
           // For ERC721 with multiple mints in one transaction
@@ -161,7 +198,8 @@ export default function AccountPage() {
           return [{
             ...nft,
             uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${Date.now()}`,
-            individualMintPrice: nft.value
+            individualMintPrice: nft.value,
+            balance: nft.type === 'ERC1155' ? blockscoutBalance : 1
           }];
         });
         
@@ -213,11 +251,10 @@ export default function AccountPage() {
           })
         );
 
-        // Cache the results
-        cacheNFTs(address, chain?.id, sortedNFTs);
-        
+        // Cache and set the results
+        cacheNFTs(address, chain?.id, processedNFTs);
         setTokenLogos(logos);
-        setNfts(sortedNFTs);
+        setNfts(processedNFTs);
         setLoading(false);
       } catch (error) {
         console.error('Error loading fresh NFT data:', error);
@@ -294,7 +331,19 @@ export default function AccountPage() {
   // Filter NFTs based on type
   const filteredNFTs = useMemo(() => {
     return nfts.filter(nft => {
+      // Filter by type
       if (filters.type !== 'all' && nft.type !== filters.type) return false;
+
+      // Filter by network
+      if (filters.network !== 'all') {
+        const nftNetwork = nft.network || 
+          (nft.chainId === 11155111 ? 'sepolia' : 
+           nft.chainId === 1301 ? 'unichain' :
+           nft.chainId === 1 ? 'unichain-mainnet' : null);
+        
+        if (nftNetwork !== filters.network) return false;
+      }
+
       return true;
     });
   }, [nfts, filters]);
@@ -307,8 +356,15 @@ export default function AccountPage() {
       ERC1155: nfts.filter(nft => nft.type === 'ERC1155').length
     };
 
+    const networkCount = {
+      all: nfts.length,
+      sepolia: nfts.filter(nft => nft.network === 'sepolia' || nft.chainId === 11155111).length,
+      unichain: nfts.filter(nft => nft.network === 'unichain' || nft.chainId === 1301).length,
+      'unichain-mainnet': nfts.filter(nft => nft.network === 'unichain-mainnet' || nft.chainId === 1).length
+    };
+
     return (
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-wrap gap-4 mb-6">
         <select
           value={filters.type}
           onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
@@ -317,6 +373,17 @@ export default function AccountPage() {
           <option value="all">All Types ({typeCount.all})</option>
           <option value="ERC721">ERC721 ({typeCount.ERC721})</option>
           <option value="ERC1155">ERC1155 ({typeCount.ERC1155})</option>
+        </select>
+
+        <select
+          value={filters.network}
+          onChange={(e) => setFilters(f => ({ ...f, network: e.target.value }))}
+          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+        >
+          <option value="all">All Networks ({networkCount.all})</option>
+          <option value="sepolia">Sepolia ({networkCount.sepolia})</option>
+          <option value="unichain">Unichain Testnet ({networkCount.unichain})</option>
+          <option value="unichain-mainnet">Unichain Mainnet ({networkCount['unichain-mainnet']})</option>
         </select>
       </div>
     );
@@ -457,6 +524,15 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
+
+          {/* Add balance badge for ERC1155 */}
+          {nft.type === 'ERC1155' && nft.balance > 1 && (
+            <div className="absolute top-3 right-12 z-10">
+              <div className="bg-[#00ffbd] text-black px-2 py-0.5 rounded-full text-xs font-medium">
+                x{nft.balance}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
