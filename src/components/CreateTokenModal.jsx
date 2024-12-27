@@ -226,36 +226,36 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
                       <p className="text-gray-500 dark:text-gray-400 mt-2">Your token is now ready for trading</p>
                     </div>
                     
-                    <div className="bg-[#0a0b0f] p-4 rounded-xl border border-[#00ffbd]/20">
-                      <h3 className="text-white font-medium mb-3">Next Steps</h3>
+                    <div className="bg-gray-50 dark:bg-[#2d2f36] p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-gray-900 dark:text-white font-medium mb-3">Next Steps</h3>
                       
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
-                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd]">1</div>
+                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd] shrink-0">1</div>
                           <div>
-                            <p className="text-white font-medium">Add Liquidity</p>
-                            <p className="text-sm text-gray-400">Provide liquidity to enable trading of your token</p>
+                            <p className="text-gray-900 dark:text-white font-medium">Add Liquidity</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Provide liquidity to enable trading of your token</p>
                           </div>
                         </div>
                         
                         <div className="flex items-start gap-3">
-                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd]">2</div>
+                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd] shrink-0">2</div>
                           <div>
-                            <p className="text-white font-medium">Start Trading</p>
-                            <p className="text-sm text-gray-400">Use TokenFactory Swap, our Uniswap V2 fork, to trade your token</p>
+                            <p className="text-gray-900 dark:text-white font-medium">Start Trading</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Use TokenFactory Swap, our Uniswap V2 fork, to trade your token</p>
                           </div>
                         </div>
                       </div>
 
                       <div className="mt-4 flex justify-center">
                         <a 
-                          href="https://tokenfactory.xyz/trading" 
+                          href="https://token-factory.xyz/trading" 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="inline-flex items-center px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors gap-2"
+                          className="inline-flex items-center px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors gap-2 group"
                         >
                           Go to TokenFactory Swap
-                          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                          <svg className="w-4 h-4 transform transition-transform group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                           </svg>
                         </a>
