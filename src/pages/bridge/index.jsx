@@ -1172,7 +1172,7 @@ function Bridge() {
             </div>
 
             <div className="flex justify-between items-center">
-              <Tooltip content="Gas fee for processing the transaction on Sepolia">
+              <Tooltip content="Transaction fee will be calculated by your wallet">
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-help">
                   <FaGasPump className="text-gray-500 dark:text-gray-400" size={16} />
                   <span>Network Fee</span>
@@ -1180,23 +1180,9 @@ function Bridge() {
                 </div>
               </Tooltip>
               
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={isEstimatingFee ? 'loading' : bridgeFee}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-sm text-gray-900 dark:text-white"
-                >
-                  {isEstimatingFee ? (
-                    <motion.div
-                      className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
-                    />
-                  ) : (
-                    `~${bridgeFee} ETH`
-                  )}
-                </motion.span>
-              </AnimatePresence>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Check wallet for fee
+              </span>
             </div>
 
             <div className="flex justify-between items-center">
