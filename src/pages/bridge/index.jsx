@@ -336,7 +336,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
       
       setIsLoading(true);
       try {
-        // Use Blockscout API to get normal ETH transactions
+        // Use Blockscout API to get transactions to the bridge contract
         const response = await fetch(
           `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
         );
@@ -347,9 +347,9 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
 
         const data = await response.json();
         
-        // Filter and format the transactions
+        // Format the transactions
         const formattedActivities = data.items
-          .filter(tx => tx.value !== '0') // Only get transactions with value
+          .filter(tx => tx.value !== '0') // Only get transactions with ETH value
           .map(tx => {
             // Calculate actual gas fee from gas_used and gas_price
             const gasUsedBigInt = BigInt(tx.gas_used || 0);
@@ -364,9 +364,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
               toNetwork: 'Unichain Sepolia',
               txHash: tx.hash,
               bridgeFee: actualGasFee,
-              gasUsed: tx.gas_used,
               gasPrice: ethers.formatUnits(tx.gas_price || '0', 'gwei'),
-              confirmations: tx.confirmations,
               estimatedTime: '~3 mins',
             };
           });
