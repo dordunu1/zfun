@@ -350,18 +350,26 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
         // Filter and format the transactions
         const formattedActivities = data.items
           .filter(tx => tx.value !== '0') // Only get transactions with value
-          .map(tx => ({
-            amount: ethers.formatEther(tx.value),
-            timestamp: new Date(tx.timestamp).getTime(),
-            status: tx.status === '1' ? 'complete' : 'failed',
-            fromNetwork: 'Sepolia',
-            toNetwork: 'Unichain Sepolia',
-            txHash: tx.hash,
-            bridgeFee: '0.019',
-            gasUsed: tx.gas_used,
-            confirmations: tx.confirmations,
-            estimatedTime: '~3 mins',
-          }));
+          .map(tx => {
+            // Calculate actual gas fee from gas_used and gas_price
+            const gasUsedBigInt = BigInt(tx.gas_used || 0);
+            const gasPriceBigInt = BigInt(tx.gas_price || 0);
+            const actualGasFee = ethers.formatEther((gasUsedBigInt * gasPriceBigInt).toString());
+
+            return {
+              amount: ethers.formatEther(tx.value),
+              timestamp: new Date(tx.timestamp).getTime(),
+              status: tx.status === '1' ? 'complete' : 'failed',
+              fromNetwork: 'Sepolia',
+              toNetwork: 'Unichain Sepolia',
+              txHash: tx.hash,
+              bridgeFee: actualGasFee,
+              gasUsed: tx.gas_used,
+              gasPrice: ethers.formatUnits(tx.gas_price || '0', 'gwei'),
+              confirmations: tx.confirmations,
+              estimatedTime: '~3 mins',
+            };
+          });
 
         setActivities(formattedActivities.sort((a, b) => b.timestamp - a.timestamp));
       } catch (error) {
@@ -488,7 +496,11 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-gray-500 dark:text-gray-400">Bridge Fee</span>
-                              <span className="text-gray-900 dark:text-white">{activity.bridgeFee} ETH</span>
+                              <span className="text-gray-900 dark:text-white">{parseFloat(activity.bridgeFee).toFixed(6)} ETH</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">Gas Price</span>
+                              <span className="text-gray-900 dark:text-white">{activity.gasPrice} Gwei</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500 dark:text-gray-400">Gas Used</span>
