@@ -4,7 +4,7 @@ import { useBalance, useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap.js';
 import { useUnichain } from '../../../hooks/useUnichain';
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch, FaCoins } from 'react-icons/fa';
 import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../../services/firebase';
 import { ipfsToHttp } from '../../../utils/ipfs';
 
@@ -65,135 +65,10 @@ const scrollbarStyles = `
   }
 `;
 
-function TokenRow({ token, userAddress, onSelect, isSelected }) {
-  const [balance, setBalance] = useState('0');
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
-
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!userAddress || !token || !window.ethereum) return;
-
-      try {
-        setIsLoadingBalance(true);
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        let rawBalance, decimals;
-
-        if (token.address === 'ETH') {
-          // Get ETH balance
-          rawBalance = await provider.getBalance(userAddress);
-          decimals = 18;
-        } else {
-          // Create contract instance
-          const contract = new ethers.Contract(
-            token.address,
-            [
-              'function balanceOf(address) view returns (uint256)',
-              'function decimals() view returns (uint8)'
-            ],
-            provider
-          );
-
-          try {
-            // Get both balance and decimals in parallel
-            [rawBalance, decimals] = await Promise.all([
-              contract.balanceOf(userAddress),
-              contract.decimals().catch(() => token.decimals || 18)
-            ]);
-          } catch (error) {
-            console.error(`Contract call failed for ${token.symbol}:`, error);
-            // Fallback to direct RPC calls if contract calls fail
-            const balanceData = ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address'],
-              [userAddress]
-            ).slice(2);
-
-            const balanceHex = await provider.call({
-              to: token.address,
-              data: '0x70a08231' + balanceData // balanceOf(address)
-            });
-
-            rawBalance = ethers.getBigInt(balanceHex);
-            decimals = token.decimals || 18;
-          }
-        }
-
-        // Format the balance with proper decimals
-        const formatted = Number(ethers.formatUnits(rawBalance, decimals));
-        const displayBalance = new Intl.NumberFormat('en-US', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: token.symbol === 'USDC' ? 2 : 6,
-          useGrouping: true
-        }).format(formatted);
-
-        setBalance(displayBalance);
-      } catch (error) {
-        console.error(`Error fetching balance for ${token.symbol}:`, error);
-        setBalance('0');
-      } finally {
-        setIsLoadingBalance(false);
-      }
-    };
-
-    fetchBalance();
-  }, [token, userAddress]);
-
-  const renderTokenLogo = () => {
-    // For common tokens, use their predefined logos
-    const commonToken = COMMON_TOKENS.find(t => t.address === token.address);
-    if (commonToken) {
-      return <img src={commonToken.logo} alt={commonToken.symbol} className="w-8 h-8 rounded-full" />;
-    }
-
-    // For tokens with IPFS logo or direct logo
-    const logoUrl = token.logo || (token.logoIpfs ? ipfsToHttp(token.logoIpfs) : null);
-    if (logoUrl) {
-      return (
-        <img 
-          src={logoUrl}
-          alt={token.symbol}
-          className="w-8 h-8 rounded-full"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = '/token-default.png';
-          }}
-        />
-      );
-    }
-
-    // Default token logo
-    return (
-      <img 
-        src="/token-default.png"
-        alt={token.symbol || 'Unknown'}
-        className="w-8 h-8 rounded-full"
-      />
-    );
-  };
-
-  return (
-    <button
-      onClick={() => onSelect(token)}
-      className={`w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-[#2d2f36] rounded-xl transition-colors ${
-        isSelected ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : ''
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        {renderTokenLogo()}
-        <div className="text-left">
-          <div className="font-medium text-gray-900 dark:text-white">
-            {token.symbol || 'Unknown'}
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {token.name || 'Unknown Token'}
-          </div>
-        </div>
-      </div>
-      <div className="text-right text-sm text-gray-900 dark:text-white">
-        {balance}
-      </div>
-    </button>
-  );
-}
+const formatBalance = (balance, decimals = 18) => {
+  if (!balance) return '0';
+  return Number(ethers.formatUnits(balance, decimals)).toString();
+};
 
 const scanForTokens = async (provider, userAddress) => {
   try {
@@ -202,35 +77,25 @@ const scanForTokens = async (provider, userAddress) => {
       '0x31d0220469e10c4E71834a79b1f276d740d3768F', // USDC
       UNISWAP_ADDRESSES.WETH,
       UNISWAP_ADDRESSES.USDT,
-      // Add any other known token addresses here
     ];
 
     // Fetch tokens from Blockscout API
-    const apiTokens = await fetch(`https://unichain-sepolia.blockscout.com/api/v2/addresses/${userAddress}/token-balances`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      }
-    })
+    const apiTokens = await fetch(
+      `https://unichain-sepolia.blockscout.com/api/v2/addresses/${userAddress}/token-balances`
+    )
       .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`API request failed with status ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`API request failed with status ${res.status}`);
         return res.json();
       })
       .then(async (tokens) => {
-        // Filter out non-ERC20 tokens, LP tokens, and map to our format
+        // Filter out non-ERC20 tokens and LP tokens
         const erc20Tokens = tokens
           .filter(item => {
-            // Check if it's an ERC-20 token and has required fields
             const isERC20 = item.token?.type === 'ERC-20' && item.value && item.token.address;
-            
-            // Check if it's not a LP token (exclude UNI-V2 tokens)
             const isNotLPToken = item.token?.symbol !== 'UNI-V2' && 
                                !item.token?.name?.includes('Uniswap V2') &&
                                !item.token?.symbol?.includes('UNI-V2') &&
                                !item.token?.symbol?.includes('LP');
-            
             return isERC20 && isNotLPToken;
           })
           .map(item => ({
@@ -244,7 +109,6 @@ const scanForTokens = async (provider, userAddress) => {
             holders: item.token.holders
           }));
 
-        console.log('Blockscout API tokens (excluding LP tokens):', erc20Tokens);
         return erc20Tokens;
       })
       .catch(error => {
@@ -278,7 +142,6 @@ const scanForTokens = async (provider, userAddress) => {
               contract.totalSupply().catch(() => '0')
             ]);
 
-            // Only include tokens with non-zero balance and exclude LP tokens
             const isNotLPToken = 
               symbol !== 'UNI-V2' && 
               !name?.includes('Uniswap V2') &&
@@ -306,17 +169,10 @@ const scanForTokens = async (provider, userAddress) => {
 
     // Combine both sources of tokens and remove duplicates
     const allTokens = [...apiTokens, ...contractScannedTokens.filter(t => t !== null)];
-    
-    // Log the tokens found for debugging
-    console.log('API Tokens found:', apiTokens);
-    console.log('Contract scanned tokens found:', contractScannedTokens);
-    
     const uniqueTokens = Array.from(
       new Map(allTokens.map(token => [token.address?.toLowerCase(), token]))
         .values()
     ).filter(token => token && token.address);
-
-    console.log('Final unique tokens:', uniqueTokens);
     
     return uniqueTokens;
   } catch (error) {
@@ -367,12 +223,12 @@ const getWalletTokens = async (provider, userAddress) => {
 
 export default function TokenSelectionModal({ isOpen, onClose, onSelect, selectedTokenAddress }) {
   const { address: userAddress } = useAccount();
-  const unichain = useUnichain();
   const [searchQuery, setSearchQuery] = useState('');
   const [customToken, setCustomToken] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [tokenBalances, setTokenBalances] = useState({});
   const [deployedTokens, setDeployedTokens] = useState([]);
   const [tokensWithBalance, setTokensWithBalance] = useState([]);
   const [currentChainId, setCurrentChainId] = useState(null);
@@ -384,8 +240,6 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       try {
         const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
         const decimalChainId = parseInt(hexChainId, 16);
-        console.log('Chain ID from MetaMask:', { hexChainId, decimalChainId });
-        console.log('Expected Chain ID:', UNICHAIN_CHAIN_ID);
         setCurrentChainId(decimalChainId);
       } catch (error) {
         console.error('Error getting chain ID:', error);
@@ -394,29 +248,25 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     getChainId();
   }, []);
 
-  // Fetch all deployed tokens when modal opens
+  // Fetch tokens and balances
   useEffect(() => {
-    const fetchDeployedTokens = async () => {
+    const fetchTokensAndBalances = async () => {
       if (!isOpen || !userAddress || !window.ethereum) return;
       
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        
-        // Get current chain ID and convert to decimal
+        // Get current chain ID and check network
         const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
         const chainId = parseInt(hexChainId, 16);
-        console.log('Fetching tokens - Chain ID:', { hexChainId, chainId, expected: UNICHAIN_CHAIN_ID });
         
-        // Only proceed if we're on Unichain Sepolia
         if (chainId !== UNICHAIN_CHAIN_ID) {
-          console.log('Not on Unichain Sepolia:', { current: chainId, expected: UNICHAIN_CHAIN_ID });
           setError('Please switch to Unichain Sepolia network');
           setDeployedTokens([]);
           setTokensWithBalance(COMMON_TOKENS);
           return;
         }
         
-        setError(''); // Clear any network error if we're on the right network
+        setError('');
         
         // Get tokens from different sources
         const [deployedTokens, walletTokens] = await Promise.all([
@@ -424,68 +274,18 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           getWalletTokens(window.ethereum, userAddress)
         ]);
         
-        console.log('Fetched deployed tokens:', deployedTokens);
-        console.log('Fetched wallet tokens:', walletTokens);
+        // Filter and format tokens
+        const chainTokens = deployedTokens.filter(token => 
+          token && token.chainId?.toString() === UNICHAIN_CHAIN_ID.toString()
+        );
         
-        // Filter tokens by chain ID
-        const chainTokens = deployedTokens.filter(token => {
-          if (!token || typeof token !== 'object') return false;
-          
-          // Convert chain IDs to strings for comparison
-          const tokenChainId = token.chainId?.toString() || '';
-          const expectedChainId = UNICHAIN_CHAIN_ID.toString();
-          
-          const isValidToken = 
-            tokenChainId === expectedChainId || 
-            tokenChainId === '' || // Include tokens without chainId for backward compatibility
-            !token.chainId; // Also include if chainId is undefined
-          
-          console.log('Token chain check:', {
-            address: token.address || 'unknown',
-            symbol: token.symbol || 'unknown',
-            tokenChainId: token.chainId || 'none',
-            expectedChainId: UNICHAIN_CHAIN_ID,
-            isValid: isValidToken
-          });
-          
-          return isValidToken;
-        });
-        
-        console.log('Filtered chain tokens:', chainTokens);
-        
-        // Format deployed tokens - add null checks
-        const formattedDeployedTokens = chainTokens
-          .filter(token => token && token.address) // Filter out invalid tokens
-          .map(token => ({
-            address: token.address,
-            symbol: token.symbol || 'Unknown',
-            name: token.name || 'Unknown Token',
-            decimals: token.decimals || 18,
-            logo: token.logo || null,
-            logoIpfs: token.logoIpfs || null,
-            artworkType: token.artworkType || null,
-            verified: true,
-            chainId: token.chainId || UNICHAIN_CHAIN_ID
-          }));
-
-        // Add COMMON_TOKENS first to ensure they always appear
         const allTokens = [
           ...COMMON_TOKENS,
-          ...formattedDeployedTokens.filter(token => 
-            token && token.address && 
-            !COMMON_TOKENS.some(common => 
-              common.address?.toLowerCase() === token.address?.toLowerCase()
-            )
-          ),
-          ...walletTokens.filter(token => 
-            token && token.address && 
-            !COMMON_TOKENS.some(common => 
-              common.address?.toLowerCase() === token.address?.toLowerCase()
-            )
-          )
+          ...chainTokens,
+          ...walletTokens
         ].filter(token => token && token.address);
 
-        // Remove duplicates while preserving order
+        // Remove duplicates
         const seenAddresses = new Set();
         const uniqueTokens = allTokens.filter(token => {
           if (!token || !token.address) return false;
@@ -493,160 +293,144 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           if (seenAddresses.has(address)) return false;
           seenAddresses.add(address);
           return true;
-        }).map(token => ({
-          ...token,
-          symbol: token.symbol || 'Unknown',
-          name: token.name || 'Unknown Token',
-          decimals: token.decimals || 18,
-          chainId: token.chainId || UNICHAIN_CHAIN_ID
-        }));
+        });
 
-        console.log('Final token list:', uniqueTokens);
-        
-        setDeployedTokens(uniqueTokens);
         setTokensWithBalance(uniqueTokens);
-      } catch (error) {
-        console.error('Error fetching tokens:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDeployedTokens();
-  }, [isOpen, userAddress, refreshTrigger]);
-
-  // Handle custom token search
-  useEffect(() => {
-    const searchCustomToken = async () => {
-      // Only proceed if we're on Unichain Sepolia
-      if (!currentChainId) return;
-      
-      console.log('Custom token search - Chain ID:', { current: currentChainId, expected: UNICHAIN_CHAIN_ID });
-      
-      if (currentChainId !== UNICHAIN_CHAIN_ID) {
-        console.log('Wrong network for custom token search');
-        setError('Please switch to Unichain Sepolia network');
-        return;
-      }
-
-      // Clear custom token if search is empty or too short
-      if (!searchQuery || searchQuery.length < 42) {
-        setCustomToken(null);
-        setError('');
-        return;
-      }
-
-      // Check if the search query looks like an address
-      if (!ethers.isAddress(searchQuery)) {
-        setCustomToken(null);
-        if (searchQuery.startsWith('0x')) {
-          setError('Invalid token address');
-        }
-        return;
-      }
-
-      setIsLoading(true);
-      setError('');
-
-      try {
-        // First try to get token info from Firestore deployments
-        const tokenDeployment = await getTokenDeploymentByAddress(searchQuery);
         
-        if (tokenDeployment) {
-          console.log('Found custom token in Firebase:', tokenDeployment);
-          setCustomToken({
-            address: searchQuery,
-            symbol: tokenDeployment.symbol,
-            name: tokenDeployment.name,
-            decimals: tokenDeployment.decimals || 18,
-            logo: tokenDeployment.logo,
-            logoIpfs: tokenDeployment.logoIpfs,
-            artworkType: tokenDeployment.artworkType,
-            verified: true
-          });
-          setError('');
-          setIsLoading(false);
-          return;
-        }
+        // Fetch balances for all tokens
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const newBalances = {};
+        
+        await Promise.all(
+          uniqueTokens.map(async (token) => {
+            try {
+              let rawBalance, decimals;
 
-        // If not in Firebase, try direct contract call with Unichain provider
-        const provider = new ethers.JsonRpcProvider(UNICHAIN_RPC_URL);
-        const contract = new ethers.Contract(
-          searchQuery,
-          [
-            'function symbol() view returns (string)',
-            'function name() view returns (string)',
-            'function decimals() view returns (uint8)'
-          ],
-          provider
+              if (token.address === 'ETH') {
+                rawBalance = await provider.getBalance(userAddress);
+                decimals = 18;
+              } else {
+                const contract = new ethers.Contract(
+                  token.address,
+                  ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
+                  provider
+                );
+
+                [rawBalance, decimals] = await Promise.all([
+                  contract.balanceOf(userAddress),
+                  contract.decimals().catch(() => token.decimals || 18)
+                ]);
+              }
+
+              newBalances[token.address] = {
+                raw: rawBalance.toString(),
+                formatted: formatBalance(rawBalance, decimals)
+              };
+            } catch (error) {
+              console.error(`Error fetching balance for ${token.symbol}:`, error);
+              newBalances[token.address] = { raw: '0', formatted: '0' };
+            }
+          })
         );
 
-        let symbol, name, decimals;
-        try {
-          [symbol, name, decimals] = await Promise.all([
-            contract.symbol(),
-            contract.name(),
-            contract.decimals()
-          ]);
-        } catch (error) {
-          console.error('Error getting token info:', error);
-          symbol = 'Unknown';
-          name = 'Unknown Token';
-          decimals = 18;
-        }
-
-        setCustomToken({
-          address: searchQuery,
-          symbol,
-          name,
-          decimals,
-          verified: false
-        });
-        setError('');
+        setTokenBalances(newBalances);
       } catch (error) {
-        console.error('Error searching for custom token:', error);
-        setCustomToken(null);
-        setError('Could not find token');
+        console.error('Error fetching tokens and balances:', error);
+        setError('Failed to load tokens');
       } finally {
         setIsLoading(false);
       }
     };
 
-    searchCustomToken();
-  }, [searchQuery]);
+    fetchTokensAndBalances();
+  }, [isOpen, userAddress, refreshTrigger]);
+
+  const TokenRow = ({ token, onSelect, isSelected }) => {
+    const balance = tokenBalances[token.address]?.formatted || '0';
+    const isLoadingBalance = !tokenBalances[token.address];
+
+    return (
+      <button
+        onClick={() => onSelect(token)}
+        className={`w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-[#2d2f36] rounded-xl transition-colors ${
+          isSelected ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : ''
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {renderTokenLogo(token)}
+          <div className="text-left">
+            <div className="font-medium text-gray-900 dark:text-white">
+              {token.symbol || 'Unknown'}
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {token.name || 'Unknown Token'}
+            </div>
+          </div>
+        </div>
+        <div className="text-right text-sm text-gray-900 dark:text-white">
+          {isLoadingBalance ? (
+            <div className="w-12 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          ) : (
+            balance
+          )}
+        </div>
+      </button>
+    );
+  };
+
+  const hasBalance = token => {
+    const balance = tokenBalances[token.address]?.formatted;
+    return parseFloat(balance || '0') > 0;
+  };
 
   // Filter tokens based on search query
   const filteredTokens = useMemo(() => {
     if (!tokensWithBalance) return [];
     
     const searchLower = (searchQuery || '').toLowerCase();
-
-    // Filter tokens based on search
-    const filtered = tokensWithBalance.filter(token => {
+    return tokensWithBalance.filter(token => {
       if (!token) return false;
-      
       return (
         (token.symbol || '').toLowerCase().includes(searchLower) ||
         (token.name || '').toLowerCase().includes(searchLower) ||
         (token.address || '').toLowerCase().includes(searchLower)
       );
     });
-
-    // Sort tokens: first by balance (descending), then by symbol
-    return filtered.sort((a, b) => {
-      // Get numeric balances (default to 0 if undefined)
-      const balanceA = Number(a.balance || '0');
-      const balanceB = Number(b.balance || '0');
-
-      // Sort by balance first (descending)
-      if (balanceB !== balanceA) {
-        return balanceB - balanceA;
-      }
-
-      // If balances are equal, sort by symbol
-      return (a.symbol || '').localeCompare(b.symbol || '');
-    });
   }, [searchQuery, tokensWithBalance]);
+
+  // Move renderTokenLogo outside of TokenRow
+  const renderTokenLogo = (token) => {
+    // For common tokens, use their predefined logos
+    const commonToken = COMMON_TOKENS.find(t => t.address === token.address);
+    if (commonToken) {
+      return <img src={commonToken.logo} alt={commonToken.symbol} className="w-8 h-8 rounded-full" />;
+    }
+
+    // For tokens with IPFS logo or direct logo
+    const logoUrl = token.logo || (token.logoIpfs ? ipfsToHttp(token.logoIpfs) : null);
+    if (logoUrl) {
+      return (
+        <img 
+          src={logoUrl}
+          alt={token.symbol}
+          className="w-8 h-8 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
+    }
+
+    // Default token logo
+    return (
+      <img 
+        src="/token-default.png"
+        alt={token.symbol || 'Unknown'}
+        className="w-8 h-8 rounded-full"
+      />
+    );
+  };
 
   const handleTokenSelect = async (token) => {
     try {
@@ -724,21 +508,47 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
               </div>
             ) : (
               <>
-                {/* Common Tokens Section */}
+                {/* Your Tokens Section */}
                 <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                    Your Tokens
+                  <div className="flex items-center gap-2 mb-3">
+                    <FaCoins className="text-[#00ffbd] w-4 h-4" />
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                      Your Tokens
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {filteredTokens
+                      .filter(hasBalance)
+                      .map((token) => (
+                        <TokenRow
+                          key={`${token.address}-${refreshTrigger}`}
+                          token={token}
+                          onSelect={handleTokenSelect}
+                          isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                        />
+                      ))}
+                  </div>
+                </div>
+
+                {/* Separator */}
+                <div className="my-4 border-t border-gray-200 dark:border-gray-700" />
+
+                {/* Other Tokens Section */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                    Other Tokens
                   </h3>
                   <div className="space-y-2">
-                    {filteredTokens.map((token) => (
-                      <TokenRow
-                        key={`${token.address}-${refreshTrigger}`}
-                        token={token}
-                        userAddress={userAddress}
-                        onSelect={handleTokenSelect}
-                        isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
-                      />
-                    ))}
+                    {filteredTokens
+                      .filter(token => !hasBalance(token))
+                      .map((token) => (
+                        <TokenRow
+                          key={`${token.address}-${refreshTrigger}`}
+                          token={token}
+                          onSelect={handleTokenSelect}
+                          isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                        />
+                      ))}
                   </div>
                 </div>
 
@@ -750,7 +560,6 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                     </h3>
                     <TokenRow
                       token={customToken}
-                      userAddress={userAddress}
                       onSelect={handleTokenSelect}
                       isSelected={selectedTokenAddress === customToken.address}
                     />
