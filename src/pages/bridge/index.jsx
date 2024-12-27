@@ -336,7 +336,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
       
       setIsLoading(true);
       try {
-        // Use Blockscout API to get transactions to the bridge contract
+        // Use Blockscout API to get transactions
         const response = await fetch(
           `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
         );
@@ -347,9 +347,17 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
 
         const data = await response.json();
         
-        // Format the transactions
+        // Filter and format the transactions
         const formattedActivities = data.items
-          .filter(tx => tx.value !== '0') // Only get transactions with ETH value
+          .filter(tx => {
+            // Only include transactions that are:
+            // 1. To the bridge contract
+            // 2. Have a value > 0
+            // 3. Have decoded input with bridgeETH or bridgeETHTo method
+            return tx.to?.hash?.toLowerCase() === L1_BRIDGE_ADDRESS.toLowerCase() &&
+                   tx.value !== '0' &&
+                   tx.decoded_input?.method_call?.includes('bridgeETH');
+          })
           .map(tx => {
             // Calculate actual gas fee from gas_used and gas_price
             const gasUsedBigInt = BigInt(tx.gas_used || 0);
@@ -364,7 +372,9 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
               toNetwork: 'Unichain Sepolia',
               txHash: tx.hash,
               bridgeFee: actualGasFee,
+              gasUsed: tx.gas_used,
               gasPrice: ethers.formatUnits(tx.gas_price || '0', 'gwei'),
+              confirmations: tx.confirmations,
               estimatedTime: '~3 mins',
             };
           });
@@ -1115,16 +1125,24 @@ function Bridge() {
       <div className="mt-4 md:mt-6 p-4 bg-gray-50 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Looking to bridge from Unichain to Sepolia?</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Visit the{' '}
+          Try these alternative bridges:{' '}
           <a 
-            href="https://bridge.unichain.org" 
+            href="https://superbridge.app/unichain-sepolia" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-[#00ffbd] hover:text-[#00e6a9] mr-2"
+          >
+            SuperBridge
+          </a>
+          {' '}or{' '}
+          <a 
+            href="https://testnet.brid.gg/unichain-sepolia" 
             target="_blank" 
             rel="noopener noreferrer" 
             className="text-[#00ffbd] hover:text-[#00e6a9]"
           >
-            official Unichain bridge
+            Brid.gg
           </a>
-          {' '}for Unichain to Sepolia transfers.
         </p>
       </div>
 
