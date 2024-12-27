@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
-import { FaExchangeAlt, FaStar } from 'react-icons/fa';
+import { FaExchangeAlt, FaStar, FaGasPump } from 'react-icons/fa';
 import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../hooks/useUnichain';
 import TokenSelector from './TokenSelector';
@@ -12,6 +12,27 @@ import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import Confetti from 'react-confetti';
+
+// Add Tooltip component
+const Tooltip = ({ children, content }) => {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+      >
+        {children}
+      </div>
+      {show && (
+        <div className="absolute z-50 px-3 py-2 text-sm bg-gray-900 text-white rounded-lg shadow-lg whitespace-nowrap">
+          {content}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Add these modern DeFi-inspired icons for swap steps
 const Icons = {
@@ -1174,7 +1195,7 @@ export default function TokenSwap() {
                     <span className="text-gray-500">Network cost</span>
                     <span className="text-gray-500 cursor-help" title="Estimated cost of the transaction on Ethereum">ⓘ</span>
                   </div>
-                  <span className="text-gray-200">{networkCost || '~0.003 ETH'}</span>
+                  <span className="text-gray-200">Check wallet for gas cost</span>
                 </div>
               </div>
 
