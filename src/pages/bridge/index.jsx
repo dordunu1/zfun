@@ -6,7 +6,7 @@ import { Fragment } from 'react';
 import { useUnichain } from '../../hooks/useUnichain';
 import { useWeb3Modal } from '@web3modal/react';
 import { BiWallet, BiTime } from 'react-icons/bi';
-import { FaGasPump, FaExchangeAlt } from 'react-icons/fa';
+import { FaGasPump, FaArrowRight, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
@@ -573,7 +573,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                               <img src="/sepolia-logo.png" alt="From" className="w-5 h-5" />
                               <span className="text-sm text-gray-600 dark:text-gray-400">Sepolia</span>
                             </div>
-                            <FaExchangeAlt className="text-gray-400" size={12} />
+                            <FaArrowRight className="text-[#00ffbd]" size={12} />
                             <div className="flex items-center gap-2">
                               <img src="/unichain-logo.png" alt="To" className="w-5 h-5" />
                               <span className="text-sm text-gray-600 dark:text-gray-400">Unichain Sepolia</span>
@@ -675,7 +675,7 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee
                       <img src="/sepolia-logo.png" alt="From Network" className="w-6 h-6" />
                       <span className="text-sm text-gray-600 dark:text-gray-400">Sepolia</span>
                     </div>
-                    <FaExchangeAlt className="text-gray-400" size={12} />
+                    <FaArrowRight className="text-[#00ffbd]" size={12} />
                     <div className="flex items-center gap-2">
                       <img src="/unichain-logo.png" alt="To Network" className="w-6 h-6" />
                       <span className="text-sm text-gray-600 dark:text-gray-400">Unichain Sepolia</span>
@@ -1048,9 +1048,17 @@ function Bridge() {
             </div>
 
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-white dark:bg-[#1a1b1f] flex items-center justify-center border border-gray-200 dark:border-gray-700">
-                <FaExchangeAlt size={16} className="text-gray-600 dark:text-gray-400 transform rotate-90" />
-              </div>
+              <motion.div 
+                className="w-10 h-10 rounded-full bg-white dark:bg-[#1a1b1f] flex items-center justify-center border border-gray-200 dark:border-gray-700"
+                animate={{ x: [0, 5, 0] }}
+                transition={{ 
+                  duration: 1.5,
+                  ease: "easeInOut",
+                  repeat: Infinity,
+                }}
+              >
+                <FaArrowRight size={16} className="text-[#00ffbd]" />
+              </motion.div>
             </div>
 
             <div className="flex-1 text-right">
