@@ -495,7 +495,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                           {/* Transaction details */}
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-gray-500 dark:text-gray-400">Bridge Fee</span>
+                              <span className="text-gray-500 dark:text-gray-400">Network Fee</span>
                               <span className="text-gray-900 dark:text-white">{parseFloat(activity.bridgeFee).toFixed(6)} ETH</span>
                             </div>
                             <div className="flex justify-between">
@@ -599,8 +599,8 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee
                       </div>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Bridge Fee</span>
-                      <span className="text-sm text-gray-900 dark:text-white">{bridgeFee} ETH</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Network Fee (estimated)</span>
+                      <span className="text-sm text-gray-900 dark:text-white">~{bridgeFee} ETH</span>
                     </div>
                     <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
                     <div className="flex justify-between items-center">
@@ -813,31 +813,24 @@ function Bridge() {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
-      
-      // Get latest gas estimate
-      const estimator = createBridgeGasEstimator(provider, 'sepolia');
-      const estimate = await estimator.estimateGasFee(amount);
+      const txValue = ethers.parseEther(amount);
       
       // Sepolia -> Unichain: Use L1StandardBridge
       const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
-      
-      const minGasLimit = 200000; // Gas limit for L1 to L2 bridging
-      const txValue = ethers.parseEther(amount);
 
-      console.log('Bridging with params:', {
-        userAddress,
-        minGasLimit,
-        value: txValue.toString(),
-        gasLimit: 300000n
+      console.log('Bridge parameters:', {
+        to: userAddress,
+        minGasLimit: '200000',
+        value: txValue.toString()
       });
 
+      // Let MetaMask handle gas estimation
       const tx = await l1Bridge.bridgeETHTo(
-        userAddress, // destination address
-        minGasLimit,
-        '0x', // No extra data needed
+        userAddress,
+        200000n,
+        '0x',
         {
-          value: txValue,
-          gasLimit: 300000n
+          value: txValue
         }
       );
       
@@ -1038,10 +1031,10 @@ function Bridge() {
             </div>
 
             <div className="flex justify-between items-center">
-              <Tooltip content="Fee includes gas for the bridge transaction">
+              <Tooltip content="Gas fee for processing the transaction on Sepolia">
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-help">
                   <FaGasPump className="text-gray-500 dark:text-gray-400" size={16} />
-                  <span>Bridge fee</span>
+                  <span>Network Fee</span>
                   <InformationCircleIcon className="h-4 w-4" />
                 </div>
               </Tooltip>
@@ -1059,7 +1052,7 @@ function Bridge() {
                       className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
                     />
                   ) : (
-                    `${bridgeFee} ETH`
+                    `~${bridgeFee} ETH`
                   )}
                 </motion.span>
               </AnimatePresence>
