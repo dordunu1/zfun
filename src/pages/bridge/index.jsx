@@ -810,6 +810,7 @@ function Bridge() {
     message: ''
   });
   const [showSummary, setShowSummary] = useState(false);
+  const [hasPendingTx, setHasPendingTx] = useState(false);
 
   // Network status effect - only check for Sepolia
   useEffect(() => {
@@ -951,6 +952,45 @@ function Bridge() {
     }
   };
 
+  // Add this effect to check transaction status
+  useEffect(() => {
+    const checkPendingTransactions = async () => {
+      if (!address) return;
+      
+      try {
+        const response = await fetch(
+          `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
+        );
+        
+        if (!response.ok) return;
+
+        const data = await response.json();
+        
+        // Check if there are any pending or processing bridge transactions
+        const pendingBridges = data.items
+          .filter(tx => {
+            const txTime = new Date(tx.timestamp).getTime();
+            const minutesPassed = Math.floor((Date.now() - txTime) / (1000 * 60));
+            return tx.to?.hash?.toLowerCase() === L1_BRIDGE_ADDRESS.toLowerCase() &&
+                   tx.value !== '0' &&
+                   tx.decoded_input?.method_call?.includes('bridgeETH') &&
+                   ((tx.confirmations === 0) || // Pending confirmation
+                    (tx.confirmations > 0 && minutesPassed < 3)); // Processing but not complete
+          });
+
+        setHasPendingTx(pendingBridges.length > 0);
+      } catch (error) {
+        console.error('Error checking pending transactions:', error);
+      }
+    };
+
+    // Check immediately and then every 10 seconds
+    checkPendingTransactions();
+    const interval = setInterval(checkPendingTransactions, 10000);
+
+    return () => clearInterval(interval);
+  }, [address]);
+
   // Early return for wallet connection
   if (!isConnected) {
     return (
@@ -981,10 +1021,16 @@ function Bridge() {
         <div className="flex justify-end mb-4">
           <button
             onClick={() => setShowActivity(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-[#2d2f36] rounded-full text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors border border-gray-200 dark:border-gray-700"
+            className="flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-[#2d2f36] rounded-full text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors border border-gray-200 dark:border-gray-700"
           >
-            <BiTime className="text-[#00ffbd]" size={16} />
+            <BiTime 
+              className={`text-[#00ffbd] ${hasPendingTx ? 'animate-spin' : ''}`} 
+              size={20} 
+            />
             <span>History</span>
+            {hasPendingTx && (
+              <div className="w-2.5 h-2.5 rounded-full bg-[#00ffbd] animate-pulse" />
+            )}
           </button>
         </div>
 
