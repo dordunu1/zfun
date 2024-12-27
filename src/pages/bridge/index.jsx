@@ -328,33 +328,63 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
 
 const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentStep, setTxHash }) => {
   const [activities, setActivities] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Here you would fetch the bridge history for the address
-    // For now using mock data
-    setActivities([
-      {
-        amount: '0.1',
-        timestamp: Date.now() - 180000, // 3 minutes ago
-        status: 'complete',
-        fromNetwork: 'Sepolia',
-        toNetwork: 'Unichain Sepolia',
-        txHash: '0x123...',
-      },
-      {
-        amount: '0.025',
-        timestamp: Date.now() - 480000, // 8 minutes ago
-        status: 'complete',
-        fromNetwork: 'Sepolia',
-        toNetwork: 'Unichain Sepolia',
-        txHash: '0x456...',
+    const fetchBridgeHistory = async () => {
+      if (!address) return;
+      
+      setIsLoading(true);
+      try {
+        // Use Blockscout API to get normal ETH transactions
+        const response = await fetch(
+          `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch bridge history');
+        }
+
+        const data = await response.json();
+        
+        // Filter and format the transactions
+        const formattedActivities = data.items
+          .filter(tx => tx.value !== '0') // Only get transactions with value
+          .map(tx => ({
+            amount: ethers.formatEther(tx.value),
+            timestamp: new Date(tx.timestamp).getTime(),
+            status: tx.status === '1' ? 'complete' : 'failed',
+            fromNetwork: 'Sepolia',
+            toNetwork: 'Unichain Sepolia',
+            txHash: tx.hash,
+            bridgeFee: '0.019',
+            gasUsed: tx.gas_used,
+            confirmations: tx.confirmations,
+            estimatedTime: '~3 mins',
+          }));
+
+        setActivities(formattedActivities.sort((a, b) => b.timestamp - a.timestamp));
+      } catch (error) {
+        console.error('Error fetching bridge history:', error);
+        toast.error('Failed to load bridge history');
+      } finally {
+        setIsLoading(false);
       }
-    ]);
-  }, [address]);
+    };
+
+    if (isOpen && address) {
+      fetchBridgeHistory();
+    }
+  }, [address, isOpen]);
 
   const formatAddress = (addr) => {
     if (!addr) return '';
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const formatTxHash = (hash) => {
+    if (!hash) return '';
+    return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
   };
 
   return (
@@ -387,7 +417,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white">
-                      Activity
+                      Bridge History
                     </Dialog.Title>
                     <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                       {formatAddress(address)}
@@ -401,47 +431,94 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                 </div>
 
                 <div className="space-y-4 mt-6">
-                  {activities.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-5 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-3">
-                            <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
-                            <span className="text-xl font-bold text-gray-900 dark:text-white">{activity.amount} ETH</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                            <span className="text-sm">Via Native Bridge</span>
-                            <div className="flex items-center gap-1">
-                              <img 
-                                src="/sepolia-logo.png"
-                                alt="Sepolia"
-                                className="w-4 h-4"
-                              />
-                              <img 
-                                src="/unichain-logo.png"
-                                alt="Unichain"
-                                className="w-4 h-4"
-                              />
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
+                        <span className="text-gray-500 dark:text-gray-400">Loading history...</span>
+                      </div>
+                    </div>
+                  ) : activities.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="mb-4">
+                        <BiTime size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        No bridge history found
+                      </p>
+                    </div>
+                  ) : (
+                    activities.map((activity, index) => (
+                      <div
+                        key={activity.txHash}
+                        className="bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-5 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors"
+                      >
+                        <div className="space-y-4">
+                          {/* Header with amount and time */}
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2">
+                              <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
+                              <span className="text-xl font-bold text-gray-900 dark:text-white">{activity.amount} ETH</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="text-sm text-gray-500 dark:text-gray-400">
+                                {new Date(activity.timestamp).toLocaleString()}
+                              </span>
+                              <div className="flex items-center gap-2 text-[#00ffbd] mt-1">
+                                <CheckIcon className="h-4 w-4" />
+                                <span className="text-sm">Bridge successful</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex flex-col items-end justify-between h-full">
-                          <span className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                            {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          <div className="flex items-center gap-2 text-[#00ffbd]">
-                            <CheckIcon className="h-4 w-4" />
-                            <span className="text-sm">Bridge successful</span>
+                          {/* Network flow */}
+                          <div className="flex items-center justify-between bg-white/50 dark:bg-black/20 p-2 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <img src="/sepolia-logo.png" alt="From" className="w-5 h-5" />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Sepolia</span>
+                            </div>
+                            <FaExchangeAlt className="text-gray-400" size={12} />
+                            <div className="flex items-center gap-2">
+                              <img src="/unichain-logo.png" alt="To" className="w-5 h-5" />
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Unichain Sepolia</span>
+                            </div>
+                          </div>
+
+                          {/* Transaction details */}
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">Bridge Fee</span>
+                              <span className="text-gray-900 dark:text-white">{activity.bridgeFee} ETH</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">Gas Used</span>
+                              <span className="text-gray-900 dark:text-white">{activity.gasUsed}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 dark:text-gray-400">Confirmations</span>
+                              <span className="text-gray-900 dark:text-white">{activity.confirmations}</span>
+                            </div>
+                          </div>
+
+                          {/* Transaction hash with link */}
+                          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <a
+                              href={`https://sepolia.etherscan.io/tx/${activity.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-[#00ffbd] hover:text-[#00e6a9] flex items-center gap-2"
+                            >
+                              <span>View transaction</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                              </svg>
+                            </a>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -800,6 +877,17 @@ function Bridge() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="bg-white dark:bg-[#1a1b1f] rounded-2xl p-4 md:p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+        {/* History Button */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowActivity(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-[#2d2f36] rounded-full text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors border border-gray-200 dark:border-gray-700"
+          >
+            <BiTime className="text-[#00ffbd]" size={16} />
+            <span>History</span>
+          </button>
+        </div>
+
         {/* Networks Section */}
         <div className="relative bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-4 mb-6">
           <div className="flex items-center justify-between">
