@@ -36,8 +36,8 @@ const { chains, publicClient } = configureChains(
   [
     w3mProvider({ 
       projectId,
-      // Only try to use injected provider on desktop
-      disableInjected: isMobile 
+      // Only try to use injected provider if it's actually available
+      disableInjected: !window.ethereum || isMobile
     }),
     publicProvider()
   ]
@@ -50,10 +50,10 @@ const wagmiConfig = createConfig({
     chains,
     version: '2',
     options: {
-      // Skip injected wallet check on mobile
-      skipInjectedWalletCheck: isMobile,
-      // Show QR code immediately on mobile
-      showQrModal: true
+      // Skip injected wallet check if no provider
+      skipInjectedWalletCheck: !window.ethereum || isMobile,
+      // Show QR code immediately if no injected provider
+      showQrModal: !window.ethereum || isMobile
     }
   }),
   publicClient

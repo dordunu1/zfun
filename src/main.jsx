@@ -13,18 +13,31 @@ const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
 // Check if we're on mobile
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '');
 
-// If on mobile Chrome without a provider, inject a dummy provider to prevent errors
-if (isMobile && !window.ethereum) {
+// If no provider is available, inject a dummy provider to prevent errors
+if (!window.ethereum) {
   window.ethereum = {
     isMetaMask: false,
-    request: () => Promise.reject(new Error('No crypto wallet found')),
-    on: () => {},
+    request: () => Promise.reject(new Error('No crypto wallet found. Please install MetaMask or another Web3 wallet.')),
+    on: (eventName, callback) => {
+      // Return a no-op function for cleanup
+      return () => {};
+    },
     removeListener: () => {},
     autoRefreshOnNetworkChange: false,
     chainId: null,
     networkVersion: null,
     selectedAddress: null,
     isConnected: () => false,
+    // Add additional required methods
+    enable: () => Promise.reject(new Error('No crypto wallet found. Please install MetaMask or another Web3 wallet.')),
+    sendAsync: () => Promise.reject(new Error('No crypto wallet found')),
+    send: () => Promise.reject(new Error('No crypto wallet found')),
+    // Add event emitter methods
+    addListener: () => {},
+    removeAllListeners: () => {},
+    // Add provider interface
+    providers: [],
+    isEIP1193: true,
   };
 }
 
