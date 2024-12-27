@@ -502,30 +502,37 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                               <span className="text-gray-500 dark:text-gray-400">Gas Price</span>
                               <span className="text-gray-900 dark:text-white">{activity.gasPrice} Gwei</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500 dark:text-gray-400">Gas Used</span>
-                              <span className="text-gray-900 dark:text-white">{activity.gasUsed}</span>
+                            
+                            {/* Transaction hash with link and Via Native Bridge */}
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                                <span>Via Native Bridge</span>
+                                <div className="flex items-center">
+                                  <img 
+                                    src="/sepolia-logo.png"
+                                    alt="Sepolia"
+                                    className="w-4 h-4"
+                                  />
+                                  <img 
+                                    src="/unichain-logo.png"
+                                    alt="Unichain"
+                                    className="w-4 h-4 -ml-1"
+                                  />
+                                </div>
+                              </div>
+                              <a
+                                href={`https://sepolia.etherscan.io/tx/${activity.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-[#00ffbd] hover:text-[#00e6a9] flex items-center gap-2"
+                              >
+                                <span>View transaction</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                                </svg>
+                              </a>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500 dark:text-gray-400">Confirmations</span>
-                              <span className="text-gray-900 dark:text-white">{activity.confirmations}</span>
-                            </div>
-                          </div>
-
-                          {/* Transaction hash with link */}
-                          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                            <a
-                              href={`https://sepolia.etherscan.io/tx/${activity.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-[#00ffbd] hover:text-[#00e6a9] flex items-center gap-2"
-                            >
-                              <span>View transaction</span>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                              </svg>
-                            </a>
                           </div>
                         </div>
                       </div>
