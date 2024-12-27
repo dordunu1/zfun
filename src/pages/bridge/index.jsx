@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
 import { ethers } from 'ethers';
 import { Dialog, Transition } from '@headlessui/react';
@@ -10,7 +10,7 @@ import { FaGasPump, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
-import { CheckIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const L1_BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
 
@@ -330,68 +330,129 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Add function to check transaction status
+  const checkTransactionStatus = useCallback(async (txHash) => {
+    try {
+      // Use Sepolia RPC instead of Unichain
+      const provider = new ethers.providers.JsonRpcProvider('https://rpc.sepolia.org');
+      const receipt = await provider.getTransactionReceipt(txHash);
+      return receipt;
+    } catch (error) {
+      console.error('Error checking transaction status:', error);
+      return null;
+    }
+  }, []);
+
+  // Add polling effect for pending transactions
   useEffect(() => {
-    const fetchBridgeHistory = async () => {
-      if (!address) return;
-      
-      setIsLoading(true);
-      try {
-        // Use Blockscout API to get transactions
-        const response = await fetch(
-          `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch bridge history');
-        }
+    if (!activities.length) return;
 
-        const data = await response.json();
-        
-        // Filter and format the transactions
-        const formattedActivities = data.items
-          .filter(tx => {
-            // Only include transactions that are:
-            // 1. To the bridge contract
-            // 2. Have a value > 0
-            // 3. Have decoded input with bridgeETH or bridgeETHTo method
-            return tx.to?.hash?.toLowerCase() === L1_BRIDGE_ADDRESS.toLowerCase() &&
-                   tx.value !== '0' &&
-                   tx.decoded_input?.method_call?.includes('bridgeETH');
-          })
-          .map(tx => {
-            // Calculate actual gas fee from gas_used and gas_price
-            const gasUsedBigInt = BigInt(tx.gas_used || 0);
-            const gasPriceBigInt = BigInt(tx.gas_price || 0);
-            const actualGasFee = ethers.formatEther((gasUsedBigInt * gasPriceBigInt).toString());
+    const interval = setInterval(async () => {
+      const updatedActivities = await Promise.all(
+        activities.map(async (activity) => {
+          if (activity.status === 'pending') {
+            const receipt = await checkTransactionStatus(activity.txHash);
+            if (!receipt) {
+              return activity; // Still pending
+            }
+            
+            const minutesPassed = Math.floor((Date.now() - activity.timestamp) / (1000 * 60));
+            
+            if (receipt.status === 0) {
+              return { ...activity, status: 'failed' };
+            } else {
+              // Transaction confirmed on Sepolia
+              if (minutesPassed >= 3) {
+                return { ...activity, status: 'complete' };
+              } else {
+                return { ...activity, status: 'processing', minutesPassed };
+              }
+            }
+          }
+          return activity;
+        })
+      );
 
-            return {
-              amount: ethers.formatEther(tx.value),
-              timestamp: new Date(tx.timestamp).getTime(),
-              status: tx.status === '1' ? 'complete' : 'failed',
-              fromNetwork: 'Sepolia',
-              toNetwork: 'Unichain Sepolia',
-              txHash: tx.hash,
-              bridgeFee: actualGasFee,
-              gasUsed: tx.gas_used,
-              gasPrice: ethers.formatUnits(tx.gas_price || '0', 'gwei'),
-              confirmations: tx.confirmations,
-              estimatedTime: '~3 mins',
-            };
-          });
-
-        setActivities(formattedActivities.sort((a, b) => b.timestamp - a.timestamp));
-      } catch (error) {
-        console.error('Error fetching bridge history:', error);
-        toast.error('Failed to load bridge history');
-      } finally {
-        setIsLoading(false);
+      if (JSON.stringify(updatedActivities) !== JSON.stringify(activities)) {
+        setActivities(updatedActivities);
       }
-    };
+    }, 5000); // Poll every 5 seconds
 
+    return () => clearInterval(interval);
+  }, [activities, checkTransactionStatus]);
+
+  const fetchBridgeHistory = async () => {
+    if (!address) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch bridge history');
+      }
+
+      const data = await response.json();
+      
+      const formattedActivities = await Promise.all(data.items
+        .filter(tx => {
+          return tx.to?.hash?.toLowerCase() === L1_BRIDGE_ADDRESS.toLowerCase() &&
+                 tx.value !== '0' &&
+                 tx.decoded_input?.method_call?.includes('bridgeETH');
+        })
+        .map(async tx => {
+          const gasUsedBigInt = BigInt(tx.gas_used || 0);
+          const gasPriceBigInt = BigInt(tx.gas_price || 0);
+          const actualGasFee = ethers.formatEther((gasUsedBigInt * gasPriceBigInt).toString());
+
+          const txTime = new Date(tx.timestamp).getTime();
+          const minutesPassed = Math.floor((Date.now() - txTime) / (1000 * 60));
+          
+          // Determine initial status
+          let bridgeStatus;
+          if (tx.status === '0') {
+            bridgeStatus = 'failed';
+          } else if (minutesPassed >= 3 && tx.confirmations > 0) {
+            bridgeStatus = 'complete';
+          } else if (tx.confirmations > 0) {
+            bridgeStatus = 'processing';
+          } else {
+            bridgeStatus = 'pending';
+          }
+
+          return {
+            amount: ethers.formatEther(tx.value),
+            timestamp: txTime,
+            status: bridgeStatus,
+            fromNetwork: 'Sepolia',
+            toNetwork: 'Unichain Sepolia',
+            txHash: tx.hash,
+            bridgeFee: actualGasFee,
+            gasUsed: tx.gas_used,
+            gasPrice: ethers.formatUnits(tx.gas_price || '0', 'gwei'),
+            confirmations: tx.confirmations,
+            estimatedTime: '~3 mins',
+            minutesPassed,
+          };
+        }));
+
+      setActivities(formattedActivities.sort((a, b) => b.timestamp - a.timestamp));
+    } catch (error) {
+      console.error('Error fetching bridge history:', error);
+      toast.error('Failed to load bridge history');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Refresh history when modal opens
+  useEffect(() => {
     if (isOpen && address) {
       fetchBridgeHistory();
     }
-  }, [address, isOpen]);
+  }, [isOpen, address]);
 
   const formatAddress = (addr) => {
     if (!addr) return '';
@@ -481,8 +542,27 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                                 {new Date(activity.timestamp).toLocaleString()}
                               </span>
                               <div className="flex items-center gap-2 text-[#00ffbd] mt-1">
-                                <CheckIcon className="h-4 w-4" />
-                                <span className="text-sm">Bridge successful</span>
+                                {activity.status === 'complete' ? (
+                                  <>
+                                    <CheckIcon className="h-4 w-4" />
+                                    <span className="text-sm">Bridge successful</span>
+                                  </>
+                                ) : activity.status === 'failed' ? (
+                                  <>
+                                    <XMarkIcon className="h-4 w-4 text-red-500" />
+                                    <span className="text-sm text-red-500">Bridge failed</span>
+                                  </>
+                                ) : activity.status === 'processing' ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Processing ({3 - activity.minutesPassed} mins left)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Pending confirmation</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
