@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { format, subDays, subHours, startOfDay, isWithinInterval } from 'date-fns';
 import { useTokenPrices } from '../../../hooks/useTokenPrices';
-import { getCollection } from '../../../services/firebase';
+import { getCollection, getTokenDeploymentByAddress } from '../../../services/firebase';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Web3Provider } from '@ethersproject/providers';
@@ -255,6 +255,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
   const { prices } = useTokenPrices();
   const { symbol } = useParams();
   const [collection, setCollection] = useState(null);
+  const [tokenLogo, setTokenLogo] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -264,6 +265,14 @@ export default function VolumeMetrics({ contractAddress, network }) {
         // First get collection data to get mint price
         const collectionData = await getCollection(symbol);
         setCollection(collectionData);
+
+        // Get token logo if it's a custom token
+        if (collectionData?.mintToken?.address) {
+          const tokenDeployment = await getTokenDeploymentByAddress(collectionData.mintToken.address);
+          if (tokenDeployment?.logo) {
+            setTokenLogo(tokenDeployment.logo);
+          }
+        }
         
         // Then get Blockscout data
         const blockscoutData = await fetchBlockscoutData(contractAddress, network);
@@ -280,6 +289,23 @@ export default function VolumeMetrics({ contractAddress, network }) {
       loadData();
     }
   }, [contractAddress, network, timeRange, symbol]);
+
+  const renderTokenIcon = () => {
+    if (collection?.mintToken?.type === 'custom' && tokenLogo) {
+      return (
+        <img 
+          src={tokenLogo} 
+          alt="Token" 
+          className="w-5 h-5 mr-1 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/placeholder.png';
+          }}
+        />
+      );
+    }
+    return <FaEthereum className="mr-1 text-[#00ffbd]" />;
+  };
 
   // Calculate summary metrics
   const totalVolume = metrics.reduce((sum, m) => sum + m.volume, 0);
@@ -325,7 +351,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
         >
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Market Cap</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-            <FaEthereum className="mr-1 text-[#00ffbd]" />
+            {renderTokenIcon()}
             {collection?.mintPrice && totalVolume
               ? (totalVolume * Number(collection.mintPrice)).toFixed(4)
               : '0.0000'
@@ -348,9 +374,11 @@ export default function VolumeMetrics({ contractAddress, network }) {
           transition={{ delay: 0.1 }}
           className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
         >
-          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">ETH Volume</h3>
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">
+            {collection?.mintToken?.type === 'custom' ? collection.mintToken.symbol : 'ETH'} Volume
+          </h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-            <FaEthereum className="mr-1 text-[#00ffbd]" />
+            {renderTokenIcon()}
             {totalEthVolume.toFixed(4)}
           </p>
         </motion.div>
