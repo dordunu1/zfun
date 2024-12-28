@@ -134,132 +134,144 @@ export default function TopHolders({ collection }) {
       }
     };
 
+    // Function to load ERC721 holders
+    const loadERC721Holders = async (contractAddress, provider) => {
+      console.log('Processing ERC721 collection');
+      const erc721Interface = ['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'];
+      const erc721Contract = new ethers.Contract(contractAddress, erc721Interface, provider);
+      
+      const events = await erc721Contract.queryFilter('Transfer', 0, 'latest');
+      console.log('Found ERC721 transfer events:', events.length);
+      
+      // Track current token ownership
+      const tokenOwners = new Map();
+      for (const event of events) {
+        const { to, tokenId } = event.args;
+        tokenOwners.set(tokenId.toString(), to);
+      }
+
+      // Create a map of addresses to their token counts
+      const holdersMap = new Map();
+      for (const owner of tokenOwners.values()) {
+        if (owner !== '0x0000000000000000000000000000000000000000') {
+          const currentCount = holdersMap.get(owner) || 0;
+          holdersMap.set(owner, currentCount + 1);
+        }
+      }
+
+      // Convert to our format and sort
+      return Array.from(holdersMap.entries())
+        .map(([address, quantity]) => ({
+          holderAddress: address,
+          quantity
+        }))
+        .filter(holder => 
+          holder.quantity > 0 && 
+          holder.holderAddress !== '0x0000000000000000000000000000000000000000'
+        )
+        .sort((a, b) => b.quantity - a.quantity);
+    };
+
+    // Function to load ERC1155 holders
+    const loadERC1155Holders = async (contractAddress, provider) => {
+      console.log('Processing ERC1155 collection');
+      const erc1155Interface = [
+        'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
+        'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)'
+      ];
+      
+      const erc1155Contract = new ethers.Contract(contractAddress, erc1155Interface, provider);
+      
+      // Track balances for ERC1155
+      const balances = new Map();
+      
+      // Get and process TransferSingle events
+      const singleEvents = await erc1155Contract.queryFilter('TransferSingle', 0, 'latest');
+      console.log('Found ERC1155 TransferSingle events:', singleEvents.length);
+      
+      for (const event of singleEvents) {
+        const { from, to, value } = event.args;
+        
+        if (from !== '0x0000000000000000000000000000000000000000') {
+          const fromBalance = balances.get(from) || 0;
+          balances.set(from, Math.max(0, fromBalance - Number(value)));
+        }
+        
+        if (to !== '0x0000000000000000000000000000000000000000') {
+          const toBalance = balances.get(to) || 0;
+          balances.set(to, toBalance + Number(value));
+        }
+      }
+
+      // Get and process TransferBatch events
+      const batchEvents = await erc1155Contract.queryFilter('TransferBatch', 0, 'latest');
+      console.log('Found ERC1155 TransferBatch events:', batchEvents.length);
+      
+      for (const event of batchEvents) {
+        const { from, to, values } = event.args;
+        
+        for (let i = 0; i < values.length; i++) {
+          if (from !== '0x0000000000000000000000000000000000000000') {
+            const fromBalance = balances.get(from) || 0;
+            balances.set(from, Math.max(0, fromBalance - Number(values[i])));
+          }
+          
+          if (to !== '0x0000000000000000000000000000000000000000') {
+            const toBalance = balances.get(to) || 0;
+            balances.set(to, toBalance + Number(values[i]));
+          }
+        }
+      }
+
+      // Convert balances to our format
+      return Array.from(balances.entries())
+        .map(([address, quantity]) => ({
+          holderAddress: address,
+          quantity
+        }))
+        .filter(holder => 
+          holder.quantity > 0 && 
+          holder.holderAddress !== '0x0000000000000000000000000000000000000000'
+        )
+        .sort((a, b) => b.quantity - a.quantity);
+    };
+
     // Function to load Unichain holders using ethers.js
     const loadUnichainHolders = async (contractAddress) => {
       try {
         // Initialize ethers provider for Unichain Sepolia
         const provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
         
-        // Define interfaces for both ERC721 and ERC1155
-        const erc721Interface = ['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'];
-        const erc1155Interface = [
-          'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
-          'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)'
-        ];
+        // Debug log to see what type we're getting
+        console.log('Collection data:', {
+          type: collection.type,
+          tokenType: collection.tokenType,
+          contractType: collection.contractType,
+          collection
+        });
 
-        // Try ERC1155 first
-        const erc1155Contract = new ethers.Contract(contractAddress, erc1155Interface, provider);
-        console.log('Fetching ERC1155 transfer events...');
+        // Check for ERC1155 in multiple possible properties and formats
+        const isERC1155 = collection.type?.toUpperCase().replace('-', '') === 'ERC1155' || 
+                         collection.tokenType?.toUpperCase().replace('-', '') === 'ERC1155' ||
+                         collection.contractType?.toUpperCase().replace('-', '') === 'ERC1155';
         
-        // Track balances for ERC1155
-        const balances = new Map();
+        console.log('Is ERC1155?', isERC1155);
         
-        try {
-          // Get TransferSingle events
-          const singleEvents = await erc1155Contract.queryFilter('TransferSingle', 0, 'latest');
-          console.log('Found TransferSingle events:', singleEvents.length);
-          
-          // Process TransferSingle events
-          for (const event of singleEvents) {
-            const { from, to, id, value } = event.args;
-            
-            // Subtract from sender
-            if (from !== '0x0000000000000000000000000000000000000000') {
-              const fromBalance = balances.get(from) || 0;
-              balances.set(from, Math.max(0, fromBalance - Number(value)));
-            }
-            
-            // Add to receiver
-            if (to !== '0x0000000000000000000000000000000000000000') {
-              const toBalance = balances.get(to) || 0;
-              balances.set(to, toBalance + Number(value));
-            }
-          }
-
-          // Get TransferBatch events
-          const batchEvents = await erc1155Contract.queryFilter('TransferBatch', 0, 'latest');
-          console.log('Found TransferBatch events:', batchEvents.length);
-          
-          // Process TransferBatch events
-          for (const event of batchEvents) {
-            const { from, to, ids, values } = event.args;
-            
-            for (let i = 0; i < ids.length; i++) {
-              // Subtract from sender
-              if (from !== '0x0000000000000000000000000000000000000000') {
-                const fromBalance = balances.get(from) || 0;
-                balances.set(from, Math.max(0, fromBalance - Number(values[i])));
-              }
-              
-              // Add to receiver
-              if (to !== '0x0000000000000000000000000000000000000000') {
-                const toBalance = balances.get(to) || 0;
-                balances.set(to, toBalance + Number(values[i]));
-              }
-            }
-          }
-
-          // Convert balances to our format
-          const holdersData = Array.from(balances.entries())
-            .map(([address, quantity]) => ({
-              holderAddress: address,
-              quantity
-            }))
-            .filter(holder => 
-              holder.quantity > 0 && 
-              holder.holderAddress !== '0x0000000000000000000000000000000000000000'
-            )
-            .sort((a, b) => b.quantity - a.quantity);
-
+        let holdersData;
+        if (isERC1155) {
+          holdersData = await loadERC1155Holders(contractAddress, provider);
           console.log('Processed ERC1155 holders:', holdersData);
-          setHolders(holdersData);
-          setError(null);
-          return;
-        } catch (error) {
-          console.log('Not an ERC1155 or error:', error);
-          // If ERC1155 fails, try ERC721
-          const erc721Contract = new ethers.Contract(contractAddress, erc721Interface, provider);
-          const events = await erc721Contract.queryFilter('Transfer', 0, 'latest');
-          console.log('Found ERC721 transfer events:', events.length);
-          
-          // Track current token ownership for ERC721
-          const tokenOwners = new Map();
-          for (const event of events) {
-            const { to, tokenId } = event.args;
-            tokenOwners.set(tokenId.toString(), to);
-          }
-
-          // Create a map of addresses to their token counts
-          const holdersMap = new Map();
-          for (const owner of tokenOwners.values()) {
-            if (owner !== '0x0000000000000000000000000000000000000000') {
-              const currentCount = holdersMap.get(owner) || 0;
-              holdersMap.set(owner, currentCount + 1);
-            }
-          }
-
-          // Convert to our format and sort
-          const holdersData = Array.from(holdersMap.entries())
-            .map(([address, quantity]) => ({
-              holderAddress: address,
-              quantity
-            }))
-            .filter(holder => 
-              holder.quantity > 0 && 
-              holder.holderAddress !== '0x0000000000000000000000000000000000000000'
-            )
-            .sort((a, b) => b.quantity - a.quantity);
-
+        } else {
+          holdersData = await loadERC721Holders(contractAddress, provider);
           console.log('Processed ERC721 holders:', holdersData);
-          setHolders(holdersData);
-          setError(null);
         }
+
+        setHolders(holdersData);
+        setError(null);
       } catch (error) {
-        console.error('Error loading holders:', error);
-        setError('Failed to load holders. Please try again later.');
-        toast.error('Failed to load holders');
-      } finally {
-        setLoading(false);
+        console.error('Error loading Unichain holders:', error);
+        setError(error.message);
+        toast.error(`Failed to load holders: ${error.message}`);
       }
     };
 
