@@ -8,7 +8,7 @@ const TABS = [
   { id: 'recent', label: '🔥 Recent Mints' },
   { id: 'holders', label: '👑 Top Holders' },
   { id: 'chads', label: '🚀 Chad Minters', comingSoon: true },
-  { id: 'volume', label: '📈 Volume', comingSoon: true },
+  { id: 'volume', label: '📈 Volume' },
 ];
 
 // Animated Cat Component for Coming Soon
@@ -173,7 +173,7 @@ export default function AnalyticsTabs({ collection }) {
             {activeTab === 'recent' && <RecentMints />}
             {activeTab === 'holders' && <TopHolders collection={collection} />}
             {activeTab === 'chads' && <ComingSoonCat />}
-            {activeTab === 'volume' && <ComingSoonCat />}
+            {activeTab === 'volume' && <VolumeMetrics contractAddress={collection?.contractAddress} network={collection?.network} />}
           </div>
         </div>
       </div>

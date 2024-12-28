@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FaEthereum } from 'react-icons/fa';
-import { getVolumeMetrics } from '../../../services/analytics';
 import { useParams } from 'react-router-dom';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { format } from 'date-fns';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { format, subDays, subHours, startOfDay, isWithinInterval } from 'date-fns';
 import { useTokenPrices } from '../../../hooks/useTokenPrices';
+import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const TIME_RANGES = [
   { label: '24h', value: '24h' },
@@ -13,8 +14,142 @@ const TIME_RANGES = [
   { label: 'All', value: 'all' }
 ];
 
-export default function VolumeMetrics() {
-  const { symbol } = useParams();
+// Helper function to fetch NFT data from Blockscout
+const fetchBlockscoutData = async (address, network) => {
+  try {
+    const baseUrl = network === 'sepolia' 
+      ? 'https://eth-sepolia.blockscout.com'
+      : 'https://unichain-sepolia.blockscout.com';
+    
+    // Ensure the address is properly formatted
+    const formattedAddress = address?.toLowerCase();
+    
+    // First try to get token transfers
+    const transfersEndpoint = `/api/v2/tokens/${formattedAddress}/transfers`;
+    console.log('Fetching from:', `${baseUrl}${transfersEndpoint}`);
+    
+    const transfersResponse = await axios.get(`${baseUrl}${transfersEndpoint}`);
+    const transfers = transfersResponse.data.items || [];
+    
+    if (transfers.length === 0) {
+      // If no transfers found, try getting token info
+      const tokenEndpoint = `/api/v2/tokens/${formattedAddress}`;
+      console.log('Fetching token info from:', `${baseUrl}${tokenEndpoint}`);
+      
+      const tokenResponse = await axios.get(`${baseUrl}${tokenEndpoint}`);
+      console.log('Token data:', tokenResponse.data);
+    }
+
+    console.log('Transfers found:', transfers.length);
+    console.log('Sample transfer:', transfers[0]);
+
+    return transfers;
+  } catch (error) {
+    console.error(`Error fetching ${network} data:`, error);
+    console.error('Contract address:', address);
+    console.error('Network:', network);
+    return [];
+  }
+};
+
+// Helper function to process volume data
+const processVolumeData = (data, timeRange) => {
+  console.log('Processing data:', data);
+  const now = new Date();
+  let startDate;
+
+  switch (timeRange) {
+    case '24h':
+      startDate = subHours(now, 24);
+      break;
+    case '7d':
+      startDate = subDays(now, 7);
+      break;
+    case '30d':
+      startDate = subDays(now, 30);
+      break;
+    default:
+      startDate = new Date(0); // All time
+  }
+
+  // Group transactions by day
+  const volumeByDay = new Map();
+  
+  data.forEach(item => {
+    console.log('Processing item:', item);
+    const date = startOfDay(new Date(item.timestamp));
+    let volume = 0;
+
+    // Handle ERC-1155
+    if (item.token?.type === 'ERC-1155' && item.token_instances?.[0]) {
+      volume = Number(item.token_instances[0].value || 0);
+      console.log('ERC-1155 volume:', volume);
+    }
+    // Handle ERC-721
+    else if (item.token?.type === 'ERC-721') {
+      volume = 1; // Each ERC-721 transfer is 1 NFT
+      console.log('ERC-721 volume:', volume);
+    }
+    
+    const ethValue = Number(item.value || 0) / 1e18; // Convert from wei to ETH
+    console.log('ETH value:', ethValue);
+    
+    if (isWithinInterval(date, { start: startDate, end: now })) {
+      const existing = volumeByDay.get(date.getTime()) || { 
+        volume: 0, 
+        transactions: 0,
+        ethVolume: 0
+      };
+      volumeByDay.set(date.getTime(), {
+        volume: existing.volume + volume,
+        transactions: existing.transactions + 1,
+        ethVolume: existing.ethVolume + ethValue
+      });
+    }
+  });
+
+  const result = Array.from(volumeByDay.entries())
+    .map(([timestamp, data]) => ({
+      date: new Date(timestamp),
+      volume: data.volume,
+      transactions: data.transactions,
+      ethVolume: data.ethVolume
+    }))
+    .sort((a, b) => a.date - b.date);
+
+  console.log('Processed result:', result);
+  return result;
+};
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-[#1a1b1f] border border-gray-700 rounded-lg p-3 shadow-lg"
+      >
+        <p className="text-white font-medium mb-1">
+          {format(new Date(label), 'MMM dd, yyyy')}
+        </p>
+        <p className="text-[#00ffbd] text-sm">
+          Volume: {payload[0].value.toLocaleString()} NFTs
+        </p>
+        <p className="text-gray-400 text-sm">
+          <FaEthereum className="inline mr-1" />
+          {payload[0].payload.ethVolume.toFixed(4)} ETH
+        </p>
+        <p className="text-gray-400 text-sm">
+          Transactions: {payload[0].payload.transactions}
+        </p>
+      </motion.div>
+    );
+  }
+  return null;
+};
+
+export default function VolumeMetrics({ contractAddress, network }) {
+  console.log('VolumeMetrics props:', { contractAddress, network });
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
@@ -24,8 +159,9 @@ export default function VolumeMetrics() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const metricsData = await getVolumeMetrics(symbol, timeRange);
-        setMetrics(metricsData);
+        const blockscoutData = await fetchBlockscoutData(contractAddress, network);
+        const processedData = processVolumeData(blockscoutData, timeRange);
+        setMetrics(processedData);
       } catch (error) {
         console.error('Error loading volume metrics:', error);
       } finally {
@@ -33,28 +169,16 @@ export default function VolumeMetrics() {
       }
     };
 
-    loadData();
-  }, [symbol, timeRange]);
+    if (contractAddress) {
+      loadData();
+    }
+  }, [contractAddress, network, timeRange]);
 
-  // Calculate USD values using ETH price from Chainlink
-  const calculateUSDValue = (ethAmount) => {
-    if (!ethAmount || !prices.ETH) return 0;
-    return ethAmount * prices.ETH;
-  };
-
-  // Calculate summary metrics with USD values
-  const totalVolumeUSD = metrics.reduce((sum, m) => sum + calculateUSDValue(m.volume), 0);
+  // Calculate summary metrics
+  const totalVolume = metrics.reduce((sum, m) => sum + m.volume, 0);
+  const totalEthVolume = metrics.reduce((sum, m) => sum + m.ethVolume, 0);
   const totalTransactions = metrics.reduce((sum, m) => sum + m.transactions, 0);
-  const avgPriceUSD = totalVolumeUSD / totalTransactions || 0;
-
-  // Format data for charts with USD values
-  const chartData = metrics.map(m => ({
-    date: m.timestamp.toDate(),
-    volumeUSD: calculateUSDValue(m.volume),
-    volume: m.volume,
-    transactions: m.transactions,
-    avgPriceUSD: calculateUSDValue(m.volume / m.transactions) || 0
-  }));
+  const avgVolume = totalTransactions > 0 ? totalVolume / totalTransactions : 0;
 
   if (loading) {
     return (
@@ -69,8 +193,10 @@ export default function VolumeMetrics() {
       {/* Time Range Selector */}
       <div className="flex justify-end space-x-2">
         {TIME_RANGES.map(range => (
-          <button
+          <motion.button
             key={range.value}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setTimeRange(range.value)}
             className={`px-3 py-1 rounded-lg text-sm transition-colors ${
               timeRange === range.value
@@ -79,177 +205,110 @@ export default function VolumeMetrics() {
             }`}
           >
             {range.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
-      {/* Volume Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
+        >
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Total Volume</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            <span className="flex items-center">
-              <FaEthereum className="mr-1" /> {totalVolumeUSD.toLocaleString('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </span>
+            {totalVolume.toLocaleString()} NFTs
           </p>
-        </div>
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
+        >
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">ETH Volume</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+            <FaEthereum className="mr-1" />
+            {totalEthVolume.toFixed(4)}
+          </p>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
+        >
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Transactions</h3>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalTransactions}</p>
-        </div>
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
-          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Avg. Price</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            <span className="flex items-center">
-              <FaEthereum className="mr-1" /> {avgPriceUSD.toLocaleString('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </span>
+            {totalTransactions.toLocaleString()}
           </p>
-        </div>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
+        >
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Avg. Per Transaction</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            {avgVolume.toFixed(2)} NFTs
+          </p>
+        </motion.div>
       </div>
 
-      {/* Charts */}
-      <div className="space-y-6">
-        {/* Volume Chart */}
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
-          <h3 className="text-gray-900 dark:text-white font-medium mb-4">Volume</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
-                  stroke="#4b5563"
-                />
-                <YAxis
-                  stroke="#4b5563"
-                  tickFormatter={value => `${value.toFixed(2)} Ξ`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '0.5rem',
-                    color: '#111827'
-                  }}
-                  labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
-                  formatter={value => [`${value.toFixed(2)} Ξ`, 'Volume']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="volumeUSD"
-                  stroke="#00ffbd"
-                  strokeWidth={2}
-                  fill="url(#volumeGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Volume Chart */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
+      >
+        <h3 className="text-gray-900 dark:text-white font-medium mb-4">Volume</h3>
+        <div className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={metrics}>
+              <defs>
+                <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2d2f36" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
+                stroke="#4b5563"
+                tick={{ fill: '#4b5563' }}
+              />
+              <YAxis
+                stroke="#4b5563"
+                tickFormatter={value => `${value} NFTs`}
+                tick={{ fill: '#4b5563' }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Area
+                type="monotone"
+                dataKey="volume"
+                stroke="#00ffbd"
+                strokeWidth={2}
+                fill="url(#volumeGradient)"
+                animationDuration={1000}
+                animationBegin={0}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
-
-        {/* Transactions Chart */}
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
-          <h3 className="text-gray-900 dark:text-white font-medium mb-4">Transactions</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="txGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
-                  stroke="#4b5563"
-                />
-                <YAxis stroke="#4b5563" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '0.5rem',
-                    color: '#111827'
-                  }}
-                  labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
-                  formatter={value => [value, 'Transactions']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="transactions"
-                  stroke="#00ffbd"
-                  strokeWidth={2}
-                  fill="url(#txGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Average Price Chart */}
-        <div className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
-          <h3 className="text-gray-900 dark:text-white font-medium mb-4">Average Price</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#00ffbd" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={date => format(date, timeRange === '24h' ? 'HH:mm' : 'MMM dd')}
-                  stroke="#4b5563"
-                />
-                <YAxis
-                  stroke="#4b5563"
-                  tickFormatter={value => `${value.toFixed(3)} Ξ`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '0.5rem',
-                    color: '#111827'
-                  }}
-                  labelFormatter={date => format(date, 'MMM dd, yyyy HH:mm')}
-                  formatter={value => [`${value.toFixed(3)} Ξ`, 'Avg. Price']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="avgPriceUSD"
-                  stroke="#00ffbd"
-                  strokeWidth={2}
-                  fill="url(#priceGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+      </motion.div>
 
       {metrics.length === 0 && (
-        <div className="text-center py-12">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center py-12"
+        >
           <div className="text-gray-500 dark:text-gray-400">No volume data available</div>
-        </div>
+        </motion.div>
       )}
     </div>
   );
