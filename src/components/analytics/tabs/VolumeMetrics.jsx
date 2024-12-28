@@ -102,14 +102,9 @@ const processVolumeData = (data, timeRange, collection) => {
     let ethValue = 0;
 
     try {
-      // Handle ERC-1155
-      if (item.token?.type === 'ERC-1155' && item.token_instances?.[0]) {
-        volume = Number(item.token_instances[0].value || 0);
-        ethValue = volume * (collection?.mintPrice ? Number(collection.mintPrice) : 0);
-      }
-      // Handle ERC-721
-      else if (item.token?.type === 'ERC-721') {
-        volume = 1; // Each ERC-721 transfer is 1 NFT
+      // Treat both ERC721 and ERC1155 transfers as 1 NFT
+      if (item.token?.type === 'ERC-721' || item.token?.type === 'ERC-1155') {
+        volume = 1; // Each transfer counts as 1 NFT
         ethValue = collection?.mintPrice ? Number(collection.mintPrice) : 0;
       }
       
