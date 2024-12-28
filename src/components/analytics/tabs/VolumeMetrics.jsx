@@ -317,7 +317,21 @@ export default function VolumeMetrics({ contractAddress, network }) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
+        >
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">Market Cap</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+            <FaEthereum className="mr-1 text-[#00ffbd]" />
+            {collection?.mintPrice && totalVolume
+              ? (totalVolume * Number(collection.mintPrice)).toFixed(4)
+              : '0.0000'
+            }
+          </p>
+        </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -336,7 +350,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
         >
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">ETH Volume</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-            <FaEthereum className="mr-1" />
+            <FaEthereum className="mr-1 text-[#00ffbd]" />
             {totalEthVolume.toFixed(4)}
           </p>
         </motion.div>
