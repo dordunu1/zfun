@@ -7,7 +7,8 @@ import { useTokenPrices } from '../../../hooks/useTokenPrices';
 import { getCollection } from '../../../services/firebase';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { ethers } from 'ethers';
+import { Web3Provider } from '@ethersproject/providers';
+import { Contract } from '@ethersproject/contracts';
 
 const TIME_RANGES = [
   { label: '24h', value: '24h' },
@@ -15,6 +16,82 @@ const TIME_RANGES = [
   { label: '30d', value: '30d' },
   { label: 'All', value: 'all' }
 ];
+
+// Add ERC1155 ABI for transfer events
+const ERC1155_ABI = [
+  'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
+  'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)'
+];
+
+// Helper function to fetch NFT data from blockchain
+const fetchTransferEvents = async (address, network) => {
+  try {
+    // Create a custom provider
+    const provider = new Web3Provider(window.ethereum);
+    
+    // Create contract instance
+    const contract = new Contract(address, ERC1155_ABI, provider);
+    
+    // Get the current block
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 10000); // Last 10000 blocks, ensure not negative
+    
+    console.log('Fetching transfer events:', {
+      network,
+      address,
+      fromBlock,
+      currentBlock
+    });
+
+    // Get both types of transfer events
+    const singleFilter = contract.filters.TransferSingle();
+    const batchFilter = contract.filters.TransferBatch();
+    
+    const [singleEvents, batchEvents] = await Promise.all([
+      contract.queryFilter(singleFilter, fromBlock),
+      contract.queryFilter(batchFilter, fromBlock)
+    ]);
+
+    // Process TransferSingle events
+    const singleTransfers = singleEvents.map(event => ({
+      timestamp: null, // We'll get this from the block
+      type: 'ERC-1155',
+      value: event.args.value.toString(),
+      blockNumber: event.blockNumber
+    }));
+
+    // Process TransferBatch events - each value in the batch is a separate transfer
+    const batchTransfers = batchEvents.flatMap(event => {
+      return event.args.values.map((value, index) => ({
+        timestamp: null,
+        type: 'ERC-1155',
+        value: value.toString(),
+        blockNumber: event.blockNumber
+      }));
+    });
+
+    // Combine all transfers
+    const allTransfers = [...singleTransfers, ...batchTransfers];
+
+    // Get timestamps for all unique blocks
+    const uniqueBlocks = [...new Set(allTransfers.map(t => t.blockNumber))];
+    const blockData = await Promise.all(
+      uniqueBlocks.map(blockNumber => provider.getBlock(blockNumber))
+    );
+    const blockTimestamps = Object.fromEntries(
+      blockData.map(block => [block.number, block.timestamp * 1000]) // Convert to milliseconds
+    );
+
+    // Add timestamps to transfers
+    return allTransfers.map(transfer => ({
+      ...transfer,
+      timestamp: new Date(blockTimestamps[transfer.blockNumber])
+    }));
+  } catch (error) {
+    console.error('Error fetching transfer events:', error);
+    return [];
+  }
+};
 
 // Helper function to fetch NFT data from Blockscout
 const fetchBlockscoutData = async (address, network) => {
@@ -31,7 +108,13 @@ const fetchBlockscoutData = async (address, network) => {
     const tokenResponse = await axios.get(`${baseUrl}${tokenEndpoint}`);
     const tokenData = tokenResponse.data;
     
-    // Get all transfers
+    if (tokenData.type === 'ERC-1155') {
+      // For ERC1155, use blockchain events
+      const transfers = await fetchTransferEvents(address, network);
+      return { transfers, tokenData };
+    }
+    
+    // For other token types, use Blockscout API
     const transfersEndpoint = `/api/v2/tokens/${formattedAddress}/transfers`;
     const transfersResponse = await axios.get(`${baseUrl}${transfersEndpoint}`);
     const transfers = transfersResponse.data.items || [];
@@ -102,9 +185,12 @@ const processVolumeData = (data, timeRange, collection) => {
     let ethValue = 0;
 
     try {
-      // Treat both ERC721 and ERC1155 transfers as 1 NFT
-      if (item.token?.type === 'ERC-721' || item.token?.type === 'ERC-1155') {
-        volume = 1; // Each transfer counts as 1 NFT
+      if (item.type === 'ERC-1155') {
+        // For ERC1155, use the actual value from the transfer event
+        volume = Number(item.value);
+        ethValue = volume * (collection?.mintPrice ? Number(collection.mintPrice) : 0);
+      } else if (item.token?.type === 'ERC-721') {
+        volume = 1; // Each ERC721 transfer is 1 NFT
         ethValue = collection?.mintPrice ? Number(collection.mintPrice) : 0;
       }
       
