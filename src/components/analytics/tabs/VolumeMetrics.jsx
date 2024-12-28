@@ -4,8 +4,10 @@ import { useParams } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { format, subDays, subHours, startOfDay, isWithinInterval } from 'date-fns';
 import { useTokenPrices } from '../../../hooks/useTokenPrices';
+import { getCollection } from '../../../services/firebase';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { ethers } from 'ethers';
 
 const TIME_RANGES = [
   { label: '24h', value: '24h' },
@@ -24,37 +26,56 @@ const fetchBlockscoutData = async (address, network) => {
     // Ensure the address is properly formatted
     const formattedAddress = address?.toLowerCase();
     
-    // First try to get token transfers
-    const transfersEndpoint = `/api/v2/tokens/${formattedAddress}/transfers`;
-    console.log('Fetching from:', `${baseUrl}${transfersEndpoint}`);
+    // Get token info first to determine type
+    const tokenEndpoint = `/api/v2/tokens/${formattedAddress}`;
+    const tokenResponse = await axios.get(`${baseUrl}${tokenEndpoint}`);
+    const tokenData = tokenResponse.data;
     
+    // Get all transfers
+    const transfersEndpoint = `/api/v2/tokens/${formattedAddress}/transfers`;
     const transfersResponse = await axios.get(`${baseUrl}${transfersEndpoint}`);
     const transfers = transfersResponse.data.items || [];
-    
-    if (transfers.length === 0) {
-      // If no transfers found, try getting token info
-      const tokenEndpoint = `/api/v2/tokens/${formattedAddress}`;
-      console.log('Fetching token info from:', `${baseUrl}${tokenEndpoint}`);
-      
-      const tokenResponse = await axios.get(`${baseUrl}${tokenEndpoint}`);
-      console.log('Token data:', tokenResponse.data);
-    }
 
-    console.log('Transfers found:', transfers.length);
-    console.log('Sample transfer:', transfers[0]);
-
-    return transfers;
+    return { transfers, tokenData };
   } catch (error) {
     console.error(`Error fetching ${network} data:`, error);
-    console.error('Contract address:', address);
-    console.error('Network:', network);
-    return [];
+    return { transfers: [], tokenData: null };
+  }
+};
+
+// Helper function to format value
+const formatValue = (value, mintToken) => {
+  try {
+    if (!value || value === '0') return '0';
+    
+    // For custom tokens, we don't need to convert from Wei
+    if (mintToken?.type === 'custom' || 
+        mintToken?.type === 'usdc' || 
+        mintToken?.type === 'usdt') {
+      const numValue = Number(value);
+      return isNaN(numValue) ? '0' : numValue.toLocaleString('en-US', {
+        maximumFractionDigits: 6,
+        minimumFractionDigits: 0
+      });
+    }
+    
+    // For native tokens (ETH/MATIC), ensure we're working with a clean number
+    const numValue = typeof value === 'string' ? value.replace(/[^0-9.]/g, '') : value;
+    if (!numValue || isNaN(Number(numValue))) return '0';
+    
+    const floatValue = parseFloat(numValue);
+    return floatValue.toLocaleString('en-US', {
+      maximumFractionDigits: 6,
+      minimumFractionDigits: 0
+    });
+  } catch (error) {
+    console.error('Error formatting value:', error, typeof value, value);
+    return '0';
   }
 };
 
 // Helper function to process volume data
-const processVolumeData = (data, timeRange) => {
-  console.log('Processing data:', data);
+const processVolumeData = (data, timeRange, collection) => {
   const now = new Date();
   let startDate;
 
@@ -75,50 +96,48 @@ const processVolumeData = (data, timeRange) => {
   // Group transactions by day
   const volumeByDay = new Map();
   
-  data.forEach(item => {
-    console.log('Processing item:', item);
+  data.transfers.forEach(item => {
     const date = startOfDay(new Date(item.timestamp));
     let volume = 0;
+    let ethValue = 0;
 
-    // Handle ERC-1155
-    if (item.token?.type === 'ERC-1155' && item.token_instances?.[0]) {
-      volume = Number(item.token_instances[0].value || 0);
-      console.log('ERC-1155 volume:', volume);
-    }
-    // Handle ERC-721
-    else if (item.token?.type === 'ERC-721') {
-      volume = 1; // Each ERC-721 transfer is 1 NFT
-      console.log('ERC-721 volume:', volume);
-    }
-    
-    const ethValue = Number(item.value || 0) / 1e18; // Convert from wei to ETH
-    console.log('ETH value:', ethValue);
-    
-    if (isWithinInterval(date, { start: startDate, end: now })) {
-      const existing = volumeByDay.get(date.getTime()) || { 
-        volume: 0, 
-        transactions: 0,
-        ethVolume: 0
-      };
-      volumeByDay.set(date.getTime(), {
-        volume: existing.volume + volume,
-        transactions: existing.transactions + 1,
-        ethVolume: existing.ethVolume + ethValue
-      });
+    try {
+      // Handle ERC-1155
+      if (item.token?.type === 'ERC-1155' && item.token_instances?.[0]) {
+        volume = Number(item.token_instances[0].value || 0);
+        ethValue = volume * (collection?.mintPrice ? Number(collection.mintPrice) : 0);
+      }
+      // Handle ERC-721
+      else if (item.token?.type === 'ERC-721') {
+        volume = 1; // Each ERC-721 transfer is 1 NFT
+        ethValue = collection?.mintPrice ? Number(collection.mintPrice) : 0;
+      }
+      
+      if (isWithinInterval(date, { start: startDate, end: now })) {
+        const existing = volumeByDay.get(date.getTime()) || { 
+          volume: 0, 
+          transactions: 0,
+          ethVolume: 0
+        };
+        volumeByDay.set(date.getTime(), {
+          volume: existing.volume + volume,
+          transactions: existing.transactions + 1,
+          ethVolume: existing.ethVolume + ethValue
+        });
+      }
+    } catch (error) {
+      console.error('Error processing transfer:', error, item);
     }
   });
 
-  const result = Array.from(volumeByDay.entries())
+  return Array.from(volumeByDay.entries())
     .map(([timestamp, data]) => ({
       date: new Date(timestamp),
       volume: data.volume,
       transactions: data.transactions,
-      ethVolume: data.ethVolume
+      ethVolume: formatValue(data.ethVolume, collection?.mintToken)
     }))
     .sort((a, b) => a.date - b.date);
-
-  console.log('Processed result:', result);
-  return result;
 };
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -137,7 +156,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         </p>
         <p className="text-gray-400 text-sm">
           <FaEthereum className="inline mr-1" />
-          {payload[0].payload.ethVolume.toFixed(4)} ETH
+          {payload[0].payload.ethVolume} ETH
         </p>
         <p className="text-gray-400 text-sm">
           Transactions: {payload[0].payload.transactions}
@@ -149,18 +168,25 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function VolumeMetrics({ contractAddress, network }) {
-  console.log('VolumeMetrics props:', { contractAddress, network });
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
   const { prices } = useTokenPrices();
+  const { symbol } = useParams();
+  const [collection, setCollection] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
+        
+        // First get collection data to get mint price
+        const collectionData = await getCollection(symbol);
+        setCollection(collectionData);
+        
+        // Then get Blockscout data
         const blockscoutData = await fetchBlockscoutData(contractAddress, network);
-        const processedData = processVolumeData(blockscoutData, timeRange);
+        const processedData = processVolumeData(blockscoutData, timeRange, collectionData);
         setMetrics(processedData);
       } catch (error) {
         console.error('Error loading volume metrics:', error);
@@ -169,14 +195,14 @@ export default function VolumeMetrics({ contractAddress, network }) {
       }
     };
 
-    if (contractAddress) {
+    if (contractAddress && symbol) {
       loadData();
     }
-  }, [contractAddress, network, timeRange]);
+  }, [contractAddress, network, timeRange, symbol]);
 
   // Calculate summary metrics
   const totalVolume = metrics.reduce((sum, m) => sum + m.volume, 0);
-  const totalEthVolume = metrics.reduce((sum, m) => sum + m.ethVolume, 0);
+  const totalEthVolume = metrics.reduce((sum, m) => sum + Number(m.ethVolume.replace(/,/g, '')), 0);
   const totalTransactions = metrics.reduce((sum, m) => sum + m.transactions, 0);
   const avgVolume = totalTransactions > 0 ? totalVolume / totalTransactions : 0;
 
