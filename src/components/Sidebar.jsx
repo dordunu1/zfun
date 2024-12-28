@@ -108,7 +108,7 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
   ];
 
   const socialLinks = [
-    { icon: FaTelegram, href: 'https://t.me/chriswilder', label: 'Telegram' },
+    { icon: FaTelegram, href: 'https://t.me/tokenfactorry', label: 'Telegram' },
     { icon: FaTwitter, href: 'https://x.com/TokenFac', label: 'X (Twitter)' },
     { icon: FaDiscord, href: 'https://discord.com/users/chriswilder', label: 'Discord' },
     { icon: FaGithub, href: 'https://github.com/dordunu1', label: 'GitHub' },

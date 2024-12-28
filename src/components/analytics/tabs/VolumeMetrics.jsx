@@ -221,8 +221,25 @@ const processVolumeData = (data, timeRange, collection) => {
     .sort((a, b) => a.date - b.date);
 };
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
   if (active && payload && payload.length) {
+    const renderTokenIcon = () => {
+      if (collection?.mintToken?.type === 'custom' && tokenLogo) {
+        return (
+          <img 
+            src={tokenLogo} 
+            alt="Token" 
+            className="inline-block w-4 h-4 mr-1 rounded-full"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = '/placeholder.png';
+            }}
+          />
+        );
+      }
+      return <FaEthereum className="inline mr-1" />;
+    };
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -235,9 +252,9 @@ const CustomTooltip = ({ active, payload, label }) => {
         <p className="text-[#00ffbd] text-sm">
           Volume: {payload[0].value.toLocaleString()} NFTs
         </p>
-        <p className="text-gray-400 text-sm">
-          <FaEthereum className="inline mr-1" />
-          {payload[0].payload.ethVolume} ETH
+        <p className="text-gray-400 text-sm flex items-center">
+          {renderTokenIcon()}
+          {payload[0].payload.ethVolume} {collection?.mintToken?.type === 'custom' ? collection.mintToken.symbol : 'ETH'}
         </p>
         <p className="text-gray-400 text-sm">
           Transactions: {payload[0].payload.transactions}
@@ -435,7 +452,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
                 tickFormatter={value => `${value} NFTs`}
                 tick={{ fill: '#4b5563' }}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip collection={collection} tokenLogo={tokenLogo} />} />
               <Area
                 type="monotone"
                 dataKey="volume"
