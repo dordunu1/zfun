@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaExchangeAlt, FaPlus, FaWater, FaList } from 'react-icons/fa';
-import { useNetwork } from 'wagmi';
+import { useNetwork, useAccount } from 'wagmi';
+import { useWeb3Modal } from '@web3modal/react';
 import SepoliaTokenSwap from '../components/dex/TokenSwap';
 import UnichainTokenSwapV2 from '../components/dex/unichain/v2/TokenSwap';
 import UnichainTokenSwapV3 from '../components/dex/unichain/v3/TokenSwap';
@@ -45,6 +46,8 @@ export default function ActivityPage() {
   const [selectedTokens, setSelectedTokens] = useState(null);
   const [selectedPoolAddress, setSelectedPoolAddress] = useState(null);
   const { chain } = useNetwork();
+  const { address: account } = useAccount();
+  const { open: openConnectModal } = useWeb3Modal();
   const [devModeEnabled, setDevModeEnabled] = useState(false);
   const [zKeyPresses, setZKeyPresses] = useState([]);
   const { version } = useUniswapVersion();
@@ -203,54 +206,82 @@ export default function ActivityPage() {
 
           {/* Main Content */}
           <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
-            {/* Network Warning for Sepolia when Dev Mode is disabled */}
-            {chain?.id === 11155111 && !devModeEnabled && (
-              <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  You are connected to Sepolia network. Please switch to Unichain network or enable Dev Mode to use Sepolia.
+            {!account ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                  Connect Your Wallet
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
+                  Please connect your wallet to access the trading features. You'll be able to swap tokens, manage liquidity, and more.
                 </p>
+                <button
+                  onClick={openConnectModal}
+                  className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Connect Wallet
+                </button>
               </div>
+            ) : (
+              <>
+                {/* Network Warning for Sepolia when Dev Mode is disabled */}
+                {chain?.id === 11155111 && !devModeEnabled && (
+                  <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      You are connected to Sepolia network. Please switch to Unichain network or enable Dev Mode to use Sepolia.
+                    </p>
+                  </div>
+                )}
+
+                {/* Tab Navigation */}
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                    {TABS.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => handleTabChange(tab.id)}
+                        className={`
+                          flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap
+                          transition-all duration-200 relative group
+                          ${activeTab === tab.id 
+                            ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
+                            : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
+                          }
+                          border border-gray-100 dark:border-gray-800
+                        `}
+                      >
+                        <tab.icon size={16} />
+                        {tab.label}
+                        
+                        {/* Active Indicator */}
+                        <div className={`
+                          absolute bottom-0 left-0 right-0 h-0.5 rounded-full
+                          transition-all duration-200
+                          ${activeTab === tab.id ? 'bg-[#00ffbd]' : 'bg-transparent group-hover:bg-[#00ffbd]/30'}
+                        `} />
+                      </button>
+                    ))}
+                  </div>
+                  {chain?.id === unichainTestnet.id && <VersionToggle />}
+                </div>
+
+                {/* Tab Content */}
+                <div className="h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
+                  {activeTab === 'swap' && getChainComponent('swap')}
+                  {activeTab === 'pool' && getChainComponent('pool')}
+                  {activeTab === 'liquidity' && getChainComponent('liquidity')}
+                  {activeTab === 'my-pools' && getChainComponent('my-pools')}
+                </div>
+              </>
             )}
-
-            {/* Tab Navigation */}
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                {TABS.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`
-                      flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap
-                      transition-all duration-200 relative group
-                      ${activeTab === tab.id 
-                        ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
-                        : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
-                      }
-                      border border-gray-100 dark:border-gray-800
-                    `}
-                  >
-                    <tab.icon size={16} />
-                    {tab.label}
-                    
-                    {/* Active Indicator */}
-                    <div className={`
-                      absolute bottom-0 left-0 right-0 h-0.5 rounded-full
-                      transition-all duration-200
-                      ${activeTab === tab.id ? 'bg-[#00ffbd]' : 'bg-transparent group-hover:bg-[#00ffbd]/30'}
-                    `} />
-                  </button>
-                ))}
-              </div>
-              {chain?.id === unichainTestnet.id && <VersionToggle />}
-            </div>
-
-            {/* Tab Content */}
-            <div className="h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
-              {activeTab === 'swap' && getChainComponent('swap')}
-              {activeTab === 'pool' && getChainComponent('pool')}
-              {activeTab === 'liquidity' && getChainComponent('liquidity')}
-              {activeTab === 'my-pools' && getChainComponent('my-pools')}
-            </div>
           </div>
         </div>
       </div>

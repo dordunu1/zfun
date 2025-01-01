@@ -9,6 +9,7 @@ import { FaEthereum } from 'react-icons/fa';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import axios from 'axios';
+import { useWeb3Modal } from '@web3modal/react';
 
 // Memory cache for NFTs
 const CACHE_DURATION = 30000; // 30 seconds
@@ -90,13 +91,14 @@ const fetchBlockscoutNFTs = async (address, chainId) => {
 export default function AccountPage() {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { address } = useAccount();
+  const { address: account } = useAccount();
   const { chain } = useNetwork();
   const [tokenLogos, setTokenLogos] = useState({});
   const [filters, setFilters] = useState({
     type: 'all',       // 'all', 'ERC721', 'ERC1155'
     network: 'all'     // 'all', 'sepolia', 'unichain', 'unichain-mainnet'
   });
+  const { open: openConnectModal } = useWeb3Modal();
 
   // Function to get token details from Firebase
   const getTokenDetails = async (tokenAddress) => {
@@ -121,7 +123,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     const loadNFTs = async () => {
-      if (!address) {
+      if (!account) {
         setNfts([]);
         setLoading(false);
         return;
@@ -129,7 +131,7 @@ export default function AccountPage() {
 
       try {
         // Check cache first
-        const cachedNFTs = getCachedNFTs(address, chain?.id);
+        const cachedNFTs = getCachedNFTs(account, chain?.id);
         if (cachedNFTs) {
           setNfts(cachedNFTs);
           setLoading(false);
@@ -149,12 +151,12 @@ export default function AccountPage() {
     const loadFreshData = async () => {
       try {
         // Load owned NFTs from Firebase
-        const ownedNFTs = await getOwnedNFTs(address);
+        const ownedNFTs = await getOwnedNFTs(account);
         console.log('Raw owned NFTs:', ownedNFTs);
         
         // Fetch Blockscout NFTs for accurate balances based on chain
         const chainId = chain?.id;
-        const blockscoutNFTs = await fetchBlockscoutNFTs(address, chainId);
+        const blockscoutNFTs = await fetchBlockscoutNFTs(account, chainId);
         console.log('Blockscout NFTs:', blockscoutNFTs);
         
         // Create a map of NFT balances from Blockscout
@@ -252,7 +254,7 @@ export default function AccountPage() {
         );
 
         // Cache and set the results
-        cacheNFTs(address, chain?.id, processedNFTs);
+        cacheNFTs(account, chain?.id, processedNFTs);
         setTokenLogos(logos);
         setNfts(processedNFTs);
         setLoading(false);
@@ -263,7 +265,7 @@ export default function AccountPage() {
     };
 
     loadNFTs();
-  }, [address, chain]);
+  }, [account, chain]);
 
   const formatMintPrice = (price, nft) => {
     if (!price) return '0';
@@ -537,6 +539,84 @@ export default function AccountPage() {
       </div>
     );
   };
+
+  if (!account) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-[#0d0e12] p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="relative inline-block mb-12">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
+            <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
+          </div>
+
+          {/* Main Container with L-shape corners and glowing dots */}
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Three dots in top right */}
+            <div className="absolute top-3 right-3 flex gap-1 z-20">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                />
+              ))}
+            </div>
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                  Connect Your Wallet
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
+                  Please connect your wallet to view your NFTs. You'll be able to see all your NFT collections and manage them.
+                </p>
+                <button
+                  onClick={openConnectModal}
+                  className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Connect Wallet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

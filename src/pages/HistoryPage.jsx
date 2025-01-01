@@ -16,6 +16,7 @@ import {
 import { getTokenTransfersForAddress, trackTokenTransfers, getNFTTransfersForAddress, trackNFTTransfers } from '../services/tokenTransfers';
 import { ipfsToHttp } from '../utils/ipfs';
 import { ethers } from 'ethers';
+import { useWeb3Modal } from '@web3modal/react';
 
 // Memory cache for activities
 const CACHE_DURATION = 30000; // 30 seconds
@@ -77,23 +78,24 @@ const cacheActivities = (address, chainId, activities) => {
 export default function HistoryPage() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { address } = useAccount();
+  const { address: account } = useAccount();
   const { chain } = useNetwork();
+  const { open: openConnectModal } = useWeb3Modal();
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadHistory = async () => {
-      if (!address) {
+      if (!account) {
         setActivities([]);
         setLoading(false);
         return;
       }
 
       try {
-        console.log('Loading history for address:', address);
+        console.log('Loading history for address:', account);
 
         // Check cache first
-        const cachedActivities = getCachedActivities(address, chain?.id);
+        const cachedActivities = getCachedActivities(account, chain?.id);
         if (cachedActivities) {
           setActivities(cachedActivities);
           setLoading(false);
@@ -120,10 +122,10 @@ export default function HistoryPage() {
           collections,
           allCollectionsData
         ] = await Promise.all([
-          getTokenDeploymentsByWallet(address),
-          getTokenTransfersForAddress(address),
-          getNFTTransfersForAddress(address),
-          getCollectionsByWallet(address),
+          getTokenDeploymentsByWallet(account),
+          getTokenTransfersForAddress(account),
+          getNFTTransfersForAddress(account),
+          getCollectionsByWallet(account),
           getAllCollections()
         ]);
 
@@ -268,7 +270,7 @@ export default function HistoryPage() {
           allCollectionsData.map(async (collection) => {
             const mints = await getRecentMints(collection.contractAddress);
             return mints
-              .filter(mint => mint.minterAddress?.toLowerCase() === address.toLowerCase())
+              .filter(mint => mint.minterAddress?.toLowerCase() === account.toLowerCase())
               .flatMap(mint => {
                 // Handle multiple mints in a single transaction
                 const quantity = parseInt(mint.quantity || '1');
@@ -365,7 +367,7 @@ export default function HistoryPage() {
         });
 
         // Cache the results before setting state
-        cacheActivities(address, chain?.id, filteredActivities);
+        cacheActivities(account, chain?.id, filteredActivities);
         
         setActivities(filteredActivities);
         setLoading(false);
@@ -376,7 +378,7 @@ export default function HistoryPage() {
     };
 
     loadHistory();
-  }, [address, chain]);
+  }, [account, chain]);
 
   const renderMedia = (activity) => {
     const imageUrl = ipfsToHttp(activity.image);
@@ -540,11 +542,78 @@ export default function HistoryPage() {
     );
   };
 
-  if (!address) {
+  if (!account) {
     return (
-      <div className="p-8">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          Connect your wallet to view history
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+            Activity History
+          </h1>
+
+          {/* Main Container with L-shape corners and glowing dots */}
+          <div className="relative">
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+
+            {/* Glowing dots in corners */}
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+            {/* Three dots in top right */}
+            <div className="absolute top-3 right-3 flex gap-1 z-20">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                />
+              ))}
+            </div>
+
+            {/* Main Content */}
+            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                  Connect Your Wallet
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
+                  Please connect your wallet to view your activity history. You'll be able to see all your transactions, token transfers, and NFT activities.
+                </p>
+                <button
+                  onClick={openConnectModal}
+                  className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Connect Wallet
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
