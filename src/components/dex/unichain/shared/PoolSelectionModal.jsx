@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { useUnichain } from '../../../hooks/useUnichain';
+import { useUnichain } from '../../../../hooks/useUnichain';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { FaSearch } from 'react-icons/fa';
-import { getTokenLogo, getTokenMetadata } from '../../../utils/tokens';
-import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
-import { getTokenDeploymentByAddress } from '../../../services/firebase';
+import { getTokenLogo, getTokenMetadata } from '../../../../utils/tokens';
+import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
+import { getTokenDeploymentByAddress } from '../../../../services/firebase';
 
 // Add common token list (we'll keep updating this)
 const COMMON_TOKENS = {

@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
-import { getTokenDeploymentByAddress } from '../../../services/firebase';
-import { useUnichain } from '../../../hooks/useUnichain';
-import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
+import { getTokenDeploymentByAddress } from '../../../../services/firebase';
+import { useUnichain } from '../../../../hooks/useUnichain';
+import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
 import { FaSearch } from 'react-icons/fa';
-import { getTokenLogo, getTokenMetadata } from '../../../utils/tokens';
+import { getTokenLogo, getTokenMetadata } from '../../../../utils/tokens';
 
 // Constants and configuration
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds

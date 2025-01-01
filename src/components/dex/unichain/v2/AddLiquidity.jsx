@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'react-hot-toast';
-import TokenSelectionModal from './TokenSelectionModal';
-import PoolSelectionModal from './PoolSelectionModal';
+import TokenSelectionModal from '../shared/TokenSelectionModal';
+import PoolSelectionModal from '../shared/PoolSelectionModal';
 import { ethers } from 'ethers';
-import { useUnichain } from '../../../hooks/useUnichain';
-import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
-import { ipfsToHttp } from '../../../utils/ipfs';
+import { useUnichain } from '../../../../hooks/useUnichain';
+import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
+import { ipfsToHttp } from '../../../../utils/ipfs';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import Confetti from 'react-confetti';
@@ -509,17 +509,45 @@ export default function AddLiquidity() {
 
       try {
         const poolInfo = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
-        if (!poolInfo || !poolInfo.reserve0 || !poolInfo.reserve1) return;
+        if (!poolInfo || !poolInfo.reserves) {
+          console.log('No pool info or reserves found');
+          return;
+        }
+
+        // Get reserves from the poolInfo object
+        const reserve0 = BigInt(poolInfo.reserves.reserve0.toString());
+        const reserve1 = BigInt(poolInfo.reserves.reserve1.toString());
+        
+        console.log('Reserves:', {
+          reserve0: reserve0.toString(),
+          reserve1: reserve1.toString()
+        });
 
         if (activeInput === 'token0' && token0Amount && token0Amount !== '0') {
+          console.log('Calculating token1 amount based on token0 input:', token0Amount);
           const amount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
-          const amount1 = (amount0 * poolInfo.reserve1) / poolInfo.reserve0;
+          console.log('Parsed amount0:', amount0.toString());
+          
+          // Use BigInt arithmetic
+          const amount1 = (amount0 * reserve1) / reserve0;
+          console.log('Calculated amount1:', amount1.toString());
+          
           const formattedAmount1 = ethers.formatUnits(amount1, pool.token1.decimals);
+          console.log('Formatted amount1:', formattedAmount1);
+          
           setToken1Amount(formattedAmount1);
         } else if (activeInput === 'token1' && token1Amount && token1Amount !== '0') {
+          console.log('Calculating token0 amount based on token1 input:', token1Amount);
           const amount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
-          const amount0 = (amount1 * poolInfo.reserve0) / poolInfo.reserve1;
+          console.log('Parsed amount1:', amount1.toString());
+          
+          // Use BigInt arithmetic
+          const amount0 = (amount1 * reserve0) / reserve1;
+          console.log('Calculated amount0:', amount0.toString());
+          
           const formattedAmount0 = ethers.formatUnits(amount0, pool.token0.decimals);
+          console.log('Formatted amount0:', formattedAmount0);
+          
           setToken0Amount(formattedAmount0);
         }
       } catch (error) {
@@ -645,25 +673,39 @@ export default function AddLiquidity() {
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
 
       // Check if either token is ETH/WETH
-      const isToken0WETH = token0Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() || pool.token0.symbol === 'ETH';
-      const isToken1WETH = token1Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() || pool.token1.symbol === 'ETH';
-      const isETHPair = isToken0WETH || isToken1WETH;
+      console.log('Token debug:', {
+        token0Symbol: pool.token0.symbol,
+        token1Symbol: pool.token1.symbol,
+        token0Address: token0Address,
+        token1Address: token1Address,
+        WETH_ADDRESS: UNISWAP_ADDRESSES.WETH
+      });
+
+      const isToken0WETH = token0Address?.toLowerCase() === UNISWAP_ADDRESSES.WETH?.toLowerCase();
+      const isToken1WETH = token1Address?.toLowerCase() === UNISWAP_ADDRESSES.WETH?.toLowerCase();
+      const isToken0ETH = pool.token0.symbol === 'ETH' || pool.token0.symbol === 'WETH';
+      const isToken1ETH = pool.token1.symbol === 'ETH' || pool.token1.symbol === 'WETH';
+
+      console.log('Flag checks:', {
+        isToken0WETH,
+        isToken1WETH,
+        isToken0ETH,
+        isToken1ETH
+      });
+
+      const isETHPair = (isToken0WETH || isToken0ETH) || (isToken1WETH || isToken1ETH);
 
       let tx;
 
       if (isETHPair) {
         // For ETH pairs, we need to handle the token order correctly and always use ETH
-        const tokenAddress = isToken0WETH ? token1Address : token0Address;
-        const ethAmount = isToken0WETH ? parsedAmount0 : parsedAmount1;
-        const tokenAmount = isToken0WETH ? parsedAmount1 : parsedAmount0;
-        const tokenAmountMin = isToken0WETH ? amount1Min : amount0Min;
-        const ethAmountMin = isToken0WETH ? amount0Min : amount1Min;
+        const tokenAddress = (isToken0WETH || isToken0ETH) ? token1Address : token0Address;
+        const ethAmount = (isToken0WETH || isToken0ETH) ? parsedAmount0 : parsedAmount1;
+        const tokenAmount = (isToken0WETH || isToken0ETH) ? parsedAmount1 : parsedAmount0;
+        const tokenAmountMin = (isToken0WETH || isToken0ETH) ? amount1Min : amount0Min;
+        const ethAmountMin = (isToken0WETH || isToken0ETH) ? amount0Min : amount1Min;
 
-        // If user selected WETH, show an error message
-        if ((isToken0WETH && pool.token0.symbol === 'WETH') || (isToken1WETH && pool.token1.symbol === 'WETH')) {
-          throw new Error('Please use ETH instead of WETH. The router will automatically handle the conversion.');
-        }
-
+        // Remove the WETH check since we want to treat WETH display as ETH
         setCurrentStep('approval');
         // Only approve the token (not ETH)
         await uniswap.approveToken(tokenAddress, tokenAmount);

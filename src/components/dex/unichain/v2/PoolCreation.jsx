@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Dialog, Transition } from '@headlessui/react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
-import { BiWallet } from 'react-icons/bi';
-import { useWeb3Modal } from '@web3modal/react';
-import { useUnichain } from '../../../hooks/useUnichain';
-import TokenSelectionModal from './TokenSelectionModal';
-import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
-import { ERC20_ABI } from '../../../services/erc20';
-import { getTokenDeploymentByAddress } from '../../../services/firebase';
-import { Dialog, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
 import Confetti from 'react-confetti';
 import { FaStar } from 'react-icons/fa';
+import { useUnichain } from '../../../../hooks/useUnichain';
+import TokenSelectionModal from '../shared/TokenSelectionModal';
+import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
+import { ERC20_ABI } from '../../../../services/erc20';
+import { getTokenDeploymentByAddress } from '../../../../services/firebase';
+import { BiWallet } from 'react-icons/bi';
+import { useWeb3Modal } from '@web3modal/react';
+import { toast } from 'react-hot-toast';
 
 // Add CSS keyframes at the top of the file
 const style = document.createElement('style');
@@ -143,6 +144,11 @@ const Icons = {
     <svg className="w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
+  ),
+  Info: () => (
+    <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
   )
 };
 
@@ -207,55 +213,59 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  {isError ? 'Error Creating Pool' : (isNewPool ? 'Creating New Pool' : 'Adding Initial Liquidity')}
-                  {!isError && token0 && token1 && (
+                  {error?.includes('pool exists') ? 'Pool Already Exists' : (isNewPool ? 'Creating New Pool' : 'Adding Initial Liquidity')}
+                  {!error && token0 && token1 && (
                     <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
                       {token0.symbol} + {token1.symbol}
                     </div>
                   )}
                 </Dialog.Title>
 
-                <div className="space-y-4">
-                  {steps.map((step, index) => {
-                    const isActive = currentStep === step.id;
-                    const isCompleted = !isError && steps.findIndex(s => s.id === currentStep) > index;
-                    const isErrorStep = isError && currentStep === step.id;
-                    
-                    return (
-                      <div
-                        key={step.id}
-                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
-                          isActive && !isErrorStep ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 
-                          isCompleted ? 'text-[#00ffbd]' : 
-                          isErrorStep ? 'bg-red-500/10 text-red-500' : 
-                          'text-gray-400'
-                        }`}
-                      >
-                        {step.icon}
-                        <div className="flex-1">
-                          <span className="font-medium text-gray-900 dark:text-white">{step.title}</span>
-                          {isActive && !isError && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              {step.id === 'preparing' && 'Preparing transaction...'}
-                              {step.id === 'approval' && `Approving ${token0?.symbol} and ${token1?.symbol}`}
-                              {step.id === 'creating' && `Creating ${token0?.symbol}/${token1?.symbol} pool`}
-                              {step.id === 'adding' && `Adding liquidity for ${token0?.symbol}/${token1?.symbol}`}
-                              {step.id === 'confirming' && 'Waiting for confirmation...'}
-                              {step.id === 'completed' && (isNewPool 
-                                ? `Successfully created ${token0?.symbol}/${token1?.symbol} pool!`
-                                : `Successfully added liquidity to ${token0?.symbol}/${token1?.symbol} pool!`)}
-                            </p>
+                {error?.includes('pool exists') ? (
+                  <ExistingPoolMessage token0={token0} token1={token1} poolAddress={poolExists.address} onClose={onClose} setActiveTab={setActiveTab} />
+                ) : (
+                  <div className="space-y-4">
+                    {steps.map((step, index) => {
+                      const isActive = currentStep === step.id;
+                      const isCompleted = !isError && steps.findIndex(s => s.id === currentStep) > index;
+                      const isErrorStep = isError && currentStep === step.id;
+                      
+                      return (
+                        <div
+                          key={step.id}
+                          className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                            isActive && !isErrorStep ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 
+                            isCompleted ? 'text-[#00ffbd]' : 
+                            isErrorStep ? 'bg-red-500/10 text-red-500' : 
+                            'text-gray-400'
+                          }`}
+                        >
+                          {step.icon}
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-900 dark:text-white">{step.title}</span>
+                            {isActive && !isError && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {step.id === 'preparing' && 'Preparing transaction...'}
+                                {step.id === 'approval' && `Approving ${token0?.symbol} and ${token1?.symbol}`}
+                                {step.id === 'creating' && `Creating ${token0?.symbol}/${token1?.symbol} pool`}
+                                {step.id === 'adding' && `Adding liquidity for ${token0?.symbol}/${token1?.symbol}`}
+                                {step.id === 'confirming' && 'Waiting for confirmation...'}
+                                {step.id === 'completed' && (isNewPool 
+                                  ? `Successfully created ${token0?.symbol}/${token1?.symbol} pool!`
+                                  : `Successfully added liquidity to ${token0?.symbol}/${token1?.symbol} pool!`)}
+                              </p>
+                            )}
+                          </div>
+                          {isCompleted && (
+                            <svg className="w-5 h-5 text-[#00ffbd]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
                           )}
                         </div>
-                        {isCompleted && (
-                          <svg className="w-5 h-5 text-[#00ffbd]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {isError && (
                   <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
@@ -399,9 +409,80 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
   );
 };
 
-export default function PoolCreation() {
+const ExistingPoolMessage = ({ token0, token1, poolAddress, onClose, setActiveTab }) => {
+  const handleNavigate = () => {
+    setActiveTab('liquidity', { 
+      selectedTokens: { token0, token1 },
+      poolAddress: poolAddress
+    });
+    onClose();
+  };
+
+  return (
+    <div className="text-center py-6">
+      <div className="mb-4">
+        <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center bg-[#00ffbd]/10">
+          <svg className="w-6 h-6 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <h3 className="text-xl font-semibold text-white mb-2">
+        Pool Already Exists
+      </h3>
+      <p className="text-gray-400 mb-4">
+        A pool for {token0?.symbol}/{token1?.symbol} already exists. You can add or remove liquidity from the existing pool.
+      </p>
+      <div className="mb-2">
+        <p className="text-gray-400 text-sm mb-1">Pool Address (click to copy):</p>
+        <div 
+          onClick={() => {
+            navigator.clipboard.writeText(poolAddress);
+            toast.success('Pool address copied to clipboard!', {
+              style: {
+                borderRadius: '10px',
+                background: '#333',
+                color: '#fff',
+              },
+            });
+          }}
+          className="font-mono text-gray-300 bg-gray-800/50 py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors mb-2 break-all"
+        >
+          {poolAddress}
+        </div>
+        <p className="text-sm text-gray-500 italic">
+          To add liquidity, click the button below and paste this address in the search bar of the Add/Remove Liquidity section.
+        </p>
+      </div>
+      <button
+        onClick={handleNavigate}
+        className="px-6 py-3 font-semibold rounded-xl transition-colors bg-[#00ffbd] hover:bg-[#00e6a9] text-black"
+      >
+        Go to Add/Remove Liquidity
+      </button>
+    </div>
+  );
+};
+
+// Add this function at the top level, before the PoolCreation component
+const fetchPriceRatio = async (token0, token1, amount0, amount1) => {
+  if (!token0 || !token1 || !amount0 || !amount1) {
+    return null;
+  }
+
+  try {
+    const price = parseFloat(amount1) / parseFloat(amount0);
+    return price;
+  } catch (error) {
+    console.error('Error calculating price ratio:', error);
+    return null;
+  }
+};
+
+export default function PoolCreation({ setActiveTab }) {
   const { address: account, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
+  const navigate = useNavigate();
   const [currentChainId, setCurrentChainId] = useState(null);
   const uniswap = useUnichain();
   const [token0, setToken0] = useState(null);
@@ -413,16 +494,46 @@ export default function PoolCreation() {
   const [showToken0Modal, setShowToken0Modal] = useState(false);
   const [showToken1Modal, setShowToken1Modal] = useState(false);
   const [priceInfo, setPriceInfo] = useState(null);
+  const [priceRatio, setPriceRatio] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(null);
   const [isNewPool, setIsNewPool] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [error, setError] = useState(null);
+  const [poolExists, setPoolExists] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
   });
+
+  // Check if pool exists when tokens are selected
+  useEffect(() => {
+    async function checkPool() {
+      if (token0 && token1) {
+        try {
+          const exists = await uniswap.checkPoolExists(token0.address, token1.address);
+          if (exists) {
+            // Get the pool address directly
+            const factoryAddress = await uniswap.router.factory();
+            const factory = new ethers.Contract(
+              factoryAddress,
+              ['function getPair(address, address) view returns (address)'],
+              uniswap.provider
+            );
+            const poolAddress = await factory.getPair(token0.address, token1.address);
+            setPoolExists({ exists: true, address: poolAddress });
+          } else {
+            setPoolExists(false);
+          }
+        } catch (error) {
+          console.error('Error checking pool:', error);
+          setPoolExists(false);
+        }
+      }
+    }
+    checkPool();
+  }, [token0, token1, uniswap]);
 
   // Add useEffect to get chain ID and listen for changes
   useEffect(() => {
@@ -581,14 +692,18 @@ export default function PoolCreation() {
 
   // Handle amount changes
   const handleAmount0Change = (value) => {
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-      setAmount0(value);
+    setAmount0(value);
+    if (value && priceRatio) {
+      const calculatedAmount1 = (parseFloat(value) * priceRatio).toString();
+      setAmount1(calculatedAmount1);
     }
   };
 
   const handleAmount1Change = (value) => {
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-      setAmount1(value);
+    setAmount1(value);
+    if (value && amount0) {
+      const newRatio = parseFloat(value) / parseFloat(amount0);
+      setPriceRatio(newRatio);
     }
   };
 
@@ -651,15 +766,19 @@ export default function PoolCreation() {
 
       // Check if pool exists
       const poolExists = await uniswap.checkPoolExists(token0.address, token1.address);
-      setIsNewPool(!poolExists);
+      
+      if (poolExists) {
+        setError(`pool exists: ${token0.symbol}/${token1.symbol}`);
+        setCurrentStep('preparing');
+        return;
+      }
 
+      setIsNewPool(true);
       setCurrentStep('approval');
       
       // Create pool and add liquidity
-      if (!poolExists) {
-        setCurrentStep('creating');
-      }
-
+      setCurrentStep('creating');
+      
       setCurrentStep('adding');
       const result = await uniswap.createPool(
         token0.address,
@@ -687,12 +806,12 @@ export default function PoolCreation() {
             setShowRatingModal(true);
           }, 1000);
           
-          // Reset form and cleanup after confetti (30 seconds)
+          // Reset form and cleanup after confetti
           setTimeout(() => {
             setAmount0('');
             setAmount1('');
             setShowConfetti(false);
-          }, 30000); // 30 seconds
+          }, 30000);
         }, 100);
       }, 1000);
       
@@ -709,62 +828,25 @@ export default function PoolCreation() {
     }
   };
 
-  // Fetch price ratio when tokens are selected
+  // Update the useEffect for price ratio calculation
   useEffect(() => {
-    async function fetchPriceRatio() {
-      if (!token0 || !token1) return;
-
-      try {
-        // For demo purposes, using a simple 1:1 ratio
-        setPriceRatio(1);
+    const updatePriceRatio = async () => {
+      if (token0 && token1 && amount0 && amount1) {
+        const ratio = await fetchPriceRatio(token0, token1, amount0, amount1);
+        setPriceRatio(ratio);
         
-        // If amounts exist and auto-price is enabled, update them
-        if (useAutoPrice) {
-          if (amount0) {
-            setAmount1(calculateOtherAmount(amount0, true));
-          } else if (amount1) {
-            setAmount0(calculateOtherAmount(amount1, false));
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching prices:', error);
-        setPriceRatio(1);
-      }
-    }
-
-    fetchPriceRatio();
-  }, [token0, token1]);
-
-  // Add useEffect to calculate and update price info
-  useEffect(() => {
-    async function updatePriceInfo() {
-      if (!token0 || !token1 || !amount0 || !amount1) {
-        setPriceInfo(null);
-        return;
-      }
-
-      try {
-        const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
-        const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
-
-        const prices = uniswap.calculateInitialPoolPrice(
-          parsedAmount0,
-          parsedAmount1,
-          token0.decimals,
-          token1.decimals
-        );
-
+        // Calculate and set price info
         setPriceInfo({
-          token0Price: prices.token0Price,
-          token1Price: prices.token1Price
+          token0Price: parseFloat(amount1) / parseFloat(amount0),
+          token1Price: parseFloat(amount0) / parseFloat(amount1)
         });
-      } catch (error) {
-        console.error('Error calculating price:', error);
+      } else {
+        setPriceRatio(null);
         setPriceInfo(null);
       }
-    }
+    };
 
-    updatePriceInfo();
+    updatePriceRatio();
   }, [token0, token1, amount0, amount1]);
 
   // Add TokenBalance component
@@ -854,6 +936,18 @@ export default function PoolCreation() {
               Connect Wallet
             </button>
           </div>
+        ) : poolExists ? (
+          <ExistingPoolMessage 
+            token0={token0} 
+            token1={token1} 
+            poolAddress={poolExists.address}
+            onClose={() => {
+              setShowProgressModal(false);
+              setCurrentStep(null);
+              setError(null);
+            }}
+            setActiveTab={setActiveTab}
+          />
         ) : (
           <>
             {/* Token 0 Selection */}
@@ -956,23 +1050,10 @@ export default function PoolCreation() {
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
                 Fee Tier
               </label>
-              <div className="grid grid-cols-4 gap-2">
-                {['0.01', '0.05', '0.3', '1'].map((feeTier) => (
-                  <button
-                    key={feeTier}
-                    onClick={() => setFee(feeTier)}
-                    className={`
-                      px-4 py-2 rounded-xl text-sm font-medium
-                      ${fee === feeTier
-                        ? 'bg-[#00ffbd] text-black'
-                        : 'bg-white/10 dark:bg-[#2d2f36] text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80'
-                      }
-                      transition-colors
-                    `}
-                  >
-                    {feeTier}%
-                  </button>
-                ))}
+              <div className="w-full">
+                <div className="px-4 py-3 bg-[#00ffbd]/10 rounded-xl text-sm font-medium text-[#00ffbd] flex items-center justify-center">
+                  0.3% (Fixed Fee Tier)
+                </div>
               </div>
             </div>
 
@@ -990,20 +1071,22 @@ export default function PoolCreation() {
         )}
       </div>
 
-      {/* Create Pool Button */}
-      <button
-        onClick={handleCreatePool}
-        disabled={loading || !token0 || !token1 || !amount0 || !amount1}
-        className={`
-          w-full px-4 py-4 rounded-xl font-medium text-black text-lg
-          ${loading || !token0 || !token1 || !amount0 || !amount1
-            ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
-            : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors'
-          }
-        `}
-      >
-        {loading ? 'Creating Pool...' : 'Create Pool'}
-      </button>
+      {/* Create Pool Button - Only show if pool doesn't exist */}
+      {!poolExists && (
+        <button
+          onClick={handleCreatePool}
+          disabled={loading || !token0 || !token1 || !amount0 || !amount1}
+          className={`
+            w-full px-4 py-4 rounded-xl font-medium text-black text-lg
+            ${loading || !token0 || !token1 || !amount0 || !amount1
+              ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+              : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors'
+            }
+          `}
+        >
+          {loading ? 'Creating Pool...' : 'Create Pool'}
+        </button>
+      )}
 
       {/* Token Selection Modals */}
       <TokenSelectionModal

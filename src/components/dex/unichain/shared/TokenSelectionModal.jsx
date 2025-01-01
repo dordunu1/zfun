@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog } from '@headlessui/react';
 import { useBalance, useAccount } from 'wagmi';
 import { ethers } from 'ethers';
-import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap.js';
-import { useUnichain } from '../../../hooks/useUnichain';
+import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap.js';
+import { useUnichain } from '../../../../hooks/useUnichain';
 import { FaSearch, FaCoins } from 'react-icons/fa';
-import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../../services/firebase';
-import { ipfsToHttp } from '../../../utils/ipfs';
+import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../../../services/firebase';
+import { ipfsToHttp } from '../../../../utils/ipfs';
 
 // Add RPC URL constant at the top
 const UNICHAIN_RPC_URL = 'https://sepolia.unichain.org';

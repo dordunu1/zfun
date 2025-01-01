@@ -10,6 +10,7 @@ import FAQ from './components/FAQ';
 import { useTheme } from './context/ThemeContext';
 import { config as wagmiConfig, ethereumClient } from './config/wagmi';
 import { DeploymentsProvider } from './context/DeploymentsContext';
+import { UniswapVersionProvider } from './context/UniswapVersionContext';
 import { WagmiConfig } from 'wagmi';
 
 function App() {
@@ -21,36 +22,38 @@ function App() {
   return (
     <DeploymentsProvider>
       <WagmiConfig config={wagmiConfig}>
-        <Web3Modal 
-          projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-          ethereumClient={ethereumClient}
-          themeMode={isDarkMode ? 'dark' : 'light'}
-        />
-        
-        <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
-          <Toaster position="top-right" />
-          <Sidebar 
-            onOpenModal={() => setIsModalOpen(true)}
-            onOpenNFTModal={() => setIsNFTModalOpen(true)}
+        <UniswapVersionProvider>
+          <Web3Modal 
+            projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
+            ethereumClient={ethereumClient}
+            themeMode={isDarkMode ? 'dark' : 'light'}
           />
-          <div className="flex-1">
-            <Header />
-            <Outlet />
-          </div>
+          
+          <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
+            <Toaster position="top-right" />
+            <Sidebar 
+              onOpenModal={() => setIsModalOpen(true)}
+              onOpenNFTModal={() => setIsNFTModalOpen(true)}
+            />
+            <div className="flex-1">
+              <Header />
+              <Outlet />
+            </div>
 
-          <CreateTokenModal 
-            isOpen={isModalOpen} 
-            onClose={() => setIsModalOpen(false)} 
-          />
-          <CreateNFTModal 
-            isOpen={isNFTModalOpen}
-            onClose={() => setIsNFTModalOpen(false)}
-          />
-          <FAQ 
-            isOpen={isFAQOpen}
-            onClose={setIsFAQOpen}
-          />
-        </div>
+            <CreateTokenModal 
+              isOpen={isModalOpen} 
+              onClose={() => setIsModalOpen(false)} 
+            />
+            <CreateNFTModal 
+              isOpen={isNFTModalOpen}
+              onClose={() => setIsNFTModalOpen(false)}
+            />
+            <FAQ 
+              isOpen={isFAQOpen}
+              onClose={() => setIsFAQOpen(false)}
+            />
+          </div>
+        </UniswapVersionProvider>
       </WagmiConfig>
     </DeploymentsProvider>
   );

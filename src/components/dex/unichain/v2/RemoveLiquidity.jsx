@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'react-hot-toast';
-import PoolSelectionModal from './PoolSelectionModal';
+import PoolSelectionModal from '../shared/PoolSelectionModal';
 import { ethers } from 'ethers';
-import { useUnichain } from '../../../hooks/useUnichain';
-import { UNISWAP_ADDRESSES } from '../../../services/unichain/uniswap';
-import { ipfsToHttp } from '../../../utils/ipfs';
+import { useUnichain } from '../../../../hooks/useUnichain';
+import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
+import { ipfsToHttp } from '../../../../utils/ipfs';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import Confetti from 'react-confetti';

@@ -2,27 +2,64 @@ import React, { useState, useEffect } from 'react';
 import { FaExchangeAlt, FaPlus, FaWater, FaList } from 'react-icons/fa';
 import { useNetwork } from 'wagmi';
 import SepoliaTokenSwap from '../components/dex/TokenSwap';
-import UnichainTokenSwap from '../components/dex/unichain/TokenSwap';
+import UnichainTokenSwapV2 from '../components/dex/unichain/v2/TokenSwap';
+import UnichainTokenSwapV3 from '../components/dex/unichain/v3/TokenSwap';
 import SepoliaPoolCreation from '../components/dex/PoolCreation';
-import UnichainPoolCreation from '../components/dex/unichain/PoolCreation';
+import UnichainPoolCreationV2 from '../components/dex/unichain/v2/PoolCreation';
+import UnichainPoolCreationV3 from '../components/dex/unichain/v3/PoolCreation';
 import SepoliaManageLiquidity from '../components/dex/ManageLiquidity';
-import UnichainManageLiquidity from '../components/dex/unichain/ManageLiquidity';
+import UnichainAddLiquidityV2 from '../components/dex/unichain/v2/AddLiquidity';
+import UnichainAddLiquidityV3 from '../components/dex/unichain/v3/AddLiquidity';
+import UnichainRemoveLiquidityV2 from '../components/dex/unichain/v2/RemoveLiquidity';
+import UnichainRemoveLiquidityV3 from '../components/dex/unichain/v3/RemoveLiquidity';
 import SepoliaMyPools from '../components/dex/MyPools';
-import UnichainMyPools from '../components/dex/unichain/MyPools';
+import UnichainMyPoolsV2 from '../components/dex/unichain/v2/MyPools';
+import UnichainMyPoolsV3 from '../components/dex/unichain/v3/MyPools';
 import { unichainTestnet } from '../config/wagmi';
+import VersionToggle from '../components/dex/unichain/shared/VersionToggle';
+import { useUniswapVersion } from '../hooks/useUniswapVersion';
+import UnichainManageLiquidityV2 from '../components/dex/unichain/v2/ManageLiquidity';
+import UnichainManageLiquidityV3 from '../components/dex/unichain/v3/ManageLiquidity';
+import { useLocation } from 'react-router-dom';
 
-const TABS = [
-  { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
-  { id: 'pool', label: 'Create Pool', icon: FaPlus },
-  { id: 'liquidity', label: 'Manage Liquidity', icon: FaWater },
-  { id: 'my-pools', label: 'My Pools', icon: FaList },
-];
+const getTabsForVersion = (version) => {
+  if (version === 'v2') {
+    return [
+      { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
+      { id: 'my-pools', label: 'My Pools', icon: FaList },
+      { id: 'pool', label: 'Create Pool', icon: FaPlus },
+      { id: 'liquidity', label: 'Add/Remove Liquidity', icon: FaWater },
+    ];
+  } else {
+    return [
+      { id: 'swap', label: 'Swap', icon: FaExchangeAlt },
+      { id: 'my-pools', label: 'My Positions', icon: FaList },
+      { id: 'pool', label: 'Create Position', icon: FaPlus },
+    ];
+  }
+};
 
 export default function ActivityPage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('swap');
+  const [selectedTokens, setSelectedTokens] = useState(null);
+  const [selectedPoolAddress, setSelectedPoolAddress] = useState(null);
   const { chain } = useNetwork();
   const [devModeEnabled, setDevModeEnabled] = useState(false);
   const [zKeyPresses, setZKeyPresses] = useState([]);
+  const { version } = useUniswapVersion();
+  const TABS = getTabsForVersion(version);
+
+  // Modified setActiveTab to handle additional data
+  const handleTabChange = (tab, data) => {
+    setActiveTab(tab);
+    if (data?.selectedTokens) {
+      setSelectedTokens(data.selectedTokens);
+    }
+    if (data?.poolAddress) {
+      setSelectedPoolAddress(data.poolAddress);
+    }
+  };
 
   // Handle key presses for dev mode toggle
   useEffect(() => {
@@ -50,11 +87,17 @@ export default function ActivityPage() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
+  // Handle navigation state
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
+
   // Function to get the appropriate component based on chain
   const getChainComponent = (componentType) => {
     if (!chain) return null;
 
-    // If chain is Sepolia but dev mode is disabled, show the "switch to Unichain" message
     if (chain.id === 11155111 && !devModeEnabled) {
       return (
         <div className="text-center py-8 text-gray-500">
@@ -66,55 +109,43 @@ export default function ActivityPage() {
     switch (componentType) {
       case 'swap':
         if (chain.id === unichainTestnet.id) {
-          return <UnichainTokenSwap />;
+          return version === 'v2' ? <UnichainTokenSwapV2 /> : <UnichainTokenSwapV3 />;
         } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaTokenSwap />;
-        } else {
-          return (
-            <div className="text-center py-8 text-gray-500">
-              Please switch to Unichain network
-            </div>
-          );
         }
+        break;
       case 'pool':
         if (chain.id === unichainTestnet.id) {
-          return <UnichainPoolCreation />;
+          return version === 'v2' 
+            ? <UnichainPoolCreationV2 setActiveTab={handleTabChange} /> 
+            : <UnichainPoolCreationV3 setActiveTab={handleTabChange} />;
         } else if (chain.id === 11155111 && devModeEnabled) {
-          return <SepoliaPoolCreation />;
-        } else {
-          return (
-            <div className="text-center py-8 text-gray-500">
-              Please switch to Unichain network
-            </div>
-          );
+          return <SepoliaPoolCreation setActiveTab={handleTabChange} />;
         }
+        break;
       case 'liquidity':
         if (chain.id === unichainTestnet.id) {
-          return <UnichainManageLiquidity />;
+          return version === 'v2' 
+            ? <UnichainManageLiquidityV2 initialTokens={selectedTokens} poolAddress={selectedPoolAddress} /> 
+            : <UnichainManageLiquidityV3 initialTokens={selectedTokens} poolAddress={selectedPoolAddress} />;
         } else if (chain.id === 11155111 && devModeEnabled) {
-          return <SepoliaManageLiquidity />;
-        } else {
-          return (
-            <div className="text-center py-8 text-gray-500">
-              Please switch to Unichain network
-            </div>
-          );
+          return <SepoliaManageLiquidity initialTokens={selectedTokens} poolAddress={selectedPoolAddress} />;
         }
+        break;
       case 'my-pools':
         if (chain.id === unichainTestnet.id) {
-          return <UnichainMyPools />;
+          return version === 'v2' ? <UnichainMyPoolsV2 /> : <UnichainMyPoolsV3 />;
         } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaMyPools />;
-        } else {
-          return (
-            <div className="text-center py-8 text-gray-500">
-              Please switch to Unichain network
-            </div>
-          );
         }
-      default:
-        return null;
+        break;
     }
+
+    return (
+      <div className="text-center py-8 text-gray-500">
+        Please switch to Unichain network
+      </div>
+    );
   };
 
   return (
@@ -124,14 +155,13 @@ export default function ActivityPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Trading
           </h1>
-          {/* Only show dev mode indicator when enabled */}
-          {devModeEnabled && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            {devModeEnabled && (
               <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-900">
                 Dev Mode
               </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Main Container with L-shape corners and glowing dots */}
@@ -183,32 +213,35 @@ export default function ActivityPage() {
             )}
 
             {/* Tab Navigation */}
-            <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar">
-              {TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap
-                    transition-all duration-200 relative group
-                    ${activeTab === tab.id 
-                      ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
-                      : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
-                    }
-                    border border-gray-100 dark:border-gray-800
-                  `}
-                >
-                  <tab.icon size={16} />
-                  {tab.label}
-                  
-                  {/* Active Indicator */}
-                  <div className={`
-                    absolute bottom-0 left-0 right-0 h-0.5 rounded-full
-                    transition-all duration-200
-                    ${activeTab === tab.id ? 'bg-[#00ffbd]' : 'bg-transparent group-hover:bg-[#00ffbd]/30'}
-                  `} />
-                </button>
-              ))}
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                {TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`
+                      flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap
+                      transition-all duration-200 relative group
+                      ${activeTab === tab.id 
+                        ? 'text-[#00ffbd] bg-[#00ffbd]/10' 
+                        : 'text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1a1b1f] hover:bg-gray-50 dark:hover:bg-[#1a1b1f]/80'
+                      }
+                      border border-gray-100 dark:border-gray-800
+                    `}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                    
+                    {/* Active Indicator */}
+                    <div className={`
+                      absolute bottom-0 left-0 right-0 h-0.5 rounded-full
+                      transition-all duration-200
+                      ${activeTab === tab.id ? 'bg-[#00ffbd]' : 'bg-transparent group-hover:bg-[#00ffbd]/30'}
+                    `} />
+                  </button>
+                ))}
+              </div>
+              {chain?.id === unichainTestnet.id && <VersionToggle />}
             </div>
 
             {/* Tab Content */}
