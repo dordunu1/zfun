@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getTokenDeploymentByAddress } from '../../../../services/firebase';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
@@ -166,6 +167,41 @@ export default function MyPools() {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchAddress, setSearchAddress] = useState('');
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const poolVariants = {
+    hidden: { 
+      opacity: 0,
+      y: 20
+    },
+    show: { 
+      opacity: 1,
+      y: 0,
+      transition: {
+        type: "spring",
+        stiffness: 100,
+        damping: 15
+      }
+    },
+    hover: {
+      scale: 1.02,
+      transition: {
+        type: "spring",
+        stiffness: 400,
+        damping: 10
+      }
+    }
+  };
 
   // Load pools data
   useEffect(() => {
@@ -354,9 +390,19 @@ export default function MyPools() {
 
   // Main render
   return (
-    <div className="space-y-4">
+    <motion.div 
+      initial="hidden"
+      animate="show"
+      variants={containerVariants}
+      className="space-y-6 overflow-x-hidden overflow-y-auto"
+    >
       {/* Search Bar */}
-      <div className="relative">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative"
+      >
         <input
           type="text"
           placeholder="Search by token symbol or pool address..."
@@ -365,81 +411,84 @@ export default function MyPools() {
           className="w-full px-4 py-2 pl-10 bg-white/5 dark:bg-[#1a1b1f] rounded-xl border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white"
         />
         <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-      </div>
+      </motion.div>
 
-      {/* Pools Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white/5 dark:bg-[#1a1b1f] rounded-xl">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-800">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Pool</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Token 0 Reserve</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Token 1 Reserve</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredPools.map((pool) => (
-              <tr 
+      {loading ? (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex justify-center items-center min-h-[400px]"
+        >
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00ffbd]"></div>
+        </motion.div>
+      ) : pools.length === 0 ? (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="text-center py-8 text-gray-500 dark:text-gray-400"
+        >
+          No pools found
+        </motion.div>
+      ) : (
+        <motion.div 
+          variants={containerVariants}
+          className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-full"
+        >
+          <AnimatePresence>
+            {pools.map((pool) => (
+              <motion.div
                 key={pool.pairAddress}
-                className="border-b border-gray-200 dark:border-gray-800 hover:bg-white/10 dark:hover:bg-[#2d2f36] transition-colors"
+                variants={poolVariants}
+                whileHover="hover"
+                layout
+                className="bg-white/5 dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800 w-full"
               >
-                <td className="px-6 py-4">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="flex -space-x-2">
-                      <img 
-                        src={pool.token0?.logo || '/token-default.png'}
-                        alt={pool.token0?.symbol || 'Token'}
-                        className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/token-default.png';
-                        }}
+                      <img
+                        src={getTokenLogo(pool.token0)}
+                        alt={pool.token0?.symbol}
+                        className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                       />
-                      <img 
-                        src={pool.token1?.logo || '/token-default.png'}
-                        alt={pool.token1?.symbol || 'Token'}
-                        className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/token-default.png';
-                        }}
+                      <img
+                        src={getTokenLogo(pool.token1)}
+                        alt={pool.token1?.symbol}
+                        className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                       />
                     </div>
-                    <span className="text-sm text-gray-900 dark:text-white">
-                      {pool.token0?.symbol || 'Token'}/{pool.token1?.symbol || 'Token'}
+                    <span className="text-lg font-medium text-gray-900 dark:text-white">
+                      {pool.token0?.symbol}/{pool.token1?.symbol}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                    <span className="truncate">{pool.pairAddress}</span>
-                    <span className="text-xs text-gray-400">
-                      Created {new Date(pool.createdAt * 1000).toLocaleDateString()}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Token 0 Reserve:</span>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {ethers.formatUnits(pool.reserves?.reserve0 || '0', pool.token0?.decimals || 18)} {pool.token0?.symbol}
                     </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(pool.pairAddress);
-                        toast.success('Address copied to clipboard!');
-                      }}
-                      className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                      title="Copy address"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                      </svg>
-                    </button>
                   </div>
-                </td>
-                <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  {ethers.formatUnits(pool.reserves?.reserve0 || '0', pool.token0?.decimals || 18)} {pool.token0?.symbol}
-                </td>
-                <td className="px-6 py-4 text-right text-sm text-gray-900 dark:text-white">
-                  {ethers.formatUnits(pool.reserves?.reserve1 || '0', pool.token1?.decimals || 18)} {pool.token1?.symbol}
-                </td>
-              </tr>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Token 1 Reserve:</span>
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {ethers.formatUnits(pool.reserves?.reserve1 || '0', pool.token1?.decimals || 18)} {pool.token1?.symbol}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pool.pairAddress}
+                  </div>
+                </div>
+              </motion.div>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </AnimatePresence>
+        </motion.div>
+      )}
+    </motion.div>
   );
 } 

@@ -5,6 +5,7 @@ import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import Confetti from 'react-confetti';
 import { FaStar } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import TokenSelectionModal from '../shared/TokenSelectionModal';
 import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
@@ -479,6 +480,47 @@ const fetchPriceRatio = async (token0, token1, amount0, amount1) => {
   }
 };
 
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { 
+    opacity: 0,
+    y: 20
+  },
+  show: { 
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring",
+      stiffness: 100,
+      damping: 15
+    }
+  }
+};
+
+const buttonVariants = {
+  hover: {
+    scale: 1.02,
+    transition: {
+      type: "spring",
+      stiffness: 400,
+      damping: 10
+    }
+  },
+  tap: {
+    scale: 0.98
+  }
+};
+
 export default function PoolCreation({ setActiveTab }) {
   const { address: account, isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
@@ -893,8 +935,12 @@ export default function PoolCreation({ setActiveTab }) {
   };
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
-      {/* Add Confetti component with higher z-index */}
+    <motion.div 
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="space-y-6 max-w-lg mx-auto"
+    >
       {showConfetti && (
         <Confetti
           width={windowSize.width}
@@ -917,46 +963,59 @@ export default function PoolCreation({ setActiveTab }) {
         />
       )}
 
-      <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
+      <motion.div 
+        variants={itemVariants}
+        className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800"
+      >
         {!isConnected ? (
-          <div className="text-center py-8">
-            <div className="mb-4">
+          <motion.div 
+            variants={itemVariants}
+            className="text-center py-8"
+          >
+            <motion.div 
+              className="mb-4"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
               <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            </motion.div>
+            <motion.h3 
+              variants={itemVariants}
+              className="text-lg font-semibold text-gray-900 dark:text-white mb-2"
+            >
               Connect Your Wallet
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            </motion.h3>
+            <motion.p 
+              variants={itemVariants}
+              className="text-gray-500 dark:text-gray-400 mb-6"
+            >
               Please connect your wallet to create a liquidity pool
-            </p>
-            <button
+            </motion.p>
+            <motion.button
+              variants={buttonVariants}
+              whileHover="hover"
+              whileTap="tap"
               onClick={openConnectModal}
               className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
             >
               Connect Wallet
-            </button>
-          </div>
-        ) : poolExists ? (
-          <ExistingPoolMessage 
-            token0={token0} 
-            token1={token1} 
-            poolAddress={poolExists.address}
-            onClose={() => {
-              setShowProgressModal(false);
-              setCurrentStep(null);
-              setError(null);
-            }}
-            setActiveTab={setActiveTab}
-          />
+            </motion.button>
+          </motion.div>
         ) : (
-          <>
-            {/* Token 0 Selection */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                Token 1
-              </label>
-              <div className="space-y-2">
-                <button
+          <AnimatePresence mode="wait">
+            <motion.div 
+              variants={itemVariants}
+              className="space-y-4"
+            >
+              {/* Token 0 Selection */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Token 1
+                </label>
+                <motion.button
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
                   onClick={() => setShowToken0Modal(true)}
                   className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
                 >
@@ -971,26 +1030,30 @@ export default function PoolCreation({ setActiveTab }) {
                   ) : (
                     'Select Token'
                   )}
-                </button>
-              </div>
-              {token0 && (
-                <input
-                  type="text"
-                  value={amount0}
-                  onChange={(e) => handleAmount0Change(e.target.value)}
-                  placeholder="Enter amount"
-                  className="w-full px-4 py-3 mt-2 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-900 dark:text-white"
-                />
-              )}
-            </div>
+                </motion.button>
+                {token0 && (
+                  <motion.input
+                    variants={itemVariants}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    type="text"
+                    value={amount0}
+                    onChange={(e) => handleAmount0Change(e.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full px-4 py-3 mt-2 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-900 dark:text-white"
+                  />
+                )}
+              </motion.div>
 
-            {/* Token 1 Selection */}
-            <div className="mt-4 space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                Token 2
-              </label>
-              <div className="space-y-2">
-                <button
+              {/* Token 1 Selection */}
+              <motion.div variants={itemVariants} className="space-y-2">
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Token 2
+                </label>
+                <motion.button
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
                   onClick={() => setShowToken1Modal(true)}
                   className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-left text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors"
                 >
@@ -1005,75 +1068,60 @@ export default function PoolCreation({ setActiveTab }) {
                   ) : (
                     'Select Token'
                   )}
-                </button>
-              </div>
-              {token1 && (
-                <input
-                  type="text"
-                  value={amount1}
-                  onChange={(e) => handleAmount1Change(e.target.value)}
-                  placeholder="Enter amount"
-                  className="w-full px-4 py-3 mt-2 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-900 dark:text-white"
-                />
-              )}
-            </div>
+                </motion.button>
+                {token1 && (
+                  <motion.input
+                    variants={itemVariants}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    type="text"
+                    value={amount1}
+                    onChange={(e) => handleAmount1Change(e.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full px-4 py-3 mt-2 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-900 dark:text-white"
+                  />
+                )}
+              </motion.div>
 
-            {/* Price Information */}
-            {priceInfo && token0 && token1 && (
-              <div className="mt-6 p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                  Initial Pool Price
+              {/* Fee Tier Selection */}
+              <motion.div variants={itemVariants} className="mt-6 space-y-2">
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Fee Tier
+                </label>
+                <motion.div 
+                  variants={itemVariants}
+                  className="w-full"
+                >
+                  <div className="px-4 py-3 bg-[#00ffbd]/10 rounded-xl text-sm font-medium text-[#00ffbd] flex items-center justify-center">
+                    0.3% (Fixed Fee Tier)
+                  </div>
+                </motion.div>
+              </motion.div>
+
+              {/* Info Box */}
+              <motion.div 
+                variants={itemVariants}
+                className="mt-6 p-4 bg-blue-500/5 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-800"
+              >
+                <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                  About Pool Creation
                 </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">
-                      1 {token0.symbol} =
-                    </span>
-                    <span className="text-gray-900 dark:text-white font-medium">
-                      {Number(priceInfo.token0Price).toLocaleString(undefined, { maximumFractionDigits: 6 })} {token1.symbol}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">
-                      1 {token1.symbol} =
-                    </span>
-                    <span className="text-gray-900 dark:text-white font-medium">
-                      {Number(priceInfo.token1Price).toLocaleString(undefined, { maximumFractionDigits: 6 })} {token0.symbol}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Fee Tier Selection */}
-            <div className="mt-6 space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                Fee Tier
-              </label>
-              <div className="w-full">
-                <div className="px-4 py-3 bg-[#00ffbd]/10 rounded-xl text-sm font-medium text-[#00ffbd] flex items-center justify-center">
-                  0.3% (Fixed Fee Tier)
-                </div>
-              </div>
-            </div>
-
-            {/* Info Box */}
-            <div className="mt-6 p-4 bg-blue-500/5 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-800">
-              <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                About Pool Creation
-              </h3>
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                Creating a new liquidity pool allows you to be the first liquidity provider.
-                The ratio of tokens you add will set the initial price. Make sure to add sufficient liquidity to minimize price impact from trades.
-              </p>
-            </div>
-          </>
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  Creating a new liquidity pool allows you to be the first liquidity provider.
+                  The ratio of tokens you add will set the initial price. Make sure to add sufficient liquidity to minimize price impact from trades.
+                </p>
+              </motion.div>
+            </motion.div>
+          </AnimatePresence>
         )}
-      </div>
+      </motion.div>
 
-      {/* Create Pool Button - Only show if pool doesn't exist */}
+      {/* Create Pool Button */}
       {!poolExists && (
-        <button
+        <motion.button
+          variants={buttonVariants}
+          whileHover="hover"
+          whileTap="tap"
           onClick={handleCreatePool}
           disabled={loading || !token0 || !token1 || !amount0 || !amount1}
           className={`
@@ -1085,10 +1133,10 @@ export default function PoolCreation({ setActiveTab }) {
           `}
         >
           {loading ? 'Creating Pool...' : 'Create Pool'}
-        </button>
+        </motion.button>
       )}
 
-      {/* Token Selection Modals */}
+      {/* Keep existing modals */}
       <TokenSelectionModal
         isOpen={showToken0Modal}
         onClose={() => setShowToken0Modal(false)}
@@ -1101,8 +1149,6 @@ export default function PoolCreation({ setActiveTab }) {
         onSelect={handleToken1Select}
         selectedTokenAddress={token1?.address}
       />
-
-      {/* Add PoolProgressModal */}
       <PoolProgressModal
         isOpen={showProgressModal}
         onClose={() => {
@@ -1116,13 +1162,11 @@ export default function PoolCreation({ setActiveTab }) {
         isNewPool={isNewPool}
         error={error}
       />
-
-      {/* Add Rating Modal */}
       <StarRatingModal
         isOpen={showRatingModal}
         onClose={() => setShowRatingModal(false)}
         onRate={handleRating}
       />
-    </div>
+    </motion.div>
   );
 } 
