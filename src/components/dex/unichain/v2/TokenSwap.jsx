@@ -12,6 +12,47 @@ import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import Confetti from 'react-confetti';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      when: "beforeChildren",
+      staggerChildren: 0.1
+    }
+  },
+  exit: {
+    opacity: 0,
+    y: -20,
+    transition: {
+      duration: 0.3
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.2 }
+  }
+};
+
+const buttonVariants = {
+  hover: {
+    scale: 1.02,
+    transition: { duration: 0.2 }
+  },
+  tap: {
+    scale: 0.98
+  }
+};
 
 // Add Tooltip component
 const Tooltip = ({ children, content }) => {
@@ -1043,7 +1084,13 @@ export default function TokenSwap() {
   };
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
+    <motion.div 
+      className="space-y-6 max-w-lg mx-auto"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
       {/* Add Confetti component with higher z-index */}
       {showConfetti && (
         <Confetti
@@ -1068,193 +1115,256 @@ export default function TokenSwap() {
       )}
 
       {/* Card Container */}
-      <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
+      <motion.div 
+        className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800"
+        variants={itemVariants}
+      >
         {!isConnected ? (
-          <div className="text-center py-8">
-            <div className="mb-4">
+          <motion.div 
+            className="text-center py-8"
+            variants={itemVariants}
+          >
+            <motion.div 
+              className="mb-4"
+              whileHover={{ scale: 1.1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
               <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            </motion.div>
+            <motion.h3 
+              className="text-lg font-semibold text-gray-900 dark:text-white mb-2"
+              variants={itemVariants}
+            >
               Connect Your Wallet
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            </motion.h3>
+            <motion.p 
+              className="text-gray-500 dark:text-gray-400 mb-6"
+              variants={itemVariants}
+            >
               Please connect your wallet to start swapping tokens
-            </p>
-            <button
+            </motion.p>
+            <motion.button
               onClick={openConnectModal}
               className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
+              variants={buttonVariants}
+              whileHover="hover"
+              whileTap="tap"
             >
               Connect Wallet
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         ) : (
-          <>
-            {/* From Token */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                From
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={fromAmount}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      setFromAmount(value);
-                    }
-                  }}
-                  placeholder="0.0"
-                  className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                />
-                <button
-                  onClick={() => {
-                    setActiveSide('from');
-                    setShowTokenSelector(true);
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
-                >
-                  {fromToken ? (
-                    <div className="flex items-center gap-2">
-                      <img src={getTokenLogo(fromToken)} alt={fromToken.symbol} className="w-5 h-5" />
-                      <span>{fromToken.symbol}</span>
-                    </div>
-                  ) : (
-                    'Select Token'
-                  )}
-                </button>
-              </div>
-              {fromToken && <TokenBalance token={fromToken} />}
-            </div>
-
-            {/* Swap Icon */}
-            <div className="flex justify-center my-4">
-              <button
-                onClick={() => {
-                  const tempToken = fromToken;
-                  const tempAmount = fromAmount;
-                  setFromToken(toToken);
-                  setFromAmount(toAmount);
-                  setToToken(tempToken);
-                  setToAmount(tempAmount);
-                }}
-                className="p-2.5 rounded-xl bg-[#00ffbd]/10 text-[#00ffbd] hover:bg-[#00ffbd]/20 transition-colors border border-[#00ffbd]/20"
+          <AnimatePresence mode="wait">
+            <motion.div 
+              className="space-y-4"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              {/* From Token */}
+              <motion.div 
+                className="space-y-2"
+                variants={itemVariants}
               >
-                <FaExchangeAlt size={16} />
-              </button>
-            </div>
-
-            {/* To Token */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                To
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={toAmount}
-                  readOnly
-                  placeholder="0.0"
-                  className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                />
-                <button
-                  onClick={() => {
-                    setActiveSide('to');
-                    setShowTokenSelector(true);
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  From
+                </label>
+                <motion.div 
+                  className="relative"
+                  whileHover={{ scale: 1.01 }}
+                  transition={{ type: "spring", stiffness: 300 }}
                 >
-                  {toToken ? (
-                    <div className="flex items-center gap-2">
-                      <img src={getTokenLogo(toToken)} alt={toToken.symbol} className="w-5 h-5" />
-                      <span>{toToken.symbol}</span>
-                    </div>
-                  ) : (
-                    'Select Token'
-                  )}
-                </button>
-              </div>
-              {toToken && <TokenBalance token={toToken} />}
-            </div>
+                  <input
+                    type="text"
+                    value={fromAmount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        setFromAmount(value);
+                      }
+                    }}
+                    placeholder="0.0"
+                    className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  />
+                  <motion.button
+                    onClick={() => {
+                      setActiveSide('from');
+                      setShowTokenSelector(true);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
+                    variants={buttonVariants}
+                    whileHover="hover"
+                    whileTap="tap"
+                  >
+                    {fromToken ? (
+                      <div className="flex items-center gap-2">
+                        <img src={getTokenLogo(fromToken)} alt={fromToken.symbol} className="w-5 h-5" />
+                        <span>{fromToken.symbol}</span>
+                      </div>
+                    ) : (
+                      'Select Token'
+                    )}
+                  </motion.button>
+                </motion.div>
+                {fromToken && <TokenBalance token={fromToken} />}
+              </motion.div>
 
-            {/* Trade Details Section */}
-            <div className="mt-4 p-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
-              {/* Compact View (Always Visible) */}
-              <div className="space-y-2 text-sm mb-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Fee (0.3%)</span>
-                    <span className="text-gray-500 cursor-help" title="A portion of each trade (0.3%) goes to liquidity providers as a protocol incentive.">ⓘ</span>
-                  </div>
-                  <span className="text-gray-200">
-                    {fromAmount ? `${(Number(fromAmount) * 0.003).toFixed(6)} ${fromToken?.symbol}` : '--'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-500">Network cost</span>
-                    <span className="text-gray-500 cursor-help" title="Estimated cost of the transaction on Ethereum">ⓘ</span>
-                  </div>
-                  <span className="text-gray-200">Check wallet for gas cost</span>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-gray-200 dark:border-gray-800 my-2"></div>
-
-              {/* Show More Button */}
-              <button
-                onClick={() => setShowMoreDetails(!showMoreDetails)}
-                className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-400"
+              {/* Swap Icon */}
+              <motion.div 
+                className="flex justify-center my-4"
+                variants={itemVariants}
               >
-                {showMoreDetails ? 'Hide Details' : 'Show Details'} 
-                <svg
-                  className={`w-4 h-4 transition-transform ${showMoreDetails ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <motion.button
+                  onClick={() => {
+                    const tempToken = fromToken;
+                    const tempAmount = fromAmount;
+                    setFromToken(toToken);
+                    setFromAmount(toAmount);
+                    setToToken(tempToken);
+                    setToAmount(tempAmount);
+                  }}
+                  className="p-2.5 rounded-xl bg-[#00ffbd]/10 text-[#00ffbd] hover:bg-[#00ffbd]/20 transition-colors border border-[#00ffbd]/20"
+                  whileHover={{ rotate: 180 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 10 }}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+                  <FaExchangeAlt size={16} />
+                </motion.button>
+              </motion.div>
 
-              {/* Expanded Details */}
-              {showMoreDetails && (
-                <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-800">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Expected Output</span>
-                    <span className="text-gray-200">{toAmount} {toToken?.symbol}</span>
-                  </div>
+              {/* To Token */}
+              <motion.div 
+                className="space-y-2"
+                variants={itemVariants}
+              >
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  To
+                </label>
+                <motion.div 
+                  className="relative"
+                  whileHover={{ scale: 1.01 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <input
+                    type="text"
+                    value={toAmount}
+                    readOnly
+                    placeholder="0.0"
+                    className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  />
+                  <motion.button
+                    onClick={() => {
+                      setActiveSide('to');
+                      setShowTokenSelector(true);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
+                    variants={buttonVariants}
+                    whileHover="hover"
+                    whileTap="tap"
+                  >
+                    {toToken ? (
+                      <div className="flex items-center gap-2">
+                        <img src={getTokenLogo(toToken)} alt={toToken.symbol} className="w-5 h-5" />
+                        <span>{toToken.symbol}</span>
+                      </div>
+                    ) : (
+                      'Select Token'
+                    )}
+                  </motion.button>
+                </motion.div>
+                {toToken && <TokenBalance token={toToken} />}
+              </motion.div>
 
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Minimum received after slippage ({slippage}%)</span>
-                    <span className="text-gray-200">
-                      {toAmount && Number(toAmount * (1 - slippage/100)).toFixed(6)} {toToken?.symbol}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Route</span>
-                    <span className="text-gray-200">{route || '--'}</span>
-                  </div>
-
-                  {exchangeRate && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Rate</span>
+              {/* Trade Details Section */}
+              <AnimatePresence>
+                <motion.div 
+                  className="mt-4 p-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800"
+                  variants={itemVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                >
+                  {/* Compact View (Always Visible) */}
+                  <div className="space-y-2 text-sm mb-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">Fee (0.3%)</span>
+                        <span className="text-gray-500 cursor-help" title="A portion of each trade (0.3%) goes to liquidity providers as a protocol incentive.">ⓘ</span>
+                      </div>
                       <span className="text-gray-200">
-                        1 {fromToken?.symbol} = {exchangeRate.toFixed(6)} {toToken?.symbol}
+                        {fromAmount ? `${(Number(fromAmount) * 0.003).toFixed(6)} ${fromToken?.symbol}` : '--'}
                       </span>
                     </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">Network cost</span>
+                        <span className="text-gray-500 cursor-help" title="Estimated cost of the transaction on Ethereum">ⓘ</span>
+                      </div>
+                      <span className="text-gray-200">Check wallet for gas cost</span>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-gray-200 dark:border-gray-800 my-2"></div>
+
+                  {/* Show More Button */}
+                  <button
+                    onClick={() => setShowMoreDetails(!showMoreDetails)}
+                    className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-400"
+                  >
+                    {showMoreDetails ? 'Hide Details' : 'Show Details'} 
+                    <svg
+                      className={`w-4 h-4 transition-transform ${showMoreDetails ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Expanded Details */}
+                  {showMoreDetails && (
+                    <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-800">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Expected Output</span>
+                        <span className="text-gray-200">{toAmount} {toToken?.symbol}</span>
+                      </div>
+
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Minimum received after slippage ({slippage}%)</span>
+                        <span className="text-gray-200">
+                          {toAmount && Number(toAmount * (1 - slippage/100)).toFixed(6)} {toToken?.symbol}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Route</span>
+                        <span className="text-gray-200">{route || '--'}</span>
+                      </div>
+
+                      {exchangeRate && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Rate</span>
+                          <span className="text-gray-200">
+                            1 {fromToken?.symbol} = {exchangeRate.toFixed(6)} {toToken?.symbol}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-            </div>
-          </>
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
+          </AnimatePresence>
         )}
-      </div>
+      </motion.div>
 
       {/* Slippage Settings */}
-      <div className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800">
+      <motion.div 
+        className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800"
+        variants={itemVariants}
+      >
         <div className="flex flex-col space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -1300,10 +1410,10 @@ export default function TokenSwap() {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Single Action Button */}
-      <button
+      <motion.button
         onClick={isWrapUnwrapOperation() ? handleWrapUnwrap : handleSwap}
         disabled={loading || !fromToken || !toToken || !fromAmount || (!toAmount && !isWrapUnwrapOperation())}
         className={`
@@ -1313,9 +1423,12 @@ export default function TokenSwap() {
             : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors text-black'
           }
         `}
+        variants={buttonVariants}
+        whileHover="hover"
+        whileTap="tap"
       >
         {getActionButtonText()}
-      </button>
+      </motion.button>
 
       {/* Token Selector Modal */}
       <TokenSelector
@@ -1356,6 +1469,6 @@ export default function TokenSwap() {
         onClose={() => setShowRatingModal(false)}
         onRate={handleRating}
       />
-    </div>
+    </motion.div>
   );
 } 
