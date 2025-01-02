@@ -735,17 +735,24 @@ export default function PoolCreation({ setActiveTab }) {
   // Handle amount changes
   const handleAmount0Change = (value) => {
     setAmount0(value);
-    if (value && priceRatio) {
-      const calculatedAmount1 = (parseFloat(value) * priceRatio).toString();
-      setAmount1(calculatedAmount1);
+    if (value && token0 && token1) {
+      // Update price info when amount0 changes
+      const calculatedAmount1 = amount1 || value; // Use existing amount1 or same as input
+      setPriceInfo({
+        token0Price: parseFloat(calculatedAmount1) / parseFloat(value),
+        token1Price: parseFloat(value) / parseFloat(calculatedAmount1)
+      });
     }
   };
 
   const handleAmount1Change = (value) => {
     setAmount1(value);
-    if (value && amount0) {
-      const newRatio = parseFloat(value) / parseFloat(amount0);
-      setPriceRatio(newRatio);
+    if (value && token0 && token1 && amount0) {
+      // Update price info when amount1 changes
+      setPriceInfo({
+        token0Price: parseFloat(value) / parseFloat(amount0),
+        token1Price: parseFloat(amount0) / parseFloat(value)
+      });
     }
   };
 
@@ -1082,6 +1089,37 @@ export default function PoolCreation({ setActiveTab }) {
                   />
                 )}
               </motion.div>
+
+              {/* Add Price Information Display right after Token 2 */}
+              {priceInfo && token0 && token1 && amount0 && amount1 && (
+                <motion.div
+                  variants={itemVariants}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 p-4 bg-white/5 dark:bg-[#2d2f36]/50 rounded-xl border border-gray-200 dark:border-gray-700"
+                >
+                  <div className="mb-2">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Initial Prices</h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                      The ratio of tokens you add will set the initial price of the pool.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-white/5 dark:bg-black/20 p-2 rounded-lg">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">1 {token0.symbol} =</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {priceInfo.token0Price.toFixed(6)} {token1.symbol}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/5 dark:bg-black/20 p-2 rounded-lg">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">1 {token1.symbol} =</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {priceInfo.token1Price.toFixed(6)} {token0.symbol}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {/* Fee Tier Selection */}
               <motion.div variants={itemVariants} className="mt-6 space-y-2">
