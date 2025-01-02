@@ -154,7 +154,7 @@ const Icons = {
 };
 
 // Add PoolProgressModal component
-const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNewPool, error }) => {
+const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNewPool, error, poolExists, setActiveTab }) => {
   const steps = [
     { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
     { id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> },
@@ -165,23 +165,7 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
   ];
 
   const isError = Boolean(error);
-
-  // Format error message to be more user-friendly
-  const formatErrorMessage = (error) => {
-    if (error?.includes('user rejected')) {
-      return 'Transaction was rejected. Please try again.';
-    }
-    if (error?.includes('insufficient')) {
-      return 'Insufficient balance for transaction.';
-    }
-    if (error?.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
-      return 'Price impact too high, try a smaller amount.';
-    }
-    if (error?.includes('EXCESSIVE_INPUT_AMOUNT')) {
-      return 'Insufficient liquidity for this trade.';
-    }
-    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
-  };
+  const isExistingPool = error === 'pool exists';
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -214,16 +198,17 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  {error?.includes('pool exists') ? 'Pool Already Exists' : (isNewPool ? 'Creating New Pool' : 'Adding Initial Liquidity')}
-                  {!error && token0 && token1 && (
-                    <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
-                      {token0.symbol} + {token1.symbol}
-                    </div>
-                  )}
+                  {isExistingPool ? 'Pool Already Exists' : (isNewPool ? 'Creating New Pool' : 'Adding Initial Liquidity')}
                 </Dialog.Title>
 
-                {error?.includes('pool exists') ? (
-                  <ExistingPoolMessage token0={token0} token1={token1} poolAddress={poolExists.address} onClose={onClose} setActiveTab={setActiveTab} />
+                {isExistingPool && poolExists ? (
+                  <ExistingPoolMessage 
+                    token0={token0} 
+                    token1={token1} 
+                    poolAddress={poolExists.address} 
+                    onClose={onClose} 
+                    setActiveTab={setActiveTab} 
+                  />
                 ) : (
                   <div className="space-y-4">
                     {steps.map((step, index) => {
@@ -248,12 +233,10 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                 {step.id === 'preparing' && 'Preparing transaction...'}
                                 {step.id === 'approval' && `Approving ${token0?.symbol} and ${token1?.symbol}`}
-                                {step.id === 'creating' && `Creating ${token0?.symbol}/${token1?.symbol} pool`}
-                                {step.id === 'adding' && `Adding liquidity for ${token0?.symbol}/${token1?.symbol}`}
+                                {step.id === 'creating' && 'Creating new liquidity pool...'}
+                                {step.id === 'adding' && 'Adding initial liquidity...'}
                                 {step.id === 'confirming' && 'Waiting for confirmation...'}
-                                {step.id === 'completed' && (isNewPool 
-                                  ? `Successfully created ${token0?.symbol}/${token1?.symbol} pool!`
-                                  : `Successfully added liquidity to ${token0?.symbol}/${token1?.symbol} pool!`)}
+                                {step.id === 'completed' && 'Transaction completed!'}
                               </p>
                             )}
                           </div>
@@ -265,39 +248,6 @@ const PoolProgressModal = ({ isOpen, onClose, currentStep, token0, token1, isNew
                         </div>
                       );
                     })}
-                  </div>
-                )}
-
-                {isError && (
-                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-                    <div className="flex items-start gap-3">
-                      <Icons.Error />
-                      <div className="flex-1">
-                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
-                        <p className="mt-1 text-sm text-red-400">
-                          {formatErrorMessage(error)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {currentStep === 'completed' && (
-                  <div className="mt-6">
-                    <button
-                      onClick={onClose}
-                      className="w-full px-4 py-3 rounded-xl font-medium bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors text-black"
-                    >
-                      Close
-                    </button>
                   </div>
                 )}
               </Dialog.Panel>
@@ -411,56 +361,69 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
 };
 
 const ExistingPoolMessage = ({ token0, token1, poolAddress, onClose, setActiveTab }) => {
-  const handleNavigate = () => {
-    setActiveTab('liquidity', { 
+  const navigate = useNavigate();
+
+  const handleAddLiquidity = () => {
+    onClose();
+    // Set the active tab to 'liquidity'
+    setActiveTab('liquidity', {
       selectedTokens: { token0, token1 },
       poolAddress: poolAddress
     });
-    onClose();
+  };
+
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(poolAddress);
+    toast.success('Pool address copied to clipboard!', {
+      style: {
+        borderRadius: '10px',
+        background: '#333',
+        color: '#fff',
+      },
+    });
   };
 
   return (
-    <div className="text-center py-6">
-      <div className="mb-4">
-        <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center bg-[#00ffbd]/10">
-          <svg className="w-6 h-6 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="space-y-4">
+      <div className="p-4 rounded-xl bg-[#00ffbd]/5 dark:bg-[#00ffbd]/10 border border-[#00ffbd]/10 dark:border-[#00ffbd]/20">
+        <div className="flex items-start gap-3">
+          <svg className="w-5 h-5 text-[#00ffbd] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Pool Already Exists</h3>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+              A liquidity pool for {token0?.symbol}/{token1?.symbol} already exists.
+            </p>
+            <div className="mt-2 p-2 bg-white/50 dark:bg-black/50 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Pool Address:</span>
+                <button 
+                  onClick={handleCopyAddress} 
+                  className="text-xs text-[#00ffbd] hover:text-[#00ffbd]/80 transition-colors truncate"
+                  title={poolAddress}
+                >
+                  {poolAddress.slice(0, 6)}...{poolAddress.slice(-4)} (Click to Copy)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAddLiquidity}
+            className="px-4 py-2 text-sm font-medium text-black dark:text-black bg-[#00ffbd] rounded-lg hover:bg-[#00ffbd]/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00ffbd] focus-visible:ring-offset-2 transition-colors"
+          >
+            Add Liquidity
+          </button>
         </div>
       </div>
-      <h3 className="text-xl font-semibold text-white mb-2">
-        Pool Already Exists
-      </h3>
-      <p className="text-gray-400 mb-4">
-        A pool for {token0?.symbol}/{token1?.symbol} already exists. You can add or remove liquidity from the existing pool.
-      </p>
-      <div className="mb-2">
-        <p className="text-gray-400 text-sm mb-1">Pool Address (click to copy):</p>
-        <div 
-          onClick={() => {
-            navigator.clipboard.writeText(poolAddress);
-            toast.success('Pool address copied to clipboard!', {
-              style: {
-                borderRadius: '10px',
-                background: '#333',
-                color: '#fff',
-              },
-            });
-          }}
-          className="font-mono text-gray-300 bg-gray-800/50 py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors mb-2 break-all"
-        >
-          {poolAddress}
-        </div>
-        <p className="text-sm text-gray-500 italic">
-          To add liquidity, click the button below and paste this address in the search bar of the Add/Remove Liquidity section.
-        </p>
-      </div>
-      <button
-        onClick={handleNavigate}
-        className="px-6 py-3 font-semibold rounded-xl transition-colors bg-[#00ffbd] hover:bg-[#00e6a9] text-black"
-      >
-        Go to Add/Remove Liquidity
-      </button>
     </div>
   );
 };
@@ -522,7 +485,7 @@ const buttonVariants = {
 };
 
 export default function PoolCreation({ setActiveTab }) {
-  const { address: account, isConnected } = useAccount();
+  const { address: isConnected } = useAccount();
   const { open: openConnectModal } = useWeb3Modal();
   const navigate = useNavigate();
   const [currentChainId, setCurrentChainId] = useState(null);
@@ -543,39 +506,11 @@ export default function PoolCreation({ setActiveTab }) {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [error, setError] = useState(null);
-  const [poolExists, setPoolExists] = useState(false);
+  const [poolExists, setPoolExists] = useState(null);
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
   });
-
-  // Check if pool exists when tokens are selected
-  useEffect(() => {
-    async function checkPool() {
-      if (token0 && token1) {
-        try {
-          const exists = await uniswap.checkPoolExists(token0.address, token1.address);
-          if (exists) {
-            // Get the pool address directly
-            const factoryAddress = await uniswap.router.factory();
-            const factory = new ethers.Contract(
-              factoryAddress,
-              ['function getPair(address, address) view returns (address)'],
-              uniswap.provider
-            );
-            const poolAddress = await factory.getPair(token0.address, token1.address);
-            setPoolExists({ exists: true, address: poolAddress });
-          } else {
-            setPoolExists(false);
-          }
-        } catch (error) {
-          console.error('Error checking pool:', error);
-          setPoolExists(false);
-        }
-      }
-    }
-    checkPool();
-  }, [token0, token1, uniswap]);
 
   // Add useEffect to get chain ID and listen for changes
   useEffect(() => {
@@ -617,50 +552,82 @@ export default function PoolCreation({ setActiveTab }) {
         return;
       }
 
+      let selectedToken;
       if (token.symbol === 'ETH') {
-        setToken0({
+        selectedToken = {
           ...token,
           address: UNISWAP_ADDRESSES.WETH,
           decimals: 18
-        });
+        };
       } else {
         // Try to get token info from Firebase first
         try {
           const tokenDeployment = await getTokenDeploymentByAddress(token.address);
           if (tokenDeployment) {
-            setToken0({
+            selectedToken = {
               ...token,
               name: tokenDeployment.name,
               symbol: tokenDeployment.symbol,
               decimals: tokenDeployment.decimals || 18,
               logo: tokenDeployment.logo,
               logoIpfs: tokenDeployment.logoIpfs
-            });
+            };
           } else {
             // Fallback to contract info
             const tokenInfo = await uniswap.getTokenInfo(token.address);
-            setToken0({ 
+            selectedToken = { 
               ...token,
               ...tokenInfo,
               name: token.name || tokenInfo.name,
               symbol: token.symbol || tokenInfo.symbol,
-              logo: token.logo || '/token-placeholder.png'  // Add fallback logo
-            });
+              logo: token.logo || '/token-placeholder.png'
+            };
           }
         } catch (firebaseError) {
           console.warn('Firebase fetch failed, falling back to contract:', firebaseError);
-          // Fallback to contract info
           const tokenInfo = await uniswap.getTokenInfo(token.address);
-          setToken0({ 
+          selectedToken = { 
             ...token,
             ...tokenInfo,
             name: token.name || tokenInfo.name,
             symbol: token.symbol || tokenInfo.symbol,
-            logo: token.logo || '/token-placeholder.png'  // Add fallback logo
-          });
+            logo: token.logo || '/token-placeholder.png'
+          };
         }
       }
+      
+      setToken0(selectedToken);
       setShowToken0Modal(false);
+
+      // Check for pool existence if both tokens are selected
+      if (token1) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const factoryContract = new ethers.Contract(
+          '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+          ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
+          provider
+        );
+        
+        console.log('Checking pool existence for:', {
+          token0: selectedToken.address,
+          token1: token1.address
+        });
+        
+        const poolAddress = await factoryContract.getPair(selectedToken.address, token1.address);
+        console.log('Pool address:', poolAddress);
+        
+        if (poolAddress && poolAddress !== ethers.ZeroAddress) {
+          console.log('Pool exists at address:', poolAddress);
+          setPoolExists({ address: poolAddress });
+          setError('pool exists');
+          setShowProgressModal(true);
+          setCurrentStep('preparing');
+        } else {
+          console.log('Pool does not exist');
+          setPoolExists(null);
+          setError(null);
+        }
+      }
     } catch (error) {
       console.error('Error selecting token:', error);
       toast.error('Failed to load token information. Please try again.');
@@ -682,50 +649,82 @@ export default function PoolCreation({ setActiveTab }) {
         return;
       }
 
+      let selectedToken;
       if (token.symbol === 'ETH') {
-        setToken1({
+        selectedToken = {
           ...token,
           address: UNISWAP_ADDRESSES.WETH,
           decimals: 18
-        });
+        };
       } else {
         // Try to get token info from Firebase first
         try {
           const tokenDeployment = await getTokenDeploymentByAddress(token.address);
           if (tokenDeployment) {
-            setToken1({
+            selectedToken = {
               ...token,
               name: tokenDeployment.name,
               symbol: tokenDeployment.symbol,
               decimals: tokenDeployment.decimals || 18,
               logo: tokenDeployment.logo,
               logoIpfs: tokenDeployment.logoIpfs
-            });
+            };
           } else {
             // Fallback to contract info
             const tokenInfo = await uniswap.getTokenInfo(token.address);
-            setToken1({ 
+            selectedToken = { 
               ...token,
               ...tokenInfo,
               name: token.name || tokenInfo.name,
               symbol: token.symbol || tokenInfo.symbol,
-              logo: token.logo || '/token-placeholder.png'  // Add fallback logo
-            });
+              logo: token.logo || '/token-placeholder.png'
+            };
           }
         } catch (firebaseError) {
           console.warn('Firebase fetch failed, falling back to contract:', firebaseError);
-          // Fallback to contract info
           const tokenInfo = await uniswap.getTokenInfo(token.address);
-          setToken1({ 
+          selectedToken = { 
             ...token,
             ...tokenInfo,
             name: token.name || tokenInfo.name,
             symbol: token.symbol || tokenInfo.symbol,
-            logo: token.logo || '/token-placeholder.png'  // Add fallback logo
-          });
+            logo: token.logo || '/token-placeholder.png'
+          };
         }
       }
+      
+      setToken1(selectedToken);
       setShowToken1Modal(false);
+
+      // Check for pool existence if both tokens are selected
+      if (token0) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const factoryContract = new ethers.Contract(
+          '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+          ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
+          provider
+        );
+        
+        console.log('Checking pool existence for:', {
+          token0: token0.address,
+          token1: selectedToken.address
+        });
+        
+        const poolAddress = await factoryContract.getPair(token0.address, selectedToken.address);
+        console.log('Pool address:', poolAddress);
+        
+        if (poolAddress && poolAddress !== ethers.ZeroAddress) {
+          console.log('Pool exists at address:', poolAddress);
+          setPoolExists({ address: poolAddress });
+          setError('pool exists');
+          setShowProgressModal(true);
+          setCurrentStep('preparing');
+        } else {
+          console.log('Pool does not exist');
+          setPoolExists(null);
+          setError(null);
+        }
+      }
     } catch (error) {
       console.error('Error selecting token:', error);
       toast.error('Failed to load token information. Please try again.');
@@ -788,14 +787,6 @@ export default function PoolCreation({ setActiveTab }) {
       return;
     }
 
-    // Check for WETH at the start
-    if (token0?.symbol === 'WETH' || token1?.symbol === 'WETH') {
-      setError('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.');
-      setShowProgressModal(true);
-      setCurrentStep('preparing');
-      return;
-    }
-
     if (!amount0 || !amount1) {
       setError('Please enter both amounts');
       setShowProgressModal(true);
@@ -809,26 +800,36 @@ export default function PoolCreation({ setActiveTab }) {
     setError(null);
     
     try {
+      // Check if pool exists FIRST
+      const provider = new ethers.JsonRpcProvider(window.ethereum);
+      const factoryContract = new ethers.Contract(
+        '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+        ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
+        provider
+      );
+      
+      const poolAddress = await factoryContract.getPair(token0.address, token1.address);
+      console.log('Pool address:', poolAddress);
+      
+      if (poolAddress && poolAddress !== ethers.ZeroAddress) {
+        console.log('Pool exists at address:', poolAddress);
+        setPoolExists({ address: poolAddress });
+        setError('pool exists');
+        setCurrentStep('preparing');
+        setLoading(false);
+        return;
+      }
+
+      // Continue with pool creation if pool doesn't exist
+      console.log('Creating new pool...');
+      setIsNewPool(true);
+      setCurrentStep('approval');
+      
       // Parse amounts
       const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
       const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
 
-      // Check if pool exists
-      const poolExists = await uniswap.checkPoolExists(token0.address, token1.address);
-      
-      if (poolExists) {
-        setError(`pool exists: ${token0.symbol}/${token1.symbol}`);
-        setCurrentStep('preparing');
-        return;
-      }
-
-      setIsNewPool(true);
-      setCurrentStep('approval');
-      
       // Create pool and add liquidity
-      setCurrentStep('creating');
-      
-      setCurrentStep('adding');
       const result = await uniswap.createPool(
         token0.address,
         token1.address,
@@ -836,39 +837,26 @@ export default function PoolCreation({ setActiveTab }) {
         parsedAmount1
       );
 
-      setCurrentStep('confirming');
-      // Add small delay to show confirming state
-      await new Promise(resolve => setTimeout(resolve, 1000));
       setCurrentStep('completed');
       
       // Show completed state briefly, then close modal and show confetti
       setTimeout(() => {
         setShowProgressModal(false);
         setCurrentStep(null);
+        setShowConfetti(true);
         
-        // Show confetti after modal is closed
+        // Show rating modal after a short delay
         setTimeout(() => {
-          setShowConfetti(true);
-          
-          // Show rating modal after a short delay
-          setTimeout(() => {
-            setShowRatingModal(true);
-          }, 1000);
-          
-          // Reset form and cleanup after confetti
-          setTimeout(() => {
-            setAmount0('');
-            setAmount1('');
-            setShowConfetti(false);
-          }, 30000);
-        }, 100);
+          setShowRatingModal(true);
+        }, 1000);
+        
+        // Reset form and cleanup after confetti
+        setTimeout(() => {
+          setAmount0('');
+          setAmount1('');
+          setShowConfetti(false);
+        }, 30000);
       }, 1000);
-      
-      // Reset form
-      setAmount0('');
-      setAmount1('');
-      setToken0(null);
-      setToken1(null);
     } catch (error) {
       console.error('Error creating pool:', error);
       setError(error.message);
@@ -1199,6 +1187,8 @@ export default function PoolCreation({ setActiveTab }) {
         token1={token1}
         isNewPool={isNewPool}
         error={error}
+        poolExists={poolExists}
+        setActiveTab={setActiveTab}
       />
       <StarRatingModal
         isOpen={showRatingModal}
