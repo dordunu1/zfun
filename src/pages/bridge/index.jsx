@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
 import { ethers } from 'ethers';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { useUnichain } from '../../hooks/useUnichain';
 import { useWeb3Modal } from '@web3modal/react';
-import { BiWallet, BiTime } from 'react-icons/bi';
+import { BiWallet, BiTime, BiChevronDown } from 'react-icons/bi';
 import { FaGasPump, FaArrowRight, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
 import { CheckIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { createPortal } from 'react-dom';
 
 const L1_BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
 
@@ -258,49 +259,49 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all border border-gray-200 dark:border-gray-800">
-                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
-                  Accept terms
-                </Dialog.Title>
-                <div className="mt-2">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-transparent p-6 text-left align-middle shadow-xl transition-all">
+                <div className="bg-gray-50/80 dark:bg-gray-800/80 rounded-xl p-4 mb-6">
+                  <Dialog.Title as="h3" className="text-xl font-bold text-gray-900 dark:text-white">
+                    Accept terms
+                  </Dialog.Title>
+                  <p className="text-base text-gray-700 dark:text-gray-400 mt-2">
                     Please read and agree to the following terms before you continue
                   </p>
-                  <div className="space-y-4">
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
-                        checked={acceptedTerms.time}
-                        onChange={(e) => setAcceptedTerms(prev => ({ ...prev, time: e.target.checked }))}
-                      />
-                      <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                        I understand it will take ~3 mins until my funds are on Unichain Sepolia
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
-                        checked={acceptedTerms.cancellation}
-                        onChange={(e) => setAcceptedTerms(prev => ({ ...prev, cancellation: e.target.checked }))}
-                      />
-                      <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                        I understand once a bridge is initiated it cannot be sped up or cancelled
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-3 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
-                        checked={acceptedTerms.fees}
-                        onChange={(e) => setAcceptedTerms(prev => ({ ...prev, fees: e.target.checked }))}
-                      />
-                      <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                        I understand network fees are approximate and will change
-                      </span>
-                    </label>
-                  </div>
+                </div>
+                <div className="space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer group bg-gray-50/80 dark:bg-gray-800/80 rounded-xl p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
+                      checked={acceptedTerms.time}
+                      onChange={(e) => setAcceptedTerms(prev => ({ ...prev, time: e.target.checked }))}
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                      I understand it will take ~3 mins until my funds are on Unichain Sepolia
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer group bg-gray-50/80 dark:bg-gray-800/80 rounded-xl p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
+                      checked={acceptedTerms.cancellation}
+                      onChange={(e) => setAcceptedTerms(prev => ({ ...prev, cancellation: e.target.checked }))}
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                      I understand once a bridge is initiated it cannot be sped up or cancelled
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer group bg-gray-50/80 dark:bg-gray-800/80 rounded-xl p-4">
+                    <input
+                      type="checkbox"
+                      className="mt-1 w-4 h-4 text-[#00ffbd] bg-gray-100 dark:bg-[#2d2f36] border-gray-300 dark:border-gray-600 rounded focus:ring-[#00ffbd] focus:ring-offset-0 focus:ring-2 dark:focus:ring-offset-[#1a1b1f] transition-colors cursor-pointer"
+                      checked={acceptedTerms.fees}
+                      onChange={(e) => setAcceptedTerms(prev => ({ ...prev, fees: e.target.checked }))}
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                      I understand network fees are approximate and will change
+                    </span>
+                  </label>
                 </div>
 
                 <div className="mt-6">
@@ -325,6 +326,54 @@ const TermsModal = ({ isOpen, onClose, onAccept }) => {
     </Transition>
   );
 };
+
+const SkeletonHistoryItem = () => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-5"
+  >
+    <div className="space-y-4">
+      {/* Header with amount and time */}
+      <div className="flex justify-between items-start">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          <div className="w-24 h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+        <div className="flex flex-col items-end">
+          <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-1" />
+          <div className="w-32 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+      </div>
+
+      {/* Network flow */}
+      <div className="flex items-center justify-between bg-white/50 dark:bg-black/20 p-2 rounded-lg">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+        <div className="w-3 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          <div className="w-24 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+      </div>
+
+      {/* Transaction details */}
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="w-24 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+        <div className="flex justify-between">
+          <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  </motion.div>
+);
 
 const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentStep, setTxHash }) => {
   const [activities, setActivities] = useState([]);
@@ -438,7 +487,22 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
           };
         }));
 
-      setActivities(formattedActivities.sort((a, b) => b.timestamp - a.timestamp));
+      // Sort activities: pending/processing first, then by timestamp
+      const sortedActivities = formattedActivities.sort((a, b) => {
+        // First, sort by status (pending/processing at top)
+        if ((a.status === 'pending' || a.status === 'processing') && 
+            (b.status !== 'pending' && b.status !== 'processing')) {
+          return -1;
+        }
+        if ((b.status === 'pending' || b.status === 'processing') && 
+            (a.status !== 'pending' && a.status !== 'processing')) {
+          return 1;
+        }
+        // Then by timestamp (newest first)
+        return b.timestamp - a.timestamp;
+      });
+
+      setActivities(sortedActivities);
     } catch (error) {
       console.error('Error fetching bridge history:', error);
       toast.error('Failed to load bridge history');
@@ -462,6 +526,39 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
   const formatTxHash = (hash) => {
     if (!hash) return '';
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+  };
+
+  const formatDate = (timestamp, status) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 24) {
+      // If less than 24 hours ago, show relative time
+      if (diffInHours < 1) {
+        const minutes = Math.floor((now - date) / (1000 * 60));
+        if (minutes < 1) {
+          return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: true
+          });
+        }
+        return `${minutes} minutes ago`;
+      }
+      return `${diffInHours} hours ago`;
+    } else {
+      // Otherwise show formatted date
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      });
+    }
   };
 
   return (
@@ -490,7 +587,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-transparent p-6 text-left align-middle shadow-xl transition-all">
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white">
@@ -507,13 +604,12 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                   </button>
                 </div>
 
-                <div className="space-y-4 mt-6">
+                <div className="space-y-8 mt-6">
                   {isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
-                        <span className="text-gray-500 dark:text-gray-400">Loading history...</span>
-                      </div>
+                    <div className="space-y-4 mt-6">
+                      {[1, 2, 3].map((i) => (
+                        <SkeletonHistoryItem key={i} />
+                      ))}
                     </div>
                   ) : activities.length === 0 ? (
                     <div className="text-center py-8">
@@ -525,106 +621,118 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
                       </p>
                     </div>
                   ) : (
-                    activities.map((activity, index) => (
-                      <div
-                        key={activity.txHash}
-                        className="bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-5 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors"
-                      >
-                        <div className="space-y-4">
-                          {/* Header with amount and time */}
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-2">
-                              <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
-                              <span className="text-xl font-bold text-gray-900 dark:text-white">{activity.amount} ETH</span>
-                            </div>
-                            <div className="flex flex-col items-end">
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {new Date(activity.timestamp).toLocaleString()}
-                              </span>
-                              <div className="flex items-center gap-2 text-[#00ffbd] mt-1">
-                                {activity.status === 'complete' ? (
-                                  <>
-                                    <CheckIcon className="h-4 w-4" />
-                                    <span className="text-sm">Bridge successful</span>
-                                  </>
-                                ) : activity.status === 'failed' ? (
-                                  <>
-                                    <XMarkIcon className="h-4 w-4 text-red-500" />
-                                    <span className="text-sm text-red-500">Bridge failed</span>
-                                  </>
-                                ) : activity.status === 'processing' ? (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
-                                    <span className="text-sm">Processing ({3 - activity.minutesPassed} mins left)</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
-                                    <span className="text-sm">Pending confirmation</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Network flow */}
-                          <div className="flex items-center justify-between bg-white/50 dark:bg-black/20 p-2 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <img src="/sepolia-logo.png" alt="From" className="w-5 h-5" />
-                              <span className="text-sm text-gray-600 dark:text-gray-400">Sepolia</span>
-                            </div>
-                            <FaArrowRight className="text-[#00ffbd]" size={12} />
-                            <div className="flex items-center gap-2">
-                              <img src="/unichain-logo.png" alt="To" className="w-5 h-5" />
-                              <span className="text-sm text-gray-600 dark:text-gray-400">Unichain Sepolia</span>
-                            </div>
-                          </div>
-
-                          {/* Transaction details */}
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-500 dark:text-gray-400">Network Fee</span>
-                              <span className="text-gray-900 dark:text-white">{parseFloat(activity.bridgeFee).toFixed(6)} ETH</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-500 dark:text-gray-400">Gas Price</span>
-                              <span className="text-gray-900 dark:text-white">{activity.gasPrice} Gwei</span>
-                            </div>
-                            
-                            {/* Transaction hash with link and Via Native Bridge */}
-                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                                <span>Via Native Bridge</span>
-                                <div className="flex items-center">
-                                  <img 
-                                    src="/sepolia-logo.png"
-                                    alt="Sepolia"
-                                    className="w-4 h-4"
-                                  />
-                                  <img 
-                                    src="/unichain-logo.png"
-                                    alt="Unichain"
-                                    className="w-4 h-4 -ml-1"
-                                  />
+                    <div className="space-y-8 mt-6">
+                      <AnimatePresence mode="popLayout">
+                        {activities.map((activity, index) => (
+                          <motion.div
+                            key={activity.txHash}
+                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                            transition={{ 
+                              duration: 0.3,
+                              delay: index * 0.1,
+                              ease: "easeOut"
+                            }}
+                            className="bg-gray-50/80 dark:bg-gray-800/80 rounded-xl p-5"
+                          >
+                            <div className="space-y-4">
+                              {/* Header with amount and time */}
+                              <div className="flex justify-between items-start">
+                                <div className="flex items-center gap-2">
+                                  <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
+                                  <span className="text-xl font-bold text-gray-900 dark:text-white">{activity.amount} ETH</span>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                                    {formatDate(activity.timestamp, activity.status)}
+                                  </span>
+                                  <div className="flex items-center gap-2 text-[#00ffbd] mt-1">
+                                    {activity.status === 'complete' ? (
+                                      <>
+                                        <CheckIcon className="h-4 w-4" />
+                                        <span className="text-sm">Bridge successful</span>
+                                      </>
+                                    ) : activity.status === 'failed' ? (
+                                      <>
+                                        <XMarkIcon className="h-4 w-4 text-red-500" />
+                                        <span className="text-sm text-red-500">Bridge failed</span>
+                                      </>
+                                    ) : activity.status === 'processing' ? (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
+                                        <span className="text-sm">Processing ({3 - activity.minutesPassed} mins left)</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
+                                        <span className="text-sm">Pending confirmation</span>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                              <a
-                                href={`https://sepolia.etherscan.io/tx/${activity.txHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-[#00ffbd] hover:text-[#00e6a9] flex items-center gap-2"
-                              >
-                                <span>View transaction</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                                </svg>
-                              </a>
+
+                              {/* Network flow */}
+                              <div className="flex items-center justify-between bg-white/80 dark:bg-black/20 p-2 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <img src="/sepolia-logo.png" alt="From" className="w-5 h-5" />
+                                  <span className="text-sm text-gray-700 dark:text-gray-400">Sepolia</span>
+                                </div>
+                                <FaArrowRight className="text-[#00ffbd]" size={12} />
+                                <div className="flex items-center gap-2">
+                                  <img src="/unichain-logo.png" alt="To" className="w-5 h-5" />
+                                  <span className="text-sm text-gray-700 dark:text-gray-400">Unichain Sepolia</span>
+                                </div>
+                              </div>
+
+                              {/* Transaction details */}
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600 dark:text-gray-400">Network Fee</span>
+                                  <span className="text-gray-900 dark:text-white">{parseFloat(activity.bridgeFee).toFixed(6)} ETH</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600 dark:text-gray-400">Gas Price</span>
+                                  <span className="text-gray-900 dark:text-white">{activity.gasPrice} Gwei</span>
+                                </div>
+                                
+                                {/* Transaction hash with link and Via Native Bridge */}
+                                <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                                    <span>Via Native Bridge</span>
+                                    <div className="flex items-center">
+                                      <img 
+                                        src="/sepolia-logo.png"
+                                        alt="Sepolia"
+                                        className="w-4 h-4"
+                                      />
+                                      <img 
+                                        src="/unichain-logo.png"
+                                        alt="Unichain"
+                                        className="w-4 h-4 -ml-1"
+                                      />
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={`https://sepolia.etherscan.io/tx/${activity.txHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-[#00ffbd] hover:text-[#00e6a9] flex items-center gap-2"
+                                  >
+                                    <span>View transaction</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                                    </svg>
+                                  </a>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
                   )}
                 </div>
               </Dialog.Panel>
@@ -636,7 +744,7 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
   );
 };
 
-const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee }) => {
+const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount }) => {
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -694,15 +802,8 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee
                       </div>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">Network Fee (estimated)</span>
-                      <span className="text-sm text-gray-900 dark:text-white">~{bridgeFee} ETH</span>
-                    </div>
-                    <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Total</span>
-                      <span className="text-base font-medium text-gray-900 dark:text-white">
-                        {(parseFloat(amount) + parseFloat(bridgeFee)).toFixed(6)} ETH
-                      </span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Network Fee</span>
+                      <span className="text-sm text-gray-900 dark:text-white">Check wallet for fee</span>
                     </div>
                   </div>
 
@@ -738,6 +839,36 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, bridgeFee
       </Dialog>
     </Transition>
   );
+};
+
+const NETWORKS = {
+  eth: {
+    mainnet: {
+      id: 1,
+      name: 'ETH Mainnet',
+      logo: '/eth.png',
+      disabled: true,
+      comingSoon: true
+    },
+    testnet: {
+      id: 11155111,
+      name: 'Sepolia',
+      logo: '/sepolia-logo.png'
+    }
+  },
+  unichain: {
+    mainnet: {
+      name: 'Unichain',
+      logo: '/unichain-logo.png',
+      disabled: true,
+      comingSoon: true
+    },
+    testnet: {
+      id: 1301,
+      name: 'Unichain Testnet',
+      logo: '/unichain-logo.png'
+    }
+  }
 };
 
 export default function BridgePage() {
@@ -793,7 +924,11 @@ function Bridge() {
   const { chain } = useNetwork();
   const uniswap = useUnichain();
   
-  // All state hooks
+  // Add network selection state
+  const [selectedFromNetwork, setSelectedFromNetwork] = useState(NETWORKS.eth.testnet);
+  const [selectedToNetwork, setSelectedToNetwork] = useState(NETWORKS.unichain.testnet);
+  
+  // All other state hooks remain the same
   const [showActivity, setShowActivity] = useState(false);
   const [amount, setAmount] = useState('');
   const [showTerms, setShowTerms] = useState(false);
@@ -803,8 +938,6 @@ function Bridge() {
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
-  const [bridgeFee, setBridgeFee] = useState(null);
-  const [isEstimatingFee, setIsEstimatingFee] = useState(false);
   const [networkStatus, setNetworkStatus] = useState({
     isCorrectNetwork: false,
     message: ''
@@ -812,22 +945,26 @@ function Bridge() {
   const [showSummary, setShowSummary] = useState(false);
   const [hasPendingTx, setHasPendingTx] = useState(false);
 
-  // Network status effect - only check for Sepolia
+  // Add state for dropdowns
+  const [showFromDropdown, setShowFromDropdown] = useState(false);
+  const [showToDropdown, setShowToDropdown] = useState(false);
+
+  // Network status effect - check for selected network
   useEffect(() => {
     if (!isConnected) return;
     
-    if (chain?.id === 11155111) {
+    if (chain?.id === selectedFromNetwork.id) {
       setNetworkStatus({
         isCorrectNetwork: true,
-        message: 'Connected to Sepolia'
+        message: `Connected to ${selectedFromNetwork.name}`
       });
     } else {
       setNetworkStatus({
         isCorrectNetwork: false,
-        message: 'Please switch to Sepolia'
+        message: `Please switch to ${selectedFromNetwork.name}`
       });
     }
-  }, [chain?.id, isConnected]);
+  }, [chain?.id, isConnected, selectedFromNetwork]);
 
   // Balance update effect
   useEffect(() => {
@@ -850,28 +987,6 @@ function Bridge() {
     return () => clearInterval(interval);
   }, [address, chain?.id]);
 
-  // Gas estimation effect
-  useEffect(() => {
-    const updateGasEstimate = async () => {
-      if (!amount || !window.ethereum) return;
-      
-      setIsEstimatingFee(true);
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const estimator = createBridgeGasEstimator(provider, 'sepolia');
-        const estimate = await estimator.estimateGasFee(amount);
-        setBridgeFee(estimate.gasFee);
-      } catch (error) {
-        console.error('Error estimating gas:', error);
-        setBridgeFee('0.019');
-      } finally {
-        setIsEstimatingFee(false);
-      }
-    };
-
-    updateGasEstimate();
-  }, [amount]);
-
   const handleAmountChange = (e) => {
     const value = e.target.value;
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -880,19 +995,18 @@ function Bridge() {
   };
 
   const handleReviewBridge = () => {
-    if (!amount || !bridgeFee || !networkStatus.isCorrectNetwork) return;
+    if (!amount || !networkStatus.isCorrectNetwork) return;
     
     const amountNum = parseFloat(amount);
     const balanceNum = parseFloat(ethBalance);
-    const bridgeFeeNum = parseFloat(bridgeFee);
     
     if (amountNum <= 0) {
       toast.error('Please enter a valid amount');
       return;
     }
     
-    if (amountNum + bridgeFeeNum > balanceNum) {
-      toast.error('Insufficient ETH balance (including gas fee)');
+    if (amountNum > balanceNum) {
+      toast.error('Insufficient ETH balance');
       return;
     }
 
@@ -991,6 +1105,108 @@ function Bridge() {
     return () => clearInterval(interval);
   }, [address]);
 
+  // Add click handler for network selection
+  const handleNetworkSelect = (network, type) => {
+    if (network.disabled) {
+      toast.error('This network is coming soon!');
+      return;
+    }
+    
+    if (type === 'from') {
+      setSelectedFromNetwork(network);
+      setShowFromDropdown(false);
+    } else {
+      setSelectedToNetwork(network);
+      setShowToDropdown(false);
+    }
+  };
+
+  // Add dropdown component
+  const NetworkDropdown = ({ isOpen, onClose, onSelect, type, anchorRef }) => {
+    if (!isOpen || !anchorRef.current) return null;
+
+    const rect = anchorRef.current.getBoundingClientRect();
+    
+    // Filter networks based on direction
+    const networks = type === 'from' ? NETWORKS.eth : NETWORKS.unichain;
+    
+    return createPortal(
+      <div 
+        className="fixed z-50"
+        style={{
+          top: `${rect.bottom + 8}px`,
+          left: type === 'from' ? `${rect.left}px` : 'auto',
+          right: type === 'to' ? `${window.innerWidth - rect.right}px` : 'auto'
+        }}
+      >
+        <div className="w-64 bg-white dark:bg-[#1a1b1f] rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 py-2">
+          {/* Mainnet Section */}
+          <div className="px-3 py-1">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Mainnet
+            </div>
+            <button
+              onClick={() => onSelect(networks.mainnet)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d2f36] transition-colors"
+              disabled={networks.mainnet.disabled}
+            >
+              <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-[#2d2f36] flex items-center justify-center">
+                <img src={networks.mainnet.logo} alt={networks.mainnet.name} className="w-6 h-6" />
+              </div>
+              <span className="text-sm text-gray-900 dark:text-white">
+                {networks.mainnet.name}
+              </span>
+              {networks.mainnet.comingSoon && (
+                <span className="text-xs text-[#00ffbd] ml-auto">Coming Soon</span>
+              )}
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-gray-200 dark:bg-gray-800 my-1" />
+
+          {/* Testnet Section */}
+          <div className="px-3 py-1">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Testnet
+            </div>
+            <button
+              onClick={() => onSelect(networks.testnet)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d2f36] transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-[#2d2f36] flex items-center justify-center">
+                <img src={networks.testnet.logo} alt={networks.testnet.name} className="w-6 h-6" />
+              </div>
+              <span className="text-sm text-gray-900 dark:text-white">
+                {networks.testnet.name}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // Add refs for dropdown positioning
+  const fromButtonRef = useRef(null);
+  const toButtonRef = useRef(null);
+
+  // Add click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (fromButtonRef.current && !fromButtonRef.current.contains(event.target)) {
+        setShowFromDropdown(false);
+      }
+      if (toButtonRef.current && !toButtonRef.current.contains(event.target)) {
+        setShowToDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Early return for wallet connection
   if (!isConnected) {
     return (
@@ -1035,15 +1251,35 @@ function Bridge() {
         </div>
 
         {/* Networks Section */}
-        <div className="relative bg-gray-50 dark:bg-[#2d2f36] rounded-xl p-4 mb-6">
+        <div className="relative bg-gray-50 dark:bg-[#1a1b1f] rounded-xl p-4 mb-6">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">From</div>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-lg bg-[#627EEA]/10 dark:bg-[#627EEA]/20 flex items-center justify-center">
-                  <img src="/sepolia-logo.png" alt="Sepolia" className="w-7 h-7" />
-                </div>
-                <span className="text-gray-900 dark:text-white font-medium">Sepolia</span>
+              <div className="relative" ref={fromButtonRef}>
+                <button
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors"
+                  onClick={() => {
+                    setShowFromDropdown(!showFromDropdown);
+                    setShowToDropdown(false);
+                  }}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[#627EEA]/10 dark:bg-[#627EEA]/20 flex items-center justify-center">
+                    <img src={selectedFromNetwork.logo} alt={selectedFromNetwork.name} className="w-7 h-7" />
+                  </div>
+                  <span className="text-gray-900 dark:text-white font-medium">{selectedFromNetwork.name}</span>
+                  <BiChevronDown 
+                    className={`ml-1 transition-transform text-gray-900 dark:text-white ${showFromDropdown ? 'rotate-180' : ''}`}
+                    size={20}
+                  />
+                </button>
+
+                <NetworkDropdown
+                  isOpen={showFromDropdown}
+                  onClose={() => setShowFromDropdown(false)}
+                  onSelect={(network) => handleNetworkSelect(network, 'from')}
+                  type="from"
+                  anchorRef={fromButtonRef}
+                />
               </div>
             </div>
 
@@ -1061,38 +1297,38 @@ function Bridge() {
               </motion.div>
             </div>
 
-            <div className="flex-1 text-right">
+            <div className="flex-1 text-right pl-6">
               <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">To</div>
               <div className="flex items-center gap-2 justify-end">
-                <div className="w-10 h-10 rounded-lg bg-[#FF3B9A]/10 dark:bg-[#FF3B9A]/20 flex items-center justify-center">
-                  <img src="/unichain-logo.png" alt="Unichain" className="w-7 h-7" />
+                <div className="relative" ref={toButtonRef}>
+                  <button
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors"
+                    onClick={() => {
+                      setShowToDropdown(!showToDropdown);
+                      setShowFromDropdown(false);
+                    }}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-[#FF3B9A]/10 dark:bg-[#FF3B9A]/20 flex items-center justify-center">
+                      <img src={selectedToNetwork.logo} alt={selectedToNetwork.name} className="w-7 h-7" />
+                    </div>
+                    <span className="text-gray-900 dark:text-white font-medium">{selectedToNetwork.name}</span>
+                    <BiChevronDown 
+                      className={`ml-1 transition-transform text-gray-900 dark:text-white ${showToDropdown ? 'rotate-180' : ''}`}
+                      size={20}
+                    />
+                  </button>
+
+                  <NetworkDropdown
+                    isOpen={showToDropdown}
+                    onClose={() => setShowToDropdown(false)}
+                    onSelect={(network) => handleNetworkSelect(network, 'to')}
+                    type="to"
+                    anchorRef={toButtonRef}
+                  />
                 </div>
-                <span className="text-gray-900 dark:text-white font-medium">Unichain Sepolia</span>
               </div>
             </div>
           </div>
-          
-          {/* Network Status Indicator */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={networkStatus.isCorrectNetwork ? 'correct' : 'incorrect'}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className={`mt-3 text-sm flex items-center gap-2 ${
-                networkStatus.isCorrectNetwork 
-                  ? 'text-green-500' 
-                  : 'text-yellow-500'
-              }`}
-            >
-              <div className={`w-2 h-2 rounded-full animate-pulse ${
-                networkStatus.isCorrectNetwork 
-                  ? 'bg-green-500' 
-                  : 'bg-yellow-500'
-              }`} />
-              {networkStatus.message}
-            </motion.div>
-          </AnimatePresence>
         </div>
 
         {/* Amount Input */}
@@ -1140,7 +1376,7 @@ function Bridge() {
                 value={amount}
                 onChange={handleAmountChange}
                 placeholder="0.0"
-                className={`w-full px-4 py-3 bg-gray-50 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-2xl font-medium ${
+                className={`w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-2xl font-medium ${
                   loading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
                 disabled={loading}
@@ -1149,7 +1385,7 @@ function Bridge() {
           </div>
 
           {/* Bridge Details */}
-          <div className="p-4 bg-gray-50 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+          <div className="p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
             <div className="flex justify-between items-center mb-2">
               <span className="text-base text-gray-900 dark:text-white font-medium">Get on Unichain Sepolia</span>
               <div className="flex items-center gap-2 bg-[#FF3B9A]/10 dark:bg-[#FF3B9A]/20 px-3 py-1.5 rounded-lg">
@@ -1221,7 +1457,7 @@ function Bridge() {
       </div>
 
       {/* Add info section about other bridges */}
-      <div className="mt-4 md:mt-6 p-4 bg-gray-50 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-700">
+      <div className="mt-4 md:mt-6 p-4 bg-gray-50 dark:bg-[#1a1b1f] rounded-xl border border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Looking to bridge from Unichain to Sepolia?</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Try these alternative bridges:{' '}
@@ -1275,7 +1511,6 @@ function Bridge() {
           setShowTerms(true);
         }}
         amount={amount}
-        bridgeFee={bridgeFee}
       />
     </div>
   );

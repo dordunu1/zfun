@@ -1,30 +1,41 @@
 import React, { useState } from 'react';
 import { useNetwork, useSwitchNetwork } from 'wagmi';
-import { sepolia, polygon } from 'wagmi/chains';
+import { mainnet, sepolia } from 'wagmi/chains';
 import { BiChevronDown } from 'react-icons/bi';
 import toast from 'react-hot-toast';
 import { unichainTestnet } from '../config/wagmi';
 import { createPortal } from 'react-dom';
 
-// Network configurations with logos and names
-const NETWORKS = [
-  {
-    ...sepolia,
-    logo: '/sepolia.png',
-    name: 'Sepolia'
-  },
-  {
-    ...unichainTestnet,
-    logo: '/unichain.png',
-    name: 'Unichain Testnet'
-  },
-  {
-    id: 'z-chain',
-    logo: '/zchain.png',
-    name: 'Z Chain',
-    disabled: true
-  }
-];
+// Network configurations with logos, names, and sections
+const NETWORKS = {
+  mainnet: [
+    {
+      ...mainnet,
+      logo: '/eth.png',
+      name: 'Ethereum'
+    },
+    {
+      id: 'unichain-mainnet',
+      chainId: 1301,
+      name: 'Unichain',
+      logo: '/unichain-logo.png',
+      disabled: true,
+      comingSoon: true
+    }
+  ],
+  testnet: [
+    {
+      ...sepolia,
+      logo: '/sepolia.png',
+      name: 'Sepolia'
+    },
+    {
+      ...unichainTestnet,
+      logo: '/unichain.png',
+      name: 'Unichain Testnet'
+    }
+  ]
+};
 
 export default function NetworkSelector() {
   const [isOpen, setIsOpen] = useState(false);
@@ -32,7 +43,8 @@ export default function NetworkSelector() {
   const { switchNetwork, isLoading } = useSwitchNetwork();
   const [buttonRect, setButtonRect] = useState(null);
 
-  const currentNetwork = NETWORKS.find(net => net.id === chain?.id) || NETWORKS[0];
+  // Find current network across all sections
+  const currentNetwork = [...NETWORKS.mainnet, ...NETWORKS.testnet].find(net => net.id === chain?.id) || NETWORKS.mainnet[0];
 
   const handleNetworkSwitch = async (network) => {
     if (network.disabled) {
@@ -92,29 +104,64 @@ export default function NetworkSelector() {
             zIndex: 99999
           }}
         >
-          <div className="w-48 rounded-lg bg-white dark:bg-[#1a1b1f] shadow-lg border border-gray-200 dark:border-gray-800 py-1">
-            {NETWORKS.map((network) => (
-              <button
-                key={network.id}
-                onClick={() => handleNetworkSwitch(network)}
-                disabled={isLoading}
-                className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 dark:hover:bg-[#2d2f36] ${
-                  network.disabled ? 'opacity-50 cursor-not-allowed' : ''
-                } ${network.id === chain?.id ? 'bg-gray-100 dark:bg-[#2d2f36]' : ''}`}
-              >
-                <img 
-                  src={network.logo} 
-                  alt={network.name}
-                  className="w-5 h-5 rounded-full"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {network.name}
-                </span>
-                {network.disabled && (
-                  <span className="text-xs text-gray-500 ml-auto">Coming Soon</span>
-                )}
-              </button>
-            ))}
+          <div className="w-56 rounded-lg bg-white dark:bg-[#1a1b1f] shadow-lg border border-gray-200 dark:border-gray-800 py-1">
+            {/* Mainnet Section */}
+            <div className="px-3 py-1">
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Mainnet
+              </div>
+              {NETWORKS.mainnet.map((network) => (
+                <button
+                  key={network.id}
+                  onClick={() => handleNetworkSwitch(network)}
+                  disabled={isLoading || network.disabled}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d2f36] ${
+                    network.disabled ? 'opacity-50 cursor-not-allowed' : ''
+                  } ${network.id === chain?.id ? 'bg-gray-100 dark:bg-[#2d2f36]' : ''}`}
+                >
+                  <img 
+                    src={network.logo} 
+                    alt={network.name}
+                    className="w-5 h-5 rounded-full"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {network.name}
+                  </span>
+                  {network.comingSoon && (
+                    <span className="text-xs text-[#00ffbd] ml-auto">Coming Soon</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gray-200 dark:bg-gray-800 my-1" />
+
+            {/* Testnet Section */}
+            <div className="px-3 py-1">
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Testnet
+              </div>
+              {NETWORKS.testnet.map((network) => (
+                <button
+                  key={network.id}
+                  onClick={() => handleNetworkSwitch(network)}
+                  disabled={isLoading}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d2f36] ${
+                    network.id === chain?.id ? 'bg-gray-100 dark:bg-[#2d2f36]' : ''
+                  }`}
+                >
+                  <img 
+                    src={network.logo} 
+                    alt={network.name}
+                    className="w-5 h-5 rounded-full"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {network.name}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>,
         document.body
