@@ -341,7 +341,7 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
   );
 };
 
-const SUPPORTED_CHAINS = import.meta.env.VITE_SUPPORTED_CHAINS.split(',').map(Number);
+const SUPPORTED_CHAINS = [1301, 11155111, 137]; // Add Unichain (1301) and other chains directly
 const FACTORY_ADDRESSES = {
   11155111: import.meta.env.VITE_FACTORY_ADDRESS_11155111,
   137: import.meta.env.VITE_FACTORY_ADDRESS_137,
@@ -565,17 +565,18 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         return;
       }
 
-      if (!SUPPORTED_CHAINS.includes(currentChainId)) {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const factoryAddress = getFactoryAddress();
+      
+      if (!factoryAddress) {
         setProgressStep('error');
-        setProgressError('Please switch to a supported network');
+        setProgressError('Factory address not found for this network');
         return;
       }
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const factory = new ethers.Contract(getFactoryAddress(), TokenFactoryABI.abi, signer);
-
-      const fee = ethers.parseEther(CHAIN_FEES[currentChainId].toString());
+      const factory = new ethers.Contract(factoryAddress, TokenFactoryABI.abi, signer);
+      const fee = ethers.parseEther(CHAIN_FEES[currentChainId]?.toString() || "0.01");
       
       setProgressStep('creating');
 
@@ -832,7 +833,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
                 <button
                   type="submit"
                   className="px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
-                  disabled={!account || !SUPPORTED_CHAINS.includes(currentChainId)}
+                  disabled={!account}
                 >
                   Create Token
                 </button>
