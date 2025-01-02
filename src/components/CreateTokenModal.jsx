@@ -2,7 +2,7 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { ethers } from 'ethers';
 import toast from 'react-hot-toast';
-import { BiX, BiImageAdd } from 'react-icons/bi';
+import { BiX, BiImageAdd, BiCopy } from 'react-icons/bi';
 import clsx from 'clsx';
 import { useWallet } from '../context/WalletContext';
 import TokenFactoryABI from '../contracts/TokenFactory.json';
@@ -108,7 +108,7 @@ const Icons = {
 };
 
 // Progress Modal Component
-const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
+const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deployedAddress }) => {
   const steps = [
     { key: 'preparing', label: 'Preparing Transaction', icon: Icons.Preparing },
     { key: 'uploading', label: 'Uploading Logo', icon: Icons.UploadingLogo },
@@ -128,6 +128,15 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
       return 'Insufficient funds to complete the transaction.';
     }
     return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Address copied to clipboard!');
+    } catch (err) {
+      toast.error('Failed to copy address');
+    }
   };
 
   return (
@@ -156,7 +165,7 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
                   {isError ? 'Error Creating Token' : 'Creating Token'}
                   {tokenName && !isError && (
@@ -223,7 +232,26 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
                   <div className="mt-6 space-y-4">
                     <div className="text-center">
                       <p className="text-[#00ffbd] font-medium text-lg">Token created successfully! 🎉</p>
-                      <p className="text-gray-500 dark:text-gray-400 mt-2">Your token is now ready for trading</p>
+                      <p className="text-gray-500 dark:text-gray-400 mt-2">Your token has been deployed and is ready for use</p>
+                    </div>
+                    
+                    <div className="bg-gray-50 dark:bg-[#2d2f36] p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-gray-900 dark:text-white font-medium mb-3">Token Contract Address</h3>
+                      <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-[#1a1b1f] rounded-lg">
+                        <code className="text-sm text-gray-800 dark:text-gray-200 flex-1 break-all">
+                          {deployedAddress}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(deployedAddress)}
+                          className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-md transition-colors"
+                          title="Copy address"
+                        >
+                          <BiCopy className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        ℹ️ Copy this address to import your token in your wallet
+                      </p>
                     </div>
                     
                     <div className="bg-gray-50 dark:bg-[#2d2f36] p-4 rounded-xl border border-gray-200 dark:border-gray-700">
@@ -233,32 +261,26 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error }) => {
                         <div className="flex items-start gap-3">
                           <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd] shrink-0">1</div>
                           <div>
-                            <p className="text-gray-900 dark:text-white font-medium">Add Liquidity</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Provide liquidity to enable trading of your token</p>
+                            <p className="text-gray-900 dark:text-white font-medium">Import Token</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Add the token to your wallet using the contract address above</p>
                           </div>
                         </div>
                         
                         <div className="flex items-start gap-3">
                           <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd] shrink-0">2</div>
                           <div>
-                            <p className="text-gray-900 dark:text-white font-medium">Start Trading</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Use TokenFactory Swap, our Uniswap V2 fork, to trade your token</p>
+                            <p className="text-gray-900 dark:text-white font-medium">Add Liquidity</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Provide liquidity to enable trading of your token</p>
                           </div>
                         </div>
-                      </div>
-
-                      <div className="mt-4 flex justify-center">
-                        <a 
-                          href="https://token-factory.xyz/trading" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors gap-2 group"
-                        >
-                          Go to TokenFactory Swap
-                          <svg className="w-4 h-4 transform transition-transform group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </a>
+                        
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center text-[#00ffbd] shrink-0">3</div>
+                          <div>
+                            <p className="text-gray-900 dark:text-white font-medium">Start Trading</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Use TokenFactory Swap to trade your token</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -388,6 +410,7 @@ const DEX_CONFIGS = {
 export default function CreateTokenModal({ isOpen, onClose }) {
   const { account } = useWallet();
   const [currentChainId, setCurrentChainId] = useState(null);
+  const [deployedTokenAddress, setDeployedTokenAddress] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     symbol: '',
@@ -500,17 +523,18 @@ export default function CreateTokenModal({ isOpen, onClose }) {
       // Clear any existing toasts
       toast.dismiss();
       
-      // Show completed state and trigger confetti
+      setDeployedTokenAddress(deployedAddress);
       setProgressStep('completed');
       setShowConfetti(true);
 
-      // Close progress modal and show rating after a delay
+      // Keep the success message visible for 10 seconds
       setTimeout(() => {
         setShowProgressModal(false);
         setProgressStep(null);
         setProgressError(null);
+        setDeployedTokenAddress(null);
         
-        // Show rating modal after a short delay
+        // Show rating modal after success message
         setTimeout(() => {
           setShowRatingModal(true);
         }, 1000);
@@ -519,7 +543,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         setTimeout(() => {
           setShowConfetti(false);
         }, 30000);
-      }, 8000);
+      }, 10000); // Changed from 8000 to 10000
 
       onClose();
       setFormData({
@@ -853,6 +877,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         currentStep={progressStep}
         tokenName={formData.name}
         error={progressError}
+        deployedAddress={deployedTokenAddress}
       />
 
       {/* Add Star Rating Modal */}
