@@ -511,9 +511,13 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by token name or address..."
-                className="w-full px-4 py-2 pl-10 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent"
+                className="w-full px-4 py-3 pl-10 bg-white/10 dark:bg-[#1a1b1f] rounded-xl border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-[#00ffbd]/50 focus:border-[#00ffbd] outline-none transition-colors font-mono"
+                style={{
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none'
+                }}
               />
-              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
             </motion.div>
 
             <div 
