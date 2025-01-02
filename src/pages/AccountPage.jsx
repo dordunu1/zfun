@@ -700,50 +700,56 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0d0e12]">
-      <div className="max-w-7xl mx-auto px-4 pt-24 pb-12">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative inline-block mb-12"
-        >
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
-          <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
-        </motion.div>
-        
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <FilterControls />
-        </motion.div>
-
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-        >
-          {filteredNFTs.length > 0 ? (
-            filteredNFTs.map(renderNFTCard)
-          ) : (
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
+      <div className="ml-[240px]"> {/* Container for content to the right of sidebar */}
+        <div className="sticky top-0 z-50 bg-gray-50 dark:bg-[#0a0b0f] px-4 pt-8 pb-6">
+          <div className="max-w-7xl mx-auto">
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-center py-12 col-span-full"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="relative inline-block mb-8"
             >
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No NFTs Found
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                You haven't minted any NFTs yet.
-              </p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
+              <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
             </motion.div>
-          )}
-        </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <FilterControls />
+            </motion.div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          >
+            {filteredNFTs.length > 0 ? (
+              filteredNFTs.map(renderNFTCard)
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="text-center py-12 col-span-full"
+              >
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  No NFTs Found
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  You haven't minted any NFTs yet.
+                </p>
+              </motion.div>
+            )}
+          </motion.div>
+        </div>
       </div>
     </div>
   );
