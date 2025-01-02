@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAccount, useNetwork } from 'wagmi';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { ethers } from 'ethers';
 import { getOwnedNFTs, getTokenDeploymentByAddress } from '../services/firebase';
@@ -85,6 +86,32 @@ const fetchBlockscoutNFTs = async (address, chainId) => {
   } catch (error) {
     console.error('Error fetching from Blockscout:', error);
     return [];
+  }
+};
+
+// Add animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { 
+    opacity: 0,
+    y: 20
+  },
+  show: { 
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring",
+      bounce: 0.3
+    }
   }
 };
 
@@ -418,13 +445,27 @@ export default function AccountPage() {
     const displayName = nft.name?.replace(/ #0$/, '');
 
     return (
-      <div key={nft.uniqueId} className="block">
+      <motion.div
+        key={nft.uniqueId}
+        variants={itemVariants}
+        whileHover={{ 
+          scale: 1.02,
+          transition: { duration: 0.2 }
+        }}
+        whileTap={{ scale: 0.98 }}
+        className="block"
+      >
         <div className="relative">
-          {/* L-shaped corners */}
-          <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+          {/* L-shaped corners with animation */}
+          <motion.div 
+            className="absolute -top-[2px] -left-[2px] w-8 h-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
             <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
             <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-          </div>
+          </motion.div>
           <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
             <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
             <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
@@ -456,42 +497,43 @@ export default function AccountPage() {
           </div>
 
           {/* Main Content */}
-          <div className="relative z-10 bg-white dark:bg-[#0a0b0f] h-[340px]">
-            {/* Image section */}
-            <div className="relative h-[180px] w-full overflow-hidden">
-              <div className="absolute inset-0">
-                {nft.artworkType === 'video' ? (
-                  <video 
-                    src={imageUrl}
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    src={imageUrl}
-                    alt={displayName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '/placeholder.png';
-                    }}
-                  />
-                )}
-              </div>
+          <div className="relative z-10 bg-white dark:bg-[#1a1b1f] h-[340px]">
+            {/* Image section with fade-in animation */}
+            <motion.div 
+              className="relative h-[180px] w-full overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {nft.artworkType === 'video' ? (
+                <video 
+                  src={imageUrl}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : (
+                <img 
+                  src={imageUrl}
+                  alt={displayName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/placeholder.png';
+                  }}
+                />
+              )}
+            </motion.div>
 
-              {/* Type badge */}
-              <div className="absolute top-3 left-3 z-10">
-                <div className="bg-[#0d0e12]/80 backdrop-blur-sm text-white px-2 py-0.5 rounded-full text-xs">
-                  {nft.type || 'ERC721'}
-                </div>
-              </div>
-            </div>
-
-            {/* Content section */}
-            <div className="flex flex-col flex-1 p-4">
+            {/* Content section with fade-in animation */}
+            <motion.div 
+              className="flex flex-col flex-1 p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
               <div className="mb-3">
                 <div className="flex items-center justify-between gap-2 mb-1 w-full">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate flex-shrink min-w-0">
@@ -524,7 +566,7 @@ export default function AccountPage() {
                   </Link>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* Add balance badge for ERC1155 */}
@@ -536,83 +578,96 @@ export default function AccountPage() {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   };
 
   if (!account) {
     return (
-      <div className="min-h-screen bg-white dark:bg-[#0d0e12] p-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0d0e12] p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="relative inline-block mb-12">
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative inline-block mb-12"
+          >
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
             <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
-          </div>
+          </motion.div>
 
-          {/* Main Container with L-shape corners and glowing dots */}
-          <div className="relative">
-            {/* L-shaped corners */}
-            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
-              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
-              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
-              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
+          {/* Connect wallet prompt with animation */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="relative"
+          >
+            {/* Main Container with L-shape corners and glowing dots */}
+            <div className="relative">
+              {/* L-shaped corners */}
+              <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
+              <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+                <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
+              <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
+              <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+                <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+              </div>
 
-            {/* Glowing dots in corners */}
-            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              {/* Glowing dots in corners */}
+              <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+              <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
 
-            {/* Three dots in top right */}
-            <div className="absolute top-3 right-3 flex gap-1 z-20">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
-                  style={{ animationDelay: `${i * 0.2}s` }}
-                />
-              ))}
-            </div>
+              {/* Three dots in top right */}
+              <div className="absolute top-3 right-3 flex gap-1 z-20">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  />
+                ))}
+              </div>
 
-            {/* Main Content */}
-            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
-              <div className="flex flex-col items-center justify-center py-16 px-4">
-                <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
-                  <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
-                  </svg>
+              {/* Main Content */}
+              <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+                <div className="flex flex-col items-center justify-center py-16 px-4">
+                  <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+                    <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                    Connect Your Wallet
+                  </h2>
+                  <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
+                    Please connect your wallet to view your NFTs. You'll be able to see all your NFT collections and manage them.
+                  </p>
+                  <button
+                    onClick={openConnectModal}
+                    className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Connect Wallet
+                  </button>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                  Connect Your Wallet
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
-                  Please connect your wallet to view your NFTs. You'll be able to see all your NFT collections and manage them.
-                </p>
-                <button
-                  onClick={openConnectModal}
-                  className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Connect Wallet
-                </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     );
@@ -620,42 +675,75 @@ export default function AccountPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-[#0d0e12] p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gray-50 dark:bg-[#0d0e12] p-4"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-white dark:bg-[#1a1b1f] rounded-xl h-[400px]" />
+                <motion.div 
+                  key={i} 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="bg-white dark:bg-[#1a1b1f] rounded-xl h-[340px]"
+                />
               ))}
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0e12]">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0d0e12]">
       <div className="max-w-7xl mx-auto px-4 pt-24 pb-12">
-        <div className="relative inline-block mb-12">
-          <h1 className="text-3xl font-bold text-white">My NFTs</h1>
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative inline-block mb-12"
+        >
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
           <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
-        </div>
-        <FilterControls />
-        {filteredNFTs.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredNFTs.map(renderNFTCard)}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-white mb-2">
-              No NFTs Found
-            </h3>
-            <p className="text-gray-400">
-              You haven't minted any NFTs yet.
-            </p>
-          </div>
-        )}
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <FilterControls />
+        </motion.div>
+
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+        >
+          {filteredNFTs.length > 0 ? (
+            filteredNFTs.map(renderNFTCard)
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-center py-12 col-span-full"
+            >
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No NFTs Found
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400">
+                You haven't minted any NFTs yet.
+              </p>
+            </motion.div>
+          )}
+        </motion.div>
       </div>
     </div>
   );

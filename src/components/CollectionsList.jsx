@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram, FaPaintBrush, FaGamepad, FaCamera, FaMusic, FaStar, FaCrown } from 'react-icons/fa';
 import { BiTime, BiCheck, BiX, BiWorld, BiMoviePlay } from 'react-icons/bi';
 import { IoMdPaper } from 'react-icons/io';
@@ -20,6 +21,33 @@ const CATEGORY_ICONS = {
   'collectibles': { icon: GiCrownCoin, label: 'Collectibles' },
   'sports': { icon: FaGamepad, label: 'Sports' },
   'other': { icon: FaStar, label: 'Other' }
+};
+
+// Add container variants for staggered animation
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+// Add item variants for individual card animations
+const itemVariants = {
+  hidden: { 
+    opacity: 0,
+    y: 20
+  },
+  show: { 
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring",
+      bounce: 0.3
+    }
+  }
 };
 
 export default function CollectionsList() {
@@ -238,62 +266,89 @@ export default function CollectionsList() {
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col gap-4 mb-8">
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col gap-4 mb-8"
+        >
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Collections</h1>
           <FilterControls />
-        </div>
+        </motion.div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
+        >
           {filteredCollections.map((collection) => {
             const status = getMintStatus(collection);
             
             return (
-              <Link 
+              <motion.div
                 key={collection.symbol}
-                to={`/collection/${collection.symbol}`}
-                className="block"
+                variants={itemVariants}
+                whileHover={{ 
+                  scale: 1.02,
+                  transition: { duration: 0.2 }
+                }}
+                whileTap={{ scale: 0.98 }}
               >
-                <div className="relative">
-                  {/* L-shaped corners */}
-                  <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
-                    <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-                    <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-                  </div>
-                  <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
-                    <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-                    <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-                  </div>
-                  <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
-                    <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-                    <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-                  </div>
-                  <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
-                    <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-                    <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-                  </div>
+                <Link 
+                  to={`/collection/${collection.symbol}`}
+                  className="block"
+                >
+                  <div className="relative">
+                    {/* L-shaped corners */}
+                    <motion.div 
+                      className="absolute -top-[2px] -left-[2px] w-8 h-8"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                      <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+                    </motion.div>
+                    <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+                      <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                      <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+                    </div>
+                    <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+                      <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+                      <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+                    </div>
+                    <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+                      <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+                      <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+                    </div>
 
-                  {/* Glowing dots in corners */}
-                  <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-                  <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-                  <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-                  <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                    {/* Glowing dots in corners */}
+                    <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                    <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+                    <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
 
-                  {/* Three dots in top right */}
-                  <div className="absolute top-3 right-3 flex gap-1 z-20">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
-                        style={{ animationDelay: `${i * 0.2}s` }}
-                      />
-                    ))}
-                  </div>
+                    {/* Three dots in top right */}
+                    <div className="absolute top-3 right-3 flex gap-1 z-20">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+                          style={{ animationDelay: `${i * 0.2}s` }}
+                        />
+                      ))}
+                    </div>
 
-                  {/* Main Content */}
-                  <div className="relative z-10 bg-white dark:bg-[#0a0b0f] h-[340px]">
-                    {/* Image section */}
-                    <div className="relative h-[180px] w-full overflow-hidden">
-                      <div className="absolute inset-0">
+                    {/* Main Content */}
+                    <div className="relative z-10 bg-white dark:bg-[#0a0b0f] h-[340px]">
+                      {/* Image section with fade-in animation */}
+                      <motion.div 
+                        className="relative h-[180px] w-full overflow-hidden"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
                         {collection.artworkType === 'video' ? (
                           <video 
                             src={collection.previewUrl}
@@ -310,7 +365,7 @@ export default function CollectionsList() {
                             className="w-full h-full object-cover"
                           />
                         )}
-                      </div>
+                      </motion.div>
 
                       {/* Type badge */}
                       <div className="absolute top-3 left-3 z-10">
@@ -326,63 +381,68 @@ export default function CollectionsList() {
                           <span>{status.label}</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Content section */}
-                    <div className="flex flex-col flex-1 p-4">
-                      <div className="mb-3">
-                        <div className="flex items-center justify-between gap-2 mb-1 w-full">
-                          <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate flex-shrink min-w-0">
-                            {collection.name}
-                          </h3>
-                          {collection.enableWhitelist && (
-                            <div className="flex items-center gap-1 bg-[#00ffbd]/10 px-1.5 py-0.5 rounded-full flex-shrink-0 ml-auto">
-                              <span role="img" aria-label="crown" className="text-[10px]">👑</span>
-                              <span className="text-[10px] font-medium text-[#00ffbd]">Whitelist Mint</span>
+                      {/* Content section */}
+                      <motion.div 
+                        className="flex flex-col flex-1 p-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between gap-2 mb-1 w-full">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate flex-shrink min-w-0">
+                              {collection.name}
+                            </h3>
+                            {collection.enableWhitelist && (
+                              <div className="flex items-center gap-1 bg-[#00ffbd]/10 px-1.5 py-0.5 rounded-full flex-shrink-0 ml-auto">
+                                <span role="img" aria-label="crown" className="text-[10px]">👑</span>
+                                <span className="text-[10px] font-medium text-[#00ffbd]">Whitelist Mint</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-gray-500 dark:text-gray-400 text-xs truncate">
+                            {collection.description}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-3">
+                          {getCategoryIcon(collection.category)}
+                          <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            {renderCurrencyLogo(collection)}
+                            <span className="text-xs font-medium text-gray-900 dark:text-white">
+                              {collection.mintPrice}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Add Supply and Minted containers - horizontal layout */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-gray-50 dark:bg-[#1a1b1f] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400">Supply</span>
+                              <span className="text-xs font-medium text-gray-900 dark:text-white">
+                                {collection.maxSupply || 0}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400 text-xs truncate">
-                          {collection.description}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between mb-3">
-                        {getCategoryIcon(collection.category)}
-                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#1a1b1f] px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
-                          {renderCurrencyLogo(collection)}
-                          <span className="text-xs font-medium text-gray-900 dark:text-white">
-                            {collection.mintPrice}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Add Supply and Minted containers - horizontal layout */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-gray-50 dark:bg-[#1a1b1f] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-800">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400">Supply</span>
-                            <span className="text-xs font-medium text-gray-900 dark:text-white">
-                              {collection.maxSupply || 0}
-                            </span>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-[#1a1b1f] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400">Minted</span>
+                              <span className="text-xs font-medium text-gray-900 dark:text-white">
+                                {collection.totalMinted || 0}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <div className="bg-gray-50 dark:bg-[#1a1b1f] px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-800">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400">Minted</span>
-                            <span className="text-xs font-medium text-gray-900 dark:text-white">
-                              {collection.totalMinted || 0}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                      </motion.div>
                     </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount, useNetwork } from 'wagmi';
+import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { FaEthereum } from 'react-icons/fa';
 import { BiCopy } from 'react-icons/bi';
@@ -72,6 +73,32 @@ const cacheActivities = (address, chainId, activities) => {
     localStorage.setItem(cacheKey, JSON.stringify(cacheData));
   } catch (error) {
     console.error('Error saving to localStorage:', error);
+  }
+};
+
+// Add animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { 
+    opacity: 0,
+    x: -20
+  },
+  show: { 
+    opacity: 1,
+    x: 0,
+    transition: {
+      type: "spring",
+      bounce: 0.3
+    }
   }
 };
 
@@ -471,16 +498,32 @@ export default function HistoryPage() {
     };
 
     return (
-      <div 
-        key={activity.id} 
+      <motion.div 
+        key={activity.id}
+        variants={itemVariants}
+        whileHover={{ 
+          scale: 1.01,
+          transition: { duration: 0.2 }
+        }}
         className="relative bg-white dark:bg-[#1a1b1f] rounded-xl p-3 border border-gray-100 dark:border-gray-800 hover:border-[#00ffbd] transition-colors duration-200"
       >
         <div className="flex items-center gap-3">
-          {/* Image/Logo */}
-          {renderMedia(activity)}
+          {/* Image/Logo with fade in */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {renderMedia(activity)}
+          </motion.div>
 
-          {/* Content */}
-          <div className="flex-1 min-w-0">
+          {/* Content with slide in */}
+          <motion.div 
+            className="flex-1 min-w-0"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {isNFTActivity ? (
@@ -536,9 +579,9 @@ export default function HistoryPage() {
                 </a>
               )}
             </div>
-          </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     );
   };
 
@@ -546,12 +589,22 @@ export default function HistoryPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-xl font-bold text-gray-900 dark:text-white mb-6"
+          >
             Activity History
-          </h1>
+          </motion.h1>
 
-          {/* Main Container with L-shape corners and glowing dots */}
-          <div className="relative">
+          {/* Connect wallet prompt with animation */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="relative"
+          >
             {/* L-shaped corners */}
             <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
               <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
@@ -613,7 +666,7 @@ export default function HistoryPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     );
@@ -621,27 +674,46 @@ export default function HistoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] flex items-center justify-center"
+      >
+        <motion.div 
+          className="flex flex-col items-center gap-4"
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
           <div className="relative">
             <div className="w-12 h-12 border-4 border-[#00ffbd] rounded-full animate-spin border-t-transparent"></div>
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-[#00ffbd] rounded-full opacity-30"></div>
           </div>
           <span className="text-gray-500 dark:text-gray-400">Loading history...</span>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <motion.h1 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-xl font-bold text-gray-900 dark:text-white mb-6"
+        >
           Activity History
-        </h1>
+        </motion.h1>
 
-        {/* Main Container with L-shape corners and glowing dots */}
-        <div className="relative">
+        {/* Main Container with animation */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative"
+        >
           {/* L-shaped corners */}
           <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
             <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
@@ -679,19 +751,29 @@ export default function HistoryPage() {
 
           {/* Main Content */}
           <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
-            <div className="h-[calc(100vh-180px)] overflow-y-auto custom-scrollbar">
-              <div className="space-y-3">
+            <div className="h-[calc(100vh-180px)] overflow-y-auto overflow-x-hidden custom-scrollbar">
+              <motion.div 
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="space-y-3"
+              >
                 {activities.length > 0 ? (
                   activities.map(activity => renderActivityCard(activity))
                 ) : (
-                  <div className="text-center text-gray-500 dark:text-gray-400">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-center text-gray-500 dark:text-gray-400"
+                  >
                     No activity found
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
