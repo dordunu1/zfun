@@ -11,6 +11,7 @@ import { getTokenLogo } from '../../../../utils/tokens';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { formatUnits, parseUnits } from '@ethersproject/units';
 import { V3PositionManager } from '../../../../services/unichain/v3/positionManager';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // NFTPositionManager ABI (we'll need the relevant functions)
 const NFT_POSITION_MANAGER_ABI = [
@@ -1692,6 +1693,45 @@ function CollectFeesModal({ isOpen, onClose, position }) {
   );
 }
 
+// Update the animation variants at the top of the file
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { 
+    opacity: 0,
+    y: 10,
+    scale: 0.98
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: "spring",
+      mass: 0.8,
+      stiffness: 100,
+      damping: 15
+    }
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.96,
+    transition: {
+      duration: 0.2,
+      ease: "easeOut"
+    }
+  }
+};
+
 export default function MyPools() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
@@ -1862,52 +1902,119 @@ export default function MyPools() {
 
   if (!isConnected) {
     return (
-      <div className="text-center py-12">
+      <motion.div 
+        className="flex flex-col items-center justify-center min-h-[400px]"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
         <BiWallet className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No positions</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <motion.h3 
+          className="mt-2 text-sm font-medium text-gray-900 dark:text-white"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          No positions
+        </motion.h3>
+        <motion.p 
+          className="mt-1 text-sm text-gray-500 dark:text-gray-400"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
           Connect your wallet to view your positions
-        </p>
-        <div className="mt-6">
+        </motion.p>
+        <motion.div 
+          className="mt-6"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4 }}
+        >
           <button
             onClick={open}
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-black bg-[#00ffbd] hover:bg-[#00ffbd]/90"
           >
             Connect Wallet
           </button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ffbd] mx-auto" />
-        <p className="mt-4 text-gray-500 dark:text-gray-400">Loading positions...</p>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center h-[calc(100vh-200px)]"
+      >
+        <motion.div 
+          className="flex flex-col items-center gap-4"
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="relative">
+            <div className="w-12 h-12 border-4 border-[#00ffbd] rounded-full animate-spin border-t-transparent"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-[#00ffbd] rounded-full opacity-30"></div>
+          </div>
+          <span className="text-gray-500 dark:text-gray-400">Loading positions...</span>
+        </motion.div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {positions.length > 0 ? (
-        positions.map((position) => (
-          <PositionCard
-            key={position.id}
-            position={position}
-            onAction={handlePositionAction}
-          />
-        ))
-      ) : (
-        <div className="text-center py-12">
-          <FaChartLine className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No positions found</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Create a position to provide liquidity and earn fees
-          </p>
-        </div>
-      )}
+    <motion.div 
+      className="space-y-4"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <AnimatePresence mode="wait">
+        {positions.length > 0 ? (
+          positions.map((position) => (
+            <motion.div
+              key={position.id}
+              variants={itemVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              layout="position"
+              layoutId={position.id}
+            >
+              <PositionCard
+                position={position}
+                onAction={handlePositionAction}
+              />
+            </motion.div>
+          ))
+        ) : (
+          <motion.div 
+            className="text-center py-12"
+            variants={itemVariants}
+          >
+            <FaChartLine className="mx-auto h-12 w-12 text-gray-400" />
+            <motion.h3 
+              className="mt-2 text-sm font-medium text-gray-900 dark:text-white"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              No positions found
+            </motion.h3>
+            <motion.p 
+              className="mt-1 text-sm text-gray-500 dark:text-gray-400"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
+              Create a position to provide liquidity and earn fees
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AddLiquidityModal
         isOpen={showAddLiquidityModal}
@@ -1926,6 +2033,6 @@ export default function MyPools() {
         onClose={() => setShowCollectFeesModal(false)}
         position={selectedPosition}
       />
-    </div>
+    </motion.div>
   );
 } 

@@ -10,6 +10,7 @@ import TokenSelector from '../shared/TokenSelector';
 import { getTokenLogo } from '../../../../utils/tokens';
 import { Dialog, Transition } from '@headlessui/react';
 import Confetti from 'react-confetti';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Uniswap V3 Contract Addresses for Unichain
 const UNISWAP_V3_ADDRESSES = {
@@ -1337,8 +1338,41 @@ export default function TokenSwap() {
     }
   };
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { 
+        duration: 0.4,
+        when: "beforeChildren",
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0 }
+  };
+
+  const swapButtonVariants = {
+    hover: { 
+      scale: 1.1,
+      rotate: 180,
+      transition: { duration: 0.2 }
+    },
+    tap: { scale: 0.95 }
+  };
+
   return (
-    <div className="space-y-6 w-[464px] mx-auto">
+    <motion.div 
+      className="space-y-6 w-[464px] mx-auto"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
       {/* Add Confetti component with higher z-index */}
       {showConfetti && (
         <Confetti
@@ -1363,212 +1397,249 @@ export default function TokenSwap() {
       )}
 
       {/* Card Container */}
-      <div className="bg-white dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800">
-        {!address ? (
-          <div className="text-center py-8">
-            <div className="mb-4">
-              <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Connect Your Wallet
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Please connect your wallet to start swapping tokens
-            </p>
-            <button
-              onClick={openConnectModal}
-              className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
+      <motion.div 
+        className="bg-white dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800"
+        variants={itemVariants}
+      >
+        <AnimatePresence mode="wait">
+          {!address ? (
+            <motion.div 
+              className="text-center py-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
-              Connect Wallet
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* From Token */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                From
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={fromAmount}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      setFromAmount(value);
-                      setRouteError(null);
-                      setFindingRoute(true);
-                    }
-                  }}
-                  placeholder="0.0"
-                  className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                />
-                <button
-                  onClick={() => {
-                    setActiveSide('from');
-                    setShowTokenSelector(true);
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
-                >
-                  {fromToken ? (
-                    <div className="flex items-center gap-2">
-                      <img src={getTokenLogo(fromToken)} alt={fromToken.symbol} className="w-5 h-5" />
-                      <span>{fromToken.symbol}</span>
-                    </div>
-                  ) : (
-                    'Select Token'
-                  )}
-                </button>
+              <div className="mb-4">
+                <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
               </div>
-              {fromToken && <TokenBalance token={fromToken} />}
-            </div>
-
-            {/* Swap Icon */}
-            <div className="flex justify-center my-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Connect Your Wallet
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
+                Please connect your wallet to start swapping tokens
+              </p>
               <button
-                onClick={() => {
-                  const tempToken = fromToken;
-                  const tempAmount = fromAmount;
-                  setFromToken(toToken);
-                  setFromAmount(toAmount);
-                  setToToken(tempToken);
-                  setToAmount(tempAmount);
-                }}
-                className="p-2.5 rounded-xl bg-[#00ffbd]/10 text-[#00ffbd] hover:bg-[#00ffbd]/20 transition-colors border border-[#00ffbd]/20"
+                onClick={openConnectModal}
+                className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
               >
-                <FaExchangeAlt size={16} />
+                Connect Wallet
               </button>
-            </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* From Token */}
+              <motion.div className="space-y-2" variants={itemVariants}>
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  From
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={fromAmount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        setFromAmount(value);
+                        setRouteError(null);
+                        setFindingRoute(true);
+                      }
+                    }}
+                    placeholder="0.0"
+                    className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  />
+                  <button
+                    onClick={() => {
+                      setActiveSide('from');
+                      setShowTokenSelector(true);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
+                  >
+                    {fromToken ? (
+                      <div className="flex items-center gap-2">
+                        <img src={getTokenLogo(fromToken)} alt={fromToken.symbol} className="w-5 h-5" />
+                        <span>{fromToken.symbol}</span>
+                      </div>
+                    ) : (
+                      'Select Token'
+                    )}
+                  </button>
+                </div>
+                {fromToken && <TokenBalance token={fromToken} />}
+              </motion.div>
 
-            {/* To Token */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                To
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={toAmount}
-                  readOnly
-                  placeholder="0.0"
-                  className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                />
-                <button
+              {/* Swap Icon */}
+              <div className="flex justify-center my-4">
+                <motion.button
                   onClick={() => {
-                    setActiveSide('to');
-                    setShowTokenSelector(true);
+                    const tempToken = fromToken;
+                    const tempAmount = fromAmount;
+                    setFromToken(toToken);
+                    setFromAmount(toAmount);
+                    setToToken(tempToken);
+                    setToAmount(tempAmount);
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
+                  className="p-2.5 rounded-xl bg-[#00ffbd]/10 text-[#00ffbd] hover:bg-[#00ffbd]/20 transition-colors border border-[#00ffbd]/20"
+                  variants={swapButtonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
                 >
-                  {toToken ? (
-                    <div className="flex items-center gap-2">
-                      <img src={getTokenLogo(toToken)} alt={toToken.symbol} className="w-5 h-5" />
-                      <span>{toToken.symbol}</span>
-                    </div>
-                  ) : (
-                    'Select Token'
-                  )}
-                </button>
+                  <FaExchangeAlt size={16} />
+                </motion.button>
               </div>
-              {toToken && <TokenBalance token={toToken} />}
-            </div>
 
-            {/* Swap Details */}
-            <div className="mt-4 p-4 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800">
-              {/* Fee and Network Cost */}
-              <div className="space-y-2 mb-2">
-                {!isWrapUnwrapOperation() && (
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>Fee ({routeInfo ? routeInfo.fees.map(fee => (fee / 10000).toFixed(2)).join('% + ') : '--'}%)</span>
-                    <span>
+              {/* To Token */}
+              <motion.div className="space-y-2" variants={itemVariants}>
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  To
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={toAmount}
+                    readOnly
+                    placeholder="0.0"
+                    className="w-full px-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  />
+                  <button
+                    onClick={() => {
+                      setActiveSide('to');
+                      setShowTokenSelector(true);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-white/10 dark:bg-[#2d2f36] rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-white/20 dark:hover:bg-[#2d2f36]/80 transition-colors border border-gray-200 dark:border-gray-800"
+                  >
+                    {toToken ? (
+                      <div className="flex items-center gap-2">
+                        <img src={getTokenLogo(toToken)} alt={toToken.symbol} className="w-5 h-5" />
+                        <span>{toToken.symbol}</span>
+                      </div>
+                    ) : (
+                      'Select Token'
+                    )}
+                  </button>
+                </div>
+                {toToken && <TokenBalance token={toToken} />}
+              </motion.div>
+
+              {/* Swap Details */}
+              <motion.div 
+                className="mt-4 p-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800"
+                variants={itemVariants}
+              >
+                {/* Compact View (Always Visible) */}
+                <div className="space-y-2 text-sm mb-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-500">Fee ({routeInfo ? routeInfo.fees.map(fee => (fee / 10000).toFixed(2)).join('% + ') : '--'}%)</span>
+                      <span className="text-gray-500 cursor-help" title="A portion of each trade goes to liquidity providers as a protocol incentive.">ⓘ</span>
+                    </div>
+                    <span className="text-gray-200">
                       {routeInfo && fromAmount ? (
                         `${(fromAmount * (routeInfo.fees.reduce((a, b) => a + b, 0) / 1000000)).toFixed(6)} ${fromToken?.symbol}`
                       ) : '--'}
                     </span>
                   </div>
-                )}
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>Network cost</span>
-                  <span>Check wallet for gas cost</span>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-gray-200 dark:border-gray-800 my-2"></div>
-
-              {/* Show More Button */}
-              <button
-                onClick={() => setShowMoreDetails(!showMoreDetails)}
-                className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-400"
-              >
-                {showMoreDetails ? 'Hide Details' : 'Show Details'} 
-                <svg
-                  className={`w-4 h-4 transition-transform ${showMoreDetails ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {/* Expanded Details */}
-              {showMoreDetails && (
-                <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-800">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Expected Output</span>
-                    <span className="text-gray-200">
-                      {isWrapUnwrapOperation() ? fromAmount : toAmount} {toToken?.symbol}
-                    </span>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-500">Network cost</span>
+                      <span className="text-gray-500 cursor-help" title="Estimated cost of the transaction on Ethereum">ⓘ</span>
+                    </div>
+                    <span className="text-gray-200">Check wallet for gas cost</span>
                   </div>
+                </div>
 
-                  {!isWrapUnwrapOperation() && (
-                    <>
+                {/* Divider */}
+                <div className="border-t border-gray-200 dark:border-gray-800 my-2"></div>
+
+                {/* Show More Button */}
+                <button
+                  onClick={() => setShowMoreDetails(!showMoreDetails)}
+                  className="flex items-center justify-between w-full text-sm text-gray-500 hover:text-gray-400"
+                >
+                  {showMoreDetails ? 'Hide Details' : 'Show Details'} 
+                  <motion.svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    animate={{ rotate: showMoreDetails ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </motion.svg>
+                </button>
+
+                {/* Expanded Details */}
+                <AnimatePresence>
+                  {showMoreDetails && (
+                    <motion.div 
+                      className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-800"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Minimum received after slippage ({slippage}%)</span>
+                        <span className="text-gray-500">Expected Output</span>
                         <span className="text-gray-200">
-                          {toAmount && Number(toAmount * (1 - slippage/100)).toFixed(6)} {toToken?.symbol}
+                          {isWrapUnwrapOperation() ? fromAmount : toAmount} {toToken?.symbol}
                         </span>
                       </div>
 
-                      {routeInfo && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Route</span>
-                          <span className="text-gray-200">
-                            {routeInfo.path.map((token, index) => (
-                              <React.Fragment key={index}>
-                                {index > 0 && ' → '}
-                                {token.symbol}
-                              </React.Fragment>
-                            ))}
-                          </span>
-                        </div>
-                      )}
+                      {!isWrapUnwrapOperation() && (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Minimum received after slippage ({slippage}%)</span>
+                            <span className="text-gray-200">
+                              {toAmount && Number(toAmount * (1 - slippage/100)).toFixed(6)} {toToken?.symbol}
+                            </span>
+                          </div>
 
-                      {priceImpact !== null && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Price Impact</span>
-                          <span className={`${
-                            priceImpact > 15 ? 'text-red-500' :
-                            priceImpact > 5 ? 'text-yellow-500' :
-                            'text-gray-200'
-                          }`}>
-                            {priceImpact.toFixed(2)}%
-                          </span>
-                        </div>
+                          {routeInfo && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Route</span>
+                              <span className="text-gray-200">
+                                {routeInfo.path.map((token, index) => (
+                                  <React.Fragment key={index}>
+                                    {index > 0 && ' → '}
+                                    {token.symbol}
+                                  </React.Fragment>
+                                ))}
+                              </span>
+                            </div>
+                          )}
+
+                          {priceImpact !== null && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Price Impact</span>
+                              <span className={`${
+                                priceImpact > 15 ? 'text-red-500' :
+                                priceImpact > 5 ? 'text-yellow-500' :
+                                'text-gray-200'
+                              }`}>
+                                {priceImpact.toFixed(2)}%
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
-                    </>
+                    </motion.div>
                   )}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+                </AnimatePresence>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* Slippage Settings */}
-      <div className="bg-white dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800">
+      <motion.div 
+        className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800"
+        variants={itemVariants}
+      >
         <div className="flex flex-col space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -1619,16 +1690,25 @@ export default function TokenSwap() {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Swap Button */}
-      <button
-        onClick={isWrapUnwrapOperation() ? handleWrapUnwrap : handleSwap}
-        disabled={loading || !fromToken || !toToken || !fromAmount}
-        className={`w-full py-4 px-4 font-semibold rounded-2xl transition-all duration-200 ${getButtonStyles()}`}
+      <motion.button
+        onClick={handleSwap}
+        disabled={loading || !fromToken || !toToken || !fromAmount || !toAmount}
+        className={`
+          w-full px-4 py-4 rounded-xl font-medium text-black text-lg
+          ${loading || !fromToken || !toToken || !fromAmount || !toAmount
+            ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+            : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors'
+          }
+        `}
+        variants={itemVariants}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
       >
-        {getActionButtonText()}
-      </button>
+        {loading ? 'Swapping...' : 'Swap'}
+      </motion.button>
 
       {/* Add error message if there's a route error */}
       {routeError && !isWrapUnwrapOperation() && (
@@ -1742,6 +1822,6 @@ export default function TokenSwap() {
           </div>
         </Dialog>
       </Transition>
-    </div>
+    </motion.div>
   );
 } 

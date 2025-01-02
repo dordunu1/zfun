@@ -7,6 +7,7 @@ import { useUnichain } from '../../../../hooks/useUnichain';
 import { FaSearch, FaCoins } from 'react-icons/fa';
 import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../../../services/firebase';
 import { ipfsToHttp } from '../../../../utils/ipfs';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Add RPC URL constant at the top
 const UNICHAIN_RPC_URL = 'https://sepolia.unichain.org';
@@ -350,31 +351,40 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     const isLoadingBalance = !tokenBalances[token.address];
 
     return (
-      <button
+      <motion.button
         onClick={() => onSelect(token)}
         className={`w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-[#2d2f36] rounded-xl transition-colors ${
           isSelected ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : ''
         }`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
       >
         <div className="flex items-center gap-3">
           {renderTokenLogo(token)}
           <div className="text-left">
-            <div className="font-medium text-gray-900 dark:text-white">
+            <div className="text-base font-medium text-gray-900 dark:text-white">
               {token.symbol || 'Unknown'}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="text-sm font-normal text-gray-500 dark:text-gray-400">
               {token.name || 'Unknown Token'}
             </div>
           </div>
         </div>
-        <div className="text-right text-sm text-gray-900 dark:text-white">
+        <div className="text-right text-sm font-medium text-gray-900 dark:text-white">
           {isLoadingBalance ? (
-            <div className="w-12 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <motion.div 
+              className="w-12 h-4 bg-gray-200 dark:bg-gray-700 rounded"
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
           ) : (
             balance
           )}
         </div>
-      </button>
+      </motion.button>
     );
   };
 
@@ -472,104 +482,256 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     }
   };
 
+  // Animation variants
+  const overlayVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1 }
+  };
+
+  const modalVariants = {
+    hidden: { opacity: 0, scale: 0.95, y: 20 },
+    visible: { 
+      opacity: 1, 
+      scale: 1, 
+      y: 0,
+      transition: {
+        type: "spring",
+        duration: 0.5
+      }
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.95,
+      y: 20,
+      transition: {
+        duration: 0.3
+      }
+    }
+  };
+
+  const listContainerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <style>{scrollbarStyles}</style>
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
-      
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl border border-gray-200 dark:border-gray-800">
-          <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            Select Token
-          </Dialog.Title>
+    <AnimatePresence>
+      {isOpen && (
+        <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+          <style>{scrollbarStyles}</style>
+          
+          <motion.div 
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm" 
+            aria-hidden="true"
+            variants={overlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+          />
+          
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <motion.div
+              variants={modalVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <Dialog.Panel className="mx-auto w-[448px] rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 shadow-xl border border-gray-200 dark:border-gray-800">
+                <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                  Select Token
+                </Dialog.Title>
 
-          {/* Search Input */}
-          <div className="relative mb-4">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FaSearch className="text-gray-400" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name or paste address"
-              className="w-full pl-10 pr-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500"
-            />
-            {error && (
-              <p className="mt-2 text-sm text-red-500">{error}</p>
-            )}
-          </div>
-
-          {/* Token List Container */}
-          <div className="token-list-scrollbar overflow-y-auto max-h-[60vh] pr-2">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]"></div>
-              </div>
-            ) : (
-              <>
-                {/* Your Tokens Section */}
-                <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FaCoins className="text-[#00ffbd] w-4 h-4" />
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                      Your Tokens
-                    </h3>
+                {/* Search Input */}
+                <motion.div 
+                  className="relative mb-4"
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FaSearch className="text-gray-400" />
                   </div>
-                  <div className="space-y-2">
-                    {filteredTokens
-                      .filter(hasBalance)
-                      .map((token) => (
-                        <TokenRow
-                          key={`${token.address}-${refreshTrigger}`}
-                          token={token}
-                          onSelect={handleTokenSelect}
-                          isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by name or paste address"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-[#00ffbd] focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500"
+                  />
+                  <AnimatePresence>
+                    {error && (
+                      <motion.p 
+                        className="mt-2 text-sm text-red-500"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                      >
+                        {error}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+
+                {/* Token List Container */}
+                <div className="token-list-scrollbar overflow-y-auto overflow-x-hidden h-[60vh]">
+                  <AnimatePresence mode="wait">
+                    {isLoading ? (
+                      <motion.div 
+                        className="space-y-2 min-h-[400px]"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        {/* Loading State Header */}
+                        <motion.div className="flex items-center gap-2 mb-3 px-3">
+                          <FaCoins className="text-[#00ffbd]/20 w-4 h-4" />
+                          <motion.div 
+                            className="h-4 w-24 rounded-lg bg-gray-200 dark:bg-gray-700"
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          />
+                        </motion.div>
+
+                        {/* Loading Token Rows */}
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                          <motion.div 
+                            key={i}
+                            className="w-full flex items-center justify-between p-3 bg-white dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-[#2d2f36]"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.1 }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <motion.div 
+                                className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0"
+                                animate={{ opacity: [0.5, 1, 0.5] }}
+                                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                              />
+                              <div className="space-y-2">
+                                <motion.div 
+                                  className="h-4 w-20 rounded-lg bg-gray-200 dark:bg-gray-700"
+                                  animate={{ opacity: [0.5, 1, 0.5] }}
+                                  transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                                />
+                                <motion.div 
+                                  className="h-3 w-24 rounded-lg bg-gray-200 dark:bg-gray-700"
+                                  animate={{ opacity: [0.5, 1, 0.5] }}
+                                  transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                                />
+                              </div>
+                            </div>
+                            <motion.div 
+                              className="w-24 h-4 rounded-lg bg-gray-200 dark:bg-gray-700 flex-shrink-0"
+                              animate={{ opacity: [0.5, 1, 0.5] }}
+                              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        variants={listContainerVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="min-h-[400px]"
+                      >
+                        {/* Your Tokens Section */}
+                        <motion.div 
+                          className="mb-4"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                        >
+                          <div className="flex items-center gap-2 mb-3">
+                            <FaCoins className="text-[#00ffbd] w-4 h-4" />
+                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                              Your Tokens
+                            </h3>
+                          </div>
+                          <motion.div className="space-y-2">
+                            <AnimatePresence>
+                              {filteredTokens
+                                .filter(hasBalance)
+                                .map((token) => (
+                                  <TokenRow
+                                    key={`${token.address}-${refreshTrigger}`}
+                                    token={token}
+                                    onSelect={handleTokenSelect}
+                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                                  />
+                                ))}
+                            </AnimatePresence>
+                          </motion.div>
+                        </motion.div>
+
+                        {/* Separator */}
+                        <motion.div 
+                          className="my-4 border-t border-gray-200 dark:border-gray-700"
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{ delay: 0.4 }}
                         />
-                      ))}
-                  </div>
+
+                        {/* Other Tokens Section */}
+                        <motion.div 
+                          className="mb-4"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5 }}
+                        >
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                            Other Tokens
+                          </h3>
+                          <motion.div className="space-y-2">
+                            <AnimatePresence>
+                              {filteredTokens
+                                .filter(token => !hasBalance(token))
+                                .map((token) => (
+                                  <TokenRow
+                                    key={`${token.address}-${refreshTrigger}`}
+                                    token={token}
+                                    onSelect={handleTokenSelect}
+                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                                  />
+                                ))}
+                            </AnimatePresence>
+                          </motion.div>
+                        </motion.div>
+
+                        {/* Custom Token Section */}
+                        <AnimatePresence>
+                          {customToken && !error && (
+                            <motion.div 
+                              className="mt-4"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                            >
+                              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                Custom Token
+                              </h3>
+                              <TokenRow
+                                token={customToken}
+                                onSelect={handleTokenSelect}
+                                isSelected={selectedTokenAddress === customToken.address}
+                              />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-
-                {/* Separator */}
-                <div className="my-4 border-t border-gray-200 dark:border-gray-700" />
-
-                {/* Other Tokens Section */}
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
-                    Other Tokens
-                  </h3>
-                  <div className="space-y-2">
-                    {filteredTokens
-                      .filter(token => !hasBalance(token))
-                      .map((token) => (
-                        <TokenRow
-                          key={`${token.address}-${refreshTrigger}`}
-                          token={token}
-                          onSelect={handleTokenSelect}
-                          isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
-                        />
-                      ))}
-                  </div>
-                </div>
-
-                {/* Custom Token Section */}
-                {customToken && !error && (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                      Custom Token
-                    </h3>
-                    <TokenRow
-                      token={customToken}
-                      onSelect={handleTokenSelect}
-                      isSelected={selectedTokenAddress === customToken.address}
-                    />
-                  </div>
-                )}
-              </>
-            )}
+              </Dialog.Panel>
+            </motion.div>
           </div>
-        </Dialog.Panel>
-      </div>
-    </Dialog>
+        </Dialog>
+      )}
+    </AnimatePresence>
   );
 } 
