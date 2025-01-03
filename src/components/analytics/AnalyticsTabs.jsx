@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import RecentMints from './tabs/RecentMints';
 import TopHolders from './tabs/TopHolders';
-import ChadMinters from './tabs/ChadMinters';
+import Chat from './tabs/Chat';
 import VolumeMetrics from './tabs/VolumeMetrics';
 
 const TABS = [
   { id: 'recent', label: '🔥 Recent Mints' },
   { id: 'holders', label: '👑 Top Holders' },
-  { id: 'chads', label: '🚀 Chad Minters', comingSoon: true },
+  { id: 'chat', label: '💬 Chat' },
   { id: 'volume', label: '📈 Volume' },
 ];
 
@@ -172,7 +172,13 @@ export default function AnalyticsTabs({ collection }) {
           <div className="p-6 h-[400px] md:h-[600px]">
             {activeTab === 'recent' && <RecentMints />}
             {activeTab === 'holders' && <TopHolders collection={collection} />}
-            {activeTab === 'chads' && <ComingSoonCat />}
+            {activeTab === 'chat' && <Chat 
+              collection={{
+                ...collection,
+                creator: collection.creator || collection.creatorAddress,
+                contractAddress: collection.contractAddress
+              }} 
+            />}
             {activeTab === 'volume' && <VolumeMetrics contractAddress={collection?.contractAddress} network={collection?.network} />}
           </div>
         </div>

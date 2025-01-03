@@ -100,5 +100,25 @@ service cloud.firestore {
         request.resource.data.transactions is number;
       allow update, delete: if false;
     }
+
+    // Allow anyone to read messages
+    match /messages/{messageId} {
+      allow read: if true;
+      allow write: if 
+        // Basic validation
+        request.resource.data.text is string &&
+        request.resource.data.text.size() <= 500 &&
+        request.resource.data.sender is string &&
+        request.resource.data.collectionAddress is string &&
+        request.resource.data.timestamp is timestamp;
+    }
+
+    // Minters collection to track who has minted
+    match /minters/{minterId} {
+      allow read: if true;
+      allow write: if 
+        request.resource.data.collectionAddress is string &&
+        request.resource.data.minterAddress is string;
+    }
   }
 }
