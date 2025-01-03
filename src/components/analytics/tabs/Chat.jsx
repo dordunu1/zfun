@@ -204,6 +204,15 @@ const ReplyPreview = ({ replyTo, onClose }) => (
 const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, currentTheme, getTheme }) => {
   const canReply = !message.threadDepth || message.threadDepth < 3;
   
+  const scrollToMessage = (messageId) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('highlight-message');
+      setTimeout(() => element.classList.remove('highlight-message'), 2000);
+    }
+  };
+  
   return (
     <div className="relative group" id={`message-${message.id}`}>
       {message.replyTo && (
@@ -228,31 +237,31 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
       )}
       
       <div className={`
-        relative
-        ${isMyMessage ? 'ml-auto' : 'mr-auto'}
-        max-w-[85%] min-w-[60px]
+        flex
+        ${isMyMessage ? 'justify-end' : 'justify-start'}
+        min-w-[60px] max-w-[85%]
       `}>
         <div className={`
-          relative 
-          inline-block
-          py-2 px-3
+          p-3 
           break-words whitespace-pre-wrap
-          rounded-[18px]
           ${isMyMessage 
             ? getTheme(currentTheme).messageBubble.sent
             : getTheme(currentTheme).messageBubble.received
           }
+          rounded-2xl
+          ${isMyMessage ? 'rounded-tr-sm' : 'rounded-tl-sm'}
+          relative
         `}>
-          <p className="text-sm relative z-10 min-w-[40px]">{message.text}</p>
+          <p className="text-sm pr-6">{message.text}</p>
           
           {canReply && (
             <button
               onClick={() => onReply(message)}
-              className="absolute -right-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100
-                p-1.5 rounded-full hover:bg-gray-800/50 transition-all z-20"
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100
+                p-1 rounded hover:bg-black/20 transition-all"
               title="Reply"
             >
-              <ArrowUturnLeftIcon className="w-4 h-4 text-gray-400" />
+              <ArrowUturnLeftIcon className="w-4 h-4 text-current" />
             </button>
           )}
         </div>
