@@ -152,7 +152,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   background-color: #00e6a9 !important;
 }
 
-/* Add highlight animation for replied messages */
+/* Update the highlight animation styles */
 @keyframes highlight {
   0%, 100% {
     background-color: transparent;
@@ -162,6 +162,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   }
 }
 
-.highlight-message {
+/* Update to target only the message bubble */
+.highlight-message .message-bubble {
   animation: highlight 2s ease-in-out;
 }

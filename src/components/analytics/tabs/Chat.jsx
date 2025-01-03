@@ -242,6 +242,7 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
         min-w-[60px] max-w-[85%]
       `}>
         <div className={`
+          message-bubble
           p-3 
           break-words whitespace-pre-wrap
           ${isMyMessage 
