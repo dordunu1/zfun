@@ -7,107 +7,7 @@ import { ipfsToHttp } from '../utils/ipfs';
 import { Link } from 'react-router-dom';
 import { useTokenPrices } from '../hooks/useTokenPrices';
 import { useUniswap } from '../hooks/useUniswap';
-
-// Animated Cat Component
-const AnimatedCat = ({ onAnimationComplete }) => {
-  const [position, setPosition] = useState(-100);
-  const [isDone, setIsDone] = useState(false);
-
-  useEffect(() => {
-    setTimeout(() => {
-      setPosition(75);
-      setTimeout(() => {
-        setIsDone(true);
-        onAnimationComplete();
-      }, 1000);
-    }, 500);
-  }, []);
-
-  return (
-    <div 
-      className={`absolute ${isDone ? 'top-4' : '-top-4'} transition-all duration-1000 ease-out`}
-      style={{ 
-        left: `${position}%`,
-        transform: 'translate(-50%, 0)',
-      }}
-    >
-      <div className="relative w-40 h-40">
-        {/* Main Body */}
-        <div className={`absolute w-40 h-24 bg-[#00ffbd]/20 rounded-[100px] animate-[float_3s_ease-in-out_infinite]`} style={{top: '40%'}}>
-          {/* Head */}
-          <div className="absolute w-28 h-24 bg-[#00ffbd]/20 rounded-[50%] -left-4 -top-10">
-            {/* Inner Ears */}
-            <div className="absolute -top-7 left-5 w-5 h-7 bg-[#00ffbd]/30 rounded-tl-[120%] rounded-tr-[120%] -rotate-[15deg] transform origin-bottom" />
-            <div className="absolute -top-7 right-5 w-5 h-7 bg-[#00ffbd]/30 rounded-tl-[120%] rounded-tr-[120%] rotate-[15deg] transform origin-bottom" />
-            {/* Outer Ears */}
-            <div className="absolute -top-8 left-4 w-7 h-9 bg-[#00ffbd]/20 rounded-tl-[120%] rounded-tr-[120%] -rotate-[15deg] animate-[earTwitch_5s_ease-in-out_infinite]" />
-            <div className="absolute -top-8 right-4 w-7 h-9 bg-[#00ffbd]/20 rounded-tl-[120%] rounded-tr-[120%] rotate-[15deg] animate-[earTwitch_5s_ease-in-out_infinite_0.5s]" />
-            {/* Eyes */}
-            <div className="absolute top-7 left-5 w-5 h-[16px] overflow-hidden">
-              <div className="w-5 h-5 bg-[#00ffbd] rounded-full animate-[blink_4s_ease-in-out_infinite]" />
-            </div>
-            <div className="absolute top-7 right-5 w-5 h-[16px] overflow-hidden">
-              <div className="w-5 h-5 bg-[#00ffbd] rounded-full animate-[blink_4s_ease-in-out_infinite]" />
-            </div>
-            {/* Nose */}
-            <div className="absolute top-11 left-1/2 -translate-x-1/2 w-2.5 h-1.5 bg-[#00ffbd] rounded-[40%]" />
-            {/* Whiskers */}
-            <div className="absolute top-11 left-2 w-8 h-0.5 bg-[#00ffbd]/60 rotate-[15deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
-            <div className="absolute top-13 left-2 w-8 h-0.5 bg-[#00ffbd]/60 rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
-            <div className="absolute top-15 left-2 w-8 h-0.5 bg-[#00ffbd]/60 -rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
-            <div className="absolute top-11 right-2 w-8 h-0.5 bg-[#00ffbd]/60 -rotate-[15deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
-            <div className="absolute top-13 right-2 w-8 h-0.5 bg-[#00ffbd]/60 -rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
-            <div className="absolute top-15 right-2 w-8 h-0.5 bg-[#00ffbd]/60 rotate-[5deg] animate-[whiskerMove_4s_ease-in-out_infinite]" />
-          </div>
-          {/* Front Legs */}
-          <div className="absolute bottom-0 left-5 w-5 h-10 bg-[#00ffbd]/20 rounded-b-[50%] animate-[legSwing_2s_ease-in-out_infinite]" />
-          <div className="absolute bottom-0 left-14 w-5 h-10 bg-[#00ffbd]/20 rounded-b-[50%] animate-[legSwing_2s_ease-in-out_infinite_0.5s]" />
-          {/* Back Legs */}
-          <div className="absolute bottom-0 right-14 w-5 h-12 bg-[#00ffbd]/20 rounded-b-[50%] animate-[legSwing_2s_ease-in-out_infinite_1s]" />
-          <div className="absolute bottom-0 right-5 w-5 h-12 bg-[#00ffbd]/20 rounded-b-[50%] animate-[legSwing_2s_ease-in-out_infinite_1.5s]" />
-          {/* Tail */}
-          <div className="absolute -right-10 top-1/3 w-14 h-3.5 bg-[#00ffbd]/20 rounded-full origin-left animate-[tailWag_3s_ease-in-out_infinite]" 
-               style={{
-                 borderRadius: '4px 14px 14px 4px',
-                 transform: 'rotate(-5deg)'
-               }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Add keyframes for the animations
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes float {
-    0%, 100% { transform: translateY(0px) rotate(-2deg); }
-    50% { transform: translateY(-8px) rotate(2deg); }
-  }
-  @keyframes blink {
-    0%, 95%, 100% { transform: scaleY(1); }
-    97.5% { transform: scaleY(0.1); }
-  }
-  @keyframes tailWag {
-    0%, 100% { transform: rotate(-5deg); }
-    25% { transform: rotate(15deg); }
-    75% { transform: rotate(-25deg); }
-  }
-  @keyframes legSwing {
-    0%, 100% { transform: rotate(-2deg) scaleY(1); }
-    50% { transform: rotate(8deg) scaleY(0.95); }
-  }
-  @keyframes whiskerMove {
-    0%, 100% { transform: rotate(var(--rotate, 0deg)); }
-    50% { transform: rotate(calc(var(--rotate, 0deg) + 3deg)); }
-  }
-  @keyframes earTwitch {
-    0%, 90%, 100% { transform: rotate(var(--rotate, 0deg)); }
-    95% { transform: rotate(calc(var(--rotate, 0deg) + 3deg)); }
-  }
-`;
-document.head.appendChild(style);
+import CryptoSplash from './CryptoSplash';
 
 export default function Dashboard() {
   const { deployments } = useDeployments();
@@ -120,6 +20,8 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [position, setPosition] = useState(-100);
+  const [isDone, setIsDone] = useState(false);
 
   useEffect(() => {
     const loadPoolStats = async () => {
@@ -177,6 +79,16 @@ export default function Dashboard() {
       loadPoolStats();
     }
   }, [uniswap, prices.ETH]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setPosition(75);
+      setTimeout(() => {
+        setIsDone(true);
+        setShowWelcome(true);
+      }, 1000);
+    }, 500);
+  }, []);
 
   const formatUSD = (value) => {
     return new Intl.NumberFormat('en-US', {
@@ -336,7 +248,15 @@ export default function Dashboard() {
             Create, trade, and manage your crypto assets with our powerful platform.
           </p>
         </div>
-        <AnimatedCat onAnimationComplete={() => setShowWelcome(true)} />
+        <div 
+          className={`absolute ${isDone ? 'top-4' : '-top-4'} transition-all duration-1000 ease-out`}
+          style={{ 
+            left: `${position}%`,
+            transform: 'translate(-50%, 0)',
+          }}
+        >
+          <CryptoSplash />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto mb-12">
