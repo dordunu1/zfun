@@ -115,6 +115,89 @@ const itemVariants = {
   }
 };
 
+// Add skeleton card component
+const SkeletonCard = () => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="relative"
+  >
+    <div className="relative">
+      {/* L-shaped corners */}
+      <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+        <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+        <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+      </div>
+      <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+        <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+        <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+      </div>
+      <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+        <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+        <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+      </div>
+      <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+        <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+        <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+      </div>
+
+      {/* Glowing dots */}
+      <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+      <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+      <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+      <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+      {/* Three dots */}
+      <div className="absolute top-3 right-3 flex gap-1 z-20">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+            style={{ animationDelay: `${i * 0.2}s` }}
+          />
+        ))}
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 bg-white dark:bg-[#0a0b0f] h-[340px]">
+        {/* Image skeleton */}
+        <div className="h-[180px] w-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
+
+        {/* Type badge skeleton */}
+        <div className="absolute top-3 left-3 z-10">
+          <div className="w-16 h-5 bg-gray-300 dark:bg-gray-700 rounded-full animate-pulse" />
+        </div>
+
+        {/* Status badge skeleton */}
+        <div className="absolute top-3 right-3 z-10">
+          <div className="w-20 h-5 bg-gray-300 dark:bg-gray-700 rounded-full animate-pulse" />
+        </div>
+
+        {/* Content section */}
+        <div className="p-4">
+          {/* Title and description */}
+          <div className="mb-3">
+            <div className="h-6 w-3/4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mb-2" />
+            <div className="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          </div>
+
+          {/* Price section */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-8 h-8 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse" />
+            <div className="w-24 h-8 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse" />
+          </div>
+
+          {/* Supply and Minted */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse" />
+            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </motion.div>
+);
+
 export default function AccountPage() {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -675,27 +758,52 @@ export default function AccountPage() {
 
   if (loading) {
     return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="min-h-screen bg-gray-50 dark:bg-[#0d0e12] p-4"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {[...Array(10)].map((_, i) => (
-                <motion.div 
-                  key={i} 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="bg-white dark:bg-[#1a1b1f] rounded-xl h-[340px]"
-                />
-              ))}
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
+        <div className="ml-[256px] relative">
+          <div className="sticky top-0 z-50 bg-gray-50 dark:bg-[#0a0b0f] border-b border-gray-200 dark:border-gray-800">
+            <div className="max-w-7xl mx-auto px-8">
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="relative inline-block mb-3 pt-4"
+              >
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="max-w-xl pb-3"
+              >
+                <div className="flex gap-2">
+                  <div className="w-24 h-8 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="w-24 h-8 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                </div>
+              </motion.div>
             </div>
           </div>
+
+          <div className="max-w-7xl mx-auto px-8 py-4 overflow-y-auto custom-scrollbar" style={{
+            height: 'calc(100vh - 120px)',
+            scrollbarWidth: 'thin',
+            scrollbarColor: `#00ffbd ${document.documentElement.classList.contains('dark') ? '#1a1b1f' : '#ffffff'}`
+          }}>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+            >
+              {Array.from({ length: 10 }).map((_, index) => (
+                <SkeletonCard key={index} />
+              ))}
+            </motion.div>
+          </div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 

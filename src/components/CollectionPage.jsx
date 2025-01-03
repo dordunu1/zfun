@@ -15,6 +15,7 @@ import { prepareAndUploadMetadata } from '../services/metadata';
 import { Dialog, Transition } from '@headlessui/react';
 import Confetti from 'react-confetti';
 import clsx from 'clsx';
+import { motion } from 'framer-motion';
 
 
 const validateAddress = (address) => {
@@ -655,9 +656,58 @@ export default function CollectionPage() {
 
   if (loading || !collection) {
     return (
-      <div className="min-h-screen bg-[#0a0b0f] flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        className="min-h-screen bg-inherit"
+      >
+        {/* Hero Section Skeleton */}
+        <div className="relative h-[300px] sm:h-[400px] bg-gradient-to-br from-gray-100/5 to-gray-200/5 dark:from-gray-800/10 dark:to-gray-700/10">
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-50 dark:from-[#0a0b0f] to-transparent" />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-32 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Collection Info Card Skeleton */}
+            <div className="relative">
+              <div className="bg-white dark:bg-[#0a0b0f] p-6 rounded-lg border border-gray-200 dark:border-gray-800">
+                <div className="flex items-center gap-6 mb-6">
+                  <div className="w-24 h-24 rounded-xl bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                  <div className="flex-1">
+                    <div className="h-8 w-3/4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mb-2" />
+                    <div className="h-4 w-1/4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-2 mb-6">
+                  <div className="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-4 w-5/6 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-4 w-4/6 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="h-20 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Minting Section Card Skeleton */}
+            <div className="relative">
+              <div className="bg-white dark:bg-[#0a0b0f] p-6 rounded-lg border border-gray-200 dark:border-gray-800">
+                <div className="h-12 w-full bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse mb-6" />
+                <div className="h-48 w-full bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse mb-6" />
+                <div className="space-y-4">
+                  <div className="h-8 w-full bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-2 w-full bg-gray-200 dark:bg-gray-800 rounded-full animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     );
   }
 

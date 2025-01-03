@@ -29,13 +29,13 @@ function App() {
             themeMode={isDarkMode ? 'dark' : 'light'}
           />
           
-          <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
+          <div className="min-h-screen bg-white dark:bg-[#0a0b0f]">
             <Toaster position="top-right" />
             <Sidebar 
               onOpenModal={() => setIsModalOpen(true)}
               onOpenNFTModal={() => setIsNFTModalOpen(true)}
             />
-            <div className="flex-1">
+            <div className="flex-1 bg-white dark:bg-[#0a0b0f]">
               <Header />
               <Outlet />
             </div>
