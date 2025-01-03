@@ -120,5 +120,36 @@ service cloud.firestore {
         request.resource.data.collectionAddress is string &&
         request.resource.data.minterAddress is string;
     }
+
+    match /collections/{collectionAddress}/messages/{messageId} {
+      allow read: if true;
+      allow create: if 
+        // Basic message validation
+        request.resource.data.text is string &&
+        request.resource.data.text.size() <= 500 &&
+        request.resource.data.sender is string &&
+        request.resource.data.timestamp is timestamp &&
+        (
+          // For normal messages, these fields should be null
+          (
+            request.resource.data.replyTo == null &&
+            request.resource.data.threadId == null &&
+            request.resource.data.isThread == false &&
+            request.resource.data.threadDepth == null
+          ) ||
+          // For reply messages, validate reply structure
+          (
+            request.resource.data.replyTo.messageId is string &&
+            request.resource.data.replyTo.text is string &&
+            request.resource.data.replyTo.text.size() <= 100 &&
+            request.resource.data.replyTo.sender is string &&
+            request.resource.data.threadId is string &&
+            request.resource.data.isThread == true &&
+            (request.resource.data.threadDepth == null || request.resource.data.threadDepth <= 3)
+          )
+        );
+      allow update: if false;
+      allow delete: if false;
+    }
   }
 }

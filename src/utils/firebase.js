@@ -17,28 +17,47 @@ import {
 const MESSAGES_COLLECTION = 'messages';
 const MESSAGE_LIMIT = 100;
 
-export const sendMessage = async ({ text, sender, collectionAddress }) => {
+export const sendMessage = async ({ text, sender, collectionAddress, replyTo = null }) => {
   try {
+    const messagesRef = collection(db, 'collections', collectionAddress, 'messages');
+    
     const messageData = {
       text: text.trim(),
       sender: sender.toLowerCase(),
-      collectionAddress,
-      timestamp: serverTimestamp()
+      timestamp: serverTimestamp(),
     };
 
-    await addDoc(collection(db, MESSAGES_COLLECTION), messageData);
+    // Only add reply-related fields if it's a reply
+    if (replyTo) {
+      messageData.replyTo = {
+        messageId: replyTo.messageId,
+        text: replyTo.text.substring(0, 100),
+        sender: replyTo.sender.toLowerCase()
+      };
+      messageData.threadId = replyTo.threadId || replyTo.messageId;
+      messageData.isThread = true;
+      messageData.threadDepth = replyTo.threadDepth ? replyTo.threadDepth + 1 : 0;
+    } else {
+      // Explicitly set reply-related fields to null/false for normal messages
+      messageData.replyTo = null;
+      messageData.threadId = null;
+      messageData.isThread = false;
+      messageData.threadDepth = null;
+    }
+
+    await addDoc(messagesRef, messageData);
     return true;
   } catch (error) {
     console.error('Error sending message:', error);
-    console.error('Error details:', error.message);
     return false;
   }
 };
 
 export const subscribeToMessages = (collectionAddress, callback) => {
+  const messagesRef = collection(db, 'collections', collectionAddress, 'messages');
+  
   const q = query(
-    collection(db, MESSAGES_COLLECTION),
-    where('collectionAddress', '==', collectionAddress),
+    messagesRef,
     orderBy('timestamp', 'desc'),
     limit(100)
   );
@@ -53,6 +72,20 @@ export const subscribeToMessages = (collectionAddress, callback) => {
         timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date()
       });
     });
-    callback(messages.reverse());
+    
+    // Sort messages so threads appear after their parent messages
+    const sortedMessages = messages.sort((a, b) => {
+      // First sort by timestamp
+      const timeCompare = a.timestamp - b.timestamp;
+      if (timeCompare !== 0) return timeCompare;
+      
+      // If timestamps are equal, put replies after their parent messages
+      if (a.threadId === b.id) return 1;
+      if (b.threadId === a.id) return -1;
+      
+      return 0;
+    });
+    
+    callback(sortedMessages);
   });
 }; 
