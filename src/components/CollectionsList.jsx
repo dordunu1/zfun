@@ -10,6 +10,7 @@ import { getAllCollections, getTokenDeploymentByAddress } from '../services/fire
 import { useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import FuturisticCard from './FuturisticCard';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 // Category icons mapping
 const CATEGORY_ICONS = {
@@ -50,6 +51,9 @@ const itemVariants = {
   }
 };
 
+// Add these constants near the top of the file
+const ITEMS_PER_PAGE = 20;
+
 export default function CollectionsList() {
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +63,7 @@ export default function CollectionsList() {
     sortBy: 'newest'   // 'newest', 'oldest', 'name'
   });
   const [tokenLogos, setTokenLogos] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Add this useEffect to load collections
   useEffect(() => {
@@ -350,6 +355,64 @@ export default function CollectionsList() {
     </motion.div>
   );
 
+  // Add pagination calculation
+  const paginatedCollections = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filteredCollections.slice(startIndex, endIndex);
+  }, [filteredCollections, currentPage]);
+
+  const totalPages = Math.ceil(filteredCollections.length / ITEMS_PER_PAGE);
+
+  // Add pagination controls component
+  const PaginationControls = () => (
+    <div className="flex items-center justify-between py-4 border-t border-gray-200 dark:border-gray-800">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredCollections.length)} of {filteredCollections.length} collections
+        </span>
+      </div>
+      
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-50 
+            disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        >
+          <ChevronLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+        </button>
+        
+        <div className="flex items-center gap-1">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`
+                w-8 h-8 rounded-lg text-sm font-medium transition-colors
+                ${currentPage === page 
+                  ? 'bg-[#00ffbd] text-gray-900' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }
+              `}
+            >
+              {page}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-50 
+            disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        >
+          <ChevronRightIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-screen flex flex-col overflow-hidden pt-16">
       <div className="max-w-7xl mx-auto w-full px-8 flex-shrink-0">
@@ -373,13 +436,11 @@ export default function CollectionsList() {
             className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pt-2"
           >
             {loading ? (
-              // Show skeleton cards while loading
-              Array.from({ length: 10 }).map((_, index) => (
+              Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
                 <SkeletonCard key={index} />
               ))
             ) : (
-              // Show actual collection cards
-              filteredCollections.map((collection) => {
+              paginatedCollections.map((collection) => {
                 const status = getMintStatus(collection);
                 
                 return (
@@ -541,6 +602,11 @@ export default function CollectionsList() {
               })
             )}
           </motion.div>
+          
+          {/* Add pagination controls */}
+          {!loading && filteredCollections.length > ITEMS_PER_PAGE && (
+            <PaginationControls />
+          )}
         </div>
       </div>
     </div>
