@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Enhanced background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0b0f;stop-opacity:1">
+        <animate attributeName="stop-color" values="#0a0b0f;#12141a;#0a0b0f" dur="10s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="50%" style="stop-color:#1a1b1f;stop-opacity:1">
+        <animate attributeName="stop-color" values="#1a1b1f;#2d2f36;#1a1b1f" dur="10s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="100%" style="stop-color:#2d2f36;stop-opacity:1">
+        <animate attributeName="stop-color" values="#2d2f36;#1a1b1f;#2d2f36" dur="10s" repeatCount="indefinite"/>
+      </stop>
+    </linearGradient>
+
+    <!-- Token gradient with animation -->
+    <linearGradient id="tokenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00ffbd;stop-opacity:1">
+        <animate attributeName="stop-color" values="#00ffbd;#00b386;#00ffbd" dur="3s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="50%" style="stop-color:#00e6a9;stop-opacity:1">
+        <animate attributeName="stop-color" values="#00e6a9;#00ffbd;#00e6a9" dur="3s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="100%" style="stop-color:#00b386;stop-opacity:1">
+        <animate attributeName="stop-color" values="#00b386;#00ffbd;#00b386" dur="3s" repeatCount="indefinite"/>
+      </stop>
+    </linearGradient>
+
+    <!-- Enhanced glow effect -->
+    <filter id="powerGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur2"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1" result="blur3"/>
+      <feMerge>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur3"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Circuit pattern -->
+    <pattern id="circuitPattern" x="0" y="0" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M0 25h50M25 0v50" stroke="#00ffbd" stroke-width="0.5" opacity="0.1"/>
+      <circle cx="25" cy="25" r="2" fill="#00ffbd" opacity="0.2"/>
+    </pattern>
+
+    <!-- Particle system -->
+    <radialGradient id="particleGrad">
+      <stop offset="0%" style="stop-color:#00ffbd;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#00ffbd;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+  <rect width="1024" height="1024" fill="url(#circuitPattern)"/>
+
+  <!-- Central composition -->
+  <g transform="translate(512 512)">
+    <!-- Outer energy rings -->
+    <g filter="url(#powerGlow)">
+      <circle r="200" fill="none" stroke="#00ffbd" stroke-width="1" opacity="0.1">
+        <animate attributeName="r" values="200;220;200" dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.1;0.2;0.1" dur="3s" repeatCount="indefinite"/>
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="30s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="180" fill="none" stroke="#00ffbd" stroke-width="1" opacity="0.15">
+        <animate attributeName="r" values="180;200;180" dur="4s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.15;0.25;0.15" dur="4s" repeatCount="indefinite"/>
+        <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="25s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- Data streams -->
+    <g>
+      <path d="M-150 0 L150 0" stroke="#00ffbd" stroke-width="2" opacity="0.3">
+        <animate attributeName="stroke-dasharray" values="0,300;300,300" dur="2s" repeatCount="indefinite"/>
+      </path>
+      <path d="M0 -150 L0 150" stroke="#00ffbd" stroke-width="2" opacity="0.3">
+        <animate attributeName="stroke-dasharray" values="0,300;300,300" dur="2.5s" repeatCount="indefinite"/>
+      </path>
+      <path d="M-106 -106 L106 106" stroke="#00ffbd" stroke-width="2" opacity="0.3">
+        <animate attributeName="stroke-dasharray" values="0,300;300,300" dur="3s" repeatCount="indefinite"/>
+      </path>
+      <path d="M106 -106 L-106 106" stroke="#00ffbd" stroke-width="2" opacity="0.3">
+        <animate attributeName="stroke-dasharray" values="0,300;300,300" dur="3.5s" repeatCount="indefinite"/>
+      </path>
+    </g>
+
+    <!-- Core token -->
+    <g filter="url(#powerGlow)">
+      <!-- Pulsing background -->
+      <circle r="120" fill="url(#tokenGrad)" opacity="0.2">
+        <animate attributeName="r" values="120;130;120" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      
+      <!-- Main token circle -->
+      <circle r="100" fill="url(#tokenGrad)" opacity="0.9">
+        <animate attributeName="r" values="100;105;100" dur="2s" repeatCount="indefinite"/>
+      </circle>
+
+      <!-- Dynamic rings -->
+      <circle r="140" fill="none" stroke="#00ffbd" stroke-width="4" stroke-dasharray="10,20" opacity="0.5">
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="20s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="160" fill="none" stroke="#00ffbd" stroke-width="2" stroke-dasharray="20,30" opacity="0.3">
+        <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="25s" repeatCount="indefinite"/>
+      </circle>
+
+      <!-- Token text -->
+      <text x="-70" y="30" fill="#1a1b1f" font-family="Arial" font-weight="900" font-size="100" filter="url(#powerGlow)">
+        TF
+        <animate attributeName="filter" values="url(#powerGlow);url(#powerGlow) saturate(200%);url(#powerGlow)" dur="2s" repeatCount="indefinite"/>
+      </text>
+    </g>
+  </g>
+
+  <!-- Corner elements -->
+  <g>
+    <!-- Top left -->
+    <g transform="translate(100,100)">
+      <circle r="30" fill="#00ffbd" opacity="0.1">
+        <animate attributeName="r" values="30;35;30" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="20" fill="#00ffbd" opacity="0.2">
+        <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="10" fill="#00ffbd" opacity="0.8"/>
+    </g>
+    <!-- Top right -->
+    <g transform="translate(924,100)">
+      <circle r="30" fill="#00ffbd" opacity="0.1">
+        <animate attributeName="r" values="30;35;30" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+      </circle>
+      <circle r="20" fill="#00ffbd" opacity="0.2">
+        <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+      </circle>
+      <circle r="10" fill="#00ffbd" opacity="0.8"/>
+    </g>
+    <!-- Bottom left -->
+    <g transform="translate(100,924)">
+      <circle r="30" fill="#00ffbd" opacity="0.1">
+        <animate attributeName="r" values="30;35;30" dur="2s" repeatCount="indefinite" begin="1s"/>
+      </circle>
+      <circle r="20" fill="#00ffbd" opacity="0.2">
+        <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite" begin="1s"/>
+      </circle>
+      <circle r="10" fill="#00ffbd" opacity="0.8"/>
+    </g>
+    <!-- Bottom right -->
+    <g transform="translate(924,924)">
+      <circle r="30" fill="#00ffbd" opacity="0.1">
+        <animate attributeName="r" values="30;35;30" dur="2s" repeatCount="indefinite" begin="1.5s"/>
+      </circle>
+      <circle r="20" fill="#00ffbd" opacity="0.2">
+        <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite" begin="1.5s"/>
+      </circle>
+      <circle r="10" fill="#00ffbd" opacity="0.8"/>
+    </g>
+  </g>
+
+  <!-- Floating particles -->
+  <g>
+    <circle cx="512" cy="200" r="3" fill="url(#particleGrad)">
+      <animate attributeName="cy" values="200;824;200" dur="4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;0" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="412" cy="824" r="3" fill="url(#particleGrad)">
+      <animate attributeName="cy" values="824;200;824" dur="4s" repeatCount="indefinite" begin="1s"/>
+      <animate attributeName="opacity" values="0;1;0" dur="4s" repeatCount="indefinite" begin="1s"/>
+    </circle>
+    <circle cx="612" cy="824" r="3" fill="url(#particleGrad)">
+      <animate attributeName="cy" values="824;200;824" dur="4s" repeatCount="indefinite" begin="2s"/>
+      <animate attributeName="opacity" values="0;1;0" dur="4s" repeatCount="indefinite" begin="2s"/>
+    </circle>
+  </g>
+</svg> 

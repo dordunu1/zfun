@@ -217,7 +217,7 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
 
           <div className="flex items-center mb-8">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Logo" className="w-10 h-10" />
+              <img src="/tf1.png" alt="Token Factory Logo" className="w-10 h-10" />
               {!isCollapsed && (
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white transition-opacity duration-200">
                   Token Factory
