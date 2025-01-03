@@ -511,12 +511,11 @@ const Chat = ({ collection }) => {
                     <div className="relative">
                       <MessageAvatar address={group.sender} size={32} />
                       {isCreatorMessage && (
-                        <div className="group relative">
+                        <div className="group absolute -top-1 -left-1">
                           <FaCrown 
-                            className="absolute -top-2 -right-2 text-yellow-400 w-4 h-4 cursor-help" 
+                            className="text-yellow-400 w-4 h-4 cursor-help" 
                           />
-                          {/* Updated Tooltip */}
-                          <span className="absolute -top-6 right-0 
+                          <span className="absolute -top-6 left-0 
                             scale-0 transition-all group-hover:scale-100
                             px-2 py-1 text-xs rounded bg-gray-800 text-yellow-400 whitespace-nowrap z-10"
                           >
