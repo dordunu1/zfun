@@ -11,7 +11,7 @@ import MessageAvatar from '../../../components/avatars/MessageAvatar';
 import { IoColorPaletteOutline } from "react-icons/io5";
 import { XMarkIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 
 const CHAT_THEMES = {
@@ -424,10 +424,10 @@ const Chat = ({ collection }) => {
   // Update the handleSubmit function
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || isLoading) return;
+    if (!newMessage.trim() || isLoading || !isChatEnabled) return;
 
-    // Check if user is banned
-    if (bannedAddresses.includes(address?.toLowerCase())) {
+    // Check if user is banned (case-insensitive check)
+    if (bannedAddresses.some(addr => addr.toLowerCase() === address?.toLowerCase())) {
       toast.error("You have been banned from this chat");
       return;
     }
@@ -442,15 +442,12 @@ const Chat = ({ collection }) => {
       });
       setNewMessage('');
       setReplyingTo(null);
-      
-      // Focus back on textarea immediately
       textareaRef.current?.focus();
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
     }
     setIsLoading(false);
-    // Focus again after state updates
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 100);
@@ -606,14 +603,14 @@ const Chat = ({ collection }) => {
   };
 
   // Add moderation functions
-  const handleModeration = async (action, address, messageId = null) => {
+  const handleModeration = async (action, userAddress, messageId = null) => {
     try {
       switch (action) {
         case 'ban':
-          const newBannedList = [...(collection.bannedUsers || []), address];
+          const newBannedList = [...bannedAddresses, userAddress.toLowerCase()];
           await updateBannedUsers(collection.contractAddress, newBannedList);
-          setBannedAddresses(newBannedList);
-          toast.success(`User ${shortenAddress(address)} banned successfully`);
+          // No need to setBannedAddresses here as the subscription will handle it
+          toast.success(`User ${shortenAddress(userAddress)} banned successfully`);
           break;
         
         case 'delete':
@@ -629,9 +626,10 @@ const Chat = ({ collection }) => {
     }
   };
 
-  // Add this useEffect near the top of the Chat component
+  // Add a subscription to banned users list
   useEffect(() => {
     if (collection?.contractAddress) {
+      // Initial load of banned users
       const loadBannedList = async () => {
         try {
           const bannedList = await loadBannedUsers(collection.contractAddress);
@@ -642,6 +640,20 @@ const Chat = ({ collection }) => {
       };
       
       loadBannedList();
+
+      // Subscribe to banned users changes
+      const unsubscribe = onSnapshot(
+        doc(db, 'collections', collection.contractAddress, 'moderation', 'bannedUsers'),
+        (doc) => {
+          if (doc.exists()) {
+            setBannedAddresses(doc.data().addresses || []);
+          } else {
+            setBannedAddresses([]);
+          }
+        }
+      );
+
+      return () => unsubscribe();
     }
   }, [collection?.contractAddress]);
 
