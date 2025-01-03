@@ -393,11 +393,11 @@ export default function AccountPage() {
     };
 
     return (
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex gap-2">
         <select
           value={filters.type}
           onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
-          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd]/20 focus:outline-none"
         >
           <option value="all">All Types ({typeCount.all})</option>
           <option value="ERC721">ERC721 ({typeCount.ERC721})</option>
@@ -407,7 +407,7 @@ export default function AccountPage() {
         <select
           value={filters.network}
           onChange={(e) => setFilters(f => ({ ...f, network: e.target.value }))}
-          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd]/20 focus:outline-none"
         >
           <option value="all">All Networks ({networkCount.all})</option>
           <option value="sepolia">Sepolia ({networkCount.sepolia})</option>
@@ -701,16 +701,16 @@ export default function AccountPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f]">
-      <div className="ml-[240px]"> {/* Container for content to the right of sidebar */}
-        <div className="sticky top-0 z-50 bg-gray-50 dark:bg-[#0a0b0f] px-4 pt-8 pb-6">
-          <div className="max-w-7xl mx-auto">
+      <div className="ml-[256px] relative">
+        <div className="sticky top-0 z-50 bg-gray-50 dark:bg-[#0a0b0f] border-b border-gray-200 dark:border-gray-800">
+          <div className="max-w-7xl mx-auto px-8">
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="relative inline-block mb-8"
+              className="relative inline-block mb-3 pt-4"
             >
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
               <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
             </motion.div>
             
@@ -718,13 +718,18 @@ export default function AccountPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
+              className="max-w-xl pb-3"
             >
               <FilterControls />
             </motion.div>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-8 py-4 overflow-y-auto custom-scrollbar" style={{
+          height: 'calc(100vh - 120px)',
+          scrollbarWidth: 'thin',
+          scrollbarColor: `#00ffbd ${document.documentElement.classList.contains('dark') ? '#1a1b1f' : '#ffffff'}`
+        }}>
           <motion.div
             variants={containerVariants}
             initial="hidden"
