@@ -36,5 +36,3 @@ hardhat.config.local.js
 # Local Netlify folder
 .netlify
 
-# Firebase config
-src/utils/firebase.config.js
