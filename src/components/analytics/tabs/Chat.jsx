@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EmojiPicker from 'emoji-picker-react';
 import { useAccount } from 'wagmi';
 import { shortenAddress } from '../../../utils/format';
-import { FaSmile, FaPaperPlane, FaCrown, FaTrash, FaBan, FaToggleOn } from 'react-icons/fa';
+import { FaSmile, FaPaperPlane, FaCrown, FaTrash, FaBan } from 'react-icons/fa';
 import { sendMessage, subscribeToMessages, updateBannedUsers, deleteMessage, loadBannedUsers } from '../../../utils/firebase';
 import { ethers } from 'ethers';
 import { NFTCollectionABI } from '../../../abi/NFTCollection';
@@ -13,6 +13,7 @@ import { XMarkIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
+import DOMPurify from 'dompurify';
 
 const CHAT_THEMES = {
   dark: {
@@ -31,7 +32,9 @@ const CHAT_THEMES = {
       bg: 'bg-gray-800/50',
       text: 'text-[#00ffbd]'
     },
-    time: 'text-gray-500'
+    time: 'text-gray-500',
+    link: 'text-[#00ffbd]',
+    linkPreview: 'bg-black/20'
   },
   light: {
     bg: 'bg-gray-100',
@@ -85,7 +88,9 @@ const CHAT_THEMES = {
       bg: 'bg-orange-900/30',
       text: 'text-orange-200'
     },
-    time: 'text-orange-200/70'
+    time: 'text-orange-200/70',
+    link: 'text-yellow-400',
+    linkPreview: 'bg-black/20'
   },
   forest: {
     bg: 'bg-gradient-to-br from-green-700 via-green-800 to-green-900',
@@ -216,6 +221,9 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
     }
   };
   
+  // Extract URLs from message
+  const urls = message.text.match(/(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g) || [];
+  
   return (
     <div className="relative group" id={`message-${message.id}`}>
       {message.replyTo && (
@@ -252,12 +260,26 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
             <div className={`
               px-4 py-2 rounded-2xl break-words relative
               ${isMyMessage ? 'rounded-tr-sm' : 'rounded-tl-sm'}
-              ${getTheme(currentTheme).messageBubble[isMyMessage ? 'sent' : 'received']}
-              ${isCreatorMessage ? '!bg-gradient-to-r from-yellow-500 to-yellow-600 !text-white' : ''}
+              ${isCreatorMessage 
+                ? '!bg-gradient-to-r from-yellow-500 to-yellow-600 !text-white' 
+                : isMyMessage 
+                  ? getTheme(currentTheme).messageBubble.sent
+                  : getTheme(currentTheme).messageBubble.received
+              }
             `}>
               <div className="whitespace-pre-wrap inline-block">
-                {message.text}
+                {formatMessageWithLinks(message.text)}
               </div>
+              
+              {/* Link Previews */}
+              {urls.map((url, index) => (
+                <LinkPreview 
+                  key={index} 
+                  url={url} 
+                  currentTheme={currentTheme}
+                  getTheme={getTheme}
+                />
+              ))}
             </div>
 
             <div className="absolute -right-20 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 
@@ -272,23 +294,26 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
                 </button>
               )}
 
+              {/* Show delete button for creator's own messages OR when moderating others' messages */}
+              {isCreator(address) && (isMyMessage || !isMyMessage) && (
+                <button
+                  onClick={() => handleModeration('delete', message.sender, message.id)}
+                  className="p-1 rounded hover:bg-red-500/10 text-red-400"
+                  title="Delete Message"
+                >
+                  <FaTrash className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Only show ban button for other users' messages */}
               {isCreator(address) && !isMyMessage && (
-                <>
-                  <button
-                    onClick={() => handleModeration('delete', message.sender, message.id)}
-                    className="p-1 rounded hover:bg-red-500/10 text-red-400"
-                    title="Delete Message"
-                  >
-                    <FaTrash className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleModeration('ban', message.sender)}
-                    className="p-1 rounded hover:bg-red-500/10 text-red-400"
-                    title="Ban User"
-                  >
-                    <FaBan className="w-3.5 h-3.5" />
-                  </button>
-                </>
+                <button
+                  onClick={() => handleModeration('ban', message.sender)}
+                  className="p-1 rounded hover:bg-red-500/10 text-red-400"
+                  title="Ban User"
+                >
+                  <FaBan className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
           </div>
@@ -357,6 +382,114 @@ const BanList = ({ show, onClose, bannedAddresses, onUnban }) => {
       </div>
     </div>
   );
+};
+
+// Add this utility function to format message text with clickable links
+const formatMessageWithLinks = (text) => {
+  // URL regex pattern
+  const urlPattern = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
+  
+  // Sanitize the text first
+  const sanitizedText = DOMPurify.sanitize(text);
+  
+  // Replace URLs with clickable links
+  return sanitizedText.split(urlPattern).map((part, i) => {
+    if (part.match(urlPattern)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#00ffbd] hover:underline break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
+// Update the LinkPreview component
+const LinkPreview = ({ url, currentTheme, getTheme }) => {
+  try {
+    const urlObj = new URL(url);
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(urlObj.pathname);
+    const isTwitter = urlObj.hostname === 'twitter.com' || urlObj.hostname === 'x.com';
+    const theme = getTheme(currentTheme);
+
+    if (isTwitter) {
+      // Extract tweet ID from URL
+      const tweetId = url.split('/').pop().split('?')[0];
+      return (
+        <div className={`mt-2 rounded-lg overflow-hidden ${theme.linkPreview}`}>
+          <div className="custom-twitter-embed">
+            <iframe
+              src={`https://platform.twitter.com/embed/Tweet.html?id=${tweetId}&theme=dark&cards=hidden`}
+              className="w-full min-h-[300px] border-0"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (isImage) {
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`block mt-2 rounded-lg overflow-hidden ${theme.linkPreview} hover:bg-black/30 transition-colors`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative w-full pt-[56.25%]">
+            <img
+              src={url}
+              alt="Preview"
+              className="absolute top-0 left-0 w-full h-full object-contain bg-black/40"
+              onError={(e) => e.target.parentElement.parentElement.style.display = 'none'}
+            />
+          </div>
+          <div className="flex items-center gap-2 p-2 border-t border-white/10">
+            <img
+              src={`https://www.google.com/s2/favicons?domain=${urlObj.hostname}`}
+              alt=""
+              className="w-4 h-4"
+            />
+            <span className={`text-sm ${theme.link}`} truncate>
+              {urlObj.hostname}
+            </span>
+          </div>
+        </a>
+      );
+    }
+
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`block mt-2 rounded-lg overflow-hidden ${theme.linkPreview} hover:bg-black/30 transition-colors`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 p-2">
+          <img
+            src={`https://www.google.com/s2/favicons?domain=${urlObj.hostname}`}
+            alt=""
+            className="w-4 h-4"
+          />
+          <span className={`text-sm ${theme.link}`} truncate>
+            {urlObj.hostname}
+          </span>
+        </div>
+      </a>
+    );
+  } catch (error) {
+    return null;
+  }
 };
 
 const Chat = ({ collection }) => {
@@ -440,7 +573,7 @@ const Chat = ({ collection }) => {
         collectionAddress: collection.contractAddress,
         replyTo: replyingTo
       });
-      setNewMessage('');
+        setNewMessage('');
       setReplyingTo(null);
       textareaRef.current?.focus();
     } catch (error) {
@@ -573,16 +706,6 @@ const Chat = ({ collection }) => {
       <div className="flex items-center gap-2 px-4">
         <div className="h-4 border-l border-gray-300 dark:border-gray-700" />
         
-        {/* Toggle Chat */}
-        <button
-          onClick={() => setIsChatEnabled(!isChatEnabled)}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 
-            transition-colors group relative"
-          title={isChatEnabled ? "Disable Chat" : "Enable Chat"}
-        >
-          <FaToggleOn className={`w-5 h-5 ${isChatEnabled ? 'text-[#00ffbd]' : 'text-gray-400'}`} />
-        </button>
-
         {/* Ban List Button */}
         <button
           onClick={() => setShowBanList(true)}
@@ -674,18 +797,7 @@ const Chat = ({ collection }) => {
             {/* Add Moderation Controls for Creator */}
             {isCreator(address) && (
               <div className="flex items-center gap-2">
-                {/* Chat Toggle */}
-                <button
-                  onClick={() => setIsChatEnabled(!isChatEnabled)}
-                  className="p-2 rounded-lg hover:bg-gray-700/50 transition-colors"
-                  title={isChatEnabled ? "Disable Chat" : "Enable Chat"}
-                >
-                  <FaToggleOn 
-                    className={`w-5 h-5 ${isChatEnabled ? 'text-[#00ffbd]' : 'text-gray-400'}`} 
-                  />
-                </button>
-
-                {/* Ban List Button */}
+                {/* Remove chat toggle button, keep only ban list */}
                 <button
                   onClick={() => setShowBanList(true)}
                   className="p-2 rounded-lg hover:bg-gray-700/50 transition-colors relative"

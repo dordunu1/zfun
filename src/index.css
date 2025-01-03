@@ -166,3 +166,79 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .highlight-message .message-bubble {
   animation: highlight 2s ease-in-out;
 }
+
+/* Custom scrollbar for Twitter embed */
+.custom-scrollbar-brand::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar-brand::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.custom-scrollbar-brand::-webkit-scrollbar-thumb {
+  background: #00ffbd;
+  border-radius: 4px;
+}
+
+.custom-scrollbar-brand::-webkit-scrollbar-thumb:hover {
+  background: #00e6a9;
+}
+
+/* Add Firefox support */
+.custom-scrollbar-brand {
+  scrollbar-width: thin;
+  scrollbar-color: #00ffbd rgba(0, 0, 0, 0.2);
+}
+
+/* Custom scrollbar for Twitter embed - update these styles */
+.custom-twitter-embed {
+  scrollbar-width: thin;
+  scrollbar-color: #00ffbd rgba(0, 0, 0, 0.2);
+}
+
+.custom-twitter-embed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-twitter-embed::-webkit-scrollbar-track {
+  background: #1a1b1f;
+  border-radius: 3px;
+}
+
+.custom-twitter-embed::-webkit-scrollbar-thumb {
+  background-color: #00ffbd;
+  border-radius: 3px;
+  border: 2px solid #1a1b1f;
+}
+
+.custom-twitter-embed::-webkit-scrollbar-thumb:hover {
+  background-color: #00e6a9;
+}
+
+/* Add these styles to override Twitter's default scrollbar */
+.custom-twitter-embed iframe {
+  scrollbar-width: thin;
+  scrollbar-color: #00ffbd rgba(0, 0, 0, 0.2) !important;
+}
+
+.custom-twitter-embed iframe::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.custom-twitter-embed iframe::-webkit-scrollbar-track {
+  background: #1a1b1f !important;
+  border-radius: 3px !important;
+}
+
+.custom-twitter-embed iframe::-webkit-scrollbar-thumb {
+  background-color: #00ffbd !important;
+  border-radius: 3px !important;
+  border: 2px solid #1a1b1f !important;
+}
+
+.custom-twitter-embed iframe::-webkit-scrollbar-thumb:hover {
+  background-color: #00e6a9 !important;
+}
