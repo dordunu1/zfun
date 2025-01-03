@@ -1075,13 +1075,20 @@ export default function TokenSwap() {
             [FEE_TIERS.MEDIUM]
           );
 
-          const params = {
-            path,
-            recipient: toToken.symbol === 'ETH' ? UNISWAP_V3_ADDRESSES.swapRouter : address,
-            deadline,
-            amountIn,
-            amountOutMinimum: amountOutMin
-          };
+          // Get gas estimate first
+          const gasEstimate = await router.exactInput.estimateGas(
+            {
+              path,
+              recipient: toToken.symbol === 'ETH' ? UNISWAP_V3_ADDRESSES.swapRouter : address,
+              deadline,
+              amountIn,
+              amountOutMinimum: amountOutMin
+            },
+            { value: fromToken.symbol === 'ETH' ? amountIn : 0 }
+          );
+
+          // Add 20% buffer to gas estimate
+          const gasLimit = gasEstimate * 120n / 100n;
 
           if (toToken.symbol === 'ETH') {
             // If output token is ETH, we need to unwrap WETH
@@ -1093,15 +1100,21 @@ export default function TokenSwap() {
               [swapData, unwrapData, refundData],
               {
                 value: fromToken.symbol === 'ETH' ? amountIn : 0,
-                gasLimit: 1000000n
+                gasLimit
               }
             );
           } else {
             tx = await router.exactInput(
-              params,
+              {
+                path,
+                recipient: address,
+                deadline,
+                amountIn,
+                amountOutMinimum: amountOutMin
+              },
               {
                 value: fromToken.symbol === 'ETH' ? amountIn : 0,
-                gasLimit: 1000000n
+                gasLimit
               }
             );
           }
@@ -1116,17 +1129,27 @@ export default function TokenSwap() {
             routeInfo.fees
           );
 
-          const params = {
+          // Get gas estimate first
+          const gasEstimate = await router.exactInput.estimateGas({
             path,
             recipient: address,
             deadline,
             amountIn,
             amountOutMinimum: amountOutMin
-          };
+          });
+
+          // Add 20% buffer to gas estimate
+          const gasLimit = gasEstimate * 120n / 100n;
 
           tx = await router.exactInput(
-            params,
-            { gasLimit: 1000000n }
+            {
+              path,
+              recipient: address,
+              deadline,
+              amountIn,
+              amountOutMinimum: amountOutMin
+            },
+            { gasLimit }
           );
         }
 
@@ -1157,7 +1180,18 @@ export default function TokenSwap() {
 
     } catch (error) {
       console.error('Swap error:', error);
-      setSwapError(error.reason || 'Failed to swap tokens');
+      let errorMessage = 'Failed to swap tokens';
+      
+      // Handle specific error cases
+      if (error.code === 'CALL_EXCEPTION') {
+        errorMessage = 'Transaction failed - insufficient gas or contract error';
+      } else if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        errorMessage = 'Unable to estimate gas - the transaction may fail';
+      } else if (error.reason) {
+        errorMessage = error.reason;
+      }
+      
+      setSwapError(errorMessage);
       setSwapStep('error');
     } finally {
       setLoading(false);
