@@ -204,16 +204,6 @@ const ReplyPreview = ({ replyTo, onClose }) => (
 const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, currentTheme, getTheme }) => {
   const canReply = !message.threadDepth || message.threadDepth < 3;
   
-  const scrollToMessage = (messageId) => {
-    const element = document.getElementById(`message-${messageId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Add a brief highlight effect
-      element.classList.add('highlight-message');
-      setTimeout(() => element.classList.remove('highlight-message'), 2000);
-    }
-  };
-  
   return (
     <div className="relative group" id={`message-${message.id}`}>
       {message.replyTo && (
@@ -239,11 +229,13 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
       
       <div className={`
         relative
-        max-w-[85%]
         ${isMyMessage ? 'ml-auto' : 'mr-auto'}
+        max-w-[85%] min-w-[60px]
       `}>
         <div className={`
-          relative p-2.5 px-3
+          relative 
+          inline-block
+          py-2 px-3
           break-words whitespace-pre-wrap
           rounded-[18px]
           ${isMyMessage 
@@ -251,7 +243,7 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
             : getTheme(currentTheme).messageBubble.received
           }
         `}>
-          <p className="text-sm relative z-10">{message.text}</p>
+          <p className="text-sm relative z-10 min-w-[40px]">{message.text}</p>
           
           {canReply && (
             <button
