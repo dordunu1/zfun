@@ -277,7 +277,10 @@ export default function CollectionsList() {
         </motion.div>
       </div>
         
-      <div className="flex-1 overflow-y-auto px-8">
+      <div className="flex-1 overflow-y-auto px-8 custom-scrollbar bg-white dark:bg-[#0a0b0f]" style={{
+        scrollbarWidth: 'thin',
+        scrollbarColor: `#00ffbd ${document.documentElement.classList.contains('dark') ? '#1a1b1f' : '#ffffff'}`
+      }}>
         <div className="max-w-7xl mx-auto">
           <motion.div 
             variants={containerVariants}

@@ -77,8 +77,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 /* Custom scrollbar styles */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #00ffbd #1a1b1f;
+  scrollbar-color: #00ffbd #ffffff;
   scroll-behavior: smooth;
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: #00ffbd #1a1b1f;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -86,13 +90,21 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1a1b1f;
+  background: #ffffff;
   border-radius: 3px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a1b1f;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: #00ffbd;
   border-radius: 3px;
+  border: 2px solid #ffffff;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid #1a1b1f;
 }
 
