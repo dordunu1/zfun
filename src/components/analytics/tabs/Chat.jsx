@@ -3,13 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EmojiPicker from 'emoji-picker-react';
 import { useAccount } from 'wagmi';
 import { shortenAddress } from '../../../utils/format';
-import { FaSmile, FaPaperPlane, FaCrown } from 'react-icons/fa';
-import { sendMessage, subscribeToMessages } from '../../../utils/firebase';
+import { FaSmile, FaPaperPlane, FaCrown, FaTrash, FaBan, FaToggleOn } from 'react-icons/fa';
+import { sendMessage, subscribeToMessages, updateBannedUsers, deleteMessage, loadBannedUsers } from '../../../utils/firebase';
 import { ethers } from 'ethers';
 import { NFTCollectionABI } from '../../../abi/NFTCollection';
 import MessageAvatar from '../../../components/avatars/MessageAvatar';
 import { IoColorPaletteOutline } from "react-icons/io5";
 import { XMarkIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
+import { toast } from 'react-hot-toast';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../services/firebase';
 
 const CHAT_THEMES = {
   dark: {
@@ -201,7 +204,7 @@ const ReplyPreview = ({ replyTo, onClose }) => (
 );
 
 // Add a new MessageBubble component
-const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, currentTheme, getTheme }) => {
+const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, currentTheme, getTheme, isCreator, handleModeration, address }) => {
   const canReply = !message.threadDepth || message.threadDepth < 3;
   
   const scrollToMessage = (messageId) => {
@@ -242,28 +245,113 @@ const MessageBubble = ({ message, isMyMessage, isCreatorMessage, onReply, curren
         min-w-[60px] max-w-[85%]
       `}>
         <div className={`
-          message-bubble
-          p-3 
-          break-words whitespace-pre-wrap
-          ${isMyMessage 
-            ? getTheme(currentTheme).messageBubble.sent
-            : getTheme(currentTheme).messageBubble.received
-          }
-          rounded-2xl
-          ${isMyMessage ? 'rounded-tr-sm' : 'rounded-tl-sm'}
-          relative
+          relative group flex flex-col
+          ${isMyMessage ? 'items-end' : 'items-start'}
         `}>
-          <p className="text-sm pr-6">{message.text}</p>
-          
-          {canReply && (
-            <button
-              onClick={() => onReply(message)}
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100
-                p-1 rounded hover:bg-black/20 transition-all"
-              title="Reply"
-            >
-              <ArrowUturnLeftIcon className="w-4 h-4 text-current" />
-            </button>
+          <div className="flex items-center gap-2">
+            <div className={`
+              px-4 py-2 rounded-2xl break-words relative
+              ${isMyMessage ? 'rounded-tr-sm' : 'rounded-tl-sm'}
+              ${getTheme(currentTheme).messageBubble[isMyMessage ? 'sent' : 'received']}
+              ${isCreatorMessage ? '!bg-gradient-to-r from-yellow-500 to-yellow-600 !text-white' : ''}
+            `}>
+              <div className="whitespace-pre-wrap inline-block">
+                {message.text}
+              </div>
+            </div>
+
+            <div className="absolute -right-20 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 
+              flex items-center gap-2 transition-opacity">
+              {canReply && (
+                <button
+                  onClick={() => onReply(message)}
+                  className="p-1 rounded-full hover:bg-gray-700/50 transition-all"
+                  title="Reply"
+                >
+                  <ArrowUturnLeftIcon className="w-3.5 h-3.5 text-[#00ffbd]" />
+                </button>
+              )}
+
+              {isCreator(address) && !isMyMessage && (
+                <>
+                  <button
+                    onClick={() => handleModeration('delete', message.sender, message.id)}
+                    className="p-1 rounded hover:bg-red-500/10 text-red-400"
+                    title="Delete Message"
+                  >
+                    <FaTrash className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleModeration('ban', message.sender)}
+                    className="p-1 rounded hover:bg-red-500/10 text-red-400"
+                    title="Ban User"
+                  >
+                    <FaBan className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Thread messages - moved inside the message loop */}
+      {message.threadId && !message.replyTo && (
+        <div className="pl-4 border-l-2 border-gray-700 mt-2">
+          {messages
+            .filter(m => m.threadId === message.threadId && m.id !== message.id)
+            .map(threadMessage => (
+              <MessageBubble
+                key={threadMessage.id}
+                message={threadMessage}
+                isMyMessage={threadMessage.sender.toLowerCase() === address?.toLowerCase()}
+                isCreatorMessage={isCreator(threadMessage.sender)}
+                onReply={handleReply}
+                currentTheme={currentTheme}
+                getTheme={getTheme}
+                isCreator={isCreator}
+                handleModeration={handleModeration}
+                address={address}
+              />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Add BanList modal
+const BanList = ({ show, onClose, bannedAddresses, onUnban }) => {
+  if (!show) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-[#1a1b1f] rounded-lg p-6 w-96 max-w-[90vw]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-white">Banned Users</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+          {bannedAddresses.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">No banned users</p>
+          ) : (
+            bannedAddresses.map(address => (
+              <div key={address} className="flex items-center justify-between py-2 border-b border-gray-800">
+                <span className="text-gray-300">{shortenAddress(address)}</span>
+                <button
+                  onClick={() => onUnban(address)}
+                  className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded hover:bg-red-500/30 transition-colors"
+                >
+                  Unban
+                </button>
+              </div>
+            ))
           )}
         </div>
       </div>
@@ -283,6 +371,9 @@ const Chat = ({ collection }) => {
   const [currentTheme, setCurrentTheme] = useState('dark');
   const [replyingTo, setReplyingTo] = useState(null);
   const emojiPickerRef = useRef(null);
+  const [isChatEnabled, setIsChatEnabled] = useState(true);
+  const [bannedAddresses, setBannedAddresses] = useState([]);
+  const [showBanList, setShowBanList] = useState(false);
 
   // Memoize the creator address
   const creatorAddress = React.useMemo(() => {
@@ -330,30 +421,39 @@ const Chat = ({ collection }) => {
     textareaRef.current?.focus();
   };
 
-  // Update handleSubmit
+  // Update the handleSubmit function
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || isLoading) return;
 
+    // Check if user is banned
+    if (bannedAddresses.includes(address?.toLowerCase())) {
+      toast.error("You have been banned from this chat");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const success = await sendMessage({
-        text: newMessage.trim(),
+      await sendMessage({
+        text: newMessage,
         sender: address,
         collectionAddress: collection.contractAddress,
         replyTo: replyingTo
       });
-
-      if (success) {
-        setNewMessage('');
-        setShowEmojiPicker(false);
-        setReplyingTo(null);
-      }
+      setNewMessage('');
+      setReplyingTo(null);
+      
+      // Focus back on textarea immediately
+      textareaRef.current?.focus();
     } catch (error) {
       console.error('Error sending message:', error);
-    } finally {
-      setIsLoading(false);
+      toast.error('Failed to send message');
     }
+    setIsLoading(false);
+    // Focus again after state updates
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
   };
 
   // Handle emoji selection
@@ -468,6 +568,83 @@ const Chat = ({ collection }) => {
     };
   }, []);
 
+  // Add moderation controls for creator
+  const ModeratorControls = ({ isCreator }) => {
+    if (!isCreator) return null;
+    
+    return (
+      <div className="flex items-center gap-2 px-4">
+        <div className="h-4 border-l border-gray-300 dark:border-gray-700" />
+        
+        {/* Toggle Chat */}
+        <button
+          onClick={() => setIsChatEnabled(!isChatEnabled)}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 
+            transition-colors group relative"
+          title={isChatEnabled ? "Disable Chat" : "Enable Chat"}
+        >
+          <FaToggleOn className={`w-5 h-5 ${isChatEnabled ? 'text-[#00ffbd]' : 'text-gray-400'}`} />
+        </button>
+
+        {/* Ban List Button */}
+        <button
+          onClick={() => setShowBanList(true)}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 
+            transition-colors group relative"
+          title="Manage Banned Users"
+        >
+          <FaBan className="w-5 h-5 text-gray-400 group-hover:text-red-400" />
+          {bannedAddresses.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 
+              rounded-full text-[10px] text-white flex items-center justify-center">
+              {bannedAddresses.length}
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  };
+
+  // Add moderation functions
+  const handleModeration = async (action, address, messageId = null) => {
+    try {
+      switch (action) {
+        case 'ban':
+          const newBannedList = [...(collection.bannedUsers || []), address];
+          await updateBannedUsers(collection.contractAddress, newBannedList);
+          setBannedAddresses(newBannedList);
+          toast.success(`User ${shortenAddress(address)} banned successfully`);
+          break;
+        
+        case 'delete':
+          if (messageId) {
+            await deleteMessage(collection.contractAddress, messageId);
+            toast.success('Message deleted');
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error in moderation:', error);
+      toast.error('Failed to perform moderation action');
+    }
+  };
+
+  // Add this useEffect near the top of the Chat component
+  useEffect(() => {
+    if (collection?.contractAddress) {
+      const loadBannedList = async () => {
+        try {
+          const bannedList = await loadBannedUsers(collection.contractAddress);
+          setBannedAddresses(bannedList);
+        } catch (error) {
+          console.error('Error loading banned users:', error);
+        }
+      };
+      
+      loadBannedList();
+    }
+  }, [collection?.contractAddress]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -481,7 +658,39 @@ const Chat = ({ collection }) => {
           <p className="text-sm font-bold text-gray-300">
             Join the conversation
           </p>
-          <ThemeSelector />
+          <div className="flex items-center gap-3">
+            {/* Add Moderation Controls for Creator */}
+            {isCreator(address) && (
+              <div className="flex items-center gap-2">
+                {/* Chat Toggle */}
+                <button
+                  onClick={() => setIsChatEnabled(!isChatEnabled)}
+                  className="p-2 rounded-lg hover:bg-gray-700/50 transition-colors"
+                  title={isChatEnabled ? "Disable Chat" : "Enable Chat"}
+                >
+                  <FaToggleOn 
+                    className={`w-5 h-5 ${isChatEnabled ? 'text-[#00ffbd]' : 'text-gray-400'}`} 
+                  />
+                </button>
+
+                {/* Ban List Button */}
+                <button
+                  onClick={() => setShowBanList(true)}
+                  className="p-2 rounded-lg hover:bg-gray-700/50 transition-colors relative"
+                  title="Manage Banned Users"
+                >
+                  <FaBan className="w-5 h-5 text-gray-400 hover:text-red-400" />
+                  {bannedAddresses.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 
+                      rounded-full text-[10px] text-white flex items-center justify-center">
+                      {bannedAddresses.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+            <ThemeSelector />
+          </div>
         </div>
       </div>
 
@@ -497,11 +706,11 @@ const Chat = ({ collection }) => {
             const isCreatorMessage = isCreator(group.sender);
             
             return (
-              <motion.div
+            <motion.div
                 key={group.id}
                 initial={{ opacity: 0, x: isMyMessage ? 20 : -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
                 className={`flex w-full ${isMyMessage ? 'justify-end' : 'justify-start'}`}
               >
                 <div className="flex gap-2 max-w-[60%]">
@@ -536,6 +745,9 @@ const Chat = ({ collection }) => {
                           onReply={handleReply}
                           currentTheme={currentTheme}
                           getTheme={getTheme}
+                          isCreator={isCreator}
+                          handleModeration={handleModeration}
+                          address={address}
                         />
 
                         {/* Thread messages - moved inside the message loop */}
@@ -552,11 +764,14 @@ const Chat = ({ collection }) => {
                                   onReply={handleReply}
                                   currentTheme={currentTheme}
                                   getTheme={getTheme}
+                                  isCreator={isCreator}
+                                  handleModeration={handleModeration}
+                                  address={address}
                                 />
                               ))}
                           </div>
                         )}
-                      </div>
+              </div>
                     ))}
 
                     {/* Single Timestamp and Address for the group */}
@@ -572,16 +787,16 @@ const Chat = ({ collection }) => {
                             ${getTheme(currentTheme).address.text}
                           `}>
                             {shortenAddress(group.sender)}
-                          </span>
+                </span>
                         )}
                       </div>
                       <span className={getTheme(currentTheme).time}>
                         {formatTimestamp(group.messages[group.messages.length - 1].timestamp)}
-                      </span>
+                </span>
                     </div>
                   </div>
-                </div>
-              </motion.div>
+              </div>
+            </motion.div>
             );
           })}
         </AnimatePresence>
@@ -609,19 +824,19 @@ const Chat = ({ collection }) => {
         
         <div className="relative flex items-start">
           <div ref={emojiPickerRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               className={`
                 p-2 transition-colors self-start
                 ${getTheme(currentTheme).input.text} 
                 hover:text-[#00ffbd]
               `}
               disabled={isLoading}
-            >
-              <FaSmile className="w-5 h-5" />
-            </button>
-
+          >
+            <FaSmile className="w-5 h-5" />
+          </button>
+          
             {/* Update Emoji Picker positioning */}
             <AnimatePresence>
               {showEmojiPicker && (
@@ -682,6 +897,8 @@ const Chat = ({ collection }) => {
                 handleSubmit(e);
               }
             }}
+            autoFocus
+            onFocus={(e) => e.target.select()}
             placeholder={isLoading ? "Sending..." : "Type a message..."}
             className={`
               flex-1 rounded-lg px-4 py-2 ml-2 
@@ -694,7 +911,7 @@ const Chat = ({ collection }) => {
             `}
             disabled={isLoading}
           />
-
+          
           <button
             type="submit"
             className={`
@@ -713,9 +930,27 @@ const Chat = ({ collection }) => {
           mt-1 text-xs text-right
           ${getTheme(currentTheme).time}
         `}>
-          {newMessage.length}/500
-        </div>
+            {newMessage.length}/500
+          </div>
       </form>
+
+      {/* Add BanList Modal */}
+      <BanList 
+        show={showBanList}
+        onClose={() => setShowBanList(false)}
+        bannedAddresses={bannedAddresses}
+        onUnban={async (address) => {
+          try {
+            const newBannedList = bannedAddresses.filter(a => a !== address);
+            await updateBannedUsers(collection.contractAddress, newBannedList);
+            setBannedAddresses(newBannedList);
+            toast.success('User unbanned successfully');
+          } catch (error) {
+            console.error('Error unbanning user:', error);
+            toast.error('Failed to unban user');
+          }
+        }}
+      />
     </motion.div>
   );
 };

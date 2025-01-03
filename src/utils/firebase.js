@@ -11,7 +11,10 @@ import {
   doc,
   getDoc,
   getDocs,
-  Timestamp
+  Timestamp,
+  updateDoc,
+  deleteDoc,
+  setDoc
 } from 'firebase/firestore';
 
 const MESSAGES_COLLECTION = 'messages';
@@ -88,4 +91,48 @@ export const subscribeToMessages = (collectionAddress, callback) => {
     
     callback(sortedMessages);
   });
+};
+
+export const updateBannedUsers = async (collectionAddress, bannedList) => {
+  try {
+    // Use a separate moderation document in a subcollection
+    const moderationRef = doc(db, 'collections', collectionAddress, 'moderation', 'bannedUsers');
+    
+    await setDoc(moderationRef, {
+      addresses: bannedList,
+      updatedAt: serverTimestamp()
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error updating banned users:', error);
+    throw error;
+  }
+};
+
+// Add function to load banned users
+export const loadBannedUsers = async (collectionAddress) => {
+  try {
+    const moderationRef = doc(db, 'collections', collectionAddress, 'moderation', 'bannedUsers');
+    const docSnap = await getDoc(moderationRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data().addresses || [];
+    }
+    return [];
+  } catch (error) {
+    console.error('Error loading banned users:', error);
+    return [];
+  }
+};
+
+export const deleteMessage = async (collectionAddress, messageId) => {
+  try {
+    const messageRef = doc(db, 'collections', collectionAddress, 'messages', messageId);
+    await deleteDoc(messageRef);
+    return true;
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    throw error; // Throw error to handle it in the component
+  }
 }; 

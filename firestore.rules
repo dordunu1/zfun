@@ -1,6 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user is creator
+    function isCreator(collectionData) {
+      return request.auth != null && 
+        (collectionData.creator.toLowerCase() == request.auth.uid.toLowerCase() || 
+         collectionData.creatorAddress.toLowerCase() == request.auth.uid.toLowerCase());
+    }
+
     // Collections collection
     match /collections/{collectionId} {
       // Anyone can read collection data
@@ -18,13 +25,27 @@ service cloud.firestore {
         request.resource.data.network != null &&
         request.resource.data.contractAddress.matches('^0x[a-fA-F0-9]{40}$');
       
-      // Allow updates to totalMinted field
+      // Allow updates to totalMinted field AND bannedUsers as separate operations
       allow update: if
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalMinted', 'updatedAt']) &&
-        request.resource.data.totalMinted is number;
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalMinted', 'updatedAt']) &&
+         request.resource.data.totalMinted is number) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannedUsers']));
       
       // No deletes allowed
       allow delete: if false;
+
+      // Messages subcollection rules
+      match /messages/{messageId} {
+        allow read: if true;
+        allow create: if true;
+        allow delete: if true;
+      }
+
+      // Add moderation subcollection rules
+      match /moderation/{moderationId} {
+        allow read: if true;
+        allow write: if true;
+      }
     }
 
     // Token deployments collection
