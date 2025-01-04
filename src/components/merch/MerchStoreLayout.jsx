@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser } from 'react-icons/bi';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -9,6 +9,7 @@ const MerchStoreLayout = () => {
   const { logout, user, cartCount } = useMerchAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -42,7 +43,7 @@ const MerchStoreLayout = () => {
   const navItems = user?.isSeller ? sellerNavItems : buyerNavItems;
 
   return (
-    <div className="min-h-screen bg-[#FFF5F7] flex">
+    <div className="min-h-screen bg-white">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -62,17 +63,31 @@ const MerchStoreLayout = () => {
 
       {/* Top Navigation */}
       <nav className="fixed top-0 right-0 left-0 bg-white shadow-sm z-50">
-        <div className="px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link to="/merch-store" className="flex items-center gap-2">
-              <BiStore className="w-8 h-8 text-[#FF1B6B]" />
-              <span className="text-xl font-bold text-[#FF1B6B]">
-                MerchStore
-              </span>
-            </Link>
+            <div className="flex items-center gap-2">
+              {user && (
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="lg:hidden p-2 text-gray-600 hover:text-[#FF1B6B]"
+                >
+                  {isMobileMenuOpen ? (
+                    <BiX className="w-6 h-6" />
+                  ) : (
+                    <BiMenu className="w-6 h-6" />
+                  )}
+                </button>
+              )}
+              <Link to="/merch-store" className="flex items-center gap-2">
+                <BiStore className="w-8 h-8 text-[#FF1B6B]" />
+                <span className="text-xl font-bold text-[#FF1B6B] hidden sm:inline">
+                  MerchStore
+                </span>
+              </Link>
+            </div>
 
             <motion.div 
-              className="flex items-center gap-4"
+              className="flex items-center gap-2 sm:gap-4"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
@@ -82,32 +97,23 @@ const MerchStoreLayout = () => {
                   {!user.isSeller && (
                     <Link
                       to="/merch-store/become-seller"
-                      className="flex items-center gap-2 px-4 py-2 rounded-full border-2 border-[#FF1B6B] text-[#FF1B6B] hover:bg-[#FF1B6B] hover:text-white transition-all duration-300"
+                      className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full border-2 border-[#FF1B6B] text-[#FF1B6B] hover:bg-[#FF1B6B] hover:text-white transition-all duration-300"
                     >
                       Become a Seller
                     </Link>
                   )}
-                  <motion.button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-all duration-300 group"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <BiLogOut className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                    <span className="font-medium">Logout</span>
-                  </motion.button>
                 </>
               ) : (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4">
                   <Link
                     to="/merch-store/login"
-                    className="flex items-center gap-2 px-4 py-2 text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
+                    className="px-3 sm:px-4 py-2 text-[#FF1B6B] hover:text-[#D4145A] transition-colors text-sm sm:text-base"
                   >
                     Login
                   </Link>
                   <Link
                     to="/merch-store/signup"
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-all duration-300"
+                    className="px-3 sm:px-4 py-2 rounded-full bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-all duration-300 text-sm sm:text-base"
                   >
                     Sign Up
                   </Link>
@@ -115,20 +121,106 @@ const MerchStoreLayout = () => {
               )}
               <Link 
                 to="/"
-                className="flex items-center gap-2 px-4 py-2 rounded-full border-2 border-[#FF1B6B] text-[#FF1B6B] hover:bg-[#FF1B6B] hover:text-white transition-all duration-300 group"
+                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-full border-2 border-[#FF1B6B] text-[#FF1B6B] hover:bg-[#FF1B6B] hover:text-white transition-all duration-300 group text-sm sm:text-base"
               >
-                <BiArrowBack className="w-5 h-5 group-hover:-translate-x-1 transition-transform duration-300" />
-                <span className="font-medium">Back to Token Factory</span>
+                <BiArrowBack className="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-x-1 transition-transform duration-300" />
+                <span className="font-medium hidden sm:inline">Back to Token Factory</span>
+                <span className="font-medium sm:hidden">Back</span>
               </Link>
             </motion.div>
           </div>
         </div>
       </nav>
 
-      {/* Sidebar Navigation */}
+      {/* Mobile Sidebar */}
+      <AnimatePresence>
+        {user && isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.3 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm lg:hidden z-40"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <motion.aside 
+              className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 bg-white shadow-lg z-50 lg:hidden overflow-y-auto"
+              initial={{ x: -288 }}
+              animate={{ x: 0 }}
+              exit={{ x: -288 }}
+              transition={{ type: "spring", stiffness: 100 }}
+            >
+              <div className="h-full flex flex-col">
+                <div className="p-6 border-b border-gray-100">
+                  <div>
+                    <p className="text-sm text-gray-500">Welcome,</p>
+                    <p className="font-medium text-gray-900 text-lg">{user.name}</p>
+                    <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs ${
+                      user.isSeller 
+                        ? 'bg-pink-50 text-[#FF1B6B]' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      <BiUser className="w-4 h-4" />
+                      <span>{user.isSeller ? 'Seller Account' : 'Buyer Account'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <nav className="flex-1 p-4">
+                  <ul className="space-y-2">
+                    {navItems.map((item) => (
+                      <li key={item.to}>
+                        <NavLink
+                          to={item.to}
+                          end={item.exact}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                              isActive
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
+                            }`
+                          }
+                        >
+                          <item.icon className="text-xl" />
+                          <span>{item.label}</span>
+                          {item.count > 0 && (
+                            <span className={`ml-auto text-xs font-medium px-2 py-1 rounded-full ${
+                              location.pathname === item.to
+                                ? 'bg-white text-[#FF1B6B]'
+                                : 'bg-[#FF1B6B] text-white'
+                            }`}>
+                              {item.count}
+                            </span>
+                          )}
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+
+                <div className="p-4 border-t border-gray-100">
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B] rounded-lg transition-colors"
+                  >
+                    <BiLogOut className="text-xl" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop Sidebar */}
       {user && (
         <motion.aside 
-          className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-lg z-50"
+          className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-lg z-50 hidden lg:block"
           initial={{ x: -64 }}
           animate={{ x: 0 }}
           transition={{ type: "spring", stiffness: 100 }}
@@ -195,8 +287,10 @@ const MerchStoreLayout = () => {
       )}
 
       {/* Main Content */}
-      <div className={`flex-1 ${user ? 'ml-64 mt-16' : 'mt-16'} p-6`}>
-        <Outlet />
+      <div className={`${user ? 'lg:ml-64 mt-16' : 'mt-16'} min-h-[calc(100vh-4rem)] bg-gray-50/50`}>
+        <div className="max-w-7xl mx-auto p-4 sm:p-6">
+          <Outlet />
+        </div>
       </div>
     </div>
   );
