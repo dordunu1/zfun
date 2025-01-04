@@ -31,8 +31,10 @@ service cloud.firestore {
     match /sellers/{sellerId} {
       // Anyone can read basic seller info
       allow read: if true;
-      // Only the owner can update their store
-      allow write: if isSeller(sellerId) || isAdmin();
+      // Allow creation of new seller profiles and updates by owner
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isSeller(sellerId) || isAdmin();
     }
 
     // Products Collection

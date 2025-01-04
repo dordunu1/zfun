@@ -41,7 +41,10 @@ export default function BecomeSeller() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setStep(3); // Move to payment step
+  };
+
+  const handlePaymentSuccess = async () => {
     try {
       if (!user) {
         toast.error('Please login first');
@@ -104,7 +107,7 @@ export default function BecomeSeller() {
             <div className={`w-8 h-8 rounded-full border-2 ${step >= 1 ? 'border-[#FF1B6B] bg-pink-50' : 'border-gray-300'} flex items-center justify-center font-semibold transition-colors duration-300`}>
               1
             </div>
-            <span className="ml-2">Payment</span>
+            <span className="ml-2">Information</span>
           </div>
           <div className="w-16 h-0.5 bg-gray-200">
             <div 
@@ -118,10 +121,22 @@ export default function BecomeSeller() {
             </div>
             <span className="ml-2">Store Info</span>
           </div>
+          <div className="w-16 h-0.5 bg-gray-200">
+            <div 
+              className="h-full bg-[#FF1B6B] transition-all duration-300"
+              style={{ width: step > 2 ? '100%' : '0%' }}
+            />
+          </div>
+          <div className={`flex items-center ${step >= 3 ? 'text-[#FF1B6B]' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full border-2 ${step >= 3 ? 'border-[#FF1B6B] bg-pink-50' : 'border-gray-300'} flex items-center justify-center font-semibold transition-colors duration-300`}>
+              3
+            </div>
+            <span className="ml-2">Payment</span>
+          </div>
         </div>
       </div>
 
-      {/* Step 1: Payment */}
+      {/* Step 1: Information */}
       {step === 1 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -171,7 +186,7 @@ export default function BecomeSeller() {
                 onClick={() => setStep(2)}
                 className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300"
               >
-                Continue to Payment
+                Next: Store Details
               </button>
               
               <p className="mt-4 text-sm text-gray-500">
@@ -194,7 +209,7 @@ export default function BecomeSeller() {
             className="flex items-center text-gray-600 hover:text-[#FF1B6B] mb-6 transition-colors"
           >
             <BiArrowBack className="w-5 h-5 mr-2" />
-            Back to Payment
+            Back
           </button>
 
           <div className="text-center mb-8">
@@ -354,13 +369,58 @@ export default function BecomeSeller() {
                 type="submit"
                 className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300"
               >
-                Complete Registration
+                Next: Proceed to Payment
               </button>
-              <p className="mt-4 text-sm text-gray-500 text-center">
-                You can set up your payment withdrawal details later in your dashboard
-              </p>
             </div>
           </form>
+        </motion.div>
+      )}
+
+      {/* Step 3: Payment */}
+      {step === 3 && (
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-white rounded-2xl p-8 shadow-lg"
+        >
+          <button
+            onClick={() => setStep(2)}
+            className="flex items-center text-gray-600 hover:text-[#FF1B6B] mb-6 transition-colors"
+          >
+            <BiArrowBack className="w-5 h-5 mr-2" />
+            Back to Store Info
+          </button>
+
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900">Complete Payment</h2>
+            <p className="text-gray-600">Pay the one-time listing fee to activate your store</p>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-gray-50 rounded-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-gray-600">Listing Fee</span>
+                <span className="font-semibold">${listingFee}</span>
+              </div>
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Total</span>
+                  <span className="font-bold text-xl">${listingFee}</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handlePaymentSuccess} // This will be replaced with Paystack integration
+              className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300"
+            >
+              Pay Now
+            </button>
+
+            <p className="text-center text-sm text-gray-500">
+              Secure payment powered by Paystack
+            </p>
+          </div>
         </motion.div>
       )}
     </motion.div>
