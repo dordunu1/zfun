@@ -35,7 +35,7 @@ const Checkout = () => {
   const [loading, setLoading] = useState(true);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
-  const [selectedToken, setSelectedToken] = useState('USDC');
+  const [selectedToken, setSelectedToken] = useState('');
   const [orderSummary, setOrderSummary] = useState({
     subtotal: 0,
     shippingTotal: 0,
@@ -47,7 +47,7 @@ const Checkout = () => {
       try {
         // Fetch cart items
         const cartQuery = query(
-          collection(db, 'carts'),
+          collection(db, 'cart'),
           where('userId', '==', user.uid)
         );
         const cartSnapshot = await getDocs(cartQuery);
@@ -55,22 +55,24 @@ const Checkout = () => {
         let subtotal = 0;
         let shippingTotal = 0;
 
-        for (const doc of cartSnapshot.docs) {
-          const item = doc.data();
-          const productDoc = await getDoc(doc.ref.parent.parent);
-          const product = productDoc.data();
+        for (const cartDoc of cartSnapshot.docs) {
+          const cartItem = cartDoc.data();
+          const productDoc = await getDoc(doc(db, 'products', cartItem.productId));
           
-          items.push({
-            id: doc.id,
-            ...item,
-            product: {
-              id: productDoc.id,
-              ...product
-            }
-          });
+          if (productDoc.exists()) {
+            const product = productDoc.data();
+            items.push({
+              id: cartDoc.id,
+              ...cartItem,
+              product: {
+                id: cartItem.productId,
+                ...product
+              }
+            });
 
-          subtotal += product.price * item.quantity;
-          shippingTotal += (product.shippingFee || 0);
+            subtotal += product.price * cartItem.quantity;
+            shippingTotal += (product.shippingFee || 0);
+          }
         }
 
         setCartItems(items);
@@ -82,7 +84,13 @@ const Checkout = () => {
 
         // Fetch buyer profile
         const buyerDoc = await getDoc(doc(db, 'users', user.uid));
-        setBuyerProfile(buyerDoc.data());
+        if (buyerDoc.exists()) {
+          setBuyerProfile(buyerDoc.data());
+          // Set the selected token to the product's accepted token
+          if (items.length > 0) {
+            setSelectedToken(items[0].product.acceptedToken);
+          }
+        }
 
         setLoading(false);
       } catch (error) {
@@ -123,6 +131,18 @@ const Checkout = () => {
       return;
     }
 
+    if (!buyerProfile?.shippingAddress) {
+      toast.error('Please add a shipping address in your profile settings');
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error('Your cart is empty');
+      return;
+    }
+
+    const loadingToast = toast.loading('Processing your order...');
+
     try {
       // Create order document
       const orderRef = await addDoc(collection(db, 'orders'), {
@@ -130,9 +150,14 @@ const Checkout = () => {
         items: cartItems.map(item => ({
           productId: item.product.id,
           sellerId: item.product.sellerId,
+          sellerName: item.product.sellerName,
+          name: item.product.name,
+          image: item.product.images[0],
           quantity: item.quantity,
           price: item.product.price,
-          shippingFee: item.product.shippingFee || 0
+          shippingFee: item.product.shippingFee || 0,
+          acceptedToken: item.product.acceptedToken,
+          tokenLogo: item.product.tokenLogo
         })),
         status: 'pending',
         paymentStatus: 'pending',
@@ -140,6 +165,11 @@ const Checkout = () => {
           type: 'crypto',
           token: selectedToken,
           walletAddress
+        },
+        buyerInfo: {
+          name: buyerProfile.name,
+          email: buyerProfile.email,
+          phone: buyerProfile.phone
         },
         shippingAddress: buyerProfile.shippingAddress,
         subtotal: orderSummary.subtotal,
@@ -149,15 +179,18 @@ const Checkout = () => {
       });
 
       // Clear cart
-      for (const item of cartItems) {
-        await deleteDoc(doc(db, 'carts', item.id));
-      }
+      const deletePromises = cartItems.map(item => 
+        deleteDoc(doc(db, 'cart', item.id))
+      );
+      await Promise.all(deletePromises);
 
+      toast.dismiss(loadingToast);
       toast.success('Order placed successfully!');
       navigate(`/merch-store/orders`);
     } catch (error) {
       console.error('Error placing order:', error);
-      toast.error('Failed to place order');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to place order. Please try again.');
     }
   };
 
@@ -303,42 +336,17 @@ const Checkout = () => {
 
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">
-                    Select Payment Token
+                    Payment Token
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setSelectedToken('USDC')}
-                      className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                        selectedToken === 'USDC'
-                          ? 'border-[#FF1B6B] bg-pink-50'
-                          : 'border-gray-200 hover:border-[#FF1B6B]'
-                      }`}
-                    >
-                      <BiCreditCard className="w-5 h-5" />
-                      <span>USDC</span>
-                    </button>
-                    <button
-                      onClick={() => setSelectedToken('ETH')}
-                      className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                        selectedToken === 'ETH'
-                          ? 'border-[#FF1B6B] bg-pink-50'
-                          : 'border-gray-200 hover:border-[#FF1B6B]'
-                      }`}
-                    >
-                      <FaEthereum className="w-5 h-5" />
-                      <span>ETH</span>
-                    </button>
-                    <button
-                      onClick={() => setSelectedToken('USDT')}
-                      className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                        selectedToken === 'USDT'
-                          ? 'border-[#FF1B6B] bg-pink-50'
-                          : 'border-gray-200 hover:border-[#FF1B6B]'
-                      }`}
-                    >
-                      <SiTether className="w-5 h-5" />
-                      <span>USDT</span>
-                    </button>
+                  <div className="p-3 rounded-lg border-2 border-[#FF1B6B] bg-pink-50">
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={cartItems[0]?.product?.tokenLogo} 
+                        alt={selectedToken}
+                        className="w-5 h-5"
+                      />
+                      <span>{selectedToken}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -348,30 +356,51 @@ const Checkout = () => {
           {/* Order Total */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Order Total
+              Order Summary
             </h2>
             <div className="space-y-2">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
-                <span>${orderSummary.subtotal.toFixed(2)}</span>
+                <div className="flex items-center gap-1">
+                  <img 
+                    src={cartItems[0]?.product?.tokenLogo} 
+                    alt={selectedToken}
+                    className="w-4 h-4"
+                  />
+                  <span>${orderSummary.subtotal.toFixed(2)}</span>
+                </div>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Shipping</span>
-                <span>${orderSummary.shippingTotal.toFixed(2)}</span>
+                <div className="flex items-center gap-1">
+                  <img 
+                    src={cartItems[0]?.product?.tokenLogo} 
+                    alt={selectedToken}
+                    className="w-4 h-4"
+                  />
+                  <span>${orderSummary.shippingTotal.toFixed(2)}</span>
+                </div>
               </div>
               <div className="h-px bg-gray-200 my-2" />
               <div className="flex justify-between font-medium text-gray-900">
                 <span>Total</span>
-                <span>${orderSummary.total.toFixed(2)}</span>
+                <div className="flex items-center gap-1">
+                  <img 
+                    src={cartItems[0]?.product?.tokenLogo} 
+                    alt={selectedToken}
+                    className="w-4 h-4"
+                  />
+                  <span>${orderSummary.total.toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
             <button
               onClick={handlePlaceOrder}
-              disabled={!walletConnected || cartItems.length === 0}
+              disabled={!walletConnected || cartItems.length === 0 || !buyerProfile?.shippingAddress}
               className="w-full mt-6 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Place Order
+              {!buyerProfile?.shippingAddress ? 'Add Shipping Address to Continue' : 'Place Order'}
             </button>
           </div>
         </motion.div>

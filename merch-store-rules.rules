@@ -62,6 +62,14 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
     }
 
+    // Checkout Collection
+    match /checkout/{checkoutId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
     // Reviews Collection
     match /reviews/{reviewId} {
       allow read: if true;

@@ -21,46 +21,27 @@ export function MerchAuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-      try {
-        if (authUser) {
-          console.log('Auth state changed - User is authenticated');
-          // Get additional user data from Firestore
-          const userDoc = await getDoc(doc(db, 'users', authUser.uid));
-          console.log('User doc data:', userDoc.data());
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            const updatedUser = {
-              uid: authUser.uid,
-              email: authUser.email,
-              name: userData.name || authUser.displayName,
-              isSeller: userData.isSeller || false,
-              sellerId: userData.sellerId || null,
-              isBuyer: userData.isBuyer || true,
-              isAdmin: userData.isAdmin || false
-            };
-            console.log('Updated user object:', updatedUser);
-            setUser(updatedUser);
-            setIsAdmin(userData.isAdmin || false);
-            fetchCartCount(authUser.uid);
-          } else {
-            console.log('No user document found in Firestore');
-            setUser(null);
-          }
-        } else {
-          console.log('Auth state changed - User is signed out');
-          setUser(null);
-          setIsAdmin(false);
-          setCartCount(0);
-        }
-      } catch (error) {
-        console.error('Error in auth state change:', error);
-        setUser(null);
-        setIsAdmin(false);
-        setCartCount(0);
-      } finally {
+      if (authUser) {
+        const userRef = doc(db, 'users', authUser.uid);
+        const userDoc = await getDoc(userRef);
+        const userData = userDoc.exists() ? userDoc.data() : {};
+
+        const userObj = {
+          uid: authUser.uid,
+          email: authUser.email,
+          name: userData.name || null,
+          isSeller: userData.isSeller || false,
+          sellerId: userData.sellerId || null,
+          walletAddress: userData.walletAddress || null,
+          createdAt: userData.createdAt || new Date(),
+          updatedAt: new Date()
+        };
+
+        setUser(userObj);
         setLoading(false);
-        setIsInitialLoad(false);
+      } else {
+        setUser(null);
+        setLoading(false);
       }
     });
 

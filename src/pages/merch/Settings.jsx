@@ -163,28 +163,19 @@ const Settings = () => {
     const initializeSettings = async () => {
       try {
         if (!user) {
-          console.log('No user available, skipping settings initialization');
           setLoading(false);
           return;
         }
 
-        console.log('Initializing settings for user:', user);
-        console.log('Is seller:', user.isSeller);
-        console.log('Is admin:', user.isAdmin);
-        console.log('Seller ID:', user.sellerId);
-
         // Set default tab based on user type
         if (user.isSeller) {
-          console.log('Setting active tab to store for seller');
           setActiveTab('store');
           await fetchSellerSettings();
         } else {
-          console.log('Setting active tab to profile for buyer');
           setActiveTab('profile');
           await fetchBuyerProfile();
         }
       } catch (error) {
-        console.error('Error initializing settings:', error);
         toast.error('Failed to load settings');
       } finally {
         setLoading(false);
@@ -196,34 +187,36 @@ const Settings = () => {
 
   const fetchBuyerProfile = async () => {
     try {
-      const buyerDoc = await getDoc(doc(db, 'buyers', user.uid));
-      if (buyerDoc.exists()) {
-        setBuyerProfile(buyerDoc.data());
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setBuyerProfile({
+          name: userData.name || '',
+          email: userData.email || '',
+          phone: userData.phone || '',
+          walletAddress: userData.walletAddress || '',
+          shippingAddress: userData.shippingAddress || {
+            street: '',
+            city: '',
+            state: '',
+            country: '',
+            postalCode: ''
+          }
+        });
       }
     } catch (error) {
-      console.error('Error fetching buyer profile:', error);
       toast.error('Failed to load profile');
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchSellerSettings = async () => {
-    if (!user?.sellerId) {
-      console.error('No seller ID found');
-      return;
-    }
+    if (!user?.sellerId) return;
 
     try {
-      console.log('Attempting to fetch seller settings for ID:', user.sellerId);
       const sellerRef = doc(db, 'sellers', user.sellerId);
-      console.log('Seller document reference:', sellerRef);
-      
       const sellerDoc = await getDoc(sellerRef);
-      console.log('Seller document exists:', sellerDoc.exists());
       
       if (!sellerDoc.exists()) {
-        console.error('No seller document found in Firestore');
         // Create initial seller document if it doesn't exist
         const initialSellerData = {
           sellerId: user.sellerId,
@@ -242,61 +235,21 @@ const Settings = () => {
           updatedAt: new Date()
         };
         
-        console.log('Creating initial seller document:', initialSellerData);
         await setDoc(sellerRef, initialSellerData);
-        
-        // Set the initial data in state
         setStoreSettings(initialSellerData);
         setWalletSettings({
           walletAddress: '',
-          preferredToken: 'USDC'
+          preferredToken: initialSellerData.preferredToken
         });
-        setPaymentSettings({
-          bankName: '',
-          accountNumber: '',
-          routingNumber: '',
-          accountHolderName: '',
-          withdrawalThreshold: 100,
-          autoWithdraw: false
+      } else {
+        const sellerData = sellerDoc.data();
+        setStoreSettings(sellerData);
+        setWalletSettings({
+          walletAddress: sellerData.walletAddress || '',
+          preferredToken: sellerData.preferredToken || 'USDC'
         });
-        
-        console.log('Initial seller document created');
-        return;
       }
-
-      const data = sellerDoc.data();
-      console.log('Loaded seller data:', data);
-
-      setStoreSettings({
-        storeName: data.storeName || '',
-        description: data.description || '',
-        contactEmail: data.contactEmail || '',
-        phoneNumber: data.phoneNumber || '',
-        country: data.country || '',
-        city: data.city || '',
-        postalCode: data.postalCode || '',
-        shippingCountries: data.shippingCountries || [],
-        shippingFee: data.shippingFee || 0,
-        preferredToken: data.preferredToken || 'USDC'
-      });
-
-      setWalletSettings({
-        walletAddress: data.walletAddress || '',
-        preferredToken: data.preferredToken || 'USDC'
-      });
-
-      setPaymentSettings({
-        bankName: data.bankName || '',
-        accountNumber: data.accountNumber || '',
-        routingNumber: data.routingNumber || '',
-        accountHolderName: data.accountHolderName || '',
-        withdrawalThreshold: data.withdrawalThreshold || 100,
-        autoWithdraw: data.autoWithdraw || false
-      });
-
-      console.log('Settings initialized successfully');
     } catch (error) {
-      console.error('Error fetching seller settings:', error);
       toast.error('Failed to load seller settings');
     }
   };
@@ -304,13 +257,12 @@ const Settings = () => {
   const handleBuyerProfileSubmit = async (e) => {
     e.preventDefault();
     try {
-      await setDoc(doc(db, 'buyers', user.uid), {
+      await setDoc(doc(db, 'users', user.uid), {
         ...buyerProfile,
         updatedAt: new Date()
       }, { merge: true });
       toast.success('Profile updated successfully');
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
     }
   };
@@ -342,27 +294,57 @@ const Settings = () => {
         return;
       }
 
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      // Request user to select an account
+      const accounts = await window.ethereum.request({
+        method: 'wallet_requestPermissions',
+        params: [{
+          eth_accounts: {}
+        }]
+      }).then(() => 
+        window.ethereum.request({
+          method: 'eth_requestAccounts'
+        })
+      );
       
       if (accounts.length === 0) {
         toast.error('Please connect your wallet');
         return;
       }
 
-      setWalletSettings(prev => ({
+      const walletAddress = accounts[0];
+      setBuyerProfile(prev => ({
         ...prev,
-        walletAddress: accounts[0]
+        walletAddress
       }));
 
-      await updateDoc(doc(db, 'sellers', user.sellerId), {
-        walletAddress: accounts[0]
-      });
+      await setDoc(doc(db, 'users', user.uid), {
+        walletAddress,
+        updatedAt: new Date()
+      }, { merge: true });
 
       toast.success('Wallet connected successfully');
     } catch (error) {
-      console.error('Error connecting wallet:', error);
-      toast.error('Failed to connect wallet');
+      if (error.code === 4001) {
+        toast.error('You rejected the connection request');
+      } else {
+        toast.error('Failed to connect wallet');
+      }
+    }
+  };
+
+  const handleDisconnectWallet = async () => {
+    try {
+      setBuyerProfile(prev => ({
+        ...prev,
+        walletAddress: ''
+      }));
+      await setDoc(doc(db, 'users', user.uid), {
+        walletAddress: '',
+        updatedAt: new Date()
+      }, { merge: true });
+      toast.success('Wallet disconnected successfully');
+    } catch (error) {
+      toast.error('Failed to disconnect wallet');
     }
   };
 
@@ -375,7 +357,6 @@ const Settings = () => {
       });
       toast.success('Store settings updated successfully');
     } catch (error) {
-      console.error('Error updating store settings:', error);
       toast.error('Failed to update store settings');
     }
   };
@@ -389,7 +370,6 @@ const Settings = () => {
       });
       toast.success('Payment settings updated successfully');
     } catch (error) {
-      console.error('Error updating payment settings:', error);
       toast.error('Failed to update payment settings');
     }
   };
@@ -441,14 +421,13 @@ const Settings = () => {
         walletAddress
       }));
 
-      await setDoc(doc(db, 'buyers', user.uid), {
+      await setDoc(doc(db, 'users', user.uid), {
         walletAddress,
         updatedAt: new Date()
       }, { merge: true });
 
       toast.success('Wallet connected successfully');
     } catch (error) {
-      console.error('Error connecting wallet:', error);
       if (error.code === 4001) {
         toast.error('You rejected the connection request');
       } else {
@@ -890,22 +869,7 @@ const Settings = () => {
                           <>
                             <button
                               type="button"
-                              onClick={async () => {
-                                try {
-                                  setBuyerProfile(prev => ({
-                                    ...prev,
-                                    walletAddress: ''
-                                  }));
-                                  await setDoc(doc(db, 'buyers', user.uid), {
-                                    walletAddress: '',
-                                    updatedAt: new Date()
-                                  }, { merge: true });
-                                  toast.success('Wallet disconnected successfully');
-                                } catch (error) {
-                                  console.error('Error disconnecting wallet:', error);
-                                  toast.error('Failed to disconnect wallet');
-                                }
-                              }}
+                              onClick={handleDisconnectWallet}
                               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
                             >
                               Disconnect
