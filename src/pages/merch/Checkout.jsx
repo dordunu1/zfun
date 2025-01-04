@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { BiWallet, BiCreditCard } from 'react-icons/bi';
 import { FaEthereum } from 'react-icons/fa';
 import { SiTether } from 'react-icons/si';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
@@ -83,9 +83,15 @@ const Checkout = () => {
         });
 
         // Fetch buyer profile
-        const buyerDoc = await getDoc(doc(db, 'users', user.uid));
-        if (buyerDoc.exists()) {
-          setBuyerProfile(buyerDoc.data());
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setBuyerProfile(userData);
+          // Set wallet connection status based on profile
+          if (userData.walletAddress) {
+            setWalletConnected(true);
+            setWalletAddress(userData.walletAddress);
+          }
           // Set the selected token to the product's accepted token
           if (items.length > 0) {
             setSelectedToken(items[0].product.acceptedToken);
@@ -94,7 +100,6 @@ const Checkout = () => {
 
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching data:', error);
         toast.error('Failed to load checkout data');
         setLoading(false);
       }
@@ -107,32 +112,59 @@ const Checkout = () => {
 
   const handleConnectWallet = async () => {
     try {
-      if (typeof window.ethereum === 'undefined') {
-        toast.error('Please install MetaMask to continue');
+      const provider = await detectEthereumProvider();
+      if (!provider) {
+        toast.error('Please install MetaMask to connect your wallet');
         return;
       }
 
+      // Request user to select an account
       const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
+        method: 'wallet_requestPermissions',
+        params: [{
+          eth_accounts: {}
+        }]
+      }).then(() => 
+        window.ethereum.request({
+          method: 'eth_requestAccounts'
+        })
+      );
+      
+      if (accounts.length === 0) {
+        toast.error('Please connect your wallet');
+        return;
+      }
 
-      setWalletAddress(accounts[0]);
+      const walletAddress = accounts[0];
+      setWalletAddress(walletAddress);
       setWalletConnected(true);
+
+      // Update the user's profile with the new wallet address
+      await setDoc(doc(db, 'users', user.uid), {
+        walletAddress,
+        updatedAt: new Date()
+      }, { merge: true });
+
       toast.success('Wallet connected successfully');
     } catch (error) {
-      console.error('Error connecting wallet:', error);
-      toast.error('Failed to connect wallet');
+      if (error.code === 4001) {
+        toast.error('You rejected the connection request');
+      } else {
+        toast.error('Failed to connect wallet');
+      }
     }
   };
 
   const handlePlaceOrder = async () => {
     if (!walletConnected) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet in your profile settings first');
+      navigate('/merch-store/settings');
       return;
     }
 
     if (!buyerProfile?.shippingAddress) {
       toast.error('Please add a shipping address in your profile settings');
+      navigate('/merch-store/settings');
       return;
     }
 
@@ -188,7 +220,6 @@ const Checkout = () => {
       toast.success('Order placed successfully!');
       navigate(`/merch-store/orders`);
     } catch (error) {
-      console.error('Error placing order:', error);
       toast.dismiss(loadingToast);
       toast.error('Failed to place order. Please try again.');
     }
@@ -310,13 +341,16 @@ const Checkout = () => {
               Payment Method
             </h2>
             {!walletConnected ? (
-              <button
-                onClick={handleConnectWallet}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors"
-              >
-                <BiWallet className="w-5 h-5" />
-                <span>Connect Wallet</span>
-              </button>
+              <div className="space-y-4">
+                <p className="text-gray-600">Please connect your wallet in your profile settings first.</p>
+                <button
+                  onClick={() => navigate('/merch-store/settings')}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors"
+                >
+                  <BiWallet className="w-5 h-5" />
+                  <span>Go to Settings</span>
+                </button>
+              </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -327,10 +361,10 @@ const Checkout = () => {
                     </span>
                   </div>
                   <button
-                    onClick={handleConnectWallet}
+                    onClick={() => navigate('/merch-store/settings')}
                     className="text-sm text-[#FF1B6B] hover:text-[#D4145A]"
                   >
-                    Change
+                    Change in Settings
                   </button>
                 </div>
 
