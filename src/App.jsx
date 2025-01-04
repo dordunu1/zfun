@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Web3Modal } from '@web3modal/react';
@@ -22,37 +22,6 @@ function App() {
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   const { isDarkMode } = useTheme();
-  const [isMerchStoreEnabled, setIsMerchStoreEnabled] = useState(false);
-  const [keyPressCount, setKeyPressCount] = useState(0);
-  const [lastKeyPressTime, setLastKeyPressTime] = useState(0);
-
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      if (event.key === 'z') {
-        const currentTime = Date.now();
-        if (currentTime - lastKeyPressTime < 500) { // 500ms window for consecutive presses
-          setKeyPressCount(prev => prev + 1);
-        } else {
-          setKeyPressCount(1);
-        }
-        setLastKeyPressTime(currentTime);
-      } else {
-        setKeyPressCount(0);
-      }
-    };
-
-    document.addEventListener('keypress', handleKeyPress);
-    return () => document.removeEventListener('keypress', handleKeyPress);
-  }, [lastKeyPressTime]);
-
-  useEffect(() => {
-    if (keyPressCount === 3) {
-      setIsMerchStoreEnabled(prev => !prev);
-      setKeyPressCount(0);
-      // Optional: Show a toast message
-      toast.success(isMerchStoreEnabled ? 'Merch Store Deactivated' : 'Merch Store Activated');
-    }
-  }, [keyPressCount]);
 
   return (
     <DeploymentsProvider>
