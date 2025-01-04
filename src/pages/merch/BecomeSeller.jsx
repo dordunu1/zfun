@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { BiStore, BiCheckCircle, BiArrowBack } from 'react-icons/bi';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,8 @@ export default function BecomeSeller() {
   const navigate = useNavigate();
   const { user } = useMerchAuth();
   const [step, setStep] = useState(1);
-  const listingFee = 49.99;
+  const listingFee = 750.00;
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [storeInfo, setStoreInfo] = useState({
     storeName: '',
@@ -41,10 +42,11 @@ export default function BecomeSeller() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStep(3); // Move to payment step
+    setStep(3);
   };
 
-  const handlePaymentSuccess = async () => {
+  const handlePaymentSuccess = async (reference) => {
+    setIsProcessing(true);
     try {
       if (!user) {
         toast.error('Please login first');
@@ -69,7 +71,8 @@ export default function BecomeSeller() {
         balance: {
           available: 0,
           pending: 0
-        }
+        },
+        paymentReference: reference
       });
 
       // Update user profile to mark as seller
@@ -82,8 +85,6 @@ export default function BecomeSeller() {
       // Reload user data to update the context
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        const userData = userDoc.data();
-        // Force a page reload to update the context
         window.location.href = '/merch-store/dashboard';
       }
 
@@ -91,8 +92,36 @@ export default function BecomeSeller() {
     } catch (error) {
       console.error('Error creating store:', error);
       toast.error('Failed to create store. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
+
+  const initializePayment = () => {
+    const handler = window.PaystackPop.setup({
+      key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+      email: user?.email || storeInfo.contactEmail,
+      amount: listingFee * 100,
+      currency: 'GHS',
+      callback: (response) => handlePaymentSuccess(response.reference),
+      onClose: () => {
+        toast.error('Payment cancelled');
+      },
+    });
+    handler.openIframe();
+  };
+
+  useEffect(() => {
+    // Load Paystack script
+    const script = document.createElement('script');
+    script.src = 'https://js.paystack.co/v1/inline.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   return (
     <motion.div
@@ -176,7 +205,7 @@ export default function BecomeSeller() {
 
             <div className="text-center">
               <div className="text-3xl font-bold text-gray-900 mb-4">
-                ${listingFee}
+                GHS {listingFee}
                 <span className="text-sm font-normal text-gray-500 ml-1">
                   one-time fee
                 </span>
@@ -400,21 +429,22 @@ export default function BecomeSeller() {
             <div className="bg-gray-50 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-gray-600">Listing Fee</span>
-                <span className="font-semibold">${listingFee}</span>
+                <span className="font-semibold">GHS {listingFee}</span>
               </div>
               <div className="border-t border-gray-200 pt-4">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Total</span>
-                  <span className="font-bold text-xl">${listingFee}</span>
+                  <span className="font-bold text-xl">GHS {listingFee}</span>
                 </div>
               </div>
             </div>
 
             <button
-              onClick={handlePaymentSuccess} // This will be replaced with Paystack integration
-              className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300"
+              onClick={initializePayment}
+              className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isProcessing}
             >
-              Pay Now
+              {isProcessing ? 'Processing...' : 'Pay Now'}
             </button>
 
             <p className="text-center text-sm text-gray-500">

@@ -6,23 +6,27 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function isSeller() {
+    function isUserOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
       return isAuthenticated() && 
-        firestore.exists(/databases/(default)/documents/sellers/$(request.auth.uid));
+        get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
     // Product images rules
-    match /products/{sellerId}/{imageId} {
+    match /products/{userId}/{imageId} {
       // Allow read access to everyone
       allow read: if true;
       
-      // Allow write access (create, update, delete) to authenticated sellers for their own products
+      // Allow write access to authenticated users for their own product folders
       allow write: if isAuthenticated() && 
-                  sellerId == request.auth.uid;
+                  (isUserOwner(userId) || isAdmin());
                   
       // For uploads, add size and type restrictions
       allow create: if isAuthenticated() && 
-                  sellerId == request.auth.uid &&
+                  (isUserOwner(userId) || isAdmin()) &&
                   request.resource.size < 2 * 1024 * 1024 && // 2MB max
                   request.resource.contentType.matches('image/.*');
     }

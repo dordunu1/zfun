@@ -253,7 +253,7 @@ const AddProduct = () => {
       // Upload images
       const imageUrls = await Promise.all(
         imageFiles.map(async (file) => {
-          const imageRef = ref(storage, `products/${user.sellerId}/${Date.now()}_${file.name}`);
+          const imageRef = ref(storage, `products/${user.uid}/${Date.now()}-${file.name}`);
           const snapshot = await uploadBytes(imageRef, file);
           return getDownloadURL(snapshot.ref);
         })

@@ -327,7 +327,7 @@ const Settings = () => {
       if (error.code === 4001) {
         toast.error('You rejected the connection request');
       } else {
-        toast.error('Failed to connect wallet');
+      toast.error('Failed to connect wallet');
       }
     }
   };
@@ -457,23 +457,23 @@ const Settings = () => {
           {user?.isSeller ? (
             // Seller Tabs
             [
-              { id: 'store', label: 'Store Settings', icon: BiStore },
-              { id: 'payment', label: 'Payment', icon: BiDollar },
-              { id: 'account', label: 'Account', icon: BiUser },
-              { id: 'security', label: 'Security', icon: BiShield }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-[#FF1B6B] text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <tab.icon className="w-5 h-5" />
-                {tab.label}
-              </button>
+            { id: 'store', label: 'Store Settings', icon: BiStore },
+            { id: 'payment', label: 'Payment', icon: BiDollar },
+            { id: 'account', label: 'Account', icon: BiUser },
+            { id: 'security', label: 'Security', icon: BiShield }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-[#FF1B6B] text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <tab.icon className="w-5 h-5" />
+              {tab.label}
+            </button>
             ))
           ) : (
             // Buyer Tabs
@@ -504,86 +504,86 @@ const Settings = () => {
         {user?.isSeller ? (
           // Seller Settings Content
           <>
-            {activeTab === 'store' && (
-              <form onSubmit={handleStoreSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Store Name
-                    </label>
-                    <input
-                      type="text"
-                      name="storeName"
-                      value={storeSettings.storeName}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Contact Email
-                    </label>
-                    <input
-                      type="email"
-                      name="contactEmail"
-                      value={storeSettings.contactEmail}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                    />
-                  </div>
-                </div>
+        {activeTab === 'store' && (
+          <form onSubmit={handleStoreSubmit} className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Store Name
+                </label>
+                <input
+                  type="text"
+                  name="storeName"
+                  value={storeSettings.storeName}
+                  onChange={handleStoreInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contact Email
+                </label>
+                <input
+                  type="email"
+                  name="contactEmail"
+                  value={storeSettings.contactEmail}
+                  onChange={handleStoreInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                />
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Store Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={storeSettings.description}
-                    onChange={handleStoreInputChange}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                  />
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Store Description
+              </label>
+              <textarea
+                name="description"
+                value={storeSettings.description}
+                onChange={handleStoreInputChange}
+                rows={3}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+              />
+            </div>
 
-                <div className="grid grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      name="country"
-                      value={storeSettings.country}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={storeSettings.city}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Postal Code
-                    </label>
-                    <input
-                      type="text"
-                      name="postalCode"
-                      value={storeSettings.postalCode}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                    />
-                  </div>
-                </div>
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  name="country"
+                  value={storeSettings.country}
+                  onChange={handleStoreInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  name="city"
+                  value={storeSettings.city}
+                  onChange={handleStoreInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Postal Code
+                </label>
+                <input
+                  type="text"
+                  name="postalCode"
+                  value={storeSettings.postalCode}
+                  onChange={handleStoreInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                />
+              </div>
+            </div>
 
                 <div className="border-t pt-6 mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Settings</h3>
@@ -628,19 +628,19 @@ const Settings = () => {
                         Token you want to receive payments in
                       </p>
                     </div>
-                  </div>
-                </div>
+              </div>
+            </div>
 
-                <div className="pt-4">
-                  <button
-                    type="submit"
-                    className="w-full px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
-                  >
-                    Save Store Settings
-                  </button>
-                </div>
-              </form>
-            )}
+            <div className="pt-4">
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+              >
+                Save Store Settings
+              </button>
+            </div>
+          </form>
+        )}
             {activeTab === 'payment' && (
               <form onSubmit={handlePaymentSubmit} className="space-y-6">
                 <div className="space-y-4">
@@ -746,95 +746,95 @@ const Settings = () => {
               </form>
             )}
             {activeTab === 'account' && (
-              <div className="space-y-6">
+            <div className="space-y-6">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900">Wallet Settings</h3>
-                  <div className="bg-gray-50 rounded-xl p-6">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-medium text-gray-900">Connected Wallet</h4>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {walletSettings.walletAddress 
-                            ? `${walletSettings.walletAddress.slice(0, 6)}...${walletSettings.walletAddress.slice(-4)}`
-                            : 'No wallet connected'}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        {walletSettings.walletAddress ? (
-                          <>
-                            <button
+              <div className="bg-gray-50 rounded-xl p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">Connected Wallet</h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {walletSettings.walletAddress 
+                        ? `${walletSettings.walletAddress.slice(0, 6)}...${walletSettings.walletAddress.slice(-4)}`
+                        : 'No wallet connected'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {walletSettings.walletAddress ? (
+                      <>
+                        <button
                               type="button"
-                              onClick={async () => {
-                                try {
-                                  setWalletSettings(prev => ({
-                                    ...prev,
-                                    walletAddress: ''
-                                  }));
-                                  await updateDoc(doc(db, 'sellers', user.sellerId), {
+                          onClick={async () => {
+                            try {
+                              setWalletSettings(prev => ({
+                                ...prev,
+                                walletAddress: ''
+                              }));
+                              await updateDoc(doc(db, 'sellers', user.sellerId), {
                                     walletAddress: '',
                                     updatedAt: new Date()
-                                  });
-                                  toast.success('Wallet disconnected successfully');
-                                } catch (error) {
-                                  console.error('Error disconnecting wallet:', error);
-                                  toast.error('Failed to disconnect wallet');
-                                }
-                              }}
-                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-                            >
-                              Disconnect
-                            </button>
-                            <button
+                              });
+                              toast.success('Wallet disconnected successfully');
+                            } catch (error) {
+                              console.error('Error disconnecting wallet:', error);
+                              toast.error('Failed to disconnect wallet');
+                            }
+                          }}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                        >
+                          Disconnect
+                        </button>
+                        <button
                               type="button"
-                              onClick={handleWalletConnect}
-                              className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
-                            >
-                              Change Wallet
-                            </button>
-                          </>
-                        ) : (
-                          <button
+                          onClick={handleWalletConnect}
+                          className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
+                        >
+                          Change Wallet
+                        </button>
+                      </>
+                    ) : (
+                      <button
                             type="button"
                             onClick={handleWalletConnect}
-                            className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
-                          >
-                            Connect Wallet
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                        className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
+                      >
+                        Connect Wallet
+                      </button>
+                    )}
                   </div>
+                </div>
+              </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Preferred Token
-                    </label>
-                    <div className="grid grid-cols-2 gap-4">
-                      {['USDT', 'USDC'].map(token => (
-                        <button
-                          key={token}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preferred Token
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  {['USDT', 'USDC'].map(token => (
+                    <button
+                      key={token}
                           type="button"
-                          onClick={() => {
-                            setWalletSettings(prev => ({ ...prev, preferredToken: token }));
-                            updateDoc(doc(db, 'sellers', user.sellerId), {
-                              preferredToken: token
-                            });
-                          }}
-                          className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                            walletSettings.preferredToken === token 
-                              ? 'border-[#FF1B6B] bg-pink-50' 
-                              : 'border-gray-200 hover:border-[#FF1B6B]'
-                          }`}
-                        >
-                          <img 
-                            src={`/${token.toLowerCase()}.png`} 
-                            alt={`${token} logo`}
-                            className="w-6 h-6"
-                          />
-                          <span className="font-medium">{token}</span>
-                        </button>
-                      ))}
-                    </div>
+                      onClick={() => {
+                        setWalletSettings(prev => ({ ...prev, preferredToken: token }));
+                        updateDoc(doc(db, 'sellers', user.sellerId), {
+                          preferredToken: token
+                        });
+                      }}
+                      className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                        walletSettings.preferredToken === token 
+                          ? 'border-[#FF1B6B] bg-pink-50' 
+                          : 'border-gray-200 hover:border-[#FF1B6B]'
+                      }`}
+                    >
+                      <img 
+                        src={`/${token.toLowerCase()}.png`} 
+                        alt={`${token} logo`}
+                        className="w-6 h-6"
+                      />
+                      <span className="font-medium">{token}</span>
+                    </button>
+                  ))}
+                </div>
                   </div>
                 </div>
               </div>
@@ -893,8 +893,8 @@ const Settings = () => {
                         )}
                       </div>
                     </div>
-                  </div>
-                </div>
+              </div>
+            </div>
 
                 {/* Personal Information */}
                 <div className="space-y-4">
@@ -939,8 +939,8 @@ const Settings = () => {
                         placeholder="Enter your phone number"
                       />
                     </div>
-                  </div>
-                </div>
+            </div>
+          </div>
 
                 <div className="pt-4">
                   <button
@@ -1029,15 +1029,15 @@ const Settings = () => {
                   >
                     Save Shipping Address
                   </button>
-                </div>
+          </div>
               </form>
-            )}
+        )}
 
-            {activeTab === 'security' && (
-              <div className="text-center py-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">Security Settings</h2>
-                <p className="text-gray-500">Security settings coming soon</p>
-              </div>
+        {activeTab === 'security' && (
+          <div className="text-center py-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Security Settings</h2>
+            <p className="text-gray-500">Security settings coming soon</p>
+          </div>
             )}
           </>
         )}
