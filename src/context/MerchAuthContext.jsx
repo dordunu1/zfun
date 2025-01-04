@@ -38,9 +38,11 @@ export function MerchAuthProvider({ children }) {
         };
 
         setUser(userObj);
+        setIsAdmin(userData.isAdmin || false);
         setLoading(false);
       } else {
         setUser(null);
+        setIsAdmin(false);
         setLoading(false);
       }
     });
