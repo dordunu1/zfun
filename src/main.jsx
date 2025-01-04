@@ -5,6 +5,7 @@ import { WagmiConfig } from 'wagmi';
 import { Web3Modal } from '@web3modal/react';
 import { config, ethereumClient } from './config/wagmi';
 import { ThemeProvider } from './context/ThemeContext';
+import { MerchAuthProvider } from './context/MerchAuthContext';
 import { router } from './router';
 import './index.css';
 
@@ -45,7 +46,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <WagmiConfig config={config}>
       <ThemeProvider>
-        <RouterProvider router={router} />
+        <MerchAuthProvider>
+          <RouterProvider router={router} />
+        </MerchAuthProvider>
       </ThemeProvider>
     </WagmiConfig>
     <Web3Modal 

@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSeller() {
+      return isAuthenticated() && 
+        firestore.exists(/databases/(default)/documents/sellers/$(request.auth.uid));
+    }
+
+    // Product images rules
+    match /products/{sellerId}/{imageId} {
+      // Allow read access to everyone
+      allow read: if true;
+      
+      // Allow write access (create, update, delete) to authenticated sellers for their own products
+      allow write: if isAuthenticated() && 
+                  sellerId == request.auth.uid;
+                  
+      // For uploads, add size and type restrictions
+      allow create: if isAuthenticated() && 
+                  sellerId == request.auth.uid &&
+                  request.resource.size < 2 * 1024 * 1024 && // 2MB max
+                  request.resource.contentType.matches('image/.*');
+    }
+  }
+} 

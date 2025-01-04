@@ -16,7 +16,7 @@ import {
   FaChartBar,
   FaLink
 } from 'react-icons/fa';
-import { BiHome, BiCollection, BiHistory, BiHomeAlt, BiCoin } from 'react-icons/bi';
+import { BiHome, BiCollection, BiHistory, BiHomeAlt, BiCoin, BiStore } from 'react-icons/bi';
 import { AiOutlinePlus } from 'react-icons/ai'
 import { BsCollection, BsClockHistory } from 'react-icons/bs'
 import { HiOutlineHome } from 'react-icons/hi'
@@ -73,6 +73,12 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       icon: FaLink,
       label: 'Bridge',
       to: '/bridge',
+      isRouterLink: true,
+    },
+    {
+      icon: BiStore,
+      label: 'MerchStore',
+      to: '/merch-store',
       isRouterLink: true,
     },
     {

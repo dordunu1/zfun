@@ -1,0 +1,450 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { FiBox, FiDollarSign, FiShoppingBag, FiTrendingUp, FiUsers, FiCreditCard } from 'react-icons/fi';
+import { useMerchAuth } from '../../context/MerchAuthContext';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebase/merchConfig';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import detectEthereumProvider from '@metamask/detect-provider';
+
+// Token logos
+const TOKEN_INFO = {
+  USDT: {
+    logo: '/logos/usdt.png',
+    name: 'USDT (Tether)',
+    decimals: 6
+  },
+  USDC: {
+    logo: '/logos/usdc.png',
+    name: 'USDC (USD Coin)',
+    decimals: 6
+  }
+};
+
+const SkeletonPulse = () => (
+  <motion.div
+    className="w-full h-full bg-gray-200 rounded-lg"
+    animate={{
+      opacity: [0.4, 0.7, 0.4]
+    }}
+    transition={{
+      duration: 1.5,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }}
+  />
+);
+
+const DashboardSkeleton = () => (
+  <div className="p-6 max-w-7xl mx-auto space-y-8">
+    {/* Welcome Section Skeleton */}
+    <div className="space-y-2">
+      <div className="w-64 h-8">
+        <SkeletonPulse />
+      </div>
+      <div className="w-96 h-5">
+        <SkeletonPulse />
+      </div>
+    </div>
+
+    {/* Balance Widget Skeleton */}
+    <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="flex justify-between items-start mb-4">
+        <div className="space-y-2">
+          <div className="w-48 h-6">
+            <SkeletonPulse />
+          </div>
+          <div className="w-64 h-4">
+            <SkeletonPulse />
+          </div>
+        </div>
+        <div className="w-10 h-10 rounded-full">
+          <SkeletonPulse />
+        </div>
+      </div>
+      
+      <div className="flex justify-between items-end mb-6">
+        <div className="space-y-2">
+          <div className="w-56 h-10">
+            <SkeletonPulse />
+          </div>
+          <div className="w-32 h-4">
+            <SkeletonPulse />
+          </div>
+          <div className="w-48 h-4">
+            <SkeletonPulse />
+          </div>
+          <div className="w-40 h-4">
+            <SkeletonPulse />
+          </div>
+        </div>
+        <div className="w-40 h-10">
+          <SkeletonPulse />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="w-full h-3">
+          <SkeletonPulse />
+        </div>
+        <div className="w-full h-3">
+          <SkeletonPulse />
+        </div>
+        <div className="w-full h-3">
+          <SkeletonPulse />
+        </div>
+      </div>
+    </div>
+
+    {/* Stats Grid Skeleton */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="p-6 rounded-lg shadow-lg h-32">
+          <SkeletonPulse />
+        </div>
+      ))}
+    </div>
+
+    {/* Recent Activity Skeleton */}
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="w-48 h-6">
+          <SkeletonPulse />
+        </div>
+        <div className="w-32 h-10">
+          <SkeletonPulse />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-20 rounded-lg">
+            <SkeletonPulse />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const SellerDashboard = () => {
+  const { user } = useMerchAuth();
+  const [loading, setLoading] = useState(true);
+  const [platformFee, setPlatformFee] = useState(2.5); // Default fee
+  const [minWithdrawal, setMinWithdrawal] = useState(10); // Default min withdrawal
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    totalSales: 0,
+    totalCustomers: 0,
+    revenue: 0,
+    balance: 0,
+    preferredToken: 'USDT' // Default token
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+
+  useEffect(() => {
+    if (!user?.sellerId) return;
+    fetchDashboardData();
+    fetchPlatformSettings();
+  }, [user]);
+
+  const fetchPlatformSettings = async () => {
+    try {
+      const settingsDoc = await getDoc(doc(db, 'settings', 'platform'));
+      if (settingsDoc.exists()) {
+        const settings = settingsDoc.data();
+        setPlatformFee(settings.platformFee || 2.5);
+        setMinWithdrawal(settings.withdrawalMinimum || 10);
+      }
+    } catch (error) {
+      console.error('Error fetching platform settings:', error);
+    }
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch seller data including balance and preferred token
+      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
+      const sellerData = sellerDoc.data();
+      const balance = sellerData?.balance?.available || 0;
+      const preferredToken = sellerData?.preferredToken || 'USDT';
+
+      // Fetch products
+      const productsQuery = query(
+        collection(db, 'products'),
+        where('sellerId', '==', user.sellerId)
+      );
+      const productsSnapshot = await getDocs(productsQuery);
+      const totalProducts = productsSnapshot.size;
+
+      // Fetch orders
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('sellerId', '==', user.sellerId),
+        orderBy('createdAt', 'desc')
+      );
+      const ordersSnapshot = await getDocs(ordersQuery);
+      const orders = ordersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Calculate stats
+      let revenue = 0;
+      const customers = new Set();
+      orders.forEach(order => {
+        revenue += order.total;
+        customers.add(order.buyerId);
+      });
+
+      setStats({
+        totalProducts,
+        totalSales: orders.length,
+        totalCustomers: customers.size,
+        revenue,
+        balance,
+        preferredToken
+      });
+
+      // Set recent orders
+      setRecentOrders(orders.slice(0, 3));
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
+    }
+  };
+
+  const statsCards = [
+    { title: 'Total Products', icon: <FiBox />, value: stats.totalProducts, color: 'bg-blue-500' },
+    { title: 'Total Sales', icon: <FiShoppingBag />, value: stats.totalSales, color: 'bg-green-500' },
+    { title: 'Total Customers', icon: <FiUsers />, value: stats.totalCustomers, color: 'bg-purple-500' },
+    { title: 'Revenue', icon: <FiDollarSign />, value: `$${stats.revenue.toFixed(2)}`, color: 'bg-pink-500' },
+  ];
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  return (
+    <motion.div 
+      className="p-6 max-w-7xl mx-auto"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
+      {/* Welcome Section */}
+      <motion.div 
+        className="mb-8"
+        variants={itemVariants}
+      >
+        <h1 className="text-3xl font-bold text-gray-800">Welcome back, {user?.displayName || 'Seller'}!</h1>
+        <p className="text-gray-600 mt-2">Here's what's happening with your store today.</p>
+      </motion.div>
+
+      {/* Balance Widget */}
+      <motion.div 
+        className="mb-8"
+        variants={itemVariants}
+      >
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Available Balance</h3>
+              <p className="text-sm text-gray-500 mt-1">Withdraw anytime to your wallet</p>
+            </div>
+            <div className="p-2 bg-[#FF1B6B] bg-opacity-10 rounded-full">
+              <FiCreditCard className="text-[#FF1B6B] text-xl" />
+            </div>
+          </div>
+          
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <img 
+                  src={TOKEN_INFO[stats.preferredToken].logo}
+                  alt={stats.preferredToken}
+                  className="w-6 h-6"
+                />
+                <div className="text-3xl font-bold text-[#FF1B6B]">
+                  {stats.balance || 0} {stats.preferredToken}
+                </div>
+              </div>
+              <div className="text-sm text-gray-500">
+                ≈ ${stats.balance || 0}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Platform fee: {platformFee}% ({(stats.balance * platformFee / 100).toFixed(2)} {stats.preferredToken})
+              </div>
+              <div className="text-sm font-medium text-gray-700 mt-1">
+                You'll receive: {(stats.balance * (1 - platformFee / 100)).toFixed(2)} {stats.preferredToken}
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const provider = await detectEthereumProvider();
+                  if (!provider) {
+                    toast.error('Please install MetaMask to withdraw funds');
+                    return;
+                  }
+
+                  await window.ethereum.request({ method: 'eth_requestAccounts' });
+                  const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                  
+                  if (accounts.length === 0) {
+                    toast.error('Please connect your wallet');
+                    return;
+                  }
+
+                  if (stats.balance < minWithdrawal) {
+                    toast.error(`Minimum withdrawal amount is ${minWithdrawal} ${stats.preferredToken}`);
+                    return;
+                  }
+
+                  // Create withdrawal request
+                  await addDoc(collection(db, 'withdrawals'), {
+                    sellerId: user.sellerId,
+                    amount: stats.balance,
+                    token: stats.preferredToken,
+                    fee: stats.balance * platformFee / 100,
+                    netAmount: stats.balance * (1 - platformFee / 100),
+                    status: 'pending',
+                    walletAddress: accounts[0],
+                    timestamp: serverTimestamp()
+                  });
+
+                  toast.success('Withdrawal request submitted');
+                } catch (error) {
+                  console.error('Withdrawal error:', error);
+                  toast.error('Failed to process withdrawal');
+                }
+              }}
+              disabled={!stats.balance || stats.balance < minWithdrawal}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                !stats.balance || stats.balance < minWithdrawal
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]'
+              }`}
+            >
+              {!stats.balance || stats.balance < minWithdrawal 
+                ? `Minimum ${minWithdrawal} ${stats.preferredToken} required` 
+                : 'Withdraw to Wallet'}
+            </button>
+          </div>
+
+          <div className="text-xs text-gray-500 space-y-1">
+            <p>Note: Withdrawals are processed on the Polygon network. Gas fees will be paid from your wallet.</p>
+            <p>A {platformFee}% platform fee will be deducted from your withdrawal amount.</p>
+            <p>Minimum withdrawal amount: {minWithdrawal} {stats.preferredToken}</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Stats Grid */}
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+        variants={containerVariants}
+      >
+        {statsCards.map((stat, index) => (
+          <motion.div
+            key={stat.title}
+            className={`p-6 rounded-lg shadow-lg ${stat.color} text-white transform hover:scale-105 transition-transform duration-200`}
+            variants={itemVariants}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-semibold mb-2">{stat.title}</p>
+                <h3 className="text-3xl font-bold">{stat.value}</h3>
+              </div>
+              <div className="text-3xl opacity-80">
+                {stat.icon}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Recent Activity */}
+      <motion.div 
+        className="bg-white rounded-lg shadow-lg p-6"
+        variants={itemVariants}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-800">Recent Activity</h2>
+          <Link
+            to="/merch-store/orders"
+            className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+          >
+            View All Orders
+          </Link>
+        </div>
+
+        {/* Activity List */}
+        <motion.div 
+          className="space-y-4"
+          variants={containerVariants}
+        >
+          {recentOrders.length === 0 ? (
+            <motion.div
+              variants={itemVariants}
+              className="text-center py-8 text-gray-500"
+            >
+              No orders yet
+            </motion.div>
+          ) : (
+            recentOrders.map((order) => (
+              <motion.div
+                key={order.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                variants={itemVariants}
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="p-2 bg-[#FF1B6B] bg-opacity-10 rounded-full">
+                    <FiTrendingUp className="text-[#FF1B6B] text-xl" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">New order received</p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(order.createdAt?.toDate()).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[#FF1B6B] font-medium">${order.total.toFixed(2)}</span>
+              </motion.div>
+            ))
+          )}
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+export default SellerDashboard; 

@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isSeller(sellerId) {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.sellerId == sellerId ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Sellers Collection
+    match /sellers/{sellerId} {
+      // Anyone can read basic seller info
+      allow read: if true;
+      // Only the owner can update their store
+      allow write: if isSeller(sellerId) || isAdmin();
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isSeller(request.resource.data.sellerId) || isAdmin();
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == resource.data.buyerId || 
+         isSeller(resource.data.sellerId) ||
+         isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.buyerId || 
+         isSeller(resource.data.sellerId) ||
+         isAdmin());
+    }
+
+    // Cart Collection
+    match /cart/{cartId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    // Withdrawals Collection
+    match /withdrawals/{withdrawalId} {
+      allow read: if isAuthenticated() && 
+        (isSeller(resource.data.sellerId) || isAdmin());
+      allow create: if isAuthenticated() && isSeller(request.resource.data.sellerId);
+      allow update: if isAdmin();
+    }
+
+    // Settings Collection
+    match /settings/{settingId} {
+      // Everyone can read platform settings
+      allow read: if true;
+      
+      // Only admin can modify settings
+      allow write: if isAdmin();
+    }
+
+    // Activity Collection
+    match /activity/{activityId} {
+      // Only admin can read activity
+      allow read: if isAdmin();
+      
+      // Only admin can write activity
+      allow write: if isAdmin();
+    }
+  }
+} 
