@@ -710,7 +710,7 @@ const Settings = () => {
                     </label>
                     <div className="grid grid-cols-2 gap-4">
                       {[
-                        { id: 'sepolia', name: 'Sepolia', logo: '/sepolia-logo.png' },
+                        { id: 'polygon', name: 'Polygon', logo: '/polygon.png' },
                         { id: 'unichain', name: 'Unichain Testnet', logo: '/unichain-logo.png' }
                       ].map(network => (
                         <button

@@ -153,7 +153,7 @@ const AddProduct = () => {
     quantity: '',
     category: '',
     images: [],
-    network: 'sepolia',
+    network: 'polygon',
     acceptedToken: 'USDC',
     tokenLogo: '/logos/usdc.png',
     shippingFee: 0,
@@ -179,7 +179,7 @@ const AddProduct = () => {
 
   const NETWORKS = [
     { id: 'polygon', name: 'Polygon', logo: '/polygon.png' },
-    { id: 'unichain', name: 'Unichain', logo: '/unichain-logo.png' }
+    { id: 'unichain', name: 'Unichain Testnet', logo: '/unichain-logo.png' }
   ];
 
   useEffect(() => {
@@ -258,10 +258,18 @@ const AddProduct = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setProductData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    if (name === 'acceptedToken') {
+      setProductData(prev => ({
+        ...prev,
+        acceptedToken: value,
+        tokenLogo: `/logos/${value.toLowerCase()}.png`
+      }));
+    } else {
+      setProductData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -347,7 +355,7 @@ const AddProduct = () => {
         category: productData.category,
         network: productData.network,
         acceptedToken: productData.acceptedToken,
-        tokenLogo: productData.tokenLogo,
+        tokenLogo: `/${productData.acceptedToken.toLowerCase()}.png`,
         images: imageUrls,
         shippingFee: Number(productData.shippingFee),
         shippingInfo: productData.shippingInfo,

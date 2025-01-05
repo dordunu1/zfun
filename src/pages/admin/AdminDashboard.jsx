@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useMerchAuth } from '../../context/MerchAuthContext';
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
 import { Navigate } from 'react-router-dom';
 import { FiDollarSign, FiUsers, FiCreditCard, FiShoppingBag, FiTrendingUp, FiGrid, FiList, FiSearch } from 'react-icons/fi';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
+import { toast } from 'react-hot-toast';
+import detectEthereumProvider from '@metamask/detect-provider';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminDashboard() {
   const { isAdmin } = useMerchAuth();
-  const { address: account } = useAccount();
-  const { connect } = useConnect();
-  const { disconnect } = useDisconnect();
   const [loading, setLoading] = useState(true);
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
   const [stats, setStats] = useState({
     totalSales: 0,
     activeSellers: 0,
@@ -39,10 +38,10 @@ export default function AdminDashboard() {
   const [filteredOrders, setFilteredOrders] = useState([]);
 
   useEffect(() => {
-    if (account) {
+    if (walletConnected) {
       fetchDashboardData();
     }
-  }, [account]);
+  }, [walletConnected]);
 
   useEffect(() => {
     if (stats.recentOrders.length > 0) {
@@ -61,16 +60,34 @@ export default function AdminDashboard() {
 
   const handleConnectWallet = async () => {
     try {
-      await disconnect();
-      const connector = new MetaMaskConnector({
-        options: {
-          shimDisconnect: true,
-          UNSTABLE_shimOnConnectSelectAccount: true,
-        },
+      const provider = await detectEthereumProvider();
+      if (!provider) {
+        toast.error('Please install MetaMask to connect your wallet');
+        return;
+      }
+
+      // Request user to select an account
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
       });
-      await connect({ connector });
+      
+      if (accounts.length === 0) {
+        toast.error('Please connect your wallet');
+        return;
+      }
+
+      const walletAddress = accounts[0];
+      setWalletAddress(walletAddress);
+      setWalletConnected(true);
+
+      toast.success('Wallet connected successfully');
     } catch (error) {
       console.error('Failed to connect wallet:', error);
+      if (error.code === 4001) {
+        toast.error('You rejected the connection request');
+      } else {
+        toast.error('Failed to connect wallet');
+      }
     }
   };
 
@@ -183,7 +200,7 @@ export default function AdminDashboard() {
     return <Navigate to="/merch-store" replace />;
   }
 
-  if (!account) {
+  if (!walletConnected) {
     return (
       <div className={`flex flex-col items-center justify-center min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <h1 className="text-2xl font-bold text-[#FF1B6B] mb-4">Admin Authentication Required</h1>
@@ -198,7 +215,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (account.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+  if (walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
     return (
       <div className={`flex flex-col items-center justify-center min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <h1 className="text-2xl font-bold text-red-500 mb-4">Access Denied</h1>

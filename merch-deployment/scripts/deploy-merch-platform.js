@@ -12,7 +12,7 @@ async function main() {
     usdcAddress = "0x31d0220469e10c4E71834a79b1f276d740d3768F";
   } else if (chainId === 137) { // Polygon mainnet
     usdtAddress = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-    usdcAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+    usdcAddress = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
   } else {
     throw new Error(`Unsupported network chainId: ${chainId}`);
   }
