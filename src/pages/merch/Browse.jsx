@@ -8,12 +8,13 @@ import { toast } from 'react-hot-toast';
 
 const SkeletonPulse = () => (
   <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
+    className="w-full h-full bg-gray-200 dark:bg-gray-800 rounded-lg"
     animate={{
-      opacity: [0.4, 0.7, 0.4]
+      opacity: [0.3, 0.6, 0.3],
+      scale: [0.98, 1, 0.98]
     }}
     transition={{
-      duration: 1.5,
+      duration: 2,
       repeat: Infinity,
       ease: "easeInOut"
     }}
@@ -66,7 +67,12 @@ const ProductImages = ({ images }) => {
 const BrowseSkeleton = () => (
   <div className="max-w-7xl mx-auto p-4 space-y-6">
     {/* Search and Filter Skeleton */}
-    <div className="flex items-center justify-between gap-4">
+    <motion.div 
+      className="flex items-center justify-between gap-4"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="flex-1">
         <div className="w-full h-12">
           <SkeletonPulse />
@@ -75,21 +81,43 @@ const BrowseSkeleton = () => (
       <div className="w-32 h-12">
         <SkeletonPulse />
       </div>
-    </div>
+    </motion.div>
 
     {/* Categories Skeleton */}
-    <div className="flex gap-2 overflow-x-auto pb-2">
+    <motion.div 
+      className="flex gap-2 overflow-x-auto pb-2"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.1 }}
+    >
       {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="w-24 h-8 flex-shrink-0">
+        <motion.div 
+          key={i} 
+          className="w-24 h-8 flex-shrink-0"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, delay: i * 0.05 }}
+        >
           <SkeletonPulse />
-        </div>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
 
     {/* Products Grid Skeleton */}
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+    <motion.div 
+      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+    >
       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-        <div key={i} className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <motion.div 
+          key={i} 
+          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm overflow-hidden"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: i * 0.05 }}
+        >
           <div className="aspect-square">
             <SkeletonPulse />
           </div>
@@ -104,9 +132,9 @@ const BrowseSkeleton = () => (
               <SkeletonPulse />
             </div>
           </div>
-        </div>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   </div>
 );
 
