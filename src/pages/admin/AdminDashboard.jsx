@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { Navigate } from 'react-router-dom';
 import { FiDollarSign, FiUsers, FiCreditCard, FiShoppingBag, FiTrendingUp, FiGrid, FiList, FiSearch } from 'react-icons/fi';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 import detectEthereumProvider from '@metamask/detect-provider';
@@ -36,6 +36,68 @@ export default function AdminDashboard() {
   const theme = localStorage.getItem('admin-theme') || 'light';
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredOrders, setFilteredOrders] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const ordersPerPage = 50;
+
+  const loadMoreOrders = async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
+    try {
+      const lastOrder = stats.recentOrders[stats.recentOrders.length - 1];
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastOrder.createdAt),
+        limit(ordersPerPage)
+      );
+      
+      const ordersSnapshot = await getDocs(ordersQuery);
+      const newOrders = await Promise.all(ordersSnapshot.docs.map(async doc => {
+        const orderData = {
+          id: doc.id,
+          ...doc.data()
+        };
+        
+        if (orderData.sellerId) {
+          const sellerDoc = await getDocs(query(
+            collection(db, 'users'),
+            where('uid', '==', orderData.sellerId)
+          ));
+          if (!sellerDoc.empty) {
+            const sellerData = sellerDoc.docs[0].data();
+            orderData.sellerName = sellerData.name || 'Unknown Seller';
+          }
+        }
+        
+        return orderData;
+      }));
+
+      if (newOrders.length < ordersPerPage) {
+        setHasMore(false);
+      }
+
+      setStats(prev => ({
+        ...prev,
+        recentOrders: [...prev.recentOrders, ...newOrders]
+      }));
+      setCurrentPage(prev => prev + 1);
+    } catch (error) {
+      console.error('Error loading more orders:', error);
+      toast.error('Failed to load more orders');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleScroll = (e) => {
+    const { scrollTop, clientHeight, scrollHeight } = e.target;
+    if (scrollHeight - scrollTop <= clientHeight * 1.5) {
+      loadMoreOrders();
+    }
+  };
 
   useEffect(() => {
     // Check if wallet is already connected
@@ -144,7 +206,8 @@ export default function AdminDashboard() {
 
       const ordersQuery = query(
         collection(db, 'orders'),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(ordersPerPage)
       );
       const ordersSnapshot = await getDocs(ordersQuery);
       const orders = await Promise.all(ordersSnapshot.docs.map(async doc => {
@@ -153,7 +216,6 @@ export default function AdminDashboard() {
           ...doc.data()
         };
         
-        // Fetch seller details if sellerId exists
         if (orderData.sellerId) {
           const sellerDoc = await getDocs(query(
             collection(db, 'users'),
@@ -167,6 +229,8 @@ export default function AdminDashboard() {
         
         return orderData;
       }));
+
+      setHasMore(orders.length === ordersPerPage);
 
       const productsQuery = query(collection(db, 'products'));
       const productsSnapshot = await getDocs(productsQuery);
@@ -210,7 +274,7 @@ export default function AdminDashboard() {
         totalCustomers: uniqueCustomers,
         platformFee: platformFee,
         totalEarnings: platformFee,
-        recentOrders: orders.slice(0, 5),
+        recentOrders: orders,
         topSellers,
         salesByNetwork
       });
@@ -230,6 +294,7 @@ export default function AdminDashboard() {
       );
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
@@ -317,8 +382,8 @@ export default function AdminDashboard() {
           <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>Sales by Network</h2>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#FF1B6B]"></div>
+              <div className="flex items-center gap-3">
+                <img src="/unichain-logo.png" alt="Unichain" className="w-6 h-6 object-contain" />
                 <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Unichain</span>
               </div>
               <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -326,8 +391,8 @@ export default function AdminDashboard() {
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#D4145A]"></div>
+              <div className="flex items-center gap-3">
+                <img src="/polygon.png" alt="Polygon" className="w-6 h-6 object-contain" />
                 <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Polygon</span>
               </div>
               <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -363,7 +428,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-        <div className="flex flex-col space-y-4 mb-4">
+        <div className="flex flex-col space-y-4">
           <div className="flex justify-between items-center">
             <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Recent Orders</h2>
             <div className="flex items-center gap-2">
@@ -413,57 +478,78 @@ export default function AdminDashboard() {
         </div>
 
         {orderViewType === 'list' ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Order ID</th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Customer</th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Seller</th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Items</th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Status</th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      #{order.id.slice(-6)}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.buyerInfo?.name || 'Anonymous'}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.sellerName || 'Unknown Seller'}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      ${order.total.toFixed(2)}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                        order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {new Date(order.createdAt?.toDate()).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-4">
+            <div className="border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                    <tr>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Order ID</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Customer</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Seller</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Items</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Amount</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Status</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Date</th>
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+              <div 
+                className="overflow-y-auto"
+                style={{ maxHeight: '400px' }}
+                onScroll={handleScroll}
+              >
+                <table className="min-w-full divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredOrders.map((order) => (
+                      <tr key={order.id}>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                          #{order.id.slice(-6)}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                          {order.buyerInfo?.name || 'Anonymous'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                          {order.sellerName || 'Unknown Seller'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                          {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                          ${order.total.toFixed(2)}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                            order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                          {new Date(order.createdAt?.toDate()).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {loadingMore && (
+                  <div className="flex justify-center py-4">
+                    <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 overflow-y-auto"
+            style={{ maxHeight: '400px' }}
+            onScroll={handleScroll}
+          >
             {filteredOrders.map((order) => (
               <div
                 key={order.id}
@@ -525,6 +611,11 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+            {loadingMore && (
+              <div className="col-span-full flex justify-center py-4">
+                <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
           </div>
         )}
       </div>
