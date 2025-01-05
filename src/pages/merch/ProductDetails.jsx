@@ -131,6 +131,8 @@ const ProductDetails = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [similarProducts, setSimilarProducts] = useState([]);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [selectedSize, setSelectedSize] = useState('');
+  const [selectedColor, setSelectedColor] = useState('');
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -226,13 +228,26 @@ const ProductDetails = () => {
         return;
       }
 
+      if (product.category === 'clothing' && product.hasVariants) {
+        if (!selectedSize) {
+          toast.error('Please select a size');
+          return;
+        }
+        if (!selectedColor) {
+          toast.error('Please select a color');
+          return;
+        }
+      }
+
       // Show loading toast
       const loadingToast = toast.loading('Adding to cart...');
 
       const cartRef = collection(db, 'cart');
       const q = query(cartRef, 
         where('userId', '==', user.uid),
-        where('productId', '==', id)
+        where('productId', '==', id),
+        where('size', '==', selectedSize || null),
+        where('color', '==', selectedColor || null)
       );
       const querySnapshot = await getDocs(q);
 
@@ -251,6 +266,8 @@ const ProductDetails = () => {
           userId: user.uid,
           productId: id,
           quantity: quantity,
+          size: selectedSize || null,
+          color: selectedColor || null,
           addedAt: serverTimestamp()
         });
         toast.dismiss(loadingToast);
@@ -348,16 +365,89 @@ const ProductDetails = () => {
             <p className="text-gray-600">{product.description}</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <img
-              src={product.tokenLogo}
-              alt={product.acceptedToken}
-              className="w-6 h-6"
-            />
-            <span className="text-2xl font-bold text-[#FF1B6B]">
-              ${product.price.toFixed(2)}
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src={product.tokenLogo}
+                alt={product.acceptedToken}
+                className="w-6 h-6"
+              />
+              <span className="text-2xl font-bold text-[#FF1B6B]">
+                ${product.price.toFixed(2)}
+              </span>
+            </div>
+            <div className={`px-4 py-2 rounded-lg font-medium ${
+              product.quantity > 10 
+                ? 'bg-green-100 text-green-700' 
+                : product.quantity > 0 
+                  ? 'bg-orange-100 text-orange-700' 
+                  : 'bg-red-100 text-red-700'
+            }`}>
+              {product.quantity > 10 
+                ? 'In Stock' 
+                : product.quantity > 0 
+                  ? `Only ${product.quantity} left` 
+                  : 'Out of Stock'}
+            </div>
           </div>
+
+          {/* Size and Color Selection for Clothing */}
+          {product.category === 'clothing' && product.hasVariants && (
+            <div className="space-y-4">
+              {/* Size Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Size
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedSize === size
+                          ? 'bg-[#FF1B6B] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setSelectedColor(color)}
+                      className={`group relative inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedColor === color
+                          ? 'bg-[#FF1B6B] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full mr-2 border border-gray-300"
+                        style={{ 
+                          backgroundColor: color.toLowerCase(),
+                          borderColor: color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
+                        }}
+                      />
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Quantity Selector */}
           <div className="space-y-4">
@@ -379,9 +469,6 @@ const ProductDetails = () => {
                 >
                   <BiPlus className="text-xl" />
                 </button>
-                <span className="text-sm text-gray-500">
-                  {product.quantity} available
-                </span>
               </div>
             </div>
 
@@ -424,6 +511,22 @@ const ProductDetails = () => {
                 <span className="text-gray-500">Payment Token:</span>
                 <span className="ml-2 text-gray-800">{product.acceptedToken}</span>
               </div>
+              {product.category === 'clothing' && product.hasVariants && (
+                <>
+                  <div>
+                    <span className="text-gray-500">Available Sizes:</span>
+                    <span className="ml-2 text-gray-800">
+                      {product.sizes.join(', ')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Available Colors:</span>
+                    <span className="ml-2 text-gray-800">
+                      {product.colors.join(', ')}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Shipping Information */}

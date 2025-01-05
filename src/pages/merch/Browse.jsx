@@ -351,9 +351,24 @@ const Browse = () => {
                       </span>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    by {product.sellerName}
-                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-500">
+                      by {product.sellerName}
+                    </p>
+                    <p className={`text-xs font-medium ${
+                      product.quantity > 10 
+                        ? 'text-green-600' 
+                        : product.quantity > 0 
+                          ? 'text-orange-500' 
+                          : 'text-red-500'
+                    }`}>
+                      {product.quantity > 10 
+                        ? 'In Stock' 
+                        : product.quantity > 0 
+                          ? `Only ${product.quantity} left` 
+                          : 'Out of Stock'}
+                    </p>
+                  </div>
                 </div>
               </Link>
             </motion.div>

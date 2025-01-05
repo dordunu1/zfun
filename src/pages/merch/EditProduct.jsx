@@ -56,7 +56,10 @@ const EditProduct = () => {
     acceptedToken: 'USDT',
     tokenLogo: '/logos/usdt.png',
     shippingFee: 0,
-    shippingInfo: ''
+    shippingInfo: '',
+    hasVariants: false,
+    sizes: [],
+    colors: []
   });
 
   useEffect(() => {
@@ -168,6 +171,17 @@ const EditProduct = () => {
     setUploading(true);
 
     try {
+      if (product.category === 'clothing' && product.hasVariants) {
+        if (product.sizes.length === 0) {
+          toast.error('Please select at least one size');
+          return;
+        }
+        if (product.colors.length === 0) {
+          toast.error('Please select at least one color');
+          return;
+        }
+      }
+
       const productRef = doc(db, 'products', id);
       
       await updateDoc(productRef, {
@@ -182,6 +196,9 @@ const EditProduct = () => {
         shippingFee: Number(product.shippingFee),
         shippingInfo: product.shippingInfo,
         images: product.images,
+        hasVariants: product.hasVariants,
+        sizes: product.hasVariants ? product.sizes : [],
+        colors: product.hasVariants ? product.colors : [],
         updatedAt: new Date()
       });
 
@@ -381,15 +398,126 @@ const EditProduct = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Category *
               </label>
-              <input
-                type="text"
+              <select
                 name="category"
                 value={product.category}
                 onChange={handleInputChange}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-              />
+              >
+                <option value="">Select Category</option>
+                <option value="clothing">Clothing</option>
+                <option value="accessories">Accessories</option>
+                <option value="collectibles">Collectibles</option>
+                <option value="art">Art</option>
+                <option value="other">Other</option>
+              </select>
             </div>
+
+            {/* Size and Color Options (Only for clothing) */}
+            {product.category === 'clothing' && (
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="hasVariants"
+                    name="hasVariants"
+                    checked={product.hasVariants}
+                    onChange={(e) => {
+                      setProduct(prev => ({
+                        ...prev,
+                        hasVariants: e.target.checked,
+                        sizes: e.target.checked ? prev.sizes : [],
+                        colors: e.target.checked ? prev.colors : []
+                      }));
+                    }}
+                    className="h-4 w-4 text-[#FF1B6B] focus:ring-[#FF1B6B] border-gray-300 rounded"
+                  />
+                  <label htmlFor="hasVariants" className="ml-2 block text-sm text-gray-900">
+                    This product has size and color variants
+                  </label>
+                </div>
+
+                {product.hasVariants && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Size Options */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Available Sizes
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => {
+                              setProduct(prev => ({
+                                ...prev,
+                                sizes: prev.sizes.includes(size)
+                                  ? prev.sizes.filter(s => s !== size)
+                                  : [...prev.sizes, size]
+                              }));
+                            }}
+                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                              product.sizes.includes(size)
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Color Options */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Available Colors
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { name: 'Black', code: '#000000' },
+                          { name: 'White', code: '#FFFFFF' },
+                          { name: 'Gray', code: '#808080' },
+                          { name: 'Red', code: '#FF0000' },
+                          { name: 'Blue', code: '#0000FF' },
+                          { name: 'Green', code: '#008000' },
+                          { name: 'Yellow', code: '#FFFF00' },
+                          { name: 'Purple', code: '#800080' },
+                          { name: 'Pink', code: '#FFC0CB' },
+                          { name: 'Brown', code: '#A52A2A' }
+                        ].map((color) => (
+                          <button
+                            key={color.name}
+                            type="button"
+                            onClick={() => {
+                              setProduct(prev => ({
+                                ...prev,
+                                colors: prev.colors.includes(color.name)
+                                  ? prev.colors.filter(c => c !== color.name)
+                                  : [...prev.colors, color.name]
+                              }));
+                            }}
+                            className={`group relative inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                              product.colors.includes(color.name)
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            <span
+                              className="w-4 h-4 rounded-full mr-1.5 border border-gray-300"
+                              style={{ backgroundColor: color.code }}
+                            />
+                            {color.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">Shipping Details</h3>
