@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { BiWallet, BiCreditCard, BiNetworkChart } from 'react-icons/bi';
 import { FaEthereum } from 'react-icons/fa';
 import { SiTether } from 'react-icons/si';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
@@ -383,6 +383,18 @@ const Checkout = () => {
 
       // Create separate orders for each seller
       for (const [sellerId, orderData] of Object.entries(sellerOrders)) {
+        // Update product quantities
+        const updateQuantityPromises = orderData.items.map(async (item) => {
+          const productRef = doc(db, 'products', item.product.id);
+          const productDoc = await getDoc(productRef);
+          if (productDoc.exists()) {
+            const currentQuantity = productDoc.data().quantity;
+            const newQuantity = Math.max(0, currentQuantity - item.quantity);
+            await updateDoc(productRef, { quantity: newQuantity });
+          }
+        });
+        await Promise.all(updateQuantityPromises);
+
         await addDoc(collection(db, 'orders'), {
           buyerId: user.uid,
           sellerId: sellerId,  // Add sellerId at root level

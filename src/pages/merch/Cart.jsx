@@ -174,7 +174,23 @@ const Cart = () => {
 
   const updateQuantity = async (cartItemId, newQuantity) => {
     try {
-      await updateDoc(doc(db, 'cart', cartItemId), {
+      const cartDoc = doc(db, 'cart', cartItemId);
+      const cartItem = cartItems.find(item => item.id === cartItemId);
+      
+      // Check current stock
+      const productDoc = await getDoc(doc(db, 'products', cartItem.product.id));
+      if (!productDoc.exists()) {
+        toast.error('Product not found');
+        return;
+      }
+
+      const currentStock = productDoc.data().quantity;
+      if (newQuantity > currentStock) {
+        toast.error(`Sorry, only ${currentStock} items available in stock`);
+        return;
+      }
+
+      await updateDoc(cartDoc, {
         quantity: newQuantity
       });
       setCartItems(prev =>

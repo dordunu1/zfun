@@ -133,6 +133,7 @@ const SellerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [platformFee, setPlatformFee] = useState(2.5); // Default fee
   const [minWithdrawal, setMinWithdrawal] = useState(10); // Default min withdrawal
+  const theme = localStorage.getItem('admin-theme') || 'light'; // Add theme
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalSales: 0,
@@ -142,6 +143,7 @@ const SellerDashboard = () => {
     preferredToken: 'USDT' // Default token
   });
   const [recentOrders, setRecentOrders] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
 
   useEffect(() => {
     if (!user?.sellerId) return;
@@ -190,24 +192,46 @@ const SellerDashboard = () => {
         ...doc.data()
       }));
 
-      console.log('Fetched orders:', orders); // Debug log
+      // Fetch all withdrawals (not just completed ones)
+      const withdrawalsQuery = query(
+        collection(db, 'withdrawals'),
+        where('sellerId', '==', user.sellerId),
+        orderBy('timestamp', 'desc')
+      );
+      const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
+      const withdrawalHistory = withdrawalsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      }));
+      setWithdrawals(withdrawalHistory);
 
-      // Calculate stats
-      let revenue = 0;
+      // Calculate total withdrawn amount from completed withdrawals
+      const totalWithdrawn = withdrawalHistory
+        .filter(w => w.status === 'completed')
+        .reduce((sum, w) => sum + (w.amount || 0), 0);
+
+      // Calculate revenue and balance
+      let totalRevenue = 0;
       const customers = new Set();
       orders.forEach(order => {
         if (order.paymentStatus === 'completed') {
-          revenue += order.total || 0;
+          const orderTotal = order.total || 0;
+          totalRevenue += orderTotal;
           customers.add(order.buyerId);
         }
       });
+
+      // Calculate available balance (revenue minus platform fee and withdrawals)
+      const platformFeeAmount = totalRevenue * (platformFee / 100);
+      const availableBalance = totalRevenue - platformFeeAmount - totalWithdrawn;
 
       setStats({
         totalProducts,
         totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
         totalCustomers: customers.size,
-        revenue,
-        balance,
+        revenue: totalRevenue,
+        balance: availableBalance,
         preferredToken
       });
 
@@ -450,6 +474,70 @@ const SellerDashboard = () => {
             ))
           )}
         </motion.div>
+      </motion.div>
+
+      {/* Withdrawal History */}
+      <motion.div 
+        className="mb-8"
+        variants={itemVariants}
+      >
+        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg p-6`}>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Withdrawal History</h3>
+          
+          {withdrawals.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Transaction</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {withdrawals.map((withdrawal) => (
+                    <tr key={withdrawal.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                        {withdrawal.timestamp ? new Date(withdrawal.timestamp).toLocaleString() : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                        {withdrawal.amount} {withdrawal.token || stats.preferredToken}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          withdrawal.status === 'completed' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
+                            : withdrawal.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
+                            : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
+                        }`}>
+                          {withdrawal.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                        {withdrawal.transactionHash ? (
+                          <a 
+                            href={`https://polygonscan.com/tx/${withdrawal.transactionHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#FF1B6B] hover:text-[#D4145A]"
+                          >
+                            View
+                          </a>
+                        ) : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+              No withdrawals yet
+            </div>
+          )}
+        </div>
       </motion.div>
     </motion.div>
   );

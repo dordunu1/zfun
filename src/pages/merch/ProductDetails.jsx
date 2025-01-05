@@ -239,6 +239,30 @@ const ProductDetails = () => {
         }
       }
 
+      // Check if there's enough stock
+      const productDoc = await getDoc(doc(db, 'products', id));
+      if (!productDoc.exists()) {
+        toast.error('Product not found');
+        return;
+      }
+
+      const currentStock = productDoc.data().quantity;
+      const cartQuery = query(
+        collection(db, 'cart'),
+        where('userId', '==', user.uid),
+        where('productId', '==', id),
+        where('size', '==', selectedSize || null),
+        where('color', '==', selectedColor || null)
+      );
+      const cartSnapshot = await getDocs(cartQuery);
+      const existingCartItem = cartSnapshot.docs[0]?.data();
+      const totalRequestedQuantity = (existingCartItem?.quantity || 0) + quantity;
+
+      if (totalRequestedQuantity > currentStock) {
+        toast.error(`Sorry, only ${currentStock} items available in stock`);
+        return;
+      }
+
       // Show loading toast
       const loadingToast = toast.loading('Adding to cart...');
 

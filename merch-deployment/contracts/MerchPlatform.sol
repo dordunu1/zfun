@@ -14,8 +14,8 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
     IERC20 public USDT;
     IERC20 public USDC;
     
-    // Platform fee percentage (0.5% = 50)
-    uint256 public platformFeePercentage = 50;
+    // Platform fee percentage (5% = 500)
+    uint256 public platformFeePercentage = 500;
     uint256 public constant PERCENTAGE_DENOMINATOR = 10000;
 
     struct Order {

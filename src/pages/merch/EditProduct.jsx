@@ -76,7 +76,12 @@ const EditProduct = () => {
           navigate('/merch-store/products');
           return;
         }
-        setProduct(data);
+        setProduct({
+          ...data,
+          hasVariants: data.hasVariants || false,
+          sizes: data.sizes || [],
+          colors: data.colors || []
+        });
       } else {
         toast.error('Product not found');
         navigate('/merch-store/products');
@@ -184,7 +189,7 @@ const EditProduct = () => {
 
       const productRef = doc(db, 'products', id);
       
-      await updateDoc(productRef, {
+      const updateData = {
         name: product.name,
         description: product.description,
         price: Number(product.price),
@@ -196,11 +201,13 @@ const EditProduct = () => {
         shippingFee: Number(product.shippingFee),
         shippingInfo: product.shippingInfo,
         images: product.images,
-        hasVariants: product.hasVariants,
+        hasVariants: Boolean(product.hasVariants),
         sizes: product.hasVariants ? product.sizes : [],
         colors: product.hasVariants ? product.colors : [],
         updatedAt: new Date()
-      });
+      };
+
+      await updateDoc(productRef, updateData);
 
       toast.success('Product updated successfully');
       navigate('/merch-store/products');
