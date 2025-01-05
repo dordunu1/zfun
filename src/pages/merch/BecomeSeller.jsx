@@ -261,7 +261,7 @@ export default function BecomeSeller() {
                   value={storeInfo.storeName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                   placeholder="Your store name"
                 />
               </div>
@@ -275,7 +275,7 @@ export default function BecomeSeller() {
                   value={storeInfo.description}
                   onChange={handleInputChange}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                   placeholder="Tell customers about your store"
                 />
               </div>
@@ -296,7 +296,7 @@ export default function BecomeSeller() {
                     value={storeInfo.contactEmail}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     placeholder="contact@yourstore.com"
                   />
                 </div>
@@ -311,7 +311,7 @@ export default function BecomeSeller() {
                     value={storeInfo.phoneNumber}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     placeholder="+233 XX XXX XXXX"
                   />
                 </div>
@@ -333,7 +333,7 @@ export default function BecomeSeller() {
                     value={storeInfo.country}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     placeholder="Your country"
                   />
                 </div>
@@ -348,7 +348,7 @@ export default function BecomeSeller() {
                     value={storeInfo.city}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     placeholder="Your city"
                   />
                 </div>
@@ -363,7 +363,7 @@ export default function BecomeSeller() {
                     value={storeInfo.postalCode}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     placeholder="Postal code"
                   />
                 </div>
@@ -382,7 +382,7 @@ export default function BecomeSeller() {
                   value={storeInfo.preferredToken}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 >
                   <option value="USDC">USDC (USD Coin)</option>
                   <option value="USDT">USDT (Tether)</option>

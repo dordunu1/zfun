@@ -516,7 +516,7 @@ const Settings = () => {
                   name="storeName"
                   value={storeSettings.storeName}
                   onChange={handleStoreInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 />
               </div>
               <div>
@@ -528,7 +528,7 @@ const Settings = () => {
                   name="contactEmail"
                   value={storeSettings.contactEmail}
                   onChange={handleStoreInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 />
               </div>
             </div>
@@ -542,7 +542,7 @@ const Settings = () => {
                 value={storeSettings.description}
                 onChange={handleStoreInputChange}
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
               />
             </div>
 
@@ -556,7 +556,7 @@ const Settings = () => {
                   name="country"
                   value={storeSettings.country}
                   onChange={handleStoreInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 />
               </div>
               <div>
@@ -568,7 +568,7 @@ const Settings = () => {
                   name="city"
                   value={storeSettings.city}
                   onChange={handleStoreInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 />
               </div>
               <div>
@@ -580,7 +580,7 @@ const Settings = () => {
                   name="postalCode"
                   value={storeSettings.postalCode}
                   onChange={handleStoreInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 />
               </div>
             </div>
@@ -602,7 +602,7 @@ const Settings = () => {
                           step="0.01"
                           value={storeSettings.shippingFee}
                           onChange={handleStoreInputChange}
-                          className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                          className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                           placeholder="0.00"
                         />
                       </div>
@@ -619,7 +619,7 @@ const Settings = () => {
                         name="preferredToken"
                         value={storeSettings.preferredToken}
                         onChange={handleStoreInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       >
                         <option value="USDC">USDC (USD Coin)</option>
                         <option value="USDT">USDT (Tether)</option>
@@ -656,7 +656,7 @@ const Settings = () => {
                         name="bankName"
                         value={paymentSettings.bankName}
                         onChange={handlePaymentInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       />
                     </div>
                     <div>
@@ -668,7 +668,7 @@ const Settings = () => {
                         name="accountNumber"
                         value={paymentSettings.accountNumber}
                         onChange={handlePaymentInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       />
                     </div>
                   </div>
@@ -683,7 +683,7 @@ const Settings = () => {
                         name="routingNumber"
                         value={paymentSettings.routingNumber}
                         onChange={handlePaymentInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       />
                     </div>
                     <div>
@@ -695,7 +695,7 @@ const Settings = () => {
                         name="accountHolderName"
                         value={paymentSettings.accountHolderName}
                         onChange={handlePaymentInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       />
                     </div>
                   </div>
@@ -713,7 +713,7 @@ const Settings = () => {
                         step="0.01"
                         value={paymentSettings.withdrawalThreshold}
                         onChange={handlePaymentInputChange}
-                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       />
                     </div>
                     <p className="mt-1 text-sm text-gray-500">
@@ -909,7 +909,7 @@ const Settings = () => {
                         name="name"
                         value={buyerProfile.name}
                         onChange={handleBuyerInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                         placeholder="Enter your full name"
                       />
                     </div>
@@ -922,7 +922,7 @@ const Settings = () => {
                         name="email"
                         value={buyerProfile.email}
                         onChange={handleBuyerInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                         placeholder="Enter your email"
                       />
                     </div>
@@ -935,7 +935,7 @@ const Settings = () => {
                         name="phone"
                         value={buyerProfile.phone}
                         onChange={handleBuyerInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                         placeholder="Enter your phone number"
                       />
                     </div>
@@ -964,7 +964,7 @@ const Settings = () => {
                     name="shippingAddress.street"
                     value={buyerProfile.shippingAddress.street}
                     onChange={handleBuyerInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                   />
                 </div>
 
@@ -978,7 +978,7 @@ const Settings = () => {
                       name="shippingAddress.city"
                       value={buyerProfile.shippingAddress.city}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     />
                   </div>
                   <div>
@@ -990,7 +990,7 @@ const Settings = () => {
                       name="shippingAddress.state"
                       value={buyerProfile.shippingAddress.state}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     />
                   </div>
                 </div>
@@ -1005,7 +1005,7 @@ const Settings = () => {
                       name="shippingAddress.country"
                       value={buyerProfile.shippingAddress.country}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     />
                   </div>
                   <div>
@@ -1017,7 +1017,7 @@ const Settings = () => {
                       name="shippingAddress.postalCode"
                       value={buyerProfile.shippingAddress.postalCode}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     />
                   </div>
                 </div>

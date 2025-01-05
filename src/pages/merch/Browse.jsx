@@ -8,7 +8,7 @@ import { toast } from 'react-hot-toast';
 
 const SkeletonPulse = () => (
   <motion.div
-    className="w-full h-full bg-gray-200 dark:bg-gray-800 rounded-lg"
+    className="w-full h-full bg-gray-100 rounded-lg"
     animate={{
       opacity: [0.3, 0.6, 0.3],
       scale: [0.98, 1, 0.98]
@@ -113,7 +113,7 @@ const BrowseSkeleton = () => (
       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
         <motion.div 
           key={i} 
-          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm overflow-hidden"
+          className="bg-white rounded-lg shadow-sm overflow-hidden"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: i * 0.05 }}
@@ -144,6 +144,7 @@ const Browse = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('latest');
+  const [selectedNetwork, setSelectedNetwork] = useState('all');
 
   const categories = [
     'all',
@@ -155,9 +156,15 @@ const Browse = () => {
     'collectibles'
   ];
 
+  const networks = [
+    { value: 'all', label: 'All Networks' },
+    { value: 'polygon', label: 'Polygon' },
+    { value: 'unichain', label: 'Unichain' }
+  ];
+
   useEffect(() => {
     fetchProducts();
-  }, [selectedCategory, sortBy]);
+  }, [selectedCategory, sortBy, selectedNetwork]);
 
   const fetchProducts = async () => {
     try {
@@ -169,6 +176,10 @@ const Browse = () => {
       
       if (selectedCategory !== 'all') {
         constraints.push(where('category', '==', selectedCategory));
+      }
+
+      if (selectedNetwork !== 'all') {
+        constraints.push(where('network', '==', selectedNetwork));
       }
 
       if (sortBy === 'latest') {
@@ -236,25 +247,38 @@ const Browse = () => {
     >
       {/* Search and Filter */}
       <motion.div variants={itemVariants} className="flex items-center justify-between gap-4">
-        <div className="flex-1 relative">
+        <div className="relative w-[400px]">
           <input
             type="text"
             placeholder="Search products..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+            className="w-full pl-12 pr-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
           />
           <BiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl" />
         </div>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-        >
-          <option value="latest">Latest</option>
-          <option value="price_low">Price: Low to High</option>
-          <option value="price_high">Price: High to Low</option>
-        </select>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedNetwork}
+            onChange={(e) => setSelectedNetwork(e.target.value)}
+            className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+          >
+            {networks.map(network => (
+              <option key={network.value} value={network.value}>
+                {network.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+          >
+            <option value="latest">Latest</option>
+            <option value="price_low">Price: Low to High</option>
+            <option value="price_high">Price: High to Low</option>
+          </select>
+        </div>
       </motion.div>
 
       {/* Categories */}
@@ -305,15 +329,27 @@ const Browse = () => {
                   <h3 className="font-medium text-gray-800 mb-1 truncate">
                     {product.name}
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={product.tokenLogo}
-                      alt={product.acceptedToken}
-                      className="w-4 h-4"
-                    />
-                    <p className="text-[#FF1B6B] font-medium">
-                      ${product.price.toFixed(2)}
-                    </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={product.tokenLogo}
+                        alt={product.acceptedToken}
+                        className="w-4 h-4"
+                      />
+                      <p className="text-[#FF1B6B] font-medium">
+                        ${product.price.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full">
+                      <img 
+                        src={product.network === 'polygon' ? '/polygon.png' : '/unichain-logo.png'} 
+                        alt={product.network} 
+                        className="w-4 h-4"
+                      />
+                      <span className="text-xs font-medium text-gray-600 capitalize">
+                        {product.network}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     by {product.sellerName}

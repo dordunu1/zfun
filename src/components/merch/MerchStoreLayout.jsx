@@ -289,7 +289,7 @@ const MerchStoreLayout = () => {
       )}
 
       {/* Main Content */}
-      <div className={`${user ? 'lg:ml-64 mt-16' : 'mt-16'} min-h-[calc(100vh-4rem)] bg-gray-50/50`}>
+      <div className={`${user ? 'lg:ml-64 mt-16' : 'mt-16'} min-h-[calc(100vh-4rem)] bg-white`}>
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
           <Outlet />
         </div>

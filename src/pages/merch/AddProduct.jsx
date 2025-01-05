@@ -8,17 +8,34 @@ import { storage, db } from '../../firebase/merchConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 
-// Token logos
-const TOKEN_INFO = {
-  USDT: {
-    logo: '/logos/usdt.png',
-    name: 'USDT (Tether)',
-    decimals: 6
+// Token logos and networks
+const NETWORK_INFO = {
+  polygon: {
+    name: 'Polygon',
+    logo: '/polygon.png',
+    tokens: {
+      USDT: {
+        logo: '/logos/usdt.png',
+        name: 'USDT (Tether)',
+        decimals: 6
+      },
+      USDC: {
+        logo: '/logos/usdc.png',
+        name: 'USDC (USD Coin)',
+        decimals: 6
+      }
+    }
   },
-  USDC: {
-    logo: '/logos/usdc.png',
-    name: 'USDC (USD Coin)',
-    decimals: 6
+  unichain: {
+    name: 'Unichain',
+    logo: '/unichain-logo.png',
+    tokens: {
+      USDT: {
+        logo: '/logos/usdt.png',
+        name: 'USDT (Tether)',
+        decimals: 6
+      }
+    }
   }
 };
 
@@ -126,15 +143,16 @@ const AddProduct = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [platformFee, setPlatformFee] = useState(2.5); // Default fee
+  const [platformFee, setPlatformFee] = useState(2.5);
   const [productData, setProductData] = useState({
     name: '',
     description: '',
     price: '',
     quantity: '',
     category: '',
-    acceptedToken: 'USDT', // Set default token
-    tokenLogo: '/logos/usdt.png', // Set default logo
+    network: 'polygon', // Default network
+    acceptedToken: 'USDT',
+    tokenLogo: '/logos/usdt.png',
     images: [],
     shippingFee: 0,
     shippingInfo: ''
@@ -170,7 +188,7 @@ const AddProduct = () => {
         setProductData(prev => ({
           ...prev,
           acceptedToken: preferredToken,
-          tokenLogo: TOKEN_INFO[preferredToken].logo
+          tokenLogo: NETWORK_INFO[productData.network].tokens[preferredToken].logo
         }));
       }
     } catch (error) {
@@ -179,18 +197,27 @@ const AddProduct = () => {
       setProductData(prev => ({
         ...prev,
         acceptedToken: 'USDT',
-        tokenLogo: TOKEN_INFO['USDT'].logo
+        tokenLogo: NETWORK_INFO[productData.network].tokens['USDT'].logo
       }));
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'acceptedToken' && TOKEN_INFO[value]) {
+    if (name === 'network') {
+      // When network changes, reset token to first available token for that network
+      const firstToken = Object.keys(NETWORK_INFO[value].tokens)[0];
       setProductData(prev => ({
         ...prev,
-        [name]: value,
-        tokenLogo: TOKEN_INFO[value].logo
+        network: value,
+        acceptedToken: firstToken,
+        tokenLogo: NETWORK_INFO[value].tokens[firstToken].logo
+      }));
+    } else if (name === 'acceptedToken') {
+      setProductData(prev => ({
+        ...prev,
+        acceptedToken: value,
+        tokenLogo: NETWORK_INFO[productData.network].tokens[value].logo
       }));
     } else {
       setProductData(prev => ({
@@ -270,6 +297,7 @@ const AddProduct = () => {
         price: Number(productData.price),
         quantity: Number(productData.quantity),
         category: productData.category,
+        network: productData.network,
         acceptedToken: productData.acceptedToken,
         tokenLogo: productData.tokenLogo,
         images: imageUrls,
@@ -396,7 +424,7 @@ const AddProduct = () => {
               value={productData.name}
               onChange={handleInputChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
             />
           </div>
 
@@ -409,7 +437,7 @@ const AddProduct = () => {
               value={productData.category}
               onChange={handleInputChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
             >
               <option value="">Select Category</option>
               <option value="clothing">Clothing</option>
@@ -423,64 +451,73 @@ const AddProduct = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Price
+                Network & Price
               </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  name="price"
-                  value={productData.price}
-                  onChange={handleInputChange}
-                  className="w-full pl-4 pr-20 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center">
-                  <select
-                    name="acceptedToken"
-                    value={productData.acceptedToken}
-                    onChange={handleInputChange}
-                    className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-gray-500 sm:text-sm rounded-md focus:ring-2 focus:ring-[#FF1B6B]"
-                  >
-                    {Object.entries(TOKEN_INFO).map(([token, info]) => (
-                      <option key={token} value={token} className="flex items-center gap-2">
+              <div className="space-y-2">
+                <div className="flex gap-4">
+                  {Object.entries(NETWORK_INFO).map(([network, info]) => (
+                    <button
+                      key={network}
+                      type="button"
+                      onClick={() => handleInputChange({ target: { name: 'network', value: network } })}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                        productData.network === network 
+                          ? 'border-[#FF1B6B] bg-pink-50' 
+                          : 'border-gray-300 hover:border-[#FF1B6B] hover:bg-pink-50'
+                      }`}
+                    >
+                      <img 
+                        src={info.logo} 
+                        alt={info.name} 
+                        className="w-6 h-6 object-contain"
+                      />
+                      <span className={`font-medium ${
+                        productData.network === network 
+                          ? 'text-[#FF1B6B]' 
+                          : 'text-gray-700'
+                      }`}>
                         {info.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {/* Token Logo Display */}
-              <div className="mt-2 flex items-center gap-2">
-                {productData.acceptedToken && TOKEN_INFO[productData.acceptedToken] && (
-                  <>
-                    <img 
-                      src={TOKEN_INFO[productData.acceptedToken].logo} 
-                      alt={productData.acceptedToken} 
-                      className="w-5 h-5"
-                    />
-                    <span className="text-sm text-gray-600">
-                      {TOKEN_INFO[productData.acceptedToken].name}
-                    </span>
-                  </>
-                )}
-              </div>
-              {/* Platform Fee Information */}
-              <div className="mt-2 flex items-start space-x-2">
-                <BiInfoCircle className="text-[#FF1B6B] mt-0.5 flex-shrink-0" />
-                <div className="text-sm text-gray-500">
-                  <p>Platform fee: {platformFee}%</p>
-                  {productData.price && (
-                    <p>
-                      You'll receive: {(productData.price * (1 - platformFee / 100)).toFixed(2)} {productData.acceptedToken}
-                      <span className="text-xs ml-1">
-                        (after {(productData.price * (platformFee / 100)).toFixed(2)} {productData.acceptedToken} fee)
                       </span>
-                    </p>
-                  )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    name="price"
+                    value={productData.price}
+                    onChange={handleInputChange}
+                    required
+                    min="0"
+                    step="0.01"
+                    className="w-full pl-4 pr-20 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    placeholder="0.00"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center">
+                    <select
+                      name="acceptedToken"
+                      value={productData.acceptedToken}
+                      onChange={handleInputChange}
+                      className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-gray-500 sm:text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    >
+                      {Object.entries(NETWORK_INFO[productData.network].tokens).map(([token, info]) => (
+                        <option key={token} value={token} className="flex items-center gap-2">
+                          {info.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
+              <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
+                <img 
+                  src={NETWORK_INFO[productData.network].tokens[productData.acceptedToken].logo} 
+                  alt={productData.acceptedToken} 
+                  className="w-4 h-4"
+                />
+                Buyers will pay in {productData.acceptedToken} on {NETWORK_INFO[productData.network].name} network
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -491,9 +528,10 @@ const AddProduct = () => {
                 name="quantity"
                 value={productData.quantity}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                required
+                min="0"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 placeholder="Enter quantity"
-                min="1"
               />
             </div>
           </div>
@@ -508,7 +546,7 @@ const AddProduct = () => {
               onChange={handleInputChange}
               required
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
             />
           </div>
 
@@ -529,7 +567,7 @@ const AddProduct = () => {
                     step="0.01"
                     value={productData.shippingFee}
                     onChange={handleInputChange}
-                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                     placeholder="0.00"
                   />
                 </div>
@@ -547,7 +585,7 @@ const AddProduct = () => {
                   value={productData.shippingInfo}
                   onChange={handleInputChange}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                   placeholder="Enter shipping details, restrictions, or additional information"
                 />
               </div>
@@ -556,8 +594,9 @@ const AddProduct = () => {
 
           {/* Token Selection Info */}
           <div className="mt-2">
-            <p className="text-sm text-gray-500">
-              Buyers will pay for this product in the selected token on Polygon network
+            <p className="text-sm text-gray-500 flex items-center gap-2">
+              <BiInfoCircle className="text-[#FF1B6B]" />
+              Select your preferred network and token for receiving payments. Buyers will pay in the selected token on the chosen network.
             </p>
           </div>
         </motion.div>

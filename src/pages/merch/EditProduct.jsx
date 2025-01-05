@@ -8,6 +8,37 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, storage } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 
+// Token logos and networks
+const NETWORK_INFO = {
+  polygon: {
+    name: 'Polygon',
+    logo: '/polygon.png',
+    tokens: {
+      USDT: {
+        logo: '/logos/usdt.png',
+        name: 'USDT (Tether)',
+        decimals: 6
+      },
+      USDC: {
+        logo: '/logos/usdc.png',
+        name: 'USDC (USD Coin)',
+        decimals: 6
+      }
+    }
+  },
+  unichain: {
+    name: 'Unichain',
+    logo: '/unichain-logo.png',
+    tokens: {
+      USDT: {
+        logo: '/logos/usdt.png',
+        name: 'USDT (Tether)',
+        decimals: 6
+      }
+    }
+  }
+};
+
 const EditProduct = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -21,6 +52,9 @@ const EditProduct = () => {
     quantity: '',
     images: [],
     category: '',
+    network: 'polygon', // Default network
+    acceptedToken: 'USDT',
+    tokenLogo: '/logos/usdt.png',
     shippingFee: 0,
     shippingInfo: ''
   });
@@ -54,10 +88,31 @@ const EditProduct = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setProduct(prev => ({
-      ...prev,
-      [name]: name === 'price' || name === 'quantity' ? Number(value) : value
-    }));
+    if (name === 'network') {
+      // When network changes, reset token to first available token for that network
+      if (NETWORK_INFO[value] && NETWORK_INFO[value].tokens) {
+        const firstToken = Object.keys(NETWORK_INFO[value].tokens)[0];
+        setProduct(prev => ({
+          ...prev,
+          network: value,
+          acceptedToken: firstToken,
+          tokenLogo: NETWORK_INFO[value].tokens[firstToken].logo
+        }));
+      }
+    } else if (name === 'acceptedToken') {
+      if (NETWORK_INFO[product.network]?.tokens?.[value]) {
+        setProduct(prev => ({
+          ...prev,
+          acceptedToken: value,
+          tokenLogo: NETWORK_INFO[product.network].tokens[value].logo
+        }));
+      }
+    } else {
+      setProduct(prev => ({
+        ...prev,
+        [name]: name === 'price' || name === 'quantity' ? Number(value) : value
+      }));
+    }
   };
 
   const handleImageUpload = async (e) => {
@@ -121,6 +176,9 @@ const EditProduct = () => {
         price: Number(product.price),
         quantity: Number(product.quantity),
         category: product.category,
+        network: product.network,
+        acceptedToken: product.acceptedToken,
+        tokenLogo: product.tokenLogo,
         shippingFee: Number(product.shippingFee),
         shippingInfo: product.shippingInfo,
         images: product.images,
@@ -210,7 +268,7 @@ const EditProduct = () => {
                 value={product.name}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
               />
             </div>
 
@@ -224,30 +282,88 @@ const EditProduct = () => {
                 onChange={handleInputChange}
                 required
                 rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price ($) *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Network & Price
                 </label>
-                <input
-                  type="number"
-                  name="price"
-                  value={product.price}
-                  onChange={handleInputChange}
-                  required
-                  min="0"
-                  step="0.01"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                />
+                <div className="space-y-2">
+                  <div className="flex gap-4">
+                    {Object.entries(NETWORK_INFO).map(([network, info]) => (
+                      <button
+                        key={network}
+                        type="button"
+                        onClick={() => handleInputChange({ target: { name: 'network', value: network } })}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                          product.network === network 
+                            ? 'border-[#FF1B6B] bg-pink-50' 
+                            : 'border-gray-300 hover:border-[#FF1B6B] hover:bg-pink-50'
+                        }`}
+                      >
+                        <img 
+                          src={info.logo} 
+                          alt={info.name} 
+                          className="w-6 h-6 object-contain"
+                        />
+                        <span className={`font-medium ${
+                          product.network === network 
+                            ? 'text-[#FF1B6B]' 
+                            : 'text-gray-700'
+                        }`}>
+                          {info.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="number"
+                      name="price"
+                      value={product.price}
+                      onChange={handleInputChange}
+                      required
+                      min="0"
+                      step="0.01"
+                      className="w-full pl-4 pr-20 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center">
+                      {NETWORK_INFO[product.network]?.tokens && (
+                        <select
+                          name="acceptedToken"
+                          value={product.acceptedToken}
+                          onChange={handleInputChange}
+                          className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-gray-500 sm:text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                        >
+                          {Object.entries(NETWORK_INFO[product.network].tokens).map(([token, info]) => (
+                            <option key={token} value={token} className="flex items-center gap-2">
+                              {info.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {NETWORK_INFO[product.network]?.tokens?.[product.acceptedToken] && (
+                  <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
+                    <img 
+                      src={NETWORK_INFO[product.network].tokens[product.acceptedToken].logo} 
+                      alt={product.acceptedToken} 
+                      className="w-4 h-4"
+                    />
+                    Buyers will pay in {product.acceptedToken} on {NETWORK_INFO[product.network].name} network
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantity *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Quantity Available
                 </label>
                 <input
                   type="number"
@@ -256,7 +372,7 @@ const EditProduct = () => {
                   onChange={handleInputChange}
                   required
                   min="0"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                 />
               </div>
             </div>
@@ -271,7 +387,7 @@ const EditProduct = () => {
                 value={product.category}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
               />
             </div>
 
@@ -292,7 +408,7 @@ const EditProduct = () => {
                       step="0.01"
                       value={product.shippingFee}
                       onChange={handleInputChange}
-                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
                       placeholder="0.00"
                     />
                   </div>
@@ -309,9 +425,8 @@ const EditProduct = () => {
                     name="shippingInfo"
                     value={product.shippingInfo}
                     onChange={handleInputChange}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                    placeholder="Enter shipping details, restrictions, or additional information"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    placeholder="Additional shipping information"
                   />
                 </div>
               </div>
