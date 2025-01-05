@@ -6,6 +6,18 @@ import { collection, query, where, getDocs, orderBy, updateDoc, doc } from 'fire
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 
+const containerVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: 'easeOut'
+    }
+  }
+};
+
 const SkeletonPulse = () => (
   <motion.div
     className="w-full h-full bg-gray-200 rounded-lg"
@@ -161,16 +173,36 @@ const OrderDetailsModal = ({ order, onClose }) => {
             <h3 className="font-medium mb-2">Items</h3>
             <div className="space-y-2">
               {order.items.map((item, index) => (
-                <div key={index} className="bg-gray-50 p-4 rounded-lg flex justify-between">
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">${item.price.toFixed(2)}</p>
-                    <p className="text-sm text-gray-600">
-                      Shipping: ${item.shippingFee.toFixed(2)}
-                    </p>
+                <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                      {item.size && (
+                        <p className="text-sm text-gray-600">Size: {item.size}</p>
+                      )}
+                      {item.color && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <span>Color:</span>
+                          <span className="flex items-center gap-1">
+                            <span
+                              className="w-4 h-4 rounded-full border border-gray-300"
+                              style={{ 
+                                backgroundColor: item.color.toLowerCase(),
+                                borderColor: item.color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
+                              }}
+                            />
+                            {item.color}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">${item.price.toFixed(2)}</p>
+                      <p className="text-sm text-gray-600">
+                        Shipping: ${item.shippingFee.toFixed(2)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -282,9 +314,10 @@ const OrdersReceived = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      className="max-w-5xl mx-auto p-4"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
     >
       <div className="flex justify-between items-center">
         <div>
@@ -331,7 +364,7 @@ const OrdersReceived = () => {
                     Customer
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Shipping Address
+                    Items
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total
@@ -353,27 +386,38 @@ const OrdersReceived = () => {
                         <p className="text-sm text-gray-500">
                           {new Date(order.createdAt?.toDate()).toLocaleString()}
                         </p>
-                        <p className="text-sm text-gray-500">
-                          {order.items.length} item{order.items.length !== 1 ? 's' : ''}
-                        </p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
                         <p className="font-medium text-gray-900">{order.buyerInfo?.name}</p>
                         <p className="text-sm text-gray-500">{order.buyerInfo?.email}</p>
-                        <p className="text-sm text-gray-500">{order.buyerInfo?.phone}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <p className="text-sm text-gray-500">{order.shippingAddress?.street}</p>
-                        <p className="text-sm text-gray-500">
-                          {order.shippingAddress?.city}, {order.shippingAddress?.state}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {order.shippingAddress?.country} {order.shippingAddress?.postalCode}
-                        </p>
+                      <div className="space-y-2">
+                        {order.items.map((item, index) => (
+                          <div key={index} className="text-sm">
+                            <p className="font-medium text-gray-900">{item.name}</p>
+                            <p className="text-gray-500">
+                              Qty: {item.quantity}
+                              {item.size && ` • Size: ${item.size}`}
+                              {item.color && (
+                                <span className="flex items-center gap-1 mt-0.5">
+                                  <span>Color:</span>
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-gray-300"
+                                    style={{ 
+                                      backgroundColor: item.color.toLowerCase(),
+                                      borderColor: item.color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
+                                    }}
+                                  />
+                                  <span>{item.color}</span>
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     </td>
                     <td className="px-6 py-4">

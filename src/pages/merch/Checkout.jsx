@@ -281,7 +281,11 @@ const Checkout = () => {
       });
 
       // Calculate total amount in smallest token unit (e.g., wei)
-      const totalAmount = ethers.parseUnits(orderSummary.total.toString(), 6); // USDT/USDC use 6 decimals
+      const totalAmount = ethers.parseUnits(
+        // Round to 6 decimal places and ensure we don't exceed the approved amount
+        orderSummary.total.toFixed(6),
+        6 // USDT/USDC use 6 decimals
+      );
 
       // Check current allowance
       setTransactionStatus('Checking token approval...');
@@ -300,7 +304,9 @@ const Checkout = () => {
           amount: totalAmount.toString(),
           formatted: ethers.formatUnits(totalAmount, 6)
         });
-        const approveTx = await tokenContract.approve(merchPlatform.address, totalAmount);
+        // Add a small buffer to the approval amount to account for rounding
+        const approvalAmount = totalAmount + ethers.parseUnits('0.01', 6); // Add 0.01 USDT buffer
+        const approveTx = await tokenContract.approve(merchPlatform.address, approvalAmount);
         await approveTx.wait();
         console.log('Token approval confirmed');
       } else {
@@ -342,7 +348,8 @@ const Checkout = () => {
       // Now group items by seller
       cartItems.forEach(item => {
         const sellerId = item.product.sellerId;
-        sellerOrders[sellerId].amount += (item.product.price + (item.product.shippingFee || 0)) * item.quantity;
+        const itemTotal = (item.product.price * item.quantity) + (item.product.shippingFee || 0);
+        sellerOrders[sellerId].amount += itemTotal;
         sellerOrders[sellerId].items.push(item);
       });
 
@@ -353,13 +360,17 @@ const Checkout = () => {
       for (const [sellerId, orderData] of Object.entries(sellerOrders)) {
         orderCount++;
         setTransactionStatus(`Processing order ${orderCount}/${Object.keys(sellerOrders).length}...`);
-        const amount = ethers.parseUnits(orderData.amount.toString(), 6);
+        
+        // The contract will deduct the platform fee from this amount, so we send the full amount
+        const amount = ethers.parseUnits(orderData.amount.toFixed(6), 6);
+        
         console.log('Creating order:', {
           seller: orderData.seller,
           token: tokenContract.address,
           amount: amount.toString(),
           formatted: ethers.formatUnits(amount, 6)
         });
+        
         const createOrderTx = await merchPlatform.createOrder(
           orderData.seller,
           tokenContract.address,
@@ -382,7 +393,9 @@ const Checkout = () => {
             image: item.product.images[0],
             quantity: item.quantity,
             price: item.product.price,
-            shippingFee: item.product.shippingFee || 0
+            shippingFee: item.product.shippingFee || 0,
+            size: item.size || null,
+            color: item.color || null
           })),
           status: 'processing',
           paymentStatus: 'completed',
@@ -462,46 +475,62 @@ const Checkout = () => {
           variants={itemVariants}
           className="lg:col-span-2 space-y-6"
         >
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Order Summary
-            </h2>
-            <div className="space-y-4">
-              {cartItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 py-4 border-b border-gray-100 last:border-0"
-                >
-                  <img
-                    src={item.product.images[0]}
-                    alt={item.product.name}
-                    className="w-20 h-20 object-cover rounded-lg"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">
-                      {item.product.name}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Quantity: {item.quantity}
-                    </p>
-                    <p className="text-sm font-medium text-gray-900">
-                      ${item.product.price.toFixed(2)} each
-                    </p>
-                    {item.product.shippingFee > 0 && (
-                      <p className="text-sm text-gray-500">
-                        Shipping: ${item.product.shippingFee.toFixed(2)}
-                      </p>
-                    )}
+          <motion.div variants={itemVariants} className="bg-white rounded-lg p-6">
+            <h2 className="font-bold text-gray-800 mb-4">Order Summary</h2>
+            {cartItems.map((item) => (
+              <div key={item.id} className="flex items-start space-x-4 mb-4 pb-4 border-b last:border-b-0">
+                <img
+                  src={item.product.images[0]}
+                  alt={item.product.name}
+                  className="w-20 h-20 object-cover rounded-lg"
+                />
+                <div className="flex-1 flex justify-between">
+                  <div>
+                    <h3 className="font-medium text-gray-800">{item.product.name}</h3>
+                    <div className="text-sm text-gray-600 mt-1">
+                      <p>Quantity: {item.quantity}</p>
+                      {item.size && <p>Size: {item.size}</p>}
+                      {item.color && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span>Color:</span>
+                          <span className="flex items-center gap-1">
+                            <span
+                              className="w-4 h-4 rounded-full border border-gray-300"
+                              style={{ 
+                                backgroundColor: item.color.toLowerCase(),
+                                borderColor: item.color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
+                              }}
+                            />
+                            {item.color}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-gray-900">
-                      ${(item.product.price * item.quantity).toFixed(2)}
-                    </p>
+                    <p className="text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</p>
+                    {item.product.shippingFee > 0 && (
+                      <p className="text-sm text-gray-600">+ ${item.product.shippingFee.toFixed(2)} shipping</p>
+                    )}
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
+            <div className="border-t pt-4 mt-4 space-y-2">
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span>${orderSummary.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Shipping</span>
+                <span>${orderSummary.shippingTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-gray-800 pt-2 border-t">
+                <span>Total</span>
+                <span>${orderSummary.total.toFixed(2)}</span>
+              </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Shipping Address */}
           <div className="bg-white rounded-lg shadow-sm p-6">

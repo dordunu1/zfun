@@ -360,13 +360,9 @@ const Cart = () => {
                 <span>Subtotal</span>
                 <span>${calculateSubtotal().toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Platform Fee ({platformFee}%)</span>
-                <span>${calculateFees().toFixed(2)}</span>
-              </div>
               <div className="flex justify-between font-bold text-gray-800 pt-2 border-t">
                 <span>Total</span>
-                <span>${calculateTotal().toFixed(2)}</span>
+                <span>${calculateSubtotal().toFixed(2)}</span>
               </div>
             </div>
             <button
