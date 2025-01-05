@@ -622,20 +622,14 @@ const AddProduct = () => {
               </label>
               <div className="space-y-4">
                 <div className="flex gap-3">
-                  {NETWORKS.map(network => (
-                    <button
+                  {NETWORKS.filter(network => network.id === productData.network).map(network => (
+                    <div
                       key={network.id}
-                      type="button"
-                      onClick={() => handleNetworkChange(network.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all flex-1 justify-center ${
-                        productData.network === network.id 
-                          ? 'border-[#FF1B6B] bg-pink-50' 
-                          : 'border-gray-300 hover:border-[#FF1B6B] bg-white'
-                      }`}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#FF1B6B] bg-pink-50 flex-1 justify-center"
                     >
                       <img src={network.logo} alt={network.name} className="w-5 h-5" />
                       <span className="font-medium">{network.name}</span>
-                    </button>
+                    </div>
                   ))}
                 </div>
 

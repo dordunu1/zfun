@@ -118,6 +118,8 @@ const Settings = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
+  const [showNetworkConfirm, setShowNetworkConfirm] = useState(false);
+  const [selectedNetwork, setSelectedNetwork] = useState(null);
   const [buyerProfile, setBuyerProfile] = useState({
     name: '',
     email: '',
@@ -142,7 +144,7 @@ const Settings = () => {
     postalCode: '',
     shippingCountries: [],
     shippingFee: 0,
-    preferredNetwork: 'sepolia'
+    preferredNetwork: ''
   });
 
   const [walletSettings, setWalletSettings] = useState({
@@ -226,7 +228,7 @@ const Settings = () => {
           shippingCountries: [],
           shippingFee: 0,
           preferredToken: 'USDC',
-          preferredNetwork: 'sepolia',
+          preferredNetwork: '',
           walletAddress: userData.walletAddress || '',
           createdAt: new Date(),
           updatedAt: new Date()
@@ -483,35 +485,35 @@ const Settings = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-4xl mx-auto space-y-6"
+      className="max-w-4xl mx-auto p-6"
     >
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500">Manage your {user?.isSeller ? 'store settings' : 'profile'} and preferences</p>
+        <p className="text-gray-500 mb-6">Manage your {user?.isSeller ? 'store settings' : 'profile'} and preferences</p>
       </div>
 
       {/* Settings Navigation */}
-      <div className="bg-white rounded-xl p-2 shadow-sm">
+      <div className="bg-white rounded-xl p-2 shadow-sm mb-6">
         <nav className="flex gap-2">
           {user?.isSeller ? (
             // Seller Tabs
             [
-            { id: 'store', label: 'Store Settings', icon: BiStore },
-            { id: 'account', label: 'Account', icon: BiUser },
-            { id: 'security', label: 'Security', icon: BiShield }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-[#FF1B6B] text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <tab.icon className="w-5 h-5" />
-              {tab.label}
-            </button>
+              { id: 'store', label: 'Store Settings', icon: BiStore },
+              { id: 'account', label: 'Account', icon: BiUser },
+              { id: 'security', label: 'Security', icon: BiShield }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-[#FF1B6B] text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <tab.icon className="w-5 h-5" />
+                {tab.label}
+              </button>
             ))
           ) : (
             // Buyer Tabs
@@ -538,98 +540,102 @@ const Settings = () => {
       </div>
 
       {/* Settings Content */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
+      <div className="space-y-6">
         {user?.isSeller ? (
           <>
             {activeTab === 'store' && (
               <form onSubmit={handleStoreSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
+                {/* Store Details */}
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Store Details</h3>
+                  <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Store Name
+                      </label>
+                      <input
+                        type="text"
+                        name="storeName"
+                        value={storeSettings.storeName}
+                        onChange={handleStoreInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contact Email
+                      </label>
+                      <input
+                        type="email"
+                        name="contactEmail"
+                        value={storeSettings.contactEmail}
+                        onChange={handleStoreInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Store Name
+                      Store Description
                     </label>
-                    <input
-                      type="text"
-                      name="storeName"
-                      value={storeSettings.storeName}
+                    <textarea
+                      name="description"
+                      value={storeSettings.description}
                       onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                      rows={3}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Contact Email
-                    </label>
-                    <input
-                      type="email"
-                      name="contactEmail"
-                      value={storeSettings.contactEmail}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                    />
+
+                  <div className="grid grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Country
+                      </label>
+                      <input
+                        type="text"
+                        name="country"
+                        value={storeSettings.country}
+                        onChange={handleStoreInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={storeSettings.city}
+                        onChange={handleStoreInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Postal Code
+                      </label>
+                      <input
+                        type="text"
+                        name="postalCode"
+                        value={storeSettings.postalCode}
+                        onChange={handleStoreInputChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Store Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={storeSettings.description}
-                    onChange={handleStoreInputChange}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      name="country"
-                      value={storeSettings.country}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={storeSettings.city}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Postal Code
-                    </label>
-                    <input
-                      type="text"
-                      name="postalCode"
-                      value={storeSettings.postalCode}
-                      onChange={handleStoreInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div className="border-t pt-6 mt-6">
+                {/* Shipping Settings */}
+                <div className="bg-gray-50 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Settings</h3>
-                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Shipping Fee (USD)
                     </label>
-                    <div className="relative">
+                    <div className="relative max-w-xs">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                       <input
                         type="number"
@@ -638,7 +644,7 @@ const Settings = () => {
                         step="0.01"
                         value={storeSettings.shippingFee}
                         onChange={handleStoreInputChange}
-                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                         placeholder="0.00"
                       />
                     </div>
@@ -648,10 +654,10 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <div className="pt-4">
+                <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="w-full px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+                    className="px-6 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
                   >
                     Save Store Settings
                   </button>
@@ -661,9 +667,10 @@ const Settings = () => {
 
             {activeTab === 'account' && (
               <div className="space-y-6">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Wallet Settings</h3>
-                  <div className="bg-gray-50 rounded-xl p-6">
+                {/* Wallet Settings */}
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Wallet Settings</h3>
+                  <div className="bg-white rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div>
                         <h4 className="font-medium text-gray-900">Connected Wallet</h4>
@@ -703,7 +710,11 @@ const Settings = () => {
                       </div>
                     </div>
                   </div>
+                </div>
 
+                {/* Network Selection */}
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Network Settings</h3>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Preferred Network
@@ -716,17 +727,19 @@ const Settings = () => {
                         <button
                           key={network.id}
                           type="button"
+                          disabled={storeSettings.preferredNetwork === 'polygon' || storeSettings.preferredNetwork === 'unichain'}
                           onClick={() => {
-                            setStoreSettings(prev => ({ ...prev, preferredNetwork: network.id }));
-                            updateDoc(doc(db, 'sellers', user.sellerId), {
-                              preferredNetwork: network.id,
-                              updatedAt: new Date()
-                            });
+                            if (storeSettings.preferredNetwork !== 'polygon' && storeSettings.preferredNetwork !== 'unichain') {
+                              setSelectedNetwork(network);
+                              setShowNetworkConfirm(true);
+                            }
                           }}
                           className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
                             storeSettings.preferredNetwork === network.id 
                               ? 'border-[#FF1B6B] bg-pink-50' 
-                              : 'border-gray-200 hover:border-[#FF1B6B]'
+                              : (storeSettings.preferredNetwork === 'polygon' || storeSettings.preferredNetwork === 'unichain')
+                                ? 'border-gray-200 opacity-50 cursor-not-allowed'
+                                : 'border-gray-200 hover:border-[#FF1B6B]'
                           }`}
                         >
                           <img 
@@ -738,40 +751,70 @@ const Settings = () => {
                         </button>
                       ))}
                     </div>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Network you want to operate your store on
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Preferred Token
-                    </label>
-                    <div className="grid grid-cols-2 gap-4">
-                      {['USDT', 'USDC'].map(token => (
-                        <button
-                          key={token}
-                          type="button"
-                          onClick={() => {
-                            setWalletSettings(prev => ({ ...prev, preferredToken: token }));
-                            updateDoc(doc(db, 'sellers', user.sellerId), {
-                              preferredToken: token
-                            });
-                          }}
-                          className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                            walletSettings.preferredToken === token 
-                              ? 'border-[#FF1B6B] bg-pink-50' 
-                              : 'border-gray-200 hover:border-[#FF1B6B]'
-                          }`}
-                        >
-                          <img 
-                            src={`/${token.toLowerCase()}.png`} 
-                            alt={`${token} logo`}
-                            className="w-6 h-6"
-                          />
-                          <span className="font-medium">{token}</span>
-                        </button>
-                      ))}
+                    {showNetworkConfirm && selectedNetwork && (
+                      <div className="mt-4 border border-[#FF1B6B] rounded-lg p-4 bg-pink-50">
+                        <div className="flex items-start gap-3">
+                          <div className="text-[#FF1B6B] mt-1">⚠️</div>
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900 mb-2">
+                              Confirm Network Selection
+                            </h4>
+                            <p className="text-sm text-gray-600 mb-4">
+                              Are you sure you want to build your store on {selectedNetwork.name}? This is a one-time choice and all your products and transactions will only operate on this network.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                              <button
+                                onClick={() => {
+                                  setShowNetworkConfirm(false);
+                                  setSelectedNetwork(null);
+                                }}
+                                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setStoreSettings(prev => ({ ...prev, preferredNetwork: selectedNetwork.id }));
+                                  updateDoc(doc(db, 'sellers', user.sellerId), {
+                                    preferredNetwork: selectedNetwork.id,
+                                    updatedAt: new Date()
+                                  });
+                                  toast.success(`Your store has been permanently set to operate on ${selectedNetwork.name} network`, {
+                                    style: {
+                                      background: '#FF1B6B',
+                                      color: '#fff',
+                                      padding: '16px',
+                                      borderRadius: '10px',
+                                    },
+                                    iconTheme: {
+                                      primary: '#fff',
+                                      secondary: '#FF1B6B',
+                                    },
+                                    duration: 5000
+                                  });
+                                  setShowNetworkConfirm(false);
+                                  setSelectedNetwork(null);
+                                }}
+                                className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
+                              >
+                                Confirm Selection
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-500">
+                        {storeSettings.preferredNetwork 
+                          ? `Your store operates on ${storeSettings.preferredNetwork === 'polygon' ? 'Polygon' : 'Unichain Testnet'} network.`
+                          : "Select the network you want to build your store on. This is a one-time choice and cannot be changed later."}
+                      </p>
+                      {!storeSettings.preferredNetwork && (
+                        <p className="mt-2 text-sm text-[#FF1B6B]">
+                          ⚠️ Warning: Once you select a network, you cannot change it later. All your products and transactions will operate only on the selected network.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -139,8 +139,10 @@ const SellerDashboard = () => {
     totalSales: 0,
     totalCustomers: 0,
     revenue: 0,
-    balance: 0,
-    preferredToken: 'USDT' // Default token
+    balances: {
+      USDC: 0,
+      USDT: 0
+    }
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
@@ -166,11 +168,9 @@ const SellerDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch seller data including balance and preferred token
+      // Fetch seller data
       const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
       const sellerData = sellerDoc.data();
-      const balance = sellerData?.balance?.available || 0;
-      const preferredToken = sellerData?.preferredToken || 'USDT';
 
       // Fetch products
       const productsQuery = query(
@@ -178,7 +178,6 @@ const SellerDashboard = () => {
         where('sellerId', '==', user.sellerId)
       );
       const productsSnapshot = await getDocs(productsQuery);
-      const totalProducts = productsSnapshot.size;
 
       // Fetch orders
       const ordersQuery = query(
@@ -192,7 +191,7 @@ const SellerDashboard = () => {
         ...doc.data()
       }));
 
-      // Fetch all withdrawals (not just completed ones)
+      // Fetch all withdrawals
       const withdrawalsQuery = query(
         collection(db, 'withdrawals'),
         where('sellerId', '==', user.sellerId),
@@ -206,33 +205,51 @@ const SellerDashboard = () => {
       }));
       setWithdrawals(withdrawalHistory);
 
-      // Calculate total withdrawn amount from completed withdrawals
-      const totalWithdrawn = withdrawalHistory
-        .filter(w => w.status === 'completed')
-        .reduce((sum, w) => sum + (w.amount || 0), 0);
+      // Calculate total withdrawn amount for each token from completed withdrawals
+      const totalWithdrawn = {
+        USDC: withdrawalHistory
+          .filter(w => w.status === 'completed' && w.token === 'USDC')
+          .reduce((sum, w) => sum + (w.amount || 0), 0),
+        USDT: withdrawalHistory
+          .filter(w => w.status === 'completed' && w.token === 'USDT')
+          .reduce((sum, w) => sum + (w.amount || 0), 0)
+      };
 
-      // Calculate revenue and balance
+      // Calculate revenue and balance for each token
       let totalRevenue = 0;
+      const tokenRevenue = {
+        USDC: 0,
+        USDT: 0
+      };
       const customers = new Set();
+
       orders.forEach(order => {
         if (order.paymentStatus === 'completed') {
           const orderTotal = order.total || 0;
           totalRevenue += orderTotal;
-          customers.add(order.buyerId);
+          
+          // Add to token-specific revenue
+          const orderToken = order.paymentMethod?.token || 'USDT';
+          tokenRevenue[orderToken] = (tokenRevenue[orderToken] || 0) + orderTotal;
+          
+          if (order.buyerId) {
+            customers.add(order.buyerId);
+          }
         }
       });
 
-      // Calculate available balance (revenue minus platform fee and withdrawals)
-      const platformFeeAmount = totalRevenue * (platformFee / 100);
-      const availableBalance = totalRevenue - platformFeeAmount - totalWithdrawn;
+      // Calculate available balance for each token (revenue minus platform fee and withdrawals)
+      const balances = {
+        USDC: tokenRevenue.USDC * (1 - platformFee / 100) - totalWithdrawn.USDC,
+        USDT: tokenRevenue.USDT * (1 - platformFee / 100) - totalWithdrawn.USDT
+      };
 
       setStats({
-        totalProducts,
+        totalProducts: productsSnapshot.size,
         totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
         totalCustomers: customers.size,
         revenue: totalRevenue,
-        balance: availableBalance,
-        preferredToken
+        balances
       });
 
       // Set recent orders (only completed ones)
@@ -315,85 +332,152 @@ const SellerDashboard = () => {
             </div>
           </div>
           
-          <div className="flex justify-between items-end mb-6">
-            <div>
-              <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            {/* USDC Balance */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
                 <img 
-                  src={TOKEN_INFO[stats.preferredToken].logo}
-                  alt={stats.preferredToken}
+                  src={TOKEN_INFO.USDC.logo}
+                  alt="USDC"
                   className="w-6 h-6"
                 />
-                <div className="text-3xl font-bold text-[#FF1B6B]">
-                  {stats.balance || 0} {stats.preferredToken}
+                <div className="text-2xl font-bold text-[#FF1B6B]">
+                  {stats.balances.USDC.toFixed(2)} USDC
                 </div>
               </div>
               <div className="text-sm text-gray-500">
-                ≈ ${stats.balance || 0}
+                ≈ ${stats.balances.USDC.toFixed(2)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Platform fee: {platformFee}% ({(stats.balance * platformFee / 100).toFixed(2)} {stats.preferredToken})
+                Platform fee: {platformFee}% ({(stats.balances.USDC * platformFee / 100).toFixed(2)} USDC)
               </div>
-              <div className="text-sm font-medium text-gray-700 mt-1">
-                You'll receive: {(stats.balance * (1 - platformFee / 100)).toFixed(2)} {stats.preferredToken}
-              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const provider = await detectEthereumProvider();
+                    if (!provider) {
+                      toast.error('Please install MetaMask to withdraw funds');
+                      return;
+                    }
+
+                    const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                    if (accounts.length === 0) {
+                      toast.error('Please connect your wallet');
+                      return;
+                    }
+
+                    if (stats.balances.USDC < minWithdrawal) {
+                      toast.error(`Minimum withdrawal amount is ${minWithdrawal} USDC`);
+                      return;
+                    }
+
+                    // Create withdrawal request
+                    await addDoc(collection(db, 'withdrawals'), {
+                      sellerId: user.sellerId,
+                      amount: stats.balances.USDC,
+                      token: 'USDC',
+                      fee: stats.balances.USDC * platformFee / 100,
+                      netAmount: stats.balances.USDC * (1 - platformFee / 100),
+                      status: 'pending',
+                      walletAddress: accounts[0],
+                      network: user.network || 'polygon',
+                      timestamp: serverTimestamp()
+                    });
+
+                    toast.success('Withdrawal request submitted');
+                  } catch (error) {
+                    console.error('Withdrawal error:', error);
+                    toast.error('Failed to process withdrawal');
+                  }
+                }}
+                disabled={!stats.balances.USDC || stats.balances.USDC < minWithdrawal}
+                className={`w-full mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  !stats.balances.USDC || stats.balances.USDC < minWithdrawal
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]'
+                }`}
+              >
+                {!stats.balances.USDC || stats.balances.USDC < minWithdrawal 
+                  ? `Min. ${minWithdrawal} USDC Required`
+                  : 'Withdraw USDC'}
+              </button>
             </div>
-            <button
-              onClick={async () => {
-                try {
-                  const provider = await detectEthereumProvider();
-                  if (!provider) {
-                    toast.error('Please install MetaMask to withdraw funds');
-                    return;
+
+            {/* USDT Balance */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <img 
+                  src={TOKEN_INFO.USDT.logo}
+                  alt="USDT"
+                  className="w-6 h-6"
+                />
+                <div className="text-2xl font-bold text-[#FF1B6B]">
+                  {stats.balances.USDT.toFixed(2)} USDT
+                </div>
+              </div>
+              <div className="text-sm text-gray-500">
+                ≈ ${stats.balances.USDT.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Platform fee: {platformFee}% ({(stats.balances.USDT * platformFee / 100).toFixed(2)} USDT)
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const provider = await detectEthereumProvider();
+                    if (!provider) {
+                      toast.error('Please install MetaMask to withdraw funds');
+                      return;
+                    }
+
+                    const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                    if (accounts.length === 0) {
+                      toast.error('Please connect your wallet');
+                      return;
+                    }
+
+                    if (stats.balances.USDT < minWithdrawal) {
+                      toast.error(`Minimum withdrawal amount is ${minWithdrawal} USDT`);
+                      return;
+                    }
+
+                    // Create withdrawal request
+                    await addDoc(collection(db, 'withdrawals'), {
+                      sellerId: user.sellerId,
+                      amount: stats.balances.USDT,
+                      token: 'USDT',
+                      fee: stats.balances.USDT * platformFee / 100,
+                      netAmount: stats.balances.USDT * (1 - platformFee / 100),
+                      status: 'pending',
+                      walletAddress: accounts[0],
+                      network: user.network || 'polygon',
+                      timestamp: serverTimestamp()
+                    });
+
+                    toast.success('Withdrawal request submitted');
+                  } catch (error) {
+                    console.error('Withdrawal error:', error);
+                    toast.error('Failed to process withdrawal');
                   }
-
-                  await window.ethereum.request({ method: 'eth_requestAccounts' });
-                  const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                  
-                  if (accounts.length === 0) {
-                    toast.error('Please connect your wallet');
-                    return;
-                  }
-
-                  if (stats.balance < minWithdrawal) {
-                    toast.error(`Minimum withdrawal amount is ${minWithdrawal} ${stats.preferredToken}`);
-                    return;
-                  }
-
-                  // Create withdrawal request
-                  await addDoc(collection(db, 'withdrawals'), {
-                    sellerId: user.sellerId,
-                    amount: stats.balance,
-                    token: stats.preferredToken,
-                    fee: stats.balance * platformFee / 100,
-                    netAmount: stats.balance * (1 - platformFee / 100),
-                    status: 'pending',
-                    walletAddress: accounts[0],
-                    timestamp: serverTimestamp()
-                  });
-
-                  toast.success('Withdrawal request submitted');
-                } catch (error) {
-                  console.error('Withdrawal error:', error);
-                  toast.error('Failed to process withdrawal');
-                }
-              }}
-              disabled={!stats.balance || stats.balance < minWithdrawal}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !stats.balance || stats.balance < minWithdrawal
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]'
-              }`}
-            >
-              {!stats.balance || stats.balance < minWithdrawal 
-                ? `Minimum ${minWithdrawal} ${stats.preferredToken} required` 
-                : 'Withdraw to Wallet'}
-            </button>
+                }}
+                disabled={!stats.balances.USDT || stats.balances.USDT < minWithdrawal}
+                className={`w-full mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  !stats.balances.USDT || stats.balances.USDT < minWithdrawal
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]'
+                }`}
+              >
+                {!stats.balances.USDT || stats.balances.USDT < minWithdrawal 
+                  ? `Min. ${minWithdrawal} USDT Required`
+                  : 'Withdraw USDT'}
+              </button>
+            </div>
           </div>
 
           <div className="text-xs text-gray-500 space-y-1">
-            <p>Note: Withdrawals are processed on the Polygon network. Gas fees will be paid from your wallet.</p>
+            <p>Note: Withdrawals are processed on your selected network. Gas fees will be paid from your wallet.</p>
             <p>A {platformFee}% platform fee will be deducted from your withdrawal amount.</p>
-            <p>Minimum withdrawal amount: {minWithdrawal} {stats.preferredToken}</p>
+            <p>Minimum withdrawal amount: {minWithdrawal} USDC/USDT</p>
           </div>
         </div>
       </motion.div>
@@ -518,7 +602,7 @@ const SellerDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                         {withdrawal.transactionHash ? (
                           <a 
-                            href={`https://polygonscan.com/tx/${withdrawal.transactionHash}`}
+                            href={`https://${withdrawal.network === 'polygon' ? 'polygonscan' : 'bscscan'}.com/tx/${withdrawal.transactionHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-[#FF1B6B] hover:text-[#D4145A]"
