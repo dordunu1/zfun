@@ -17,13 +17,14 @@ export default function BecomeSeller() {
   const [storeInfo, setStoreInfo] = useState({
     storeName: '',
     description: '',
-    contactEmail: '',
+    contactEmail: user?.email || '',
     phoneNumber: '',
     country: '',
     city: '',
     postalCode: '',
-    shippingCountries: [],
-    preferredToken: 'USDC'
+    preferredToken: 'USDC',
+    preferredNetwork: 'sepolia',
+    walletAddress: ''
   });
 
   const handleInputChange = (e) => {
@@ -373,6 +374,39 @@ export default function BecomeSeller() {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">Payment Settings</h3>
               
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Preferred Network *
+                </label>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  {[
+                    { id: 'sepolia', name: 'Sepolia', logo: '/sepolia-logo.png' },
+                    { id: 'unichain', name: 'Unichain Testnet', logo: '/unichain-logo.png' }
+                  ].map(network => (
+                    <button
+                      key={network.id}
+                      type="button"
+                      onClick={() => handleInputChange({ target: { name: 'preferredNetwork', value: network.id } })}
+                      className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                        storeInfo.preferredNetwork === network.id 
+                          ? 'border-[#FF1B6B] bg-pink-50' 
+                          : 'border-gray-200 hover:border-[#FF1B6B]'
+                      }`}
+                    >
+                      <img 
+                        src={network.logo}
+                        alt={`${network.name} logo`}
+                        className="w-6 h-6"
+                      />
+                      <span className="font-medium">{network.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  Network you want to operate your store on
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Preferred Payment Token *

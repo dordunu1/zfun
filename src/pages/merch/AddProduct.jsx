@@ -139,95 +139,129 @@ const AddProductSkeleton = () => (
 );
 
 const AddProduct = () => {
-  const navigate = useNavigate();
   const { user } = useMerchAuth();
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [platformFee, setPlatformFee] = useState(2.5);
+  const [uploading, setUploading] = useState(false);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreview, setImagePreview] = useState([]);
   const [productData, setProductData] = useState({
     name: '',
     description: '',
     price: '',
     quantity: '',
     category: '',
-    network: 'polygon', // Default network
-    acceptedToken: 'USDT',
-    tokenLogo: '/logos/usdt.png',
     images: [],
+    network: 'sepolia',
+    acceptedToken: 'USDC',
+    tokenLogo: '/logos/usdc.png',
     shippingFee: 0,
     shippingInfo: '',
-    sizes: [], // Array of available sizes
-    colors: [], // Array of available colors
-    hasVariants: false // Whether the product has size/color variants
+    hasVariants: false,
+    selectedSizes: [],
+    selectedColors: []
   });
 
-  const [imageFiles, setImageFiles] = useState([]);
-  const [imagePreview, setImagePreview] = useState([]);
+  const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
+  const COLORS = [
+    { name: 'Black', value: '#000000' },
+    { name: 'White', value: '#FFFFFF' },
+    { name: 'Gray', value: '#808080' },
+    { name: 'Red', value: '#FF0000' },
+    { name: 'Blue', value: '#0000FF' },
+    { name: 'Green', value: '#008000' },
+    { name: 'Yellow', value: '#FFFF00' },
+    { name: 'Purple', value: '#800080' },
+    { name: 'Pink', value: '#FFC0CB' },
+    { name: 'Brown', value: '#A52A2A' }
+  ];
+
+  const NETWORKS = [
+    { id: 'polygon', name: 'Polygon', logo: '/polygon.png' },
+    { id: 'unichain', name: 'Unichain', logo: '/unichain-logo.png' }
+  ];
 
   useEffect(() => {
-    fetchPlatformFee();
-    if (user?.sellerId) {
-      fetchSellerPreferences();
-    }
-  }, [user]);
+    const loadSellerPreferences = async () => {
+      try {
+        if (!user?.sellerId) {
+          setLoading(false);
+          return;
+        }
 
-  const fetchPlatformFee = async () => {
-    try {
-      const settingsDoc = await getDoc(doc(db, 'settings', 'platform'));
-      if (settingsDoc.exists()) {
-        setPlatformFee(settingsDoc.data().platformFee);
-      }
-    } catch (error) {
-      console.error('Error fetching platform fee:', error);
-    }
-  };
+        const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
+        if (sellerDoc.exists()) {
+          const sellerData = sellerDoc.data();
+          if (!sellerData.preferredNetwork || !sellerData.preferredToken) {
+            setLoading(false);
+            return;
+          }
 
-  const fetchSellerPreferences = async () => {
-    try {
-      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
-      if (sellerDoc.exists()) {
-        const sellerData = sellerDoc.data();
-        const preferredToken = sellerData.preferredToken || 'USDT'; // Default to USDT if not set
-        setProductData(prev => ({
-          ...prev,
-          acceptedToken: preferredToken,
-          tokenLogo: NETWORK_INFO[productData.network].tokens[preferredToken].logo
-        }));
+          setProductData(prev => ({
+            ...prev,
+            network: sellerData.preferredNetwork,
+            acceptedToken: sellerData.preferredToken,
+            tokenLogo: `/logos/${sellerData.preferredToken.toLowerCase()}.png`
+          }));
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading seller preferences:', error);
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching seller preferences:', error);
-      // Set default values if there's an error
-      setProductData(prev => ({
-        ...prev,
-        acceptedToken: 'USDT',
-        tokenLogo: NETWORK_INFO[productData.network].tokens['USDT'].logo
-      }));
-    }
-  };
+    };
+
+    loadSellerPreferences();
+  }, [user?.sellerId]);
+
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF1B6B]"></div>
+    </div>;
+  }
+
+  // Check if preferences are set
+  if (!productData.network || !productData.acceptedToken) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Network and Payment Preferences Required
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  Before adding products, you need to set your preferred network and payment token in your store settings.
+                </p>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => navigate('/merch/settings')}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#FF1B6B] hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                >
+                  Go to Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'network') {
-      // When network changes, reset token to first available token for that network
-      const firstToken = Object.keys(NETWORK_INFO[value].tokens)[0];
-      setProductData(prev => ({
-        ...prev,
-        network: value,
-        acceptedToken: firstToken,
-        tokenLogo: NETWORK_INFO[value].tokens[firstToken].logo
-      }));
-    } else if (name === 'acceptedToken') {
-      setProductData(prev => ({
-        ...prev,
-        acceptedToken: value,
-        tokenLogo: NETWORK_INFO[productData.network].tokens[value].logo
-      }));
-    } else {
-      setProductData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    setProductData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleImageUpload = (e) => {
@@ -278,11 +312,11 @@ const AddProduct = () => {
     }
 
     if (productData.category === 'clothing' && productData.hasVariants) {
-      if (productData.sizes.length === 0) {
+      if (productData.selectedSizes.length === 0) {
         toast.error('Please select at least one size');
         return;
       }
-      if (productData.colors.length === 0) {
+      if (productData.selectedColors.length === 0) {
         toast.error('Please select at least one color');
         return;
       }
@@ -321,8 +355,8 @@ const AddProduct = () => {
         sellerName: sellerData.storeName,
         status: 'active',
         hasVariants: productData.hasVariants,
-        sizes: productData.hasVariants ? productData.sizes : [],
-        colors: productData.hasVariants ? productData.colors : [],
+        sizes: productData.hasVariants ? productData.selectedSizes : [],
+        colors: productData.hasVariants ? productData.selectedColors : [],
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -335,6 +369,31 @@ const AddProduct = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSizeToggle = (size) => {
+    setProductData(prev => ({
+      ...prev,
+      selectedSizes: prev.selectedSizes.includes(size)
+        ? prev.selectedSizes.filter(s => s !== size)
+        : [...prev.selectedSizes, size]
+    }));
+  };
+
+  const handleColorToggle = (color) => {
+    setProductData(prev => ({
+      ...prev,
+      selectedColors: prev.selectedColors.includes(color.name)
+        ? prev.selectedColors.filter(c => c !== color.name)
+        : [...prev.selectedColors, color.name]
+    }));
+  };
+
+  const handleNetworkChange = (networkId) => {
+    setProductData(prev => ({
+      ...prev,
+      network: networkId
+    }));
   };
 
   // Animation variants
@@ -366,151 +425,146 @@ const AddProduct = () => {
 
   return (
     <motion.div
-      className="max-w-2xl mx-auto p-6"
+      className="max-w-4xl mx-auto p-6"
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      <motion.div variants={itemVariants}>
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Add New Product</h1>
-      </motion.div>
-
-      <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow-sm p-6">
-        {/* Product Images */}
-        <motion.div variants={itemVariants} className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            Product Images (Max 5 images, 2MB each)
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {/* Image Previews */}
-            {imagePreview.map((url, index) => (
-              <motion.div
-                key={url}
-                className="relative aspect-square rounded-lg overflow-hidden group"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2 }}
-              >
-                <img
-                  src={url}
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                <motion.button
-                  type="button"
-                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => removeImage(index)}
-                >
-                  <BiTrash />
-                </motion.button>
-              </motion.div>
-            ))}
-
-            {/* Upload Button */}
-            {imagePreview.length < 5 && (
-              <motion.label
-                className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-[#FF1B6B] transition-colors"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <BiImageAdd className="w-8 h-8 text-gray-400" />
-                <span className="text-sm text-gray-500 mt-2">Add Image</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  multiple
-                />
-              </motion.label>
-            )}
-          </div>
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <motion.div variants={itemVariants}>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Add New Product</h1>
+          <p className="text-gray-500 text-sm mb-6">Fill in the details for your new product listing</p>
         </motion.div>
 
-        {/* Product Details */}
-        <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Product Name *
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Image Upload Section */}
+          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-4">
+              Product Images (Max 5 images, 2MB each)
             </label>
-            <input
-              type="text"
-              name="name"
-              value={productData.name}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-            />
-          </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {/* Image Previews */}
+              {imagePreview.map((url, index) => (
+                <motion.div
+                  key={url}
+                  className="relative aspect-square rounded-lg overflow-hidden group bg-white"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <img
+                    src={url}
+                    alt={`Preview ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <motion.button
+                    type="button"
+                    className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => removeImage(index)}
+                  >
+                    <BiTrash size={16} />
+                  </motion.button>
+                </motion.div>
+              ))}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Category *
-            </label>
-            <select
-              name="category"
-              value={productData.category}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-            >
-              <option value="">Select Category</option>
-              <option value="clothing">Clothing</option>
-              <option value="accessories">Accessories</option>
-              <option value="collectibles">Collectibles</option>
-              <option value="art">Art</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
+              {/* Upload Button */}
+              {imagePreview.length < 5 && (
+                <motion.label
+                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-[#FF1B6B] transition-colors bg-white"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <BiImageAdd className="w-8 h-8 text-gray-400" />
+                  <span className="text-sm text-gray-500 mt-2">Add Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    multiple
+                  />
+                </motion.label>
+              )}
+            </div>
+          </motion.div>
 
-          {/* Size and Color Options (Only for clothing) */}
+          {/* Basic Product Details */}
+          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Product Name *
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={productData.name}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                placeholder="Enter product name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category *
+              </label>
+              <select
+                name="category"
+                value={productData.category}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors appearance-none bg-white"
+              >
+                <option value="">Select Category</option>
+                <option value="clothing">Clothing</option>
+                <option value="accessories">Accessories</option>
+                <option value="art">Art</option>
+                <option value="collectibles">Collectibles</option>
+              </select>
+            </div>
+          </motion.div>
+
+          {/* Variants Section */}
           {productData.category === 'clothing' && (
-            <div className="space-y-4">
-              <div className="flex items-center">
+            <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
+              <div className="flex items-center mb-6">
                 <input
                   type="checkbox"
                   id="hasVariants"
-                  name="hasVariants"
                   checked={productData.hasVariants}
                   onChange={(e) => {
                     setProductData(prev => ({
                       ...prev,
                       hasVariants: e.target.checked,
-                      sizes: e.target.checked ? prev.sizes : [],
-                      colors: e.target.checked ? prev.colors : []
+                      selectedSizes: e.target.checked ? prev.selectedSizes : [],
+                      selectedColors: e.target.checked ? prev.selectedColors : []
                     }));
                   }}
-                  className="h-4 w-4 text-[#FF1B6B] focus:ring-[#FF1B6B] border-gray-300 rounded"
+                  className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
                 />
-                <label htmlFor="hasVariants" className="ml-2 block text-sm text-gray-900">
+                <label htmlFor="hasVariants" className="ml-2 text-sm font-medium text-gray-700">
                   This product has size and color variants
                 </label>
               </div>
 
               {productData.hasVariants && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Size Options */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Size Selection */}
+                  <div className="bg-white rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
                       Available Sizes
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                      {SIZES.map(size => (
                         <button
                           key={size}
                           type="button"
-                          onClick={() => {
-                            setProductData(prev => ({
-                              ...prev,
-                              sizes: prev.sizes.includes(size)
-                                ? prev.sizes.filter(s => s !== size)
-                                : [...prev.sizes, size]
-                            }));
-                          }}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                            productData.sizes.includes(size)
+                          onClick={() => handleSizeToggle(size)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                            productData.selectedSizes.includes(size)
                               ? 'bg-[#FF1B6B] text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
@@ -521,85 +575,58 @@ const AddProduct = () => {
                     </div>
                   </div>
 
-                  {/* Color Options */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {/* Color Selection */}
+                  <div className="bg-white rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
                       Available Colors
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {[
-                        { name: 'Black', code: '#000000' },
-                        { name: 'White', code: '#FFFFFF' },
-                        { name: 'Gray', code: '#808080' },
-                        { name: 'Red', code: '#FF0000' },
-                        { name: 'Blue', code: '#0000FF' },
-                        { name: 'Green', code: '#008000' },
-                        { name: 'Yellow', code: '#FFFF00' },
-                        { name: 'Purple', code: '#800080' },
-                        { name: 'Pink', code: '#FFC0CB' },
-                        { name: 'Brown', code: '#A52A2A' }
-                      ].map((color) => (
+                      {COLORS.map(color => (
                         <button
                           key={color.name}
                           type="button"
-                          onClick={() => {
-                            setProductData(prev => ({
-                              ...prev,
-                              colors: prev.colors.includes(color.name)
-                                ? prev.colors.filter(c => c !== color.name)
-                                : [...prev.colors, color.name]
-                            }));
-                          }}
-                          className={`group relative inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                            productData.colors.includes(color.name)
+                          onClick={() => handleColorToggle(color)}
+                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                            productData.selectedColors.includes(color.name)
                               ? 'bg-[#FF1B6B] text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
                           <span
-                            className="w-4 h-4 rounded-full mr-1.5 border border-gray-300"
-                            style={{ backgroundColor: color.code }}
+                            className="h-4 w-4 rounded-full border border-gray-300 shadow-inner"
+                            style={{ backgroundColor: color.value }}
                           />
-                          {color.name}
+                          <span>{color.name}</span>
                         </button>
                       ))}
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </motion.div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+          {/* Network & Price Section */}
+          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gray-50 rounded-xl p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
                 Network & Price
               </label>
-              <div className="space-y-2">
-                <div className="flex gap-4">
-                  {Object.entries(NETWORK_INFO).map(([network, info]) => (
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  {NETWORKS.map(network => (
                     <button
-                      key={network}
+                      key={network.id}
                       type="button"
-                      onClick={() => handleInputChange({ target: { name: 'network', value: network } })}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
-                        productData.network === network 
+                      onClick={() => handleNetworkChange(network.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all flex-1 justify-center ${
+                        productData.network === network.id 
                           ? 'border-[#FF1B6B] bg-pink-50' 
-                          : 'border-gray-300 hover:border-[#FF1B6B] hover:bg-pink-50'
+                          : 'border-gray-300 hover:border-[#FF1B6B] bg-white'
                       }`}
                     >
-                      <img 
-                        src={info.logo} 
-                        alt={info.name} 
-                        className="w-6 h-6 object-contain"
-                      />
-                      <span className={`font-medium ${
-                        productData.network === network 
-                          ? 'text-[#FF1B6B]' 
-                          : 'text-gray-700'
-                      }`}>
-                        {info.name}
-                      </span>
+                      <img src={network.logo} alt={network.name} className="w-5 h-5" />
+                      <span className="font-medium">{network.name}</span>
                     </button>
                   ))}
                 </div>
@@ -613,36 +640,44 @@ const AddProduct = () => {
                     required
                     min="0"
                     step="0.01"
-                    className="w-full pl-4 pr-20 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className="w-full pl-4 pr-24 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                     placeholder="0.00"
                   />
-                  <div className="absolute inset-y-0 right-0 flex items-center">
-                    <select
-                      name="acceptedToken"
-                      value={productData.acceptedToken}
-                      onChange={handleInputChange}
-                      className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-gray-500 sm:text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                    >
-                      {Object.entries(NETWORK_INFO[productData.network].tokens).map(([token, info]) => (
-                        <option key={token} value={token} className="flex items-center gap-2">
-                          {info.name}
-                        </option>
-                      ))}
-                    </select>
+                  <select
+                    name="acceptedToken"
+                    value={productData.acceptedToken}
+                    onChange={handleInputChange}
+                    className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B]"
+                  >
+                    <option value="USDT">USDT</option>
+                    <option value="USDC">USDC</option>
+                  </select>
+                </div>
+
+                {/* Payment Information Display */}
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="flex-shrink-0">
+                    <img 
+                      src={`/${productData.acceptedToken.toLowerCase()}.png`}
+                      alt={productData.acceptedToken}
+                      className="w-5 h-5"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Buyers will pay in</span>
+                    <span className="font-medium">{productData.acceptedToken}</span>
+                    <span>on</span>
+                    <span className="font-medium">{
+                      NETWORKS.find(n => n.id === productData.network)?.name || 'selected'
+                    }</span>
+                    <span>network</span>
                   </div>
                 </div>
               </div>
-              <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
-                <img 
-                  src={NETWORK_INFO[productData.network].tokens[productData.acceptedToken].logo} 
-                  alt={productData.acceptedToken} 
-                  className="w-4 h-4"
-                />
-                Buyers will pay in {productData.acceptedToken} on {NETWORK_INFO[productData.network].name} network
-              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+
+            <div className="bg-gray-50 rounded-xl p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
                 Quantity Available
               </label>
               <input
@@ -651,15 +686,16 @@ const AddProduct = () => {
                 value={productData.quantity}
                 onChange={handleInputChange}
                 required
-                min="0"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                placeholder="Enter quantity"
+                min="1"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                placeholder="Enter available quantity"
               />
             </div>
-          </div>
+          </motion.div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          {/* Description Section */}
+          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
               Description *
             </label>
             <textarea
@@ -668,16 +704,17 @@ const AddProduct = () => {
               onChange={handleInputChange}
               required
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+              placeholder="Describe your product..."
             />
-          </div>
+          </motion.div>
 
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Shipping Details</h3>
-            
+          {/* Shipping Section */}
+          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Shipping Fee (USD)
                 </label>
                 <div className="relative">
@@ -689,64 +726,49 @@ const AddProduct = () => {
                     step="0.01"
                     value={productData.shippingFee}
                     onChange={handleInputChange}
-                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                     placeholder="0.00"
                   />
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
-                  Additional shipping fee for this product
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Shipping Information
                 </label>
-                <textarea
+                <input
+                  type="text"
                   name="shippingInfo"
                   value={productData.shippingInfo}
                   onChange={handleInputChange}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                  placeholder="Enter shipping details, restrictions, or additional information"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                  placeholder="e.g., Worldwide shipping available"
                 />
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Token Selection Info */}
-          <div className="mt-2">
-            <p className="text-sm text-gray-500 flex items-center gap-2">
-              <BiInfoCircle className="text-[#FF1B6B]" />
-              Select your preferred network and token for receiving payments. Buyers will pay in the selected token on the chosen network.
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Submit Button */}
-        <motion.div variants={itemVariants} className="flex justify-end pt-4">
-          <motion.button
-            type="submit"
-            disabled={submitting}
-            className={`px-6 py-2.5 bg-[#FF1B6B] text-white rounded-lg font-medium ${submitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#D4145A]'} transition-colors`}
-            whileHover={submitting ? {} : { scale: 1.02 }}
-            whileTap={submitting ? {} : { scale: 0.98 }}
-          >
-            {submitting ? (
-              <div className="flex items-center">
-                <motion.div
-                  className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                />
-                Adding Product...
-              </div>
-            ) : (
-              'Add Product'
-            )}
-          </motion.button>
-        </motion.div>
-      </form>
+          {/* Submit Button */}
+          <motion.div variants={itemVariants} className="flex justify-end">
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`px-8 py-3 rounded-lg font-medium text-white ${
+                submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#FF1B6B] hover:bg-[#D4145A]'
+              } transition-colors flex items-center gap-2`}
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                  <span>Adding Product...</span>
+                </>
+              ) : (
+                'Add Product'
+              )}
+            </button>
+          </motion.div>
+        </form>
+      </div>
     </motion.div>
   );
 };
