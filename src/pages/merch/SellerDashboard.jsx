@@ -190,25 +190,33 @@ const SellerDashboard = () => {
         ...doc.data()
       }));
 
+      console.log('Fetched orders:', orders); // Debug log
+
       // Calculate stats
       let revenue = 0;
       const customers = new Set();
       orders.forEach(order => {
-        revenue += order.total;
-        customers.add(order.buyerId);
+        if (order.paymentStatus === 'completed') {
+          revenue += order.total || 0;
+          customers.add(order.buyerId);
+        }
       });
 
       setStats({
         totalProducts,
-        totalSales: orders.length,
+        totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
         totalCustomers: customers.size,
         revenue,
         balance,
         preferredToken
       });
 
-      // Set recent orders
-      setRecentOrders(orders.slice(0, 3));
+      // Set recent orders (only completed ones)
+      setRecentOrders(
+        orders
+          .filter(o => o.paymentStatus === 'completed')
+          .slice(0, 3)
+      );
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');

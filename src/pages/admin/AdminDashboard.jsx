@@ -7,7 +7,7 @@ import { FiDollarSign, FiUsers, FiCreditCard, FiShoppingBag } from 'react-icons/
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 
-const ADMIN_WALLET = "0x34B5e3B8465e0A4b40b4D0819C1eB6c38E160b33";
+const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminDashboard() {
   const { isAdmin } = useMerchAuth();

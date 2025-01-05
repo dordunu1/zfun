@@ -217,6 +217,10 @@ const Settings = () => {
       const sellerDoc = await getDoc(sellerRef);
       
       if (!sellerDoc.exists()) {
+        // Get user document to check for existing wallet address
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userData = userDoc.exists() ? userDoc.data() : {};
+
         // Create initial seller document if it doesn't exist
         const initialSellerData = {
           sellerId: user.sellerId,
@@ -231,6 +235,7 @@ const Settings = () => {
           shippingCountries: [],
           shippingFee: 0,
           preferredToken: 'USDC',
+          walletAddress: userData.walletAddress || '', // Include wallet address from user profile
           createdAt: new Date(),
           updatedAt: new Date()
         };
@@ -238,7 +243,7 @@ const Settings = () => {
         await setDoc(sellerRef, initialSellerData);
         setStoreSettings(initialSellerData);
         setWalletSettings({
-          walletAddress: '',
+          walletAddress: userData.walletAddress || '',
           preferredToken: initialSellerData.preferredToken
         });
       } else {
@@ -286,7 +291,7 @@ const Settings = () => {
     }
   };
 
-  const handleWalletConnect = async () => {
+  const handleConnectWallet = async () => {
     try {
       const provider = await detectEthereumProvider();
       if (!provider) {
@@ -312,39 +317,148 @@ const Settings = () => {
       }
 
       const walletAddress = accounts[0];
-      setBuyerProfile(prev => ({
-        ...prev,
-        walletAddress
-      }));
+      console.log('Connecting wallet:', walletAddress);
 
-      await setDoc(doc(db, 'users', user.uid), {
-        walletAddress,
-        updatedAt: new Date()
-      }, { merge: true });
+      // Update local state immediately
+      if (user.isSeller) {
+        console.log('Updating seller state with wallet:', walletAddress);
+        setWalletSettings(prev => {
+          console.log('Previous wallet settings:', prev);
+          return {
+            ...prev,
+            walletAddress
+          };
+        });
+        setStoreSettings(prev => {
+          console.log('Previous store settings:', prev);
+          return {
+            ...prev,
+            walletAddress
+          };
+        });
+      } else {
+        setBuyerProfile(prev => ({
+          ...prev,
+          walletAddress
+        }));
+      }
 
-      toast.success('Wallet connected successfully');
+      // Update Firestore
+      try {
+        if (user.isSeller) {
+          console.log('Updating seller document with wallet:', walletAddress);
+          // Update seller document
+          const sellerRef = doc(db, 'sellers', user.sellerId);
+          await updateDoc(sellerRef, {
+            walletAddress,
+            updatedAt: new Date()
+          });
+
+          // Also update user document for consistency
+          await updateDoc(doc(db, 'users', user.uid), {
+            walletAddress,
+            updatedAt: new Date()
+          });
+
+          // Fetch updated seller data to ensure UI is in sync
+          const updatedSellerDoc = await getDoc(sellerRef);
+          if (updatedSellerDoc.exists()) {
+            const sellerData = updatedSellerDoc.data();
+            console.log('Updated seller data:', sellerData);
+            setStoreSettings(sellerData);
+            setWalletSettings(prev => ({
+              ...prev,
+              walletAddress: sellerData.walletAddress
+            }));
+          }
+        } else {
+          await updateDoc(doc(db, 'users', user.uid), {
+            walletAddress,
+            updatedAt: new Date()
+          });
+        }
+        toast.success('Wallet connected successfully');
+      } catch (error) {
+        console.error('Error updating Firestore:', error);
+        toast.error('Failed to save wallet connection');
+        // Revert local state if Firestore update fails
+        if (user.isSeller) {
+          setWalletSettings(prev => ({
+            ...prev,
+            walletAddress: ''
+          }));
+          setStoreSettings(prev => ({
+            ...prev,
+            walletAddress: ''
+          }));
+        } else {
+          setBuyerProfile(prev => ({
+            ...prev,
+            walletAddress: ''
+          }));
+        }
+      }
     } catch (error) {
+      console.error('Wallet connection error:', error);
       if (error.code === 4001) {
         toast.error('You rejected the connection request');
       } else {
-      toast.error('Failed to connect wallet');
+        toast.error('Failed to connect wallet');
       }
     }
   };
 
   const handleDisconnectWallet = async () => {
     try {
-      setBuyerProfile(prev => ({
-        ...prev,
-        walletAddress: ''
-      }));
-      await setDoc(doc(db, 'users', user.uid), {
-        walletAddress: '',
-        updatedAt: new Date()
-      }, { merge: true });
+      // Update local state immediately
+      if (user.isSeller) {
+        setWalletSettings(prev => ({
+          ...prev,
+          walletAddress: ''
+        }));
+        setStoreSettings(prev => ({
+          ...prev,
+          walletAddress: ''
+        }));
+      } else {
+        setBuyerProfile(prev => ({
+          ...prev,
+          walletAddress: ''
+        }));
+      }
+
+      // Update Firestore
+      if (user.isSeller) {
+        await updateDoc(doc(db, 'sellers', user.sellerId), {
+          walletAddress: '',
+          updatedAt: new Date()
+        });
+      } else {
+        await updateDoc(doc(db, 'users', user.uid), {
+          walletAddress: '',
+          updatedAt: new Date()
+        });
+      }
       toast.success('Wallet disconnected successfully');
     } catch (error) {
+      console.error('Error disconnecting wallet:', error);
       toast.error('Failed to disconnect wallet');
+      // Restore previous state if Firestore update fails
+      if (user.isSeller) {
+        setWalletSettings(prev => ({
+          ...prev,
+          walletAddress: walletSettings.walletAddress
+        }));
+        setStoreSettings(prev => ({
+          ...prev,
+          walletAddress: walletSettings.walletAddress
+        }));
+      } else {
+        setBuyerProfile(prev => ({
+          ...prev,
+          walletAddress: buyerProfile.walletAddress
+        }));
+      }
     }
   };
 
@@ -388,52 +502,6 @@ const Settings = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-  };
-
-  const handleConnectWallet = async () => {
-    try {
-      const provider = await detectEthereumProvider();
-      if (!provider) {
-        toast.error('Please install MetaMask to connect your wallet');
-        return;
-      }
-
-      // Request user to select an account
-      const accounts = await window.ethereum.request({
-        method: 'wallet_requestPermissions',
-        params: [{
-          eth_accounts: {}
-        }]
-      }).then(() => 
-        window.ethereum.request({
-          method: 'eth_requestAccounts'
-        })
-      );
-      
-      if (accounts.length === 0) {
-        toast.error('Please connect your wallet');
-        return;
-      }
-
-      const walletAddress = accounts[0];
-      setBuyerProfile(prev => ({
-        ...prev,
-        walletAddress
-      }));
-
-      await setDoc(doc(db, 'users', user.uid), {
-        walletAddress,
-        updatedAt: new Date()
-      }, { merge: true });
-
-      toast.success('Wallet connected successfully');
-    } catch (error) {
-      if (error.code === 4001) {
-        toast.error('You rejected the connection request');
-      } else {
-        toast.error('Failed to connect wallet');
-      }
-    }
   };
 
   if (loading) {
@@ -763,30 +831,15 @@ const Settings = () => {
                     {walletSettings.walletAddress ? (
                       <>
                         <button
-                              type="button"
-                          onClick={async () => {
-                            try {
-                              setWalletSettings(prev => ({
-                                ...prev,
-                                walletAddress: ''
-                              }));
-                              await updateDoc(doc(db, 'sellers', user.sellerId), {
-                                    walletAddress: '',
-                                    updatedAt: new Date()
-                              });
-                              toast.success('Wallet disconnected successfully');
-                            } catch (error) {
-                              console.error('Error disconnecting wallet:', error);
-                              toast.error('Failed to disconnect wallet');
-                            }
-                          }}
+                          type="button"
+                          onClick={handleDisconnectWallet}
                           className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
                         >
                           Disconnect
                         </button>
                         <button
-                              type="button"
-                          onClick={handleWalletConnect}
+                          type="button"
+                          onClick={handleConnectWallet}
                           className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
                         >
                           Change Wallet
@@ -794,8 +847,8 @@ const Settings = () => {
                       </>
                     ) : (
                       <button
-                            type="button"
-                            onClick={handleWalletConnect}
+                        type="button"
+                        onClick={handleConnectWallet}
                         className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors text-sm"
                       >
                         Connect Wallet

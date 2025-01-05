@@ -19,7 +19,7 @@ module.exports = {
       chainId: 1301
     },
     polygon: {
-      url: "https://polygon-pokt.nodies.app",
+      url: "https://polygon-rpc.com",
       accounts: [process.env.PRIVATE_KEY],
       chainId: 137
     }
@@ -27,4 +27,4 @@ module.exports = {
   etherscan: {
     apiKey: process.env.POLYGONSCAN_API_KEY
   }
-};
+}; 

@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BiWallet, BiCreditCard } from 'react-icons/bi';
+import { BiWallet, BiCreditCard, BiNetworkChart } from 'react-icons/bi';
 import { FaEthereum } from 'react-icons/fa';
 import { SiTether } from 'react-icons/si';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
+import { ethers } from 'ethers';
+import detectEthereumProvider from '@metamask/detect-provider';
+import { getMerchPlatformContract, getTokenContract, parseTokenAmount, NETWORK_NAMES, SUPPORTED_TOKENS } from '../../contracts/MerchPlatform';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -36,11 +39,15 @@ const Checkout = () => {
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [selectedToken, setSelectedToken] = useState('');
+  const [chainId, setChainId] = useState(null);
   const [orderSummary, setOrderSummary] = useState({
     subtotal: 0,
     shippingTotal: 0,
     total: 0
   });
+  const [tokenBalance, setTokenBalance] = useState('0');
+  const [transactionStatus, setTransactionStatus] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,6 +89,19 @@ const Checkout = () => {
           total: subtotal + shippingTotal
         });
 
+        // Set chainId from the first product's network
+        if (items.length > 0) {
+          const networkId = items[0].product.network === 'unichain' ? 1301 : 
+                          items[0].product.network === 'polygon' ? 137 : 
+                          Number(items[0].product.network);
+          setChainId(networkId);
+          setSelectedToken(items[0].product.acceptedToken);
+          console.log('Setting network:', { 
+            original: items[0].product.network, 
+            converted: networkId 
+          });
+        }
+
         // Fetch buyer profile
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
@@ -92,14 +112,11 @@ const Checkout = () => {
             setWalletConnected(true);
             setWalletAddress(userData.walletAddress);
           }
-          // Set the selected token to the product's accepted token
-          if (items.length > 0) {
-            setSelectedToken(items[0].product.acceptedToken);
-          }
         }
 
         setLoading(false);
       } catch (error) {
+        console.error('Error fetching data:', error);
         toast.error('Failed to load checkout data');
         setLoading(false);
       }
@@ -155,6 +172,51 @@ const Checkout = () => {
     }
   };
 
+  const checkTokenBalance = async () => {
+    try {
+      if (!walletAddress || !selectedToken || !chainId) {
+        console.log('Missing required values:', { walletAddress, selectedToken, chainId });
+        return;
+      }
+
+      // Check if the token is supported for this chain
+      const tokenAddress = SUPPORTED_TOKENS[chainId]?.[selectedToken];
+      if (!tokenAddress) {
+        console.error('Token not supported on this chain:', { chainId, selectedToken });
+        return;
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const tokenContract = getTokenContract(provider, chainId, selectedToken);
+
+      console.log('Checking balance for token:', {
+        address: tokenAddress,
+        wallet: walletAddress
+      });
+
+      const balance = await tokenContract.balanceOf(walletAddress);
+      const decimals = 6; // Fixed decimals for USDT/USDC
+
+      console.log(`Balance for ${selectedToken}:`, {
+        raw: balance.toString(),
+        decimals,
+        formatted: ethers.formatUnits(balance, decimals)
+      });
+
+      setTokenBalance(ethers.formatUnits(balance, decimals));
+    } catch (error) {
+      console.error('Error checking balance:', error);
+      setTokenBalance('0');
+    }
+  };
+
+  useEffect(() => {
+    if (walletConnected && selectedToken && chainId && walletAddress) {
+      console.log('Checking balance with:', { walletAddress, selectedToken, chainId });
+      checkTokenBalance();
+    }
+  }, [walletConnected, selectedToken, chainId, walletAddress]);
+
   const handlePlaceOrder = async () => {
     if (!walletConnected) {
       toast.error('Please connect your wallet in your profile settings first');
@@ -173,42 +235,174 @@ const Checkout = () => {
       return;
     }
 
+    // Check if balance is sufficient
+    if (parseFloat(tokenBalance) < orderSummary.total) {
+      toast.error(`Insufficient ${selectedToken} balance`);
+      return;
+    }
+
+    setIsProcessing(true);
     const loadingToast = toast.loading('Processing your order...');
 
     try {
-      // Create order document
-      const orderRef = await addDoc(collection(db, 'orders'), {
-        buyerId: user.uid,
-        items: cartItems.map(item => ({
-          productId: item.product.id,
-          sellerId: item.product.sellerId,
-          sellerName: item.product.sellerName,
-          name: item.product.name,
-          image: item.product.images[0],
-          quantity: item.quantity,
-          price: item.product.price,
-          shippingFee: item.product.shippingFee || 0,
-          acceptedToken: item.product.acceptedToken,
-          tokenLogo: item.product.tokenLogo
-        })),
-        status: 'pending',
-        paymentStatus: 'pending',
-        paymentMethod: {
-          type: 'crypto',
-          token: selectedToken,
-          walletAddress
-        },
-        buyerInfo: {
-          name: buyerProfile.name,
-          email: buyerProfile.email,
-          phone: buyerProfile.phone
-        },
-        shippingAddress: buyerProfile.shippingAddress,
-        subtotal: orderSummary.subtotal,
-        shippingTotal: orderSummary.shippingTotal,
-        total: orderSummary.total,
-        createdAt: serverTimestamp()
+      // Switch to the correct network if needed
+      if (window.ethereum.networkVersion !== chainId.toString()) {
+        setTransactionStatus('Switching network...');
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: `0x${Number(chainId).toString(16)}` }],
+          });
+        } catch (error) {
+          toast.dismiss(loadingToast);
+          toast.error(`Please switch to ${NETWORK_NAMES[chainId]} network in MetaMask`);
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // Get contracts
+      const merchPlatform = getMerchPlatformContract(signer, chainId);
+      const tokenContract = getTokenContract(signer, chainId, selectedToken);
+
+      // Verify contract addresses
+      if (!merchPlatform.address || !tokenContract.address) {
+        throw new Error('Invalid contract addresses');
+      }
+
+      console.log('Contract addresses:', {
+        merchPlatform: merchPlatform.address,
+        token: tokenContract.address,
+        chainId,
+        selectedToken
       });
+
+      // Calculate total amount in smallest token unit (e.g., wei)
+      const totalAmount = ethers.parseUnits(orderSummary.total.toString(), 6); // USDT/USDC use 6 decimals
+
+      // Check current allowance
+      setTransactionStatus('Checking token approval...');
+      const currentAllowance = await tokenContract.allowance(walletAddress, merchPlatform.address);
+      
+      console.log('Allowance check:', {
+        currentAllowance: currentAllowance.toString(),
+        needed: totalAmount.toString(),
+        merchPlatformAddress: merchPlatform.address
+      });
+
+      // If current allowance is less than total amount, request approval
+      if (currentAllowance < totalAmount) {
+        setTransactionStatus('Approving token spending...');
+        console.log('Approving amount:', {
+          amount: totalAmount.toString(),
+          formatted: ethers.formatUnits(totalAmount, 6)
+        });
+        const approveTx = await tokenContract.approve(merchPlatform.address, totalAmount);
+        await approveTx.wait();
+        console.log('Token approval confirmed');
+      } else {
+        console.log('Sufficient allowance exists:', {
+          allowance: currentAllowance.toString(),
+          needed: totalAmount.toString()
+        });
+      }
+
+      // Create order on-chain for each seller
+      const sellerOrders = {};
+      
+      // First, fetch all seller wallets
+      const sellerPromises = cartItems.map(async item => {
+        const sellerId = item.product.sellerId;
+        if (!sellerOrders[sellerId]) {
+          // Fetch seller data from Firestore
+          const sellerDoc = await getDoc(doc(db, 'sellers', sellerId));
+          if (!sellerDoc.exists()) {
+            throw new Error(`Seller ${sellerId} not found`);
+          }
+          const sellerData = sellerDoc.data();
+          if (!sellerData.walletAddress) {
+            throw new Error(`Seller ${sellerId} has no wallet connected`);
+          }
+          const sellerWallet = ethers.getAddress(sellerData.walletAddress); // Ensure proper address format
+          sellerOrders[sellerId] = {
+            seller: sellerWallet,
+            amount: 0,
+            items: []
+          };
+        }
+        return sellerId;
+      });
+
+      // Wait for all seller data to be fetched
+      await Promise.all(sellerPromises);
+
+      // Now group items by seller
+      cartItems.forEach(item => {
+        const sellerId = item.product.sellerId;
+        sellerOrders[sellerId].amount += (item.product.price + (item.product.shippingFee || 0)) * item.quantity;
+        sellerOrders[sellerId].items.push(item);
+      });
+
+      console.log('Seller orders prepared:', sellerOrders);
+
+      // Process each seller's order
+      let orderCount = 0;
+      for (const [sellerId, orderData] of Object.entries(sellerOrders)) {
+        orderCount++;
+        setTransactionStatus(`Processing order ${orderCount}/${Object.keys(sellerOrders).length}...`);
+        const amount = ethers.parseUnits(orderData.amount.toString(), 6);
+        console.log('Creating order:', {
+          seller: orderData.seller,
+          token: tokenContract.address,
+          amount: amount.toString(),
+          formatted: ethers.formatUnits(amount, 6)
+        });
+        const createOrderTx = await merchPlatform.createOrder(
+          orderData.seller,
+          tokenContract.address,
+          amount
+        );
+        await createOrderTx.wait();
+      }
+
+      setTransactionStatus('Saving order details...');
+
+      // Create separate orders for each seller
+      for (const [sellerId, orderData] of Object.entries(sellerOrders)) {
+        await addDoc(collection(db, 'orders'), {
+          buyerId: user.uid,
+          sellerId: sellerId,  // Add sellerId at root level
+          sellerName: orderData.items[0].product.sellerName,
+          items: orderData.items.map(item => ({
+            productId: item.product.id,
+            name: item.product.name,
+            image: item.product.images[0],
+            quantity: item.quantity,
+            price: item.product.price,
+            shippingFee: item.product.shippingFee || 0
+          })),
+          status: 'processing',
+          paymentStatus: 'completed',
+          paymentMethod: {
+            type: 'crypto',
+            token: selectedToken,
+            network: chainId,
+            buyerWallet: walletAddress
+          },
+          buyerInfo: {
+            name: buyerProfile.name,
+            email: buyerProfile.email,
+            phone: buyerProfile.phone
+          },
+          shippingAddress: buyerProfile.shippingAddress,
+          subtotal: orderData.amount,
+          total: orderData.amount, // Include fees in total
+          createdAt: serverTimestamp()
+        });
+      }
 
       // Clear cart
       const deletePromises = cartItems.map(item => 
@@ -220,8 +414,12 @@ const Checkout = () => {
       toast.success('Order placed successfully!');
       navigate(`/merch-store/orders`);
     } catch (error) {
+      console.error('Order error:', error);
       toast.dismiss(loadingToast);
-      toast.error('Failed to place order. Please try again.');
+      toast.error(error.message || 'Failed to place order. Please try again.');
+    } finally {
+      setIsProcessing(false);
+      setTransactionStatus('');
     }
   };
 
@@ -249,7 +447,7 @@ const Checkout = () => {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="max-w-6xl mx-auto"
+      className="min-h-screen bg-[#FFF5F7] p-4 md:p-8"
     >
       <motion.h1
         variants={itemVariants}
@@ -368,21 +566,50 @@ const Checkout = () => {
                   </button>
                 </div>
 
+                {/* Network Information */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BiNetworkChart className="w-5 h-5 text-gray-600" />
+                      <span className="text-sm text-gray-600">Network Required:</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {NETWORK_NAMES[chainId]}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Token Balance */}
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">
                     Payment Token
                   </p>
                   <div className="p-3 rounded-lg border-2 border-[#FF1B6B] bg-pink-50">
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={cartItems[0]?.product?.tokenLogo} 
-                        alt={selectedToken}
-                        className="w-5 h-5"
-                      />
-                      <span>{selectedToken}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={cartItems[0]?.product?.tokenLogo} 
+                          alt={selectedToken}
+                          className="w-5 h-5"
+                        />
+                        <span>{selectedToken}</span>
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        Balance: {parseFloat(tokenBalance).toFixed(2)} {selectedToken}
+                      </span>
                     </div>
                   </div>
                 </div>
+
+                {/* Transaction Status */}
+                {transactionStatus && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
+                      <span className="text-sm text-blue-600">{transactionStatus}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -431,10 +658,13 @@ const Checkout = () => {
 
             <button
               onClick={handlePlaceOrder}
-              disabled={!walletConnected || cartItems.length === 0 || !buyerProfile?.shippingAddress}
+              disabled={!walletConnected || cartItems.length === 0 || !buyerProfile?.shippingAddress || isProcessing || parseFloat(tokenBalance) < orderSummary.total}
               className="w-full mt-6 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {!buyerProfile?.shippingAddress ? 'Add Shipping Address to Continue' : 'Place Order'}
+              {!buyerProfile?.shippingAddress ? 'Add Shipping Address to Continue' :
+               isProcessing ? 'Processing...' :
+               parseFloat(tokenBalance) < orderSummary.total ? `Insufficient ${selectedToken} Balance` :
+               'Place Order'}
             </button>
           </div>
         </motion.div>
