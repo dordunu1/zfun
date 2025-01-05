@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { FiSave, FiAlertTriangle } from 'react-icons/fi';
-import { useAccount } from 'wagmi';
+import detectEthereumProvider from '@metamask/detect-provider';
+import { toast } from 'react-hot-toast';
+
+const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState({
@@ -14,18 +17,55 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const { address: account, isConnected } = useAccount();
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
   const theme = localStorage.getItem('admin-theme') || 'light';
 
   useEffect(() => {
-    if (isConnected) {
+    // Check if wallet is already connected
+    const checkWalletConnection = async () => {
+      try {
+        const provider = await detectEthereumProvider();
+        if (provider) {
+          const accounts = await provider.request({ method: 'eth_accounts' });
+          if (accounts.length > 0 && accounts[0].toLowerCase() === ADMIN_WALLET.toLowerCase()) {
+            setWalletAddress(accounts[0]);
+            setWalletConnected(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      }
+    };
+
+    checkWalletConnection();
+  }, []);
+
+  useEffect(() => {
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0 || accounts[0].toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+          setWalletConnected(false);
+          setWalletAddress('');
+        } else {
+          setWalletAddress(accounts[0]);
+          setWalletConnected(true);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (walletConnected && walletAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
       fetchSettings();
     } else {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [walletConnected, walletAddress]);
 
   const fetchSettings = async () => {
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
     try {
       const settingsDoc = await getDoc(doc(db, 'settings', 'platform'));
       if (settingsDoc.exists()) {
@@ -44,18 +84,19 @@ export default function AdminSettings() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isConnected) return;
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
     
     setSaving(true);
     setMessage({ type: '', text: '' });
 
     try {
-      // Use setDoc instead of updateDoc to ensure the document is created if it doesn't exist
       await setDoc(doc(db, 'settings', 'platform'), settings);
       setMessage({ type: 'success', text: 'Settings updated successfully' });
+      toast.success('Settings updated successfully');
     } catch (error) {
       console.error('Error updating settings:', error);
       setMessage({ type: 'error', text: 'Failed to update settings' });
+      toast.error('Failed to update settings');
     } finally {
       setSaving(false);
     }
@@ -77,7 +118,7 @@ export default function AdminSettings() {
     );
   }
 
-  if (!isConnected) {
+  if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
         <FiAlertTriangle className="w-16 h-16 text-[#FF1B6B] mb-4" />
@@ -175,7 +216,7 @@ export default function AdminSettings() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={saving || !isConnected}
+              disabled={saving || !walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#FF1B6B] hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] disabled:opacity-50"
             >
               <FiSave className="mr-2" />

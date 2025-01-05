@@ -7,25 +7,65 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { NETWORK_NAMES } from '../../contracts/MerchPlatform';
 import { getMerchPlatformContract } from '../../contracts/MerchPlatform';
+import detectEthereumProvider from '@metamask/detect-provider';
+
+const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminWithdrawals() {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
-  const { address: account, isConnected } = useAccount();
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
   const { chain } = useNetwork();
   const { switchNetwork } = useSwitchNetwork();
   const theme = localStorage.getItem('admin-theme') || 'light';
 
   useEffect(() => {
-    if (isConnected) {
+    // Check if wallet is already connected
+    const checkWalletConnection = async () => {
+      try {
+        const provider = await detectEthereumProvider();
+        if (provider) {
+          const accounts = await provider.request({ method: 'eth_accounts' });
+          if (accounts.length > 0 && accounts[0].toLowerCase() === ADMIN_WALLET.toLowerCase()) {
+            setWalletAddress(accounts[0]);
+            setWalletConnected(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      }
+    };
+
+    checkWalletConnection();
+  }, []);
+
+  useEffect(() => {
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0 || accounts[0].toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+          setWalletConnected(false);
+          setWalletAddress('');
+        } else {
+          setWalletAddress(accounts[0]);
+          setWalletConnected(true);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (walletConnected && walletAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
       fetchWithdrawals();
     } else {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [walletConnected, walletAddress]);
 
   const fetchWithdrawals = async () => {
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
     try {
       const withdrawalsQuery = query(
         collection(db, 'withdrawals'),
@@ -46,7 +86,7 @@ export default function AdminWithdrawals() {
   };
 
   const handleApprove = async (withdrawal) => {
-    if (!isConnected) return;
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
     setProcessingId(withdrawal.id);
 
     try {
@@ -108,7 +148,7 @@ export default function AdminWithdrawals() {
   };
 
   const handleReject = async (withdrawalId) => {
-    if (!isConnected) return;
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
     try {
       await updateDoc(doc(db, 'withdrawals', withdrawalId), {
         status: 'rejected',
@@ -130,7 +170,7 @@ export default function AdminWithdrawals() {
     );
   }
 
-  if (!isConnected) {
+  if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
         <FiAlertTriangle className="w-16 h-16 text-[#FF1B6B] mb-4" />

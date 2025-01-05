@@ -38,10 +38,82 @@ export default function AdminDashboard() {
   const [filteredOrders, setFilteredOrders] = useState([]);
 
   useEffect(() => {
-    if (walletConnected) {
+    // Check if wallet is already connected
+    const checkWalletConnection = async () => {
+      try {
+        const provider = await detectEthereumProvider();
+        if (provider) {
+          const accounts = await provider.request({ method: 'eth_accounts' });
+          if (accounts.length > 0 && accounts[0].toLowerCase() === ADMIN_WALLET.toLowerCase()) {
+            setWalletAddress(accounts[0]);
+            setWalletConnected(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      }
+    };
+
+    checkWalletConnection();
+  }, []);
+
+  useEffect(() => {
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0 || accounts[0].toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+          setWalletConnected(false);
+          setWalletAddress('');
+        } else {
+          setWalletAddress(accounts[0]);
+          setWalletConnected(true);
+        }
+      });
+    }
+  }, []);
+
+  const handleConnectWallet = async () => {
+    try {
+      const provider = await detectEthereumProvider();
+      if (!provider) {
+        toast.error('Please install MetaMask to connect your wallet');
+        return;
+      }
+
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
+      
+      if (accounts.length === 0) {
+        toast.error('Please connect your wallet');
+        return;
+      }
+
+      const walletAddress = accounts[0];
+      if (walletAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
+        setWalletAddress(walletAddress);
+        setWalletConnected(true);
+        toast.success('Wallet connected successfully');
+      } else {
+        toast.error('This wallet does not have admin privileges');
+        setWalletConnected(false);
+        setWalletAddress('');
+      }
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+      if (error.code === 4001) {
+        toast.error('You rejected the connection request');
+      } else {
+        toast.error('Failed to connect wallet');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (walletConnected && walletAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
       fetchDashboardData();
     }
-  }, [walletConnected]);
+  }, [walletConnected, walletAddress]);
 
   useEffect(() => {
     if (stats.recentOrders.length > 0) {
@@ -57,39 +129,6 @@ export default function AdminDashboard() {
       setFilteredOrders(filtered);
     }
   }, [searchQuery, stats.recentOrders]);
-
-  const handleConnectWallet = async () => {
-    try {
-      const provider = await detectEthereumProvider();
-      if (!provider) {
-        toast.error('Please install MetaMask to connect your wallet');
-        return;
-      }
-
-      // Request user to select an account
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
-      
-      if (accounts.length === 0) {
-        toast.error('Please connect your wallet');
-        return;
-      }
-
-      const walletAddress = accounts[0];
-      setWalletAddress(walletAddress);
-      setWalletConnected(true);
-
-      toast.success('Wallet connected successfully');
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      if (error.code === 4001) {
-        toast.error('You rejected the connection request');
-      } else {
-        toast.error('Failed to connect wallet');
-      }
-    }
-  };
 
   const fetchDashboardData = async () => {
     try {
@@ -200,7 +239,7 @@ export default function AdminDashboard() {
     return <Navigate to="/merch-store" replace />;
   }
 
-  if (!walletConnected) {
+  if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
     return (
       <div className={`flex flex-col items-center justify-center min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <h1 className="text-2xl font-bold text-[#FF1B6B] mb-4">Admin Authentication Required</h1>
@@ -211,15 +250,6 @@ export default function AdminDashboard() {
         >
           Connect Wallet
         </button>
-      </div>
-    );
-  }
-
-  if (walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
-    return (
-      <div className={`flex flex-col items-center justify-center min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <h1 className="text-2xl font-bold text-red-500 mb-4">Access Denied</h1>
-        <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>This wallet does not have admin privileges</p>
       </div>
     );
   }
@@ -390,6 +420,7 @@ export default function AdminDashboard() {
                   <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Order ID</th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Customer</th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Seller</th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Items</th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Status</th>
                   <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>Date</th>
@@ -406,6 +437,9 @@ export default function AdminDashboard() {
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                       {order.sellerName || 'Unknown Seller'}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                       ${order.total.toFixed(2)}
@@ -472,7 +506,7 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-center">
                     <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Items</span>
                     <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.items?.length || 0}
+                      {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
                     </span>
                   </div>
                   <div className="flex justify-between items-center">

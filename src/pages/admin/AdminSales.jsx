@@ -3,6 +3,10 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { FiTrendingUp, FiDollarSign, FiShoppingBag, FiUsers, FiAlertTriangle } from 'react-icons/fi';
 import { useAccount } from 'wagmi';
+import detectEthereumProvider from '@metamask/detect-provider';
+import { toast } from 'react-hot-toast';
+
+const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminSales() {
   const [salesData, setSalesData] = useState({
@@ -14,16 +18,52 @@ export default function AdminSales() {
   const [sellerSales, setSellerSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState('all');
-  const { address: account, isConnected } = useAccount();
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
   const theme = localStorage.getItem('admin-theme') || 'light';
 
   useEffect(() => {
-    if (isConnected) {
+    // Check if wallet is already connected
+    const checkWalletConnection = async () => {
+      try {
+        const provider = await detectEthereumProvider();
+        if (provider) {
+          const accounts = await provider.request({ method: 'eth_accounts' });
+          if (accounts.length > 0 && accounts[0].toLowerCase() === ADMIN_WALLET.toLowerCase()) {
+            setWalletAddress(accounts[0]);
+            setWalletConnected(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      }
+    };
+
+    checkWalletConnection();
+  }, []);
+
+  useEffect(() => {
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length === 0 || accounts[0].toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+          setWalletConnected(false);
+          setWalletAddress('');
+        } else {
+          setWalletAddress(accounts[0]);
+          setWalletConnected(true);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (walletConnected && walletAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
       fetchSalesData();
     } else {
       setLoading(false);
     }
-  }, [timeFilter, isConnected]);
+  }, [timeFilter, walletConnected, walletAddress]);
 
   const calculatePeriodSales = (sales, days) => {
     const now = new Date();
@@ -33,7 +73,7 @@ export default function AdminSales() {
   };
 
   const fetchSalesData = async () => {
-    if (!isConnected) return;
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
     try {
       const sellersQuery = query(collection(db, 'users'), where('isSeller', '==', true));
       const sellersSnapshot = await getDocs(sellersQuery);
@@ -98,7 +138,7 @@ export default function AdminSales() {
     );
   }
 
-  if (!isConnected) {
+  if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
         <FiAlertTriangle className="w-16 h-16 text-[#FF1B6B] mb-4" />

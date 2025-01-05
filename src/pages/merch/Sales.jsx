@@ -146,8 +146,11 @@ const Sales = () => {
     totalRevenue: 0,
     totalOrders: 0,
     totalCustomers: 0,
-    recentOrders: []
+    recentOrders: [],
+    allOrders: []
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const ordersPerPage = 50;
 
   useEffect(() => {
     fetchSalesData();
@@ -175,7 +178,8 @@ const Sales = () => {
         totalRevenue: revenue,
         totalOrders: orders.length,
         totalCustomers: uniqueCustomers,
-        recentOrders: orders.slice(0, 5) // Get last 5 orders
+        recentOrders: orders.slice(0, 5), // Get last 5 orders
+        allOrders: orders // Store all orders for pagination
       });
     } catch (error) {
       console.error('Error fetching sales data:', error);
@@ -185,6 +189,15 @@ const Sales = () => {
     }
   };
 
+  // Get current orders for pagination
+  const indexOfLastOrder = currentPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = salesData.allOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+  const totalPages = Math.ceil(salesData.allOrders.length / ordersPerPage);
+
+  // Change page
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
   if (loading) {
     return <SalesSkeleton />;
   }
@@ -193,80 +206,158 @@ const Sales = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="space-y-6"
+      className="relative h-screen flex flex-col"
     >
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Sales Overview</h1>
-        <p className="text-gray-500">Monitor your store's performance</p>
+      {/* Fixed Header Section */}
+      <div className="sticky top-0 bg-[#FFF5F7] z-10 pt-4 pb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Sales Overview</h1>
+          <p className="text-gray-500">Monitor your store's performance</p>
+        </div>
+
+        {/* Statistics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+          <StatCard
+            title="Total Revenue"
+            value={`$${salesData.totalRevenue.toFixed(2)}`}
+            icon={BiDollarCircle}
+            trend={12}
+          />
+          <StatCard
+            title="Total Orders"
+            value={salesData.totalOrders}
+            icon={BiPackage}
+            trend={8}
+          />
+          <StatCard
+            title="Total Customers"
+            value={salesData.totalCustomers}
+            icon={BiUser}
+            trend={15}
+          />
+        </div>
       </div>
 
-      {/* Statistics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <StatCard
-          title="Total Revenue"
-          value={`$${salesData.totalRevenue.toFixed(2)}`}
-          icon={BiDollarCircle}
-          trend={12}
-        />
-        <StatCard
-          title="Total Orders"
-          value={salesData.totalOrders}
-          icon={BiPackage}
-          trend={8}
-        />
-        <StatCard
-          title="Total Customers"
-          value={salesData.totalCustomers}
-          icon={BiUser}
-          trend={15}
-        />
-      </div>
-
-      {/* Recent Orders */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h2>
-        {salesData.recentOrders.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-500 border-b">
-                  <th className="pb-3 font-medium">Order ID</th>
-                  <th className="pb-3 font-medium">Customer</th>
-                  <th className="pb-3 font-medium">Products</th>
-                  <th className="pb-3 font-medium">Total</th>
-                  <th className="pb-3 font-medium">Date</th>
-                  <th className="pb-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {salesData.recentOrders.map((order) => (
-                  <tr key={order.id} className="text-sm">
-                    <td className="py-3 text-gray-900">#{order.id.slice(-6)}</td>
-                    <td className="py-3 text-gray-900">{order.buyerName || 'Anonymous'}</td>
-                    <td className="py-3 text-gray-500">{order.items.length} items</td>
-                    <td className="py-3 text-gray-900">${order.total.toFixed(2)}</td>
-                    <td className="py-3 text-gray-500">
-                      {new Date(order.createdAt?.seconds * 1000).toLocaleDateString()}
-                    </td>
-                    <td className="py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        order.status === 'completed'
-                          ? 'bg-green-100 text-green-700'
-                          : order.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto space-y-6 p-4">
+        {/* Recent Orders */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h2>
+          {salesData.recentOrders.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-sm text-gray-500 border-b">
+                    <th className="pb-3 font-medium">Order ID</th>
+                    <th className="pb-3 font-medium">Customer</th>
+                    <th className="pb-3 font-medium">Products</th>
+                    <th className="pb-3 font-medium">Total</th>
+                    <th className="pb-3 font-medium">Date</th>
+                    <th className="pb-3 font-medium">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-gray-500 text-center py-4">No orders yet</p>
-        )}
+                </thead>
+                <tbody className="divide-y">
+                  {salesData.recentOrders.map((order) => (
+                    <tr key={order.id} className="text-sm">
+                      <td className="py-3 text-gray-900">#{order.id.slice(-6)}</td>
+                      <td className="py-3 text-gray-900">{order.buyerInfo?.name || 'Anonymous'}</td>
+                      <td className="py-3 text-gray-500">
+                        {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
+                      </td>
+                      <td className="py-3 text-gray-900">${order.total.toFixed(2)}</td>
+                      <td className="py-3 text-gray-500">
+                        {new Date(order.createdAt?.toDate()).toLocaleDateString()}
+                      </td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          order.status === 'completed'
+                            ? 'bg-green-100 text-green-700'
+                            : order.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {order.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No orders yet</p>
+          )}
+        </div>
+
+        {/* All Sales with Pagination */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">All Sales</h2>
+          {currentOrders.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-sm text-gray-500 border-b">
+                      <th className="pb-3 font-medium">Order ID</th>
+                      <th className="pb-3 font-medium">Customer</th>
+                      <th className="pb-3 font-medium">Products</th>
+                      <th className="pb-3 font-medium">Total</th>
+                      <th className="pb-3 font-medium">Date</th>
+                      <th className="pb-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {currentOrders.map((order) => (
+                      <tr key={order.id} className="text-sm">
+                        <td className="py-3 text-gray-900">#{order.id.slice(-6)}</td>
+                        <td className="py-3 text-gray-900">{order.buyerInfo?.name || 'Anonymous'}</td>
+                        <td className="py-3 text-gray-500">
+                          {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
+                        </td>
+                        <td className="py-3 text-gray-900">${order.total.toFixed(2)}</td>
+                        <td className="py-3 text-gray-500">
+                          {new Date(order.createdAt?.toDate()).toLocaleDateString()}
+                        </td>
+                        <td className="py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            order.status === 'completed'
+                              ? 'bg-green-100 text-green-700'
+                              : order.status === 'pending'
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="mt-4 flex justify-center">
+                <div className="flex gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => paginate(i + 1)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === i + 1
+                          ? 'bg-[#FF1B6B] text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No sales data available</p>
+          )}
+        </div>
       </div>
     </motion.div>
   );
