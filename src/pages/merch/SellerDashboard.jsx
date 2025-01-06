@@ -7,6 +7,7 @@ import { db } from '../../firebase/merchConfig';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import detectEthereumProvider from '@metamask/detect-provider';
+import WithdrawalTermsModal from '../../components/merch/WithdrawalTermsModal';
 
 // Token logos
 const TOKEN_INFO = {
@@ -128,6 +129,37 @@ const DashboardSkeleton = () => (
   </div>
 );
 
+// Add CountdownTimer component
+const CountdownTimer = ({ targetDate }) => {
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+  function calculateTimeLeft() {
+    const difference = targetDate - new Date();
+    if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+
+    return {
+      days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+      minutes: Math.floor((difference / 1000 / 60) % 60),
+      seconds: Math.floor((difference / 1000) % 60)
+    };
+  }
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  return (
+    <div className="font-mono text-sm">
+      {timeLeft.days}d {timeLeft.hours.toString().padStart(2, '0')}h {timeLeft.minutes.toString().padStart(2, '0')}m {timeLeft.seconds.toString().padStart(2, '0')}s
+    </div>
+  );
+};
+
 const SellerDashboard = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
@@ -146,6 +178,11 @@ const SellerDashboard = () => {
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
+  const [sellerData, setSellerData] = useState(null);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [selectedToken, setSelectedToken] = useState('USDC');
+  const [isIncomingPaymentsExpanded, setIsIncomingPaymentsExpanded] = useState(false);
+  const [incomingPayments, setIncomingPayments] = useState([]);
 
   useEffect(() => {
     if (!user?.sellerId) return;
@@ -171,6 +208,7 @@ const SellerDashboard = () => {
       // Fetch seller data
       const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
       const sellerData = sellerDoc.data();
+      setSellerData(sellerData);
 
       // Fetch products
       const productsQuery = query(
@@ -224,17 +262,22 @@ const SellerDashboard = () => {
       const customers = new Set();
 
       orders.forEach(order => {
-        if (order.paymentStatus === 'completed') {
+        // Add all customers with buyerId to the set
+        if (order.buyerId) {
+          customers.add(order.buyerId);
+        }
+
+        if (order.paymentStatus === 'completed' && 
+            order.shippingConfirmed && 
+            order.shippingConfirmedAt && 
+            new Date(order.shippingConfirmedAt.toDate()) <= new Date(order.shippingDeadline.toDate()) &&
+            Date.now() >= new Date(order.fundsAvailableAt.toDate())) {
           const orderTotal = order.total || 0;
           totalRevenue += orderTotal;
           
           // Add to token-specific revenue
           const orderToken = order.paymentMethod?.token || 'USDT';
           tokenRevenue[orderToken] = (tokenRevenue[orderToken] || 0) + orderTotal;
-          
-          if (order.buyerId) {
-            customers.add(order.buyerId);
-          }
         }
       });
 
@@ -258,6 +301,26 @@ const SellerDashboard = () => {
           .filter(o => o.paymentStatus === 'completed')
           .slice(0, 3)
       );
+
+      // Fetch incoming payments
+      const incomingPaymentsQuery = query(
+        collection(db, 'orders'),
+        where('sellerId', '==', user.sellerId),
+        where('paymentStatus', '==', 'completed'),
+        orderBy('createdAt', 'desc')
+      );
+      const incomingPaymentsSnapshot = await getDocs(incomingPaymentsQuery);
+      const incomingPaymentsData = incomingPaymentsSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(order => {
+          const orderDate = order.createdAt.toDate();
+          const threeDaysFromOrder = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
+          return Date.now() < threeDaysFromOrder;
+        });
+      setIncomingPayments(incomingPaymentsData);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -327,8 +390,20 @@ const SellerDashboard = () => {
               <h3 className="text-lg font-semibold text-gray-900">Available Balance</h3>
               <p className="text-sm text-gray-500 mt-1">Withdraw anytime to your wallet</p>
             </div>
-            <div className="p-2 bg-[#FF1B6B] bg-opacity-10 rounded-full">
-              <FiCreditCard className="text-[#FF1B6B] text-xl" />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg">
+                <img 
+                  src={sellerData?.preferredNetwork === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
+                  alt={sellerData?.preferredNetwork === 'unichain' ? 'Unichain' : 'Polygon'}
+                  className="w-6 h-6 object-contain"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  {sellerData?.preferredNetwork === 'unichain' ? 'Unichain' : 'Polygon'} Network
+                </span>
+              </div>
+              <div className="p-2 bg-[#FF1B6B] bg-opacity-10 rounded-full">
+                <FiCreditCard className="text-[#FF1B6B] text-xl" />
+              </div>
             </div>
           </div>
           
@@ -352,43 +427,10 @@ const SellerDashboard = () => {
                 Platform fee: {platformFee}% ({(stats.balances.USDC * platformFee / 100).toFixed(2)} USDC)
               </div>
               <button
-                onClick={async () => {
-                  try {
-                    const provider = await detectEthereumProvider();
-                    if (!provider) {
-                      toast.error('Please install MetaMask to withdraw funds');
-                      return;
-                    }
-
-                    const accounts = await provider.request({ method: 'eth_requestAccounts' });
-                    if (accounts.length === 0) {
-                      toast.error('Please connect your wallet');
-                      return;
-                    }
-
-                    if (stats.balances.USDC < minWithdrawal) {
-                      toast.error(`Minimum withdrawal amount is ${minWithdrawal} USDC`);
-                      return;
-                    }
-
-                    // Create withdrawal request
-                    await addDoc(collection(db, 'withdrawals'), {
-                      sellerId: user.sellerId,
-                      amount: stats.balances.USDC,
-                      token: 'USDC',
-                      fee: stats.balances.USDC * platformFee / 100,
-                      netAmount: stats.balances.USDC * (1 - platformFee / 100),
-                      status: 'pending',
-                      walletAddress: accounts[0],
-                      network: user.network || 'polygon',
-                      timestamp: serverTimestamp()
-                    });
-
-                    toast.success('Withdrawal request submitted');
-                  } catch (error) {
-                    console.error('Withdrawal error:', error);
-                    toast.error('Failed to process withdrawal');
-                  }
+                onClick={() => {
+                  if (!stats.balances.USDC || stats.balances.USDC < minWithdrawal) return;
+                  setSelectedToken('USDC');
+                  setIsTermsModalOpen(true);
                 }}
                 disabled={!stats.balances.USDC || stats.balances.USDC < minWithdrawal}
                 className={`w-full mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -399,7 +441,7 @@ const SellerDashboard = () => {
               >
                 {!stats.balances.USDC || stats.balances.USDC < minWithdrawal 
                   ? `Min. ${minWithdrawal} USDC Required`
-                  : 'Withdraw USDC'}
+                  : 'Request USDC Withdrawal'}
               </button>
             </div>
 
@@ -422,43 +464,10 @@ const SellerDashboard = () => {
                 Platform fee: {platformFee}% ({(stats.balances.USDT * platformFee / 100).toFixed(2)} USDT)
               </div>
               <button
-                onClick={async () => {
-                  try {
-                    const provider = await detectEthereumProvider();
-                    if (!provider) {
-                      toast.error('Please install MetaMask to withdraw funds');
-                      return;
-                    }
-
-                    const accounts = await provider.request({ method: 'eth_requestAccounts' });
-                    if (accounts.length === 0) {
-                      toast.error('Please connect your wallet');
-                      return;
-                    }
-
-                    if (stats.balances.USDT < minWithdrawal) {
-                      toast.error(`Minimum withdrawal amount is ${minWithdrawal} USDT`);
-                      return;
-                    }
-
-                    // Create withdrawal request
-                    await addDoc(collection(db, 'withdrawals'), {
-                      sellerId: user.sellerId,
-                      amount: stats.balances.USDT,
-                      token: 'USDT',
-                      fee: stats.balances.USDT * platformFee / 100,
-                      netAmount: stats.balances.USDT * (1 - platformFee / 100),
-                      status: 'pending',
-                      walletAddress: accounts[0],
-                      network: user.network || 'polygon',
-                      timestamp: serverTimestamp()
-                    });
-
-                    toast.success('Withdrawal request submitted');
-                  } catch (error) {
-                    console.error('Withdrawal error:', error);
-                    toast.error('Failed to process withdrawal');
-                  }
+                onClick={() => {
+                  if (!stats.balances.USDT || stats.balances.USDT < minWithdrawal) return;
+                  setSelectedToken('USDT');
+                  setIsTermsModalOpen(true);
                 }}
                 disabled={!stats.balances.USDT || stats.balances.USDT < minWithdrawal}
                 className={`w-full mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -469,7 +478,7 @@ const SellerDashboard = () => {
               >
                 {!stats.balances.USDT || stats.balances.USDT < minWithdrawal 
                   ? `Min. ${minWithdrawal} USDT Required`
-                  : 'Withdraw USDT'}
+                  : 'Request USDT Withdrawal'}
               </button>
             </div>
           </div>
@@ -506,6 +515,123 @@ const SellerDashboard = () => {
             </div>
           </motion.div>
         ))}
+      </motion.div>
+
+      {/* Incoming Payments Section */}
+      <motion.div 
+        className="bg-white rounded-lg shadow-lg p-6 mb-8"
+        variants={itemVariants}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Incoming Payments</h3>
+            <p className="text-sm text-gray-500">Payments pending 3-day shipping confirmation</p>
+          </div>
+          <button
+            onClick={() => setIsIncomingPaymentsExpanded(!isIncomingPaymentsExpanded)}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg
+              className={`w-6 h-6 text-gray-500 transform transition-transform ${isIncomingPaymentsExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        {isIncomingPaymentsExpanded && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available In</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {incomingPayments.map((payment) => {
+                  const orderDate = payment.createdAt.toDate();
+                  const availableDate = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
+                  const daysRemaining = Math.max(0, Math.ceil((availableDate - Date.now()) / (24 * 60 * 60 * 1000)));
+                  
+                  return (
+                    <tr key={payment.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        #{payment.id.slice(-6)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {orderDate.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${payment.total.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <img 
+                            src={payment.paymentMethod.token === 'USDC' ? TOKEN_INFO.USDC.logo : TOKEN_INFO.USDT.logo}
+                            alt={payment.paymentMethod.token}
+                            className="w-5 h-5 mr-2"
+                          />
+                          <span className="text-sm text-gray-900">{payment.paymentMethod.token}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {payment.shippingConfirmed ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-medium text-green-600">
+                              Shipping Confirmed
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {payment.carrier}: {payment.trackingNumber}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span>Processing</span>
+                              <div className="w-20 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(100, ((3 - daysRemaining) / 3) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                            Awaiting Shipping
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex flex-col gap-1">
+                          <CountdownTimer 
+                            targetDate={availableDate}
+                          />
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div 
+                              className="bg-[#FF1B6B] h-1.5 rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(100, ((3 - daysRemaining) / 3) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {incomingPayments.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No incoming payments at the moment
+              </div>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* Recent Activity */}
@@ -589,15 +715,32 @@ const SellerDashboard = () => {
                         {withdrawal.amount} {withdrawal.token || stats.preferredToken}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          withdrawal.status === 'completed' 
-                            ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-                            : withdrawal.status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
-                            : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
-                        }`}>
-                          {withdrawal.status}
-                        </span>
+                        {withdrawal.status === 'pending' ? (
+                          <div className="space-y-2">
+                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100">
+                              Processing
+                            </span>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
+                                style={{ 
+                                  width: `${Math.min(100, (Date.now() - withdrawal.timestamp) / (17 * 24 * 60 * 60 * 1000) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {Math.max(0, 17 - Math.floor((Date.now() - withdrawal.timestamp) / (24 * 60 * 60 * 1000)))} days remaining
+                            </div>
+                          </div>
+                        ) : (
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            withdrawal.status === 'completed' 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
+                              : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
+                          }`}>
+                            {withdrawal.status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                         {withdrawal.transactionHash ? (
@@ -623,6 +766,54 @@ const SellerDashboard = () => {
           )}
         </div>
       </motion.div>
+
+      {/* Terms Modal */}
+      <WithdrawalTermsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => setIsTermsModalOpen(false)}
+        onAccept={async () => {
+          try {
+            const provider = await detectEthereumProvider();
+            if (!provider) {
+              toast.error('Please install MetaMask to withdraw funds');
+              return;
+            }
+
+            const accounts = await provider.request({ method: 'eth_requestAccounts' });
+            if (accounts.length === 0) {
+              toast.error('Please connect your wallet');
+              return;
+            }
+
+            const balance = selectedToken === 'USDC' ? stats.balances.USDC : stats.balances.USDT;
+            if (balance < minWithdrawal) {
+              toast.error(`Minimum withdrawal amount is ${minWithdrawal} ${selectedToken}`);
+              return;
+            }
+
+            // Create withdrawal request
+            await addDoc(collection(db, 'withdrawals'), {
+              sellerId: user.sellerId,
+              amount: balance,
+              token: selectedToken,
+              fee: balance * platformFee / 100,
+              netAmount: balance * (1 - platformFee / 100),
+              status: 'pending',
+              walletAddress: accounts[0],
+              network: user.network || 'polygon',
+              timestamp: serverTimestamp(),
+              requestedAt: Date.now(),
+              processingDays: 17
+            });
+
+            toast.success('Withdrawal request submitted');
+          } catch (error) {
+            console.error('Withdrawal error:', error);
+            toast.error('Failed to process withdrawal');
+          }
+        }}
+        token={selectedToken}
+      />
     </motion.div>
   );
 };

@@ -29,6 +29,13 @@ export default function AdminLayout() {
     { path: '/admin/settings', icon: <FiSettings />, label: 'Settings' },
   ];
 
+  const navigation = [
+    { name: 'Dashboard', to: '/admin', icon: FiGrid },
+    { name: 'Sales', to: '/admin/sales', icon: FiDollarSign },
+    { name: 'Withdrawals', to: '/admin/withdrawals', icon: FiCreditCard },
+    { name: 'Settings', to: '/admin/settings', icon: FiSettings },
+  ];
+
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}

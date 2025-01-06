@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { BiPackage, BiChevronRight } from 'react-icons/bi';
+import { FaPlaneDeparture } from 'react-icons/fa';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
@@ -212,76 +213,76 @@ const Orders = () => {
             <motion.div
               key={order.id}
               variants={itemVariants}
-              className="bg-white rounded-lg p-6"
+              className="bg-white rounded-lg p-4"
             >
-              <div className="space-y-4">
-                {/* Order Header */}
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-medium text-gray-800">
-                      Order #{order.id.slice(-6)}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {new Date(order.createdAt?.seconds * 1000).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                      order.status
-                    )}`}
-                  >
-                    {order.status}
+              {/* Order Header */}
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-gray-800">
+                    Order #{order.id.slice(-6)}
+                  </h3>
+                  <span className="text-sm text-gray-500">
+                    {new Date(order.createdAt?.seconds * 1000).toLocaleDateString()}
                   </span>
                 </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                    order.status
+                  )}`}
+                >
+                  {order.status}
+                </span>
+              </div>
 
-                {/* Order Items */}
-                <div className="border-t pt-4">
-                  {order.items.map((item) => (
-                    <div key={item.productId} className="flex gap-4 items-center">
+              {/* Order Items */}
+              <div className="border-t border-gray-100">
+                {order.items.map((item) => (
+                  <div key={item.productId} className="flex items-center gap-3 py-3">
+                    <Link
+                      to={`/merch-store/product/${item.productId}`}
+                      className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0"
+                    >
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </Link>
+                    <div className="flex-1 min-w-0">
                       <Link
                         to={`/merch-store/product/${item.productId}`}
-                        className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0"
+                        className="font-medium text-gray-800 hover:text-[#FF1B6B] block truncate"
                       >
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
+                        {item.name}
                       </Link>
-                      <div className="flex-1">
-                        <Link
-                          to={`/merch-store/product/${item.productId}`}
-                          className="font-medium text-gray-800 hover:text-[#FF1B6B]"
-                        >
-                          {item.name}
-                        </Link>
-                        <div className="flex items-center gap-2 mt-1">
-                          <img
-                            src={item.tokenLogo}
-                            alt={item.acceptedToken}
-                            className="w-4 h-4"
-                          />
-                          <span className="text-[#FF1B6B] font-medium">
-                            ${item.price.toFixed(2)}
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            × {item.quantity}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <img
+                          src={`/${item.token?.toLowerCase() || 'usdt'}.png`}
+                          alt={item.token || 'USDT'}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-[#FF1B6B] font-medium">
+                          ${item.price.toFixed(2)}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          × {item.quantity}
+                        </span>
                       </div>
-                      <BiChevronRight className="text-gray-400 text-xl" />
                     </div>
-                  ))}
-                </div>
+                    <BiChevronRight className="text-gray-400 text-xl" />
+                  </div>
+                ))}
+              </div>
 
-                {/* Order Summary */}
-                <div className="border-t pt-4">
-                  <div className="flex justify-between text-sm">
+              {/* Order Summary and Tracking */}
+              <div className="border-t border-gray-100 pt-3">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
                     <span className="text-gray-500">Total Amount</span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <img
-                        src={order.items[0].tokenLogo}
-                        alt={order.items[0].acceptedToken}
+                        src={`/${order.items[0]?.token?.toLowerCase() || 'usdt'}.png`}
+                        alt={order.items[0]?.token || 'USDT'}
                         className="w-4 h-4"
                       />
                       <span className="font-medium text-gray-800">
@@ -289,7 +290,29 @@ const Orders = () => {
                       </span>
                     </div>
                   </div>
+                  {order.status === 'shipped' && (
+                    <span className="text-sm text-gray-600">
+                      Estimated Delivery: {new Date(order.createdAt?.seconds * 1000 + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                    </span>
+                  )}
                 </div>
+
+                {order.trackingNumber && (
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="text-sm text-gray-700">
+                      <span className="font-medium">{order.carrier || 'other'}</span> Tracking: 
+                      <span className="ml-1 font-medium">{order.trackingNumber}</span>
+                    </div>
+                    {order.shippingStatus === 'in_transit' ? (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <FaPlaneDeparture className="text-base" />
+                        <span className="font-medium">In Transit</span>
+                      </div>
+                    ) : (
+                      <span className="text-green-600 font-medium">Delivered</span>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}

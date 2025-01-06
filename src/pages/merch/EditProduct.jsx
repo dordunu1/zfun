@@ -34,6 +34,11 @@ const NETWORK_INFO = {
         logo: '/logos/usdt.png',
         name: 'USDT (Tether)',
         decimals: 6
+      },
+      USDC: {
+        logo: '/logos/usdc.png',
+        name: 'USDC (USD Coin)',
+        decimals: 6
       }
     }
   }
@@ -411,21 +416,15 @@ const EditProduct = () => {
                 </div>
 
                 {/* Payment Information Display */}
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-200">
-                  <div className="flex-shrink-0">
-                    <img 
-                      src={NETWORK_INFO[product.network]?.tokens?.[product.acceptedToken]?.logo}
-                      alt={product.acceptedToken}
-                      className="w-5 h-5"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>Buyers will pay in</span>
-                    <span className="font-medium">{product.acceptedToken}</span>
-                    <span>on</span>
-                    <span className="font-medium">{NETWORK_INFO[product.network]?.name}</span>
-                    <span>network</span>
-                  </div>
+                <div className="flex items-center gap-2 px-4 py-3 bg-pink-50 rounded-lg border border-pink-100 mt-2">
+                  <img 
+                    src={`/${product.acceptedToken.toLowerCase()}.png`}
+                    alt={product.acceptedToken}
+                    className="w-5 h-5 object-contain"
+                  />
+                  <p className="text-sm text-gray-700">
+                    Buyers will pay in <span className="font-medium">{product.acceptedToken}</span> on <span className="font-medium">{NETWORK_INFO[product.network]?.name}</span>
+                  </p>
                 </div>
               </div>
             </div>

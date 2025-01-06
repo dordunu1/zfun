@@ -403,7 +403,7 @@ const Checkout = () => {
 
         await addDoc(collection(db, 'orders'), {
           buyerId: user.uid,
-          sellerId: sellerId,  // Add sellerId at root level
+          sellerId: sellerId,
           sellerName: orderData.items[0].product.sellerName,
           items: orderData.items.map(item => ({
             productId: item.product.id,
@@ -430,8 +430,16 @@ const Checkout = () => {
           },
           shippingAddress: buyerProfile.shippingAddress,
           subtotal: orderData.amount,
-          total: orderData.amount, // Include fees in total
-          createdAt: serverTimestamp()
+          total: orderData.amount,
+          createdAt: serverTimestamp(),
+          // New fields for shipping confirmation and funds
+          shippingConfirmed: false,
+          shippingConfirmedAt: null,
+          fundsAvailable: false,
+          fundsAvailableAt: null,
+          // Track deadlines
+          shippingDeadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
+          fundsReleaseDate: new Date(Date.now() + 17 * 24 * 60 * 60 * 1000) // 17 days
         });
       }
 

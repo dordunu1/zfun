@@ -657,23 +657,17 @@ const AddProduct = () => {
                 </div>
 
                 {/* Payment Information Display */}
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white rounded-lg p-3 border border-gray-200">
-                  <div className="flex-shrink-0">
-                    <img 
-                      src={`/${productData.acceptedToken.toLowerCase()}.png`}
-                      alt={productData.acceptedToken}
-                      className="w-5 h-5"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>Buyers will pay in</span>
-                    <span className="font-medium">{productData.acceptedToken}</span>
-                    <span>on</span>
-                    <span className="font-medium">{
+                <div className="flex items-center gap-2 px-4 py-3 bg-pink-50 rounded-lg border border-pink-100 mt-2">
+                  <img 
+                    src={`/${productData.acceptedToken.toLowerCase()}.png`}
+                    alt={productData.acceptedToken}
+                    className="w-5 h-5 object-contain"
+                  />
+                  <p className="text-sm text-gray-700">
+                    Buyers will pay in <span className="font-medium">{productData.acceptedToken}</span> on <span className="font-medium">{
                       NETWORKS.find(n => n.id === productData.network)?.name || 'selected'
                     }</span>
-                    <span>network</span>
-                  </div>
+                  </p>
                 </div>
               </div>
             </div>

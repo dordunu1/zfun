@@ -240,13 +240,13 @@ const Browse = () => {
 
   return (
     <motion.div
-      className="max-w-7xl mx-auto p-4 space-y-6"
+      className="max-w-7xl mx-auto p-4"
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
       {/* Search and Filter */}
-      <motion.div variants={itemVariants} className="flex items-center justify-between gap-4">
+      <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-4 mb-6">
         <div className="relative w-[400px]">
           <input
             type="text"

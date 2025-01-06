@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import AdminLayout from './components/admin/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminSales from './pages/admin/Sales';
+import { Outlet } from 'react-router-dom';
 import { Web3Modal } from '@web3modal/react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -18,10 +22,10 @@ import Signup from './pages/merch/Signup';
 import ProtectedRoute from './components/merch/ProtectedRoute';
 
 function App() {
+  const { isDarkMode } = useTheme();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
-  const { isDarkMode } = useTheme();
 
   return (
     <DeploymentsProvider>
@@ -35,6 +39,16 @@ function App() {
           
           <div className="min-h-screen bg-white dark:bg-[#0a0b0f]">
             <Toaster position="top-right" />
+            <Routes>
+              {/* Admin Routes */}
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="sales" element={<AdminSales />} />
+                {/* ... other admin routes ... */}
+              </Route>
+
+              {/* ... other routes ... */}
+            </Routes>
             <Sidebar 
               onOpenModal={() => setIsModalOpen(true)}
               onOpenNFTModal={() => setIsNFTModalOpen(true)}

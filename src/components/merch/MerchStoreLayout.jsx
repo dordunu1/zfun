@@ -85,6 +85,9 @@ const MerchStoreLayout = () => {
                   MerchStore
                 </span>
               </Link>
+              <div className="ml-4 px-3 py-1 bg-red-100 border border-red-200 rounded-full">
+                <span className="text-xs font-medium text-red-600">Development Mode - No Real Transactions</span>
+              </div>
             </div>
 
             {/* Right side */}

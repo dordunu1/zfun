@@ -17,7 +17,7 @@ import SellerDashboard from './pages/merch/SellerDashboard';
 import AddProduct from './pages/merch/AddProduct';
 import Products from './pages/merch/Products';
 import EditProduct from './pages/merch/EditProduct';
-import Sales from './pages/merch/Sales';
+import MerchSales from './pages/merch/Sales';
 import OrdersReceived from './pages/merch/OrdersReceived';
 import Settings from './pages/merch/Settings';
 import Browse from './pages/merch/Browse';
@@ -28,7 +28,7 @@ import Checkout from './pages/merch/Checkout';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals';
-import AdminSales from './pages/admin/AdminSales';
+import AdminSales from './pages/admin/Sales';
 import AdminSettings from './pages/admin/AdminSettings';
 
 const ADMIN_WALLET = "0x34B5e3B8465e0A4b40b4D0819C1eB6c38E160b33"; // We'll replace this with your actual address
@@ -179,7 +179,7 @@ export const router = createBrowserRouter([
         path: 'sales',
         element: (
           <ProtectedRoute sellerOnly>
-            <Sales />
+            <MerchSales />
           </ProtectedRoute>
         ),
       },
