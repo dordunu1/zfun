@@ -9,9 +9,9 @@ const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminSettings() {
   const [settings, setSettings] = useState({
-    withdrawalMinimum: 50,
+    withdrawalMinimum: 5,
     platformFee: 2.5,
-    withdrawalProcessingTime: '3-5',
+    withdrawalProcessingTime: '1',
     maintenanceMode: false
   });
   const [loading, setLoading] = useState(true);

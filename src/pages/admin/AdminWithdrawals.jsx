@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { FiCheck, FiX, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { NETWORK_NAMES } from '../../contracts/MerchPlatform';
 import { getMerchPlatformContract } from '../../contracts/MerchPlatform';
 import detectEthereumProvider from '@metamask/detect-provider';
+import AdminRecentWithdrawals from './AdminRecentWithdrawals';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
@@ -20,6 +21,16 @@ export default function AdminWithdrawals() {
   const { chain } = useNetwork();
   const { switchNetwork } = useSwitchNetwork();
   const theme = localStorage.getItem('admin-theme') || 'light';
+  const [platformFeeAmounts, setPlatformFeeAmounts] = useState({
+    unichain: {
+      USDT: { fees: '0', amount: '' },
+      USDC: { fees: '0', amount: '' }
+    },
+    polygon: {
+      USDT: { fees: '0', amount: '' },
+      USDC: { fees: '0', amount: '' }
+    }
+  });
 
   useEffect(() => {
     // Check if wallet is already connected
@@ -73,52 +84,90 @@ export default function AdminWithdrawals() {
         orderBy('timestamp', 'desc')
       );
       const snapshot = await getDocs(withdrawalsQuery);
-      const withdrawalData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      
+      // Fetch all unique seller IDs
+      const sellerIds = [...new Set(snapshot.docs.map(doc => doc.data().sellerId))];
+      
+      // Fetch seller details in parallel
+      const sellerDetailsPromises = sellerIds.map(sellerId => 
+        getDoc(doc(db, 'sellers', sellerId))
+      );
+      const sellerDetailsSnapshots = await Promise.all(sellerDetailsPromises);
+      
+      // Create a map of seller details
+      const sellerDetailsMap = {};
+      sellerDetailsSnapshots.forEach(sellerDoc => {
+        if (sellerDoc.exists()) {
+          sellerDetailsMap[sellerDoc.id] = sellerDoc.data();
+        }
+      });
+
+      // Map withdrawals with seller details
+      const withdrawalData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const sellerDetails = sellerDetailsMap[data.sellerId] || {};
+        return {
+          id: doc.id,
+          ...data,
+          storeName: sellerDetails.storeName || 'Unknown Store',
+          storeId: `SELL_${data.sellerId}`,
+          storeAvatar: sellerDetails.avatarUrl || null
+        };
+      });
+
       setWithdrawals(withdrawalData);
     } catch (error) {
       console.error('Error fetching withdrawals:', error);
+      toast.error('Failed to fetch withdrawal requests');
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (withdrawal) => {
-    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) return;
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+      toast.error('Please connect your admin wallet');
+      return;
+    }
+    
     setProcessingId(withdrawal.id);
 
     try {
       // Get the network for this withdrawal
-      const network = withdrawal.network || (withdrawal.token === 'USDT' ? '1301' : '137');
+      const network = withdrawal.network === 'unichain' ? '1301' : '137';
       const chainId = Number(network);
 
-      // Switch network if needed
-      if (chain?.id !== chainId) {
-        await switchNetwork(chainId);
+      // Only switch network if we're on a different network
+      if (chain?.id !== chainId && switchNetwork) {
+        try {
+          await switchNetwork(chainId);
+          // Wait for network switch to complete
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          throw new Error(`Failed to switch to ${network === '1301' ? 'Unichain' : 'Polygon'} network`);
+        }
       }
 
-      // Get contract for this network
-      const contract = await getMerchPlatformContract(chainId);
+      // Get provider and signer
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // Get contract with signer - note the order: provider first, then chainId
+      const contract = await getMerchPlatformContract(signer, chainId);
       if (!contract) {
         throw new Error('Could not get contract instance');
       }
 
       // Convert amount to proper decimals (6 for USDT/USDC)
       const amount = ethers.parseUnits(withdrawal.amount.toString(), 6);
-
-      // Get token address
+      
+      // Get token address based on network and token type
       const tokenAddress = withdrawal.token === 'USDT' 
         ? (chainId === 1301 ? import.meta.env.VITE_UNICHAIN_USDT_ADDRESS : import.meta.env.VITE_USDT_ADDRESS_POLYGON)
         : (chainId === 1301 ? import.meta.env.VITE_UNICHAIN_USDC_ADDRESS : import.meta.env.VITE_USDC_ADDRESS_POLYGON);
 
-      console.log('Approving withdrawal:', {
-        seller: withdrawal.walletAddress,
-        token: tokenAddress,
-        amount: amount.toString(),
-        formatted: ethers.formatUnits(amount, 6)
-      });
+      // Show pending toast
+      toast.loading('Please confirm the transaction in MetaMask...', { id: 'withdrawal' });
 
       // Approve withdrawal on-chain
       const tx = await contract.approveWithdrawal(
@@ -127,21 +176,52 @@ export default function AdminWithdrawals() {
         amount
       );
 
+      // Update toast to show transaction is processing
+      toast.loading('Processing withdrawal...', { id: 'withdrawal' });
+
       // Wait for transaction confirmation
-      await tx.wait();
+      const receipt = await tx.wait();
 
-      // Update status in Firestore
-      await updateDoc(doc(db, 'withdrawals', withdrawal.id), {
-        status: 'approved',
-        processedAt: new Date(),
-        transactionHash: tx.hash
-      });
+      if (receipt.status === 1) {
+        // Get seller's current balance from Firestore
+        const sellerDoc = await getDoc(doc(db, 'sellers', withdrawal.sellerId));
+        if (sellerDoc.exists()) {
+          const sellerData = sellerDoc.data();
+          const currentBalance = sellerData.balances?.[withdrawal.token] || 0;
+          
+          // Calculate new balance
+          const newBalance = Math.max(0, currentBalance - withdrawal.amount);
+          
+          // Update seller's balance in Firestore
+          await updateDoc(doc(db, 'sellers', withdrawal.sellerId), {
+            [`balances.${withdrawal.token}`]: newBalance,
+            updatedAt: new Date()
+          });
+        }
 
-      toast.success('Withdrawal approved successfully');
-      fetchWithdrawals();
+        // Update withdrawal status in Firestore
+        await updateDoc(doc(db, 'withdrawals', withdrawal.id), {
+          status: 'approved',
+          processedAt: new Date(),
+          transactionHash: tx.hash,
+          processedBy: walletAddress
+        });
+
+        toast.success('Withdrawal approved successfully', { id: 'withdrawal' });
+        
+        // Refresh the withdrawals list
+        await fetchWithdrawals();
+      } else {
+        throw new Error('Transaction failed');
+      }
     } catch (error) {
       console.error('Error approving withdrawal:', error);
-      toast.error(error.message || 'Failed to approve withdrawal');
+      toast.error(
+        error.message.includes('user rejected') 
+          ? 'Transaction was rejected'
+          : error.message || 'Failed to approve withdrawal',
+        { id: 'withdrawal' }
+      );
     } finally {
       setProcessingId(null);
     }
@@ -159,6 +239,291 @@ export default function AdminWithdrawals() {
     } catch (error) {
       console.error('Error rejecting withdrawal:', error);
       toast.error('Failed to reject withdrawal');
+    }
+  };
+
+  const fetchPlatformFees = async () => {
+    try {
+      // Token ABI for balance checking
+      const tokenABI = ["function balanceOf(address) view returns (uint256)"];
+
+      // Get Unichain balances
+      const unichainProvider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
+      const unichainContract = await getMerchPlatformContract(unichainProvider, '1301');
+      
+      console.log('Unichain Contract Address:', unichainContract?.target);
+      
+      let newBalances = {
+        unichain: {
+          USDT: { total: 0, fees: 0, available: 0 },
+          USDC: { total: 0, fees: 0, available: 0 }
+        },
+        polygon: {
+          USDT: { total: 0, fees: 0, available: 0 },
+          USDC: { total: 0, fees: 0, available: 0 }
+        }
+      };
+      
+      if (unichainContract && unichainContract.target) {
+        try {
+          // Get USDT balance
+          const unichainUSDTContract = new ethers.Contract(
+            import.meta.env.VITE_UNICHAIN_USDT_ADDRESS,
+            tokenABI,
+            unichainProvider
+          );
+          const unichainUSDTBalance = await unichainUSDTContract.balanceOf(unichainContract.target);
+          const formattedUSDTBalance = Number(ethers.formatUnits(unichainUSDTBalance, 6));
+          
+          // Calculate fees from orders that haven't been withdrawn
+          const ordersQuery = query(
+            collection(db, 'orders'),
+            where('paymentMethod.network', '==', 1301),
+            where('paymentMethod.token', '==', 'USDT'),
+            where('platformFeeWithdrawn', '==', false),
+            where('status', '==', 'completed') // Only count completed orders
+          );
+          const ordersSnapshot = await getDocs(ordersQuery);
+          const usdtFees = ordersSnapshot.docs.reduce((sum, doc) => {
+            const orderData = doc.data();
+            return sum + (orderData.total * 0.05); // 5% platform fee
+          }, 0);
+
+          // Only show fees if there's an actual balance in the contract
+          const displayFees = formattedUSDTBalance > 0 ? usdtFees : 0;
+
+          newBalances.unichain.USDT = {
+            total: formattedUSDTBalance,
+            fees: displayFees,
+            available: formattedUSDTBalance - displayFees
+          };
+          
+          console.log('Unichain USDT:', newBalances.unichain.USDT);
+          
+          // Update state immediately after getting USDT values
+          setPlatformFeeAmounts(prev => ({
+            ...prev,
+            unichain: {
+              ...prev.unichain,
+              USDT: { 
+                fees: displayFees.toString(),
+                amount: ''
+              }
+            }
+          }));
+        } catch (error) {
+          console.error('Error fetching USDT balances:', error);
+        }
+
+        try {
+          // Get USDC balance
+          const unichainUSDCContract = new ethers.Contract(
+            import.meta.env.VITE_UNICHAIN_USDC_ADDRESS,
+            tokenABI,
+            unichainProvider
+          );
+          const unichainUSDCBalance = await unichainUSDCContract.balanceOf(unichainContract.target);
+          const formattedUSDCBalance = Number(ethers.formatUnits(unichainUSDCBalance, 6));
+          
+          // Calculate fees from orders that haven't been withdrawn
+          const ordersQuery = query(
+            collection(db, 'orders'),
+            where('paymentMethod.network', '==', 1301),
+            where('paymentMethod.token', '==', 'USDC'),
+            where('platformFeeWithdrawn', '==', false),
+            where('status', '==', 'completed')
+          );
+          const ordersSnapshot = await getDocs(ordersQuery);
+          const usdcFees = ordersSnapshot.docs.reduce((sum, doc) => {
+            const orderData = doc.data();
+            return sum + (orderData.total * 0.05); // 5% platform fee
+          }, 0);
+
+          // Update state with actual fees from orders
+          setPlatformFeeAmounts(prev => ({
+            ...prev,
+            unichain: {
+              ...prev.unichain,
+              USDC: { 
+                fees: usdcFees > 0 ? usdcFees.toString() : '0',
+                amount: ''
+              }
+            }
+          }));
+
+          newBalances.unichain.USDC = {
+            total: formattedUSDCBalance,
+            fees: usdcFees,
+            available: formattedUSDCBalance - usdcFees
+          };
+          
+          console.log('Unichain USDC:', newBalances.unichain.USDC);
+        } catch (error) {
+          console.error('Error fetching USDC balances:', error);
+        }
+      }
+
+      console.log('Updated Platform Fee Amounts:', newBalances);
+    } catch (error) {
+      console.error('Error fetching platform fees:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (walletConnected) {
+      fetchPlatformFees();
+      const interval = setInterval(fetchPlatformFees, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [walletConnected]);
+
+  const handleAmountChange = (network, token, value) => {
+    setPlatformFeeAmounts(prev => ({
+      ...prev,
+      [network]: {
+        ...prev[network],
+        [token]: { ...prev[network][token], amount: value }
+      }
+    }));
+  };
+
+  const handleWithdrawPlatformFees = async (network, token) => {
+    if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+      toast.error('Please connect your admin wallet');
+      return;
+    }
+
+    const amount = platformFeeAmounts[network][token].amount;
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    try {
+      const chainId = network === 'unichain' ? '1301' : '137';
+      console.log('Starting withdrawal process:', { network, token, chainId, amount });
+
+      // Check if we need to switch networks
+      if (chain?.id !== Number(chainId) && switchNetwork) {
+        console.log('Switching network to:', chainId);
+        try {
+          await switchNetwork(Number(chainId));
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error('Network switch failed:', error);
+          throw new Error(`Failed to switch to ${network === 'unichain' ? 'Unichain' : 'Polygon'} network`);
+        }
+      }
+
+      console.log('Getting provider and signer...');
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      
+      console.log('Getting contract instance...');
+      const contract = await getMerchPlatformContract(signer, chainId);
+      
+      if (!contract) {
+        throw new Error('Could not get contract instance');
+      }
+
+      const tokenAddress = token === 'USDT' 
+        ? (chainId === '1301' ? import.meta.env.VITE_UNICHAIN_USDT_ADDRESS : import.meta.env.VITE_USDT_ADDRESS_POLYGON)
+        : (chainId === '1301' ? import.meta.env.VITE_UNICHAIN_USDC_ADDRESS : import.meta.env.VITE_USDC_ADDRESS_POLYGON);
+
+      console.log('Contract and token details:', {
+        contractAddress: contract.target,
+        tokenAddress,
+        withdrawAmount: amount
+      });
+
+      const parsedAmount = ethers.parseUnits(amount, 6);
+
+      // Get token contract instance
+      const tokenContract = new ethers.Contract(
+        tokenAddress,
+        [
+          "function approve(address spender, uint256 amount) external returns (bool)",
+          "function allowance(address owner, address spender) external view returns (uint256)"
+        ],
+        signer
+      );
+
+      // Check current allowance
+      const currentAllowance = await tokenContract.allowance(walletAddress, contract.target);
+      if (currentAllowance < parsedAmount) {
+        console.log('Requesting token approval...');
+        toast.loading('Please approve token spending in MetaMask...', { id: 'platform-fee-withdrawal' });
+        
+        // Request approval
+        const approveTx = await tokenContract.approve(contract.target, parsedAmount);
+        console.log('Approval transaction submitted:', approveTx.hash);
+        
+        // Wait for approval confirmation
+        await approveTx.wait();
+        console.log('Token approval confirmed');
+      }
+      
+      toast.loading('Please confirm the withdrawal in MetaMask...', { id: 'platform-fee-withdrawal' });
+
+      console.log('Calling withdrawPlatformFees with params:', {
+        tokenAddress,
+        amount: parsedAmount.toString()
+      });
+
+      // Prepare the transaction
+      const tx = await contract.withdrawPlatformFees(
+        tokenAddress,
+        parsedAmount,
+        { gasLimit: 300000 }
+      );
+
+      console.log('Transaction submitted:', tx.hash);
+      toast.loading(`Processing platform fee withdrawal of ${amount} ${token}...`, { id: 'platform-fee-withdrawal' });
+
+      const receipt = await tx.wait();
+      console.log('Transaction receipt:', receipt);
+
+      if (receipt.status === 1) {
+        // Update platform fees in Firestore
+        const ordersQuery = query(
+          collection(db, 'orders'),
+          where('paymentMethod.network', '==', Number(chainId)),
+          where('paymentMethod.token', '==', token)
+        );
+        
+        const ordersSnapshot = await getDocs(ordersQuery);
+        const batch = writeBatch(db);
+        
+        // Update each order to mark platform fees as withdrawn
+        ordersSnapshot.docs.forEach(doc => {
+          const orderData = doc.data();
+          if (!orderData.platformFeeWithdrawn) {
+            batch.update(doc.ref, {
+              platformFeeWithdrawn: true,
+              platformFeeWithdrawnAt: new Date(),
+              platformFeeWithdrawnTx: tx.hash
+            });
+          }
+        });
+        
+        // Commit the batch update
+        await batch.commit();
+
+        toast.success(`Successfully withdrawn ${amount} ${token}`, { id: 'platform-fee-withdrawal' });
+        fetchPlatformFees();
+        // Clear the input
+        handleAmountChange(network, token, '');
+      } else {
+        throw new Error('Transaction failed');
+      }
+    } catch (error) {
+      console.error('Error withdrawing platform fees:', error);
+      toast.error(
+        error.message.includes('user rejected') 
+          ? 'Transaction was rejected'
+          : `Failed to withdraw platform fees: ${error.message}`,
+        { id: 'platform-fee-withdrawal' }
+      );
     }
   };
 
@@ -184,7 +549,167 @@ export default function AdminWithdrawals() {
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-[#FF1B6B] mb-6">Withdrawal Requests</h1>
       
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden`}>
+      {/* Platform Fee Withdrawal Section */}
+      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>
+        <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>Platform Fee Withdrawals</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Unichain Network */}
+          <div className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg`}>
+            <div className="flex items-center mb-4">
+              <img src="/unichain-logo.png" alt="Unichain" className="w-6 h-6 mr-2" />
+              <h3 className={`text-md font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Unichain Network</h3>
+            </div>
+            <div className="space-y-4">
+              {/* USDT */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDT</span>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Platform Fees: ${Number(platformFeeAmounts.unichain.USDT.fees).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    value={platformFeeAmounts.unichain.USDT.amount}
+                    onChange={(e) => handleAmountChange('unichain', 'USDT', e.target.value)}
+                    placeholder="Enter amount"
+                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
+                      theme === 'dark'
+                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  <button
+                    onClick={() => handleWithdrawPlatformFees('unichain', 'USDT')}
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+              
+              {/* USDC */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDC</span>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Platform Fees: ${Number(platformFeeAmounts.unichain.USDC.fees).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    value={platformFeeAmounts.unichain.USDC.amount}
+                    onChange={(e) => handleAmountChange('unichain', 'USDC', e.target.value)}
+                    placeholder="Enter amount"
+                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
+                      theme === 'dark'
+                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  <button
+                    onClick={() => handleWithdrawPlatformFees('unichain', 'USDC')}
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Polygon Network */}
+          <div className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg`}>
+            <div className="flex items-center mb-4">
+              <img src="/polygon.png" alt="Polygon" className="w-6 h-6 mr-2" />
+              <h3 className={`text-md font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Polygon Network</h3>
+            </div>
+            <div className="space-y-4">
+              {/* USDT */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDT</span>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Platform Fees: ${platformFeeAmounts.polygon.USDT.fees}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    value={platformFeeAmounts.polygon.USDT.amount}
+                    onChange={(e) => handleAmountChange('polygon', 'USDT', e.target.value)}
+                    placeholder="Enter amount"
+                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
+                      theme === 'dark'
+                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  <button
+                    onClick={() => handleWithdrawPlatformFees('polygon', 'USDT')}
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+              
+              {/* USDC */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
+                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDC</span>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Platform Fees: ${platformFeeAmounts.polygon.USDC.fees}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    value={platformFeeAmounts.polygon.USDC.amount}
+                    onChange={(e) => handleAmountChange('polygon', 'USDC', e.target.value)}
+                    placeholder="Enter amount"
+                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
+                      theme === 'dark'
+                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
+                  />
+                  <button
+                    onClick={() => handleWithdrawPlatformFees('polygon', 'USDC')}
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden mb-8`}>
         {withdrawals.length === 0 ? (
           <div className={`p-6 text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
             No pending withdrawal requests
@@ -193,7 +718,7 @@ export default function AdminWithdrawals() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
               <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Seller</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Store</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Token</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Network</th>
@@ -204,26 +729,74 @@ export default function AdminWithdrawals() {
             </thead>
             <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {withdrawals.map((withdrawal) => {
-                const network = withdrawal.network || (withdrawal.token === 'USDT' ? '1301' : '137');
-                const networkName = NETWORK_NAMES[network] || 'Unknown Network';
+                const networkName = withdrawal.network === 'unichain' ? 'Unichain Testnet' : 'Polygon';
                 
                 return (
                   <tr key={withdrawal.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{withdrawal.sellerName}</div>
-                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{withdrawal.sellerId}</div>
+                      <div className="flex items-center">
+                        {withdrawal.storeAvatar ? (
+                          <img 
+                            src={withdrawal.storeAvatar} 
+                            alt={withdrawal.storeName || 'Store'}
+                            className="w-8 h-8 rounded-full mr-3"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-[#FF1B6B] bg-opacity-10 flex items-center justify-center mr-3">
+                            <span className="text-[#FF1B6B] text-sm font-medium">
+                              {(withdrawal.storeName || 'S').charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {withdrawal.storeName || 'Unknown Store'}
+                          </div>
+                          <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {withdrawal.storeId}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      <div className="text-sm font-medium">{withdrawal.amount.toFixed(2)}</div>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {withdrawal.amount}
+                      <div className="flex items-center">
+                        <img 
+                          src={`/logos/${withdrawal.token.toLowerCase()}.png`}
+                          alt={withdrawal.token}
+                          className="w-5 h-5 mr-2"
+                        />
+                        {withdrawal.token}
+                      </div>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {withdrawal.token}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {networkName}
+                      <div className="flex items-center">
+                        <img 
+                          src={withdrawal.network === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
+                          alt={networkName}
+                          className="w-5 h-5 mr-2"
+                        />
+                        {networkName}
+                      </div>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {withdrawal.walletAddress}
+                      <div className="flex items-center space-x-1">
+                        <span className="truncate max-w-[120px]">{withdrawal.walletAddress}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(withdrawal.walletAddress);
+                            toast.success('Wallet address copied!');
+                          }}
+                          className="text-[#FF1B6B] hover:text-[#D4145A]"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                            <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                       {new Date(withdrawal.timestamp?.toDate()).toLocaleString()}
@@ -248,7 +821,7 @@ export default function AdminWithdrawals() {
                           </button>
                           <button
                             onClick={() => handleReject(withdrawal.id)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                           >
                             <FiX className="mr-1" />
                             Reject
@@ -263,6 +836,9 @@ export default function AdminWithdrawals() {
           </table>
         )}
       </div>
+
+      {/* Recent Withdrawals Section */}
+      <AdminRecentWithdrawals />
     </div>
   );
 } 

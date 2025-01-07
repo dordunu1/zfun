@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, limit, startAfter } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
-import { FiSearch, FiGrid, FiList } from 'react-icons/fi';
+import { FiSearch, FiGrid, FiList, FiCopy } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 export default function Sales() {
@@ -340,7 +340,31 @@ export default function Sales() {
                           #{order.id.slice(-6)}
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          {order.buyerInfo?.name || 'Anonymous'}
+                          <div className="flex flex-col gap-1">
+                            <div>{order.buyerInfo?.name || 'Anonymous'}</div>
+                            <div className="flex items-center gap-2">
+                              <img 
+                                src={order.paymentMethod?.network === 1301 ? "/unichain-logo.png" : "/polygon.png"} 
+                                alt={order.paymentMethod?.network === 1301 ? "Unichain" : "Polygon"} 
+                                className="w-4 h-4 object-contain" 
+                              />
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(order.paymentMethod?.buyerWallet || '');
+                                  toast.success('Address copied to clipboard!');
+                                }}
+                                className={`text-xs font-mono hover:text-[#FF1B6B] transition-colors flex items-center gap-1 ${
+                                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                                }`}
+                              >
+                                {order.paymentMethod?.buyerWallet ? 
+                                  `${order.paymentMethod.buyerWallet.slice(0, 6)}...${order.paymentMethod.buyerWallet.slice(-4)}` :
+                                  'No wallet address'
+                                }
+                                <FiCopy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                           {order.sellerName || 'Unknown Seller'}
@@ -370,7 +394,9 @@ export default function Sales() {
                               alt={order.paymentMethod?.network === 1301 ? "Unichain" : "Polygon"} 
                               className="w-4 h-4 object-contain" 
                             />
-                            {order.paymentMethod?.network === 1301 ? 'Unichain' : 'Polygon'}
+                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                              {order.paymentMethod?.network === 1301 ? 'Unichain' : 'Polygon'}
+                            </span>
                           </div>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
@@ -430,11 +456,37 @@ export default function Sales() {
                   </div>
 
                   <div className="border-t border-b border-gray-200 py-3 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Customer</span>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                        {order.buyerInfo?.name || 'Anonymous'}
-                      </span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Customer</span>
+                        <div className="flex flex-col items-end">
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                            {order.buyerInfo?.name || 'Anonymous'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <img 
+                              src={order.paymentMethod?.network === 1301 ? "/unichain-logo.png" : "/polygon.png"} 
+                              alt={order.paymentMethod?.network === 1301 ? "Unichain" : "Polygon"} 
+                              className="w-4 h-4 object-contain" 
+                            />
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(order.paymentMethod?.buyerWallet || '');
+                                toast.success('Address copied to clipboard!');
+                              }}
+                              className={`text-xs font-mono hover:text-[#FF1B6B] transition-colors flex items-center gap-1 ${
+                                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                              }`}
+                            >
+                              {order.paymentMethod?.buyerWallet ? 
+                                `${order.paymentMethod.buyerWallet.slice(0, 6)}...${order.paymentMethod.buyerWallet.slice(-4)}` :
+                                'No wallet address'
+                              }
+                              <FiCopy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Seller</span>

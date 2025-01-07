@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiBox, FiDollarSign, FiShoppingBag, FiTrendingUp, FiUsers, FiCreditCard } from 'react-icons/fi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
-import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import detectEthereumProvider from '@metamask/detect-provider';
 import WithdrawalTermsModal from '../../components/merch/WithdrawalTermsModal';
+import { ethers } from 'ethers';
+import { getMerchPlatformContract, parseTokenAmount } from '../../contracts/MerchPlatform';
 
 // Token logos
 const TOKEN_INFO = {
@@ -164,13 +166,14 @@ const SellerDashboard = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [platformFee, setPlatformFee] = useState(2.5); // Default fee
-  const [minWithdrawal, setMinWithdrawal] = useState(10); // Default min withdrawal
+  const [minWithdrawal, setMinWithdrawal] = useState(5); // Default min withdrawal
   const theme = localStorage.getItem('admin-theme') || 'light'; // Add theme
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalSales: 0,
     totalCustomers: 0,
-    revenue: 0,
+    grossRevenue: 0,
+    netRevenue: 0,
     balances: {
       USDC: 0,
       USDT: 0
@@ -196,7 +199,7 @@ const SellerDashboard = () => {
       if (settingsDoc.exists()) {
         const settings = settingsDoc.data();
         setPlatformFee(settings.platformFee || 2.5);
-        setMinWithdrawal(settings.withdrawalMinimum || 10);
+        setMinWithdrawal(settings.withdrawalMinimum || 5);
       }
     } catch (error) {
       console.error('Error fetching platform settings:', error);
@@ -205,122 +208,169 @@ const SellerDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch seller data
-      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
-      const sellerData = sellerDoc.data();
-      setSellerData(sellerData);
+      // Fetch seller data with real-time updates
+      const sellerDocRef = doc(db, 'sellers', user.sellerId);
+      const unsubscribeSeller = onSnapshot(sellerDocRef, (doc) => {
+        setSellerData(doc.data());
+      });
 
-      // Fetch products
+      // Fetch products with cache disabled
       const productsQuery = query(
         collection(db, 'products'),
         where('sellerId', '==', user.sellerId)
       );
       const productsSnapshot = await getDocs(productsQuery);
 
-      // Fetch orders
+      // Fetch orders with real-time updates
       const ordersQuery = query(
         collection(db, 'orders'),
         where('sellerId', '==', user.sellerId),
         orderBy('createdAt', 'desc')
       );
-      const ordersSnapshot = await getDocs(ordersQuery);
-      const orders = ordersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      // Fetch all withdrawals
-      const withdrawalsQuery = query(
-        collection(db, 'withdrawals'),
-        where('sellerId', '==', user.sellerId),
-        orderBy('timestamp', 'desc')
-      );
-      const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
-      const withdrawalHistory = withdrawalsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      }));
-      setWithdrawals(withdrawalHistory);
-
-      // Calculate total withdrawn amount for each token from completed withdrawals
-      const totalWithdrawn = {
-        USDC: withdrawalHistory
-          .filter(w => w.status === 'completed' && w.token === 'USDC')
-          .reduce((sum, w) => sum + (w.amount || 0), 0),
-        USDT: withdrawalHistory
-          .filter(w => w.status === 'completed' && w.token === 'USDT')
-          .reduce((sum, w) => sum + (w.amount || 0), 0)
-      };
-
-      // Calculate revenue and balance for each token
-      let totalRevenue = 0;
-      const tokenRevenue = {
-        USDC: 0,
-        USDT: 0
-      };
-      const customers = new Set();
-
-      orders.forEach(order => {
-        // Add all customers with buyerId to the set
-        if (order.buyerId) {
-          customers.add(order.buyerId);
-        }
-
-        if (order.paymentStatus === 'completed' && 
-            order.shippingConfirmed && 
-            order.shippingConfirmedAt && 
-            new Date(order.shippingConfirmedAt.toDate()) <= new Date(order.shippingDeadline.toDate()) &&
-            Date.now() >= new Date(order.fundsAvailableAt.toDate())) {
-          const orderTotal = order.total || 0;
-          totalRevenue += orderTotal;
-          
-          // Add to token-specific revenue
-          const orderToken = order.paymentMethod?.token || 'USDT';
-          tokenRevenue[orderToken] = (tokenRevenue[orderToken] || 0) + orderTotal;
-        }
-      });
-
-      // Calculate available balance for each token (revenue minus platform fee and withdrawals)
-      const balances = {
-        USDC: tokenRevenue.USDC * (1 - platformFee / 100) - totalWithdrawn.USDC,
-        USDT: tokenRevenue.USDT * (1 - platformFee / 100) - totalWithdrawn.USDT
-      };
-
-      setStats({
-        totalProducts: productsSnapshot.size,
-        totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
-        totalCustomers: customers.size,
-        revenue: totalRevenue,
-        balances
-      });
-
-      // Set recent orders (only completed ones)
-      setRecentOrders(
-        orders
-          .filter(o => o.paymentStatus === 'completed')
-          .slice(0, 3)
-      );
-
-      // Fetch incoming payments
-      const incomingPaymentsQuery = query(
-        collection(db, 'orders'),
-        where('sellerId', '==', user.sellerId),
-        where('paymentStatus', '==', 'completed'),
-        orderBy('createdAt', 'desc')
-      );
-      const incomingPaymentsSnapshot = await getDocs(incomingPaymentsQuery);
-      const incomingPaymentsData = incomingPaymentsSnapshot.docs
-        .map(doc => ({
+      
+      const unsubscribeOrders = onSnapshot(ordersQuery, (snapshot) => {
+        const orders = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        }))
-        .filter(order => {
-          const orderDate = order.createdAt.toDate();
-          const threeDaysFromOrder = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
-          return Date.now() < threeDaysFromOrder;
+        }));
+
+        // Calculate incoming payments (orders within 3-day shipping window)
+        const now = new Date();
+        const incomingPaymentsList = orders.filter(order => {
+          if (order.paymentStatus === 'completed' && !order.shippingConfirmed) {
+            const shippingDeadline = order.shippingDeadline?.toDate();
+            return shippingDeadline && shippingDeadline > now;
+          }
+          return false;
         });
-      setIncomingPayments(incomingPaymentsData);
+        setIncomingPayments(incomingPaymentsList);
+
+        // Fetch withdrawals with real-time updates
+        const withdrawalsQuery = query(
+          collection(db, 'withdrawals'),
+          where('sellerId', '==', user.sellerId),
+          orderBy('timestamp', 'desc')
+        );
+
+        const unsubscribeWithdrawals = onSnapshot(withdrawalsQuery, (withdrawalSnapshot) => {
+          const withdrawalHistory = withdrawalSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp?.toDate()
+          }));
+          setWithdrawals(withdrawalHistory);
+
+          // Calculate total withdrawn amount for each token from completed withdrawals
+          const totalWithdrawn = {
+            USDC: withdrawalHistory
+              .filter(w => w.status === 'approved' && w.token === 'USDC')
+              .reduce((sum, w) => sum + (w.amount || 0), 0),
+            USDT: withdrawalHistory
+              .filter(w => w.status === 'approved' && w.token === 'USDT')
+              .reduce((sum, w) => sum + (w.amount || 0), 0)
+          };
+
+          // Calculate revenue and balance for each token
+          let totalGrossRevenue = 0;
+          let totalNetRevenue = 0;
+          const tokenRevenue = {
+            USDC: { gross: 0, net: 0 },
+            USDT: { gross: 0, net: 0 }
+          };
+          const customers = new Set();
+
+          orders.forEach(order => {
+            if (order.buyerId) {
+              customers.add(order.buyerId);
+            }
+
+            if (order.paymentStatus === 'completed') {
+              const orderTotal = order.total || 0;
+              const orderToken = order.paymentMethod?.token || 'USDT';
+              
+              // Check if order has passed the 3-day shipping window
+              const orderDate = order.createdAt.toDate();
+              const shippingWindowEnd = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days window
+              const now = new Date();
+              
+              // Only add to revenue if shipping window has passed
+              if (now >= shippingWindowEnd) {
+                // Add to gross revenue
+                totalGrossRevenue += orderTotal;
+                
+                // Calculate net revenue (95% of gross)
+                const netAmount = orderTotal * 0.95;
+                totalNetRevenue += netAmount;
+                
+                // Add to token-specific revenue
+                if (!tokenRevenue[orderToken]) {
+                  tokenRevenue[orderToken] = { gross: 0, net: 0 };
+                }
+                tokenRevenue[orderToken].gross += orderTotal;
+                tokenRevenue[orderToken].net += netAmount;
+              }
+            }
+          });
+
+          // Calculate available balance for each token (net revenue minus withdrawals)
+          const balances = {
+            USDC: parseFloat((Math.max(0, tokenRevenue.USDC.net - totalWithdrawn.USDC)).toFixed(2)),
+            USDT: parseFloat((Math.max(0, tokenRevenue.USDT.net - totalWithdrawn.USDT)).toFixed(2))
+          };
+
+          // Also account for pending withdrawals
+          const pendingWithdrawals = {
+            USDC: withdrawalHistory
+              .filter(w => w.status === 'pending' && w.token === 'USDC')
+              .reduce((sum, w) => sum + (w.amount || 0), 0),
+            USDT: withdrawalHistory
+              .filter(w => w.status === 'pending' && w.token === 'USDT')
+              .reduce((sum, w) => sum + (w.amount || 0), 0)
+          };
+
+          // Subtract pending withdrawals from available balance
+          balances.USDC = parseFloat((Math.max(0, balances.USDC - pendingWithdrawals.USDC)).toFixed(2));
+          balances.USDT = parseFloat((Math.max(0, balances.USDT - pendingWithdrawals.USDT)).toFixed(2));
+
+          console.log('Revenue Breakdown:', {
+            USDC: {
+              gross: tokenRevenue.USDC.gross,
+              net: tokenRevenue.USDC.net,
+              withdrawn: totalWithdrawn.USDC,
+              available: balances.USDC
+            },
+            USDT: {
+              gross: tokenRevenue.USDT.gross,
+              net: tokenRevenue.USDT.net,
+              withdrawn: totalWithdrawn.USDT,
+              available: balances.USDT
+            }
+          });
+
+          setStats({
+            totalProducts: productsSnapshot.size,
+            totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
+            totalCustomers: customers.size,
+            grossRevenue: totalGrossRevenue,
+            netRevenue: totalNetRevenue,
+            balances
+          });
+
+          // Set recent orders (only completed ones)
+          setRecentOrders(
+            orders
+              .filter(o => o.paymentStatus === 'completed')
+              .slice(0, 3)
+          );
+        });
+
+        // Cleanup function to unsubscribe from real-time listeners
+        return () => {
+          unsubscribeSeller();
+          unsubscribeOrders();
+          unsubscribeWithdrawals();
+        };
+      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -356,7 +406,24 @@ const SellerDashboard = () => {
     { title: 'Total Products', icon: <FiBox />, value: stats.totalProducts, color: 'bg-blue-500' },
     { title: 'Total Sales', icon: <FiShoppingBag />, value: stats.totalSales, color: 'bg-green-500' },
     { title: 'Total Customers', icon: <FiUsers />, value: stats.totalCustomers, color: 'bg-purple-500' },
-    { title: 'Revenue', icon: <FiDollarSign />, value: `$${stats.revenue.toFixed(2)}`, color: 'bg-pink-500' },
+    { 
+      title: 'Revenue', 
+      icon: <FiDollarSign />, 
+      value: (
+        <div>
+          <div className="flex flex-col gap-1">
+            <div className="text-lg">Current Balance:</div>
+            <div className="text-2xl font-bold">${(stats.balances.USDC + stats.balances.USDT).toFixed(2)}</div>
+            <div className="text-sm opacity-75">All-time Revenue:</div>
+            <div className="text-xl">${stats.grossRevenue.toFixed(2)}</div>
+            <div className="text-xs opacity-75">
+              Net (after 5% fee): ${stats.netRevenue.toFixed(2)}
+            </div>
+          </div>
+        </div>
+      ), 
+      color: 'bg-pink-500' 
+    },
   ];
 
   if (loading) {
@@ -424,7 +491,7 @@ const SellerDashboard = () => {
                 ≈ ${stats.balances.USDC.toFixed(2)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Platform fee: {platformFee}% ({(stats.balances.USDC * platformFee / 100).toFixed(2)} USDC)
+                Available to withdraw
               </div>
               <button
                 onClick={() => {
@@ -461,7 +528,7 @@ const SellerDashboard = () => {
                 ≈ ${stats.balances.USDT.toFixed(2)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Platform fee: {platformFee}% ({(stats.balances.USDT * platformFee / 100).toFixed(2)} USDT)
+                Available to withdraw
               </div>
               <button
                 onClick={() => {
@@ -485,7 +552,7 @@ const SellerDashboard = () => {
 
           <div className="text-xs text-gray-500 space-y-1">
             <p>Note: Withdrawals are processed on your selected network. Gas fees will be paid from your wallet.</p>
-            <p>A {platformFee}% platform fee will be deducted from your withdrawal amount.</p>
+            <p>A 5% platform fee is automatically deducted from each sale.</p>
             <p>Minimum withdrawal amount: {minWithdrawal} USDC/USDT</p>
           </div>
         </div>
@@ -542,6 +609,16 @@ const SellerDashboard = () => {
           </button>
         </div>
 
+        <div className="mb-4 p-4 bg-[#FF1B6B] bg-opacity-10 border border-[#FF1B6B] rounded-lg flex items-start space-x-3">
+          <svg className="w-5 h-5 text-[#FF1B6B] mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h4 className="font-medium text-[#FF1B6B] mb-1">⚠️ Shipping Time Requirement</h4>
+            <p className="text-sm text-gray-700">All orders must be shipped within 3 days of payment. Orders not shipped within this timeframe may be cancelled and refunded to protect buyers.</p>
+          </div>
+        </div>
+
         {isIncomingPaymentsExpanded && (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -559,7 +636,7 @@ const SellerDashboard = () => {
                 {incomingPayments.map((payment) => {
                   const orderDate = payment.createdAt.toDate();
                   const availableDate = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
-                  const daysRemaining = Math.max(0, Math.ceil((availableDate - Date.now()) / (24 * 60 * 60 * 1000)));
+                  const hoursRemaining = Math.max(0, Math.ceil((availableDate - Date.now()) / (60 * 60 * 1000)));
                   
                   return (
                     <tr key={payment.id}>
@@ -596,7 +673,7 @@ const SellerDashboard = () => {
                               <div className="w-20 bg-gray-200 rounded-full h-2">
                                 <div 
                                   className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
-                                  style={{ width: `${Math.min(100, ((3 - daysRemaining) / 3) * 100)}%` }}
+                                  style={{ width: `${Math.min(100, ((72 - hoursRemaining) / 72) * 100)}%` }}
                                 />
                               </div>
                             </div>
@@ -615,7 +692,7 @@ const SellerDashboard = () => {
                           <div className="w-full bg-gray-200 rounded-full h-1.5">
                             <div 
                               className="bg-[#FF1B6B] h-1.5 rounded-full transition-all duration-500"
-                              style={{ width: `${Math.min(100, ((3 - daysRemaining) / 3) * 100)}%` }}
+                              style={{ width: `${Math.min(100, ((72 - hoursRemaining) / 72) * 100)}%` }}
                             />
                           </div>
                         </div>
@@ -636,7 +713,7 @@ const SellerDashboard = () => {
 
       {/* Recent Activity */}
       <motion.div 
-        className="bg-white rounded-lg shadow-lg p-6"
+        className="bg-white rounded-lg shadow-lg p-6 mb-8"
         variants={itemVariants}
       >
         <div className="flex items-center justify-between mb-6">
@@ -688,83 +765,84 @@ const SellerDashboard = () => {
 
       {/* Withdrawal History */}
       <motion.div 
-        className="mb-8"
+        className="bg-white rounded-lg shadow-lg p-6 mb-8"
         variants={itemVariants}
       >
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg p-6`}>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Withdrawal History</h3>
-          
-          {withdrawals.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Transaction</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {withdrawals.map((withdrawal) => (
-                    <tr key={withdrawal.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                        {withdrawal.timestamp ? new Date(withdrawal.timestamp).toLocaleString() : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                        {withdrawal.amount} {withdrawal.token || stats.preferredToken}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {withdrawal.status === 'pending' ? (
-                          <div className="space-y-2">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100">
-                              Processing
-                            </span>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
-                                style={{ 
-                                  width: `${Math.min(100, (Date.now() - withdrawal.timestamp) / (17 * 24 * 60 * 60 * 1000) * 100)}%` 
-                                }}
-                              />
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {Math.max(0, 17 - Math.floor((Date.now() - withdrawal.timestamp) / (24 * 60 * 60 * 1000)))} days remaining
-                            </div>
-                          </div>
-                        ) : (
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            withdrawal.status === 'completed' 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-                              : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
-                          }`}>
-                            {withdrawal.status}
+        <h2 className="text-xl font-semibold text-gray-800 mb-6">Withdrawal History</h2>
+        
+        {withdrawals.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {withdrawals.map((withdrawal) => (
+                  <tr key={withdrawal.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {withdrawal.timestamp ? new Date(withdrawal.timestamp).toLocaleString() : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {withdrawal.amount} {withdrawal.token || stats.preferredToken}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {withdrawal.status === 'pending' ? (
+                        <div className="space-y-2">
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                            Processing
                           </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                        {withdrawal.transactionHash ? (
-                          <a 
-                            href={`https://${withdrawal.network === 'polygon' ? 'polygonscan' : 'bscscan'}.com/tx/${withdrawal.transactionHash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#FF1B6B] hover:text-[#D4145A]"
-                          >
-                            View
-                          </a>
-                        ) : 'N/A'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-              No withdrawals yet
-            </div>
-          )}
-        </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
+                              style={{ 
+                                width: `${Math.min(100, (Date.now() - withdrawal.timestamp) / (3 * 24 * 60 * 60 * 1000) * 100)}%` 
+                              }}
+                            />
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {Math.max(0, 72 - Math.floor((Date.now() - withdrawal.timestamp) / (60 * 60 * 1000)))} hours remaining
+                          </div>
+                        </div>
+                      ) : (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          withdrawal.status === 'completed' 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {withdrawal.status}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {withdrawal.transactionHash ? (
+                        <a 
+                          href={`${withdrawal.network === 'unichain' 
+                            ? 'https://unichain-sepolia.blockscout.com/tx/'
+                            : 'https://polygonscan.com/tx/'
+                          }${withdrawal.transactionHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#FF1B6B] hover:text-[#D4145A]"
+                        >
+                          View
+                        </a>
+                      ) : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No withdrawals yet
+          </div>
+        )}
       </motion.div>
 
       {/* Terms Modal */}
@@ -785,31 +863,125 @@ const SellerDashboard = () => {
               return;
             }
 
+            // Verify that the connected wallet matches the seller's registered wallet
+            if (accounts[0].toLowerCase() !== sellerData.walletAddress.toLowerCase()) {
+              toast.error('Please use the wallet address registered in your seller settings');
+              return;
+            }
+
             const balance = selectedToken === 'USDC' ? stats.balances.USDC : stats.balances.USDT;
             if (balance < minWithdrawal) {
               toast.error(`Minimum withdrawal amount is ${minWithdrawal} ${selectedToken}`);
               return;
             }
 
-            // Create withdrawal request
+            // Get network and contract
+            const networkId = sellerData.preferredNetwork === 'unichain' ? 1301 : 137;
+            if (window.ethereum.networkVersion !== networkId.toString()) {
+              try {
+                if (networkId === 1301) {
+                  // Switch to Unichain testnet
+                  await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x515',
+                      chainName: 'Unichain Testnet',
+                      nativeCurrency: {
+                        name: 'UNW',
+                        symbol: 'UNW',
+                        decimals: 18
+                      },
+                      rpcUrls: [import.meta.env.VITE_UNICHAIN_RPC_URL],
+                      blockExplorerUrls: [import.meta.env.VITE_UNICHAIN_EXPLORER_URL]
+                    }]
+                  });
+                } else {
+                  // Switch to Polygon
+                  await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x89' }], // 137 in hex
+                  });
+                }
+              } catch (switchError) {
+                // This error code indicates that the chain has not been added to MetaMask
+                if (switchError.code === 4902) {
+                  try {
+                    await window.ethereum.request({
+                      method: 'wallet_addEthereumChain',
+                      params: [
+                        {
+                          chainId: '0x89',
+                          chainName: 'Polygon Mainnet',
+                          nativeCurrency: {
+                            name: 'MATIC',
+                            symbol: 'MATIC',
+                            decimals: 18
+                          },
+                          rpcUrls: ['https://polygon-rpc.com/'],
+                          blockExplorerUrls: ['https://polygonscan.com/']
+                        }
+                      ]
+                    });
+                  } catch (addError) {
+                    toast.error('Failed to add network to MetaMask');
+                    return;
+                  }
+                } else {
+                  toast.error(`Please switch to ${sellerData.preferredNetwork} network in MetaMask`);
+                  return;
+                }
+              }
+            }
+
+            const ethProvider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await ethProvider.getSigner();
+            const merchPlatform = getMerchPlatformContract(signer, networkId.toString());
+
+            // Get token contract address based on network and token
+            const tokenAddress = selectedToken === 'USDC' 
+              ? (networkId === 1301 ? import.meta.env.VITE_UNICHAIN_USDC_ADDRESS : import.meta.env.VITE_USDC_ADDRESS_POLYGON)
+              : (networkId === 1301 ? import.meta.env.VITE_UNICHAIN_USDT_ADDRESS : import.meta.env.VITE_USDT_ADDRESS_POLYGON);
+
+            // Convert amount to proper decimals (6 for USDT/USDC)
+            const withdrawalAmount = parseTokenAmount(balance);
+
+            // Call contract to request withdrawal
+            const tx = await merchPlatform.requestWithdrawal(
+              tokenAddress,
+              withdrawalAmount
+            );
+
+            // Show pending toast
+            const pendingToast = toast.loading('Processing withdrawal request...');
+
+            // Wait for transaction confirmation
+            await tx.wait();
+
+            // Create withdrawal record in Firestore
             await addDoc(collection(db, 'withdrawals'), {
               sellerId: user.sellerId,
               amount: balance,
               token: selectedToken,
-              fee: balance * platformFee / 100,
-              netAmount: balance * (1 - platformFee / 100),
+              fee: 0,
+              netAmount: balance,
               status: 'pending',
               walletAddress: accounts[0],
-              network: user.network || 'polygon',
+              network: sellerData.preferredNetwork,
               timestamp: serverTimestamp(),
               requestedAt: Date.now(),
-              processingDays: 17
+              processingDays: 3,
+              transactionHash: tx.hash
             });
 
-            toast.success('Withdrawal request submitted');
+            // Dismiss pending toast and show success
+            toast.dismiss(pendingToast);
+            toast.success('Withdrawal request submitted successfully');
+            
+            // Refresh dashboard data
+            fetchDashboardData();
           } catch (error) {
             console.error('Withdrawal error:', error);
-            toast.error('Failed to process withdrawal');
+            toast.error(error.message || 'Failed to process withdrawal');
           }
         }}
         token={selectedToken}

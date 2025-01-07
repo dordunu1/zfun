@@ -96,10 +96,55 @@ const Checkout = () => {
                           Number(items[0].product.network);
           setChainId(networkId);
           setSelectedToken(items[0].product.acceptedToken);
-          console.log('Setting network:', { 
-            original: items[0].product.network, 
-            converted: networkId 
-          });
+          
+          // Immediately try to switch to the correct network
+          if (window.ethereum && window.ethereum.networkVersion !== networkId.toString()) {
+            try {
+              if (networkId === 1301) {
+                await window.ethereum.request({
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: '0x515' }],
+                }).catch(async () => {
+                  await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x515',
+                      chainName: 'Unichain Testnet',
+                      nativeCurrency: {
+                        name: 'UNW',
+                        symbol: 'UNW',
+                        decimals: 18
+                      },
+                      rpcUrls: [import.meta.env.VITE_UNICHAIN_RPC_URL],
+                      blockExplorerUrls: [import.meta.env.VITE_UNICHAIN_EXPLORER_URL]
+                    }]
+                  });
+                });
+              } else {
+                await window.ethereum.request({
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: '0x89' }],
+                }).catch(async () => {
+                  await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x89',
+                      chainName: 'Polygon Mainnet',
+                      nativeCurrency: {
+                        name: 'MATIC',
+                        symbol: 'MATIC',
+                        decimals: 18
+                      },
+                      rpcUrls: ['https://polygon-rpc.com/'],
+                      blockExplorerUrls: ['https://polygonscan.com/']
+                    }]
+                  });
+                });
+              }
+            } catch (error) {
+              // Silently handle network switching errors
+            }
+          }
         }
 
         // Fetch buyer profile
@@ -116,7 +161,6 @@ const Checkout = () => {
 
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching data:', error);
         toast.error('Failed to load checkout data');
         setLoading(false);
       }
@@ -135,17 +179,58 @@ const Checkout = () => {
         return;
       }
 
-      // Request user to select an account
+      // Automatically switch to the correct network without prompting
+      if (window.ethereum.networkVersion !== chainId.toString()) {
+        if (chainId === 1301) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x515',
+              chainName: 'Unichain Testnet',
+              nativeCurrency: {
+                name: 'UNW',
+                symbol: 'UNW',
+                decimals: 18
+              },
+              rpcUrls: [import.meta.env.VITE_UNICHAIN_RPC_URL],
+              blockExplorerUrls: [import.meta.env.VITE_UNICHAIN_EXPLORER_URL]
+            }]
+          }).catch(async () => {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x515' }],
+            });
+          });
+        } else {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x89' }],
+            });
+          } catch (switchError) {
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: '0x89',
+                  chainName: 'Polygon Mainnet',
+                  nativeCurrency: {
+                    name: 'MATIC',
+                    symbol: 'MATIC',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://polygon-rpc.com/'],
+                  blockExplorerUrls: ['https://polygonscan.com/']
+                }]
+              });
+            }
+          }
+        }
+      }
+
       const accounts = await window.ethereum.request({
-        method: 'wallet_requestPermissions',
-        params: [{
-          eth_accounts: {}
-        }]
-      }).then(() => 
-        window.ethereum.request({
-          method: 'eth_requestAccounts'
-        })
-      );
+        method: 'eth_requestAccounts'
+      });
       
       if (accounts.length === 0) {
         toast.error('Please connect your wallet');
@@ -156,13 +241,13 @@ const Checkout = () => {
       setWalletAddress(walletAddress);
       setWalletConnected(true);
 
-      // Update the user's profile with the new wallet address
       await setDoc(doc(db, 'users', user.uid), {
         walletAddress,
         updatedAt: new Date()
       }, { merge: true });
 
       toast.success('Wallet connected successfully');
+      await checkTokenBalance();
     } catch (error) {
       if (error.code === 4001) {
         toast.error('You rejected the connection request');
@@ -174,45 +259,66 @@ const Checkout = () => {
 
   const checkTokenBalance = async () => {
     try {
-      if (!walletAddress || !selectedToken || !chainId) {
-        console.log('Missing required values:', { walletAddress, selectedToken, chainId });
-        return;
+      if (!walletAddress || !selectedToken || !chainId) return;
+
+      if (window.ethereum.networkVersion !== chainId.toString()) {
+        if (chainId === 1301) {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x515' }],
+          }).catch(async () => {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: '0x515',
+                chainName: 'Unichain Testnet',
+                nativeCurrency: {
+                  name: 'UNW',
+                  symbol: 'UNW',
+                  decimals: 18
+                },
+                rpcUrls: [import.meta.env.VITE_UNICHAIN_RPC_URL],
+                blockExplorerUrls: [import.meta.env.VITE_UNICHAIN_EXPLORER_URL]
+              }]
+            });
+          });
+        } else {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x89' }],
+          }).catch(async () => {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: '0x89',
+                chainName: 'Polygon Mainnet',
+                nativeCurrency: {
+                  name: 'MATIC',
+                  symbol: 'MATIC',
+                  decimals: 18
+                },
+                rpcUrls: ['https://polygon-rpc.com/'],
+                blockExplorerUrls: ['https://polygonscan.com/']
+              }]
+            });
+          });
+        }
       }
 
-      // Check if the token is supported for this chain
       const tokenAddress = SUPPORTED_TOKENS[chainId]?.[selectedToken];
-      if (!tokenAddress) {
-        console.error('Token not supported on this chain:', { chainId, selectedToken });
-        return;
-      }
+      if (!tokenAddress) return;
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const tokenContract = getTokenContract(provider, chainId, selectedToken);
-
-      console.log('Checking balance for token:', {
-        address: tokenAddress,
-        wallet: walletAddress
-      });
-
       const balance = await tokenContract.balanceOf(walletAddress);
-      const decimals = 6; // Fixed decimals for USDT/USDC
-
-      console.log(`Balance for ${selectedToken}:`, {
-        raw: balance.toString(),
-        decimals,
-        formatted: ethers.formatUnits(balance, decimals)
-      });
-
-      setTokenBalance(ethers.formatUnits(balance, decimals));
+      setTokenBalance(ethers.formatUnits(balance, 6));
     } catch (error) {
-      console.error('Error checking balance:', error);
       setTokenBalance('0');
     }
   };
 
   useEffect(() => {
     if (walletConnected && selectedToken && chainId && walletAddress) {
-      console.log('Checking balance with:', { walletAddress, selectedToken, chainId });
       checkTokenBalance();
     }
   }, [walletConnected, selectedToken, chainId, walletAddress]);
@@ -279,13 +385,6 @@ const Checkout = () => {
         throw new Error('Invalid contract addresses');
       }
 
-      console.log('Contract addresses:', {
-        merchPlatform: merchPlatform.address,
-        token: tokenContract.address,
-        chainId,
-        selectedToken
-      });
-
       // Calculate total amount in smallest token unit (e.g., wei)
       const totalAmount = ethers.parseUnits(
         // Round to 6 decimal places and ensure we don't exceed the approved amount
@@ -297,29 +396,13 @@ const Checkout = () => {
       setTransactionStatus('Checking token approval...');
       const currentAllowance = await tokenContract.allowance(walletAddress, merchPlatform.address);
       
-      console.log('Allowance check:', {
-        currentAllowance: currentAllowance.toString(),
-        needed: totalAmount.toString(),
-        merchPlatformAddress: merchPlatform.address
-      });
-
       // If current allowance is less than total amount, request approval
       if (currentAllowance < totalAmount) {
         setTransactionStatus('Approving token spending...');
-        console.log('Approving amount:', {
-          amount: totalAmount.toString(),
-          formatted: ethers.formatUnits(totalAmount, 6)
-        });
         // Add a small buffer to the approval amount to account for rounding
         const approvalAmount = totalAmount + ethers.parseUnits('0.01', 6); // Add 0.01 USDT buffer
         const approveTx = await tokenContract.approve(merchPlatform.address, approvalAmount);
         await approveTx.wait();
-        console.log('Token approval confirmed');
-      } else {
-        console.log('Sufficient allowance exists:', {
-          allowance: currentAllowance.toString(),
-          needed: totalAmount.toString()
-        });
       }
 
       // Create order on-chain for each seller
@@ -359,8 +442,6 @@ const Checkout = () => {
         sellerOrders[sellerId].items.push(item);
       });
 
-      console.log('Seller orders prepared:', sellerOrders);
-
       // Process each seller's order
       let orderCount = 0;
       for (const [sellerId, orderData] of Object.entries(sellerOrders)) {
@@ -369,13 +450,6 @@ const Checkout = () => {
         
         // The contract will deduct the platform fee from this amount, so we send the full amount
         const amount = ethers.parseUnits(orderData.amount.toFixed(6), 6);
-        
-        console.log('Creating order:', {
-          seller: orderData.seller,
-          token: tokenContract.address,
-          amount: amount.toString(),
-          formatted: ethers.formatUnits(amount, 6)
-        });
         
         const createOrderTx = await merchPlatform.createOrder(
           orderData.seller,
@@ -432,14 +506,12 @@ const Checkout = () => {
           subtotal: orderData.amount,
           total: orderData.amount,
           createdAt: serverTimestamp(),
-          // New fields for shipping confirmation and funds
           shippingConfirmed: false,
           shippingConfirmedAt: null,
           fundsAvailable: false,
           fundsAvailableAt: null,
-          // Track deadlines
-          shippingDeadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
-          fundsReleaseDate: new Date(Date.now() + 17 * 24 * 60 * 60 * 1000) // 17 days
+          shippingDeadline: new Date(Date.now() + 1 * 60 * 60 * 1000), // 1 hour
+          fundsReleaseDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000) // 15 days
         });
       }
 
@@ -453,7 +525,6 @@ const Checkout = () => {
       toast.success('Order placed successfully!');
       navigate(`/merch-store/orders`);
     } catch (error) {
-      console.error('Order error:', error);
       toast.dismiss(loadingToast);
       toast.error(error.message || 'Failed to place order. Please try again.');
     } finally {

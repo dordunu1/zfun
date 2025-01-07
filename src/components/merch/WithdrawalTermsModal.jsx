@@ -55,7 +55,7 @@ const WithdrawalTermsModal = ({ isOpen, onClose, onAccept, token }) => {
                     <div>
                       <h4 className="font-medium text-gray-900">Order Processing</h4>
                       <p className="text-gray-600 mt-1">
-                        When an order is placed, you have 3 days to confirm shipping. The order amount will be held in escrow during this period.
+                        When an order is placed, you have 1 hour to confirm shipping. The order amount will be held in escrow during this period.
                       </p>
                     </div>
                   </div>
@@ -96,7 +96,7 @@ const WithdrawalTermsModal = ({ isOpen, onClose, onAccept, token }) => {
                     />
                     <span className="text-sm text-gray-600">
                       I understand that funds from orders are released to my available balance only after:
-                      1) Confirming shipping within 3 days of order placement
+                      1) Confirming shipping within 1 hour of order placement
                       2) A 14-day holding period after shipping confirmation
                       I also understand that withdrawal requests will be processed after these conditions are met.
                     </span>
