@@ -390,6 +390,10 @@ export default function AdminDashboard() {
     try {
       // Token ABI for balance checking
       const tokenABI = ["function balanceOf(address) view returns (uint256)"];
+      const platformABI = [
+        "function platformFees(address) external view returns (uint256)",
+        "function balanceOf(address) view returns (uint256)"
+      ];
 
       // Get Unichain balances
       const unichainProvider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
@@ -418,59 +422,45 @@ export default function AdminDashboard() {
       // Fetch Unichain balances
       if (unichainContract && unichainContract.target) {
         try {
-          // Get USDT balance for Unichain
+          // Get USDT balance and fees for Unichain
           const unichainUSDTContract = new ethers.Contract(
             import.meta.env.VITE_UNICHAIN_USDT_ADDRESS,
             tokenABI,
             unichainProvider
           );
-          const unichainUSDTBalance = await unichainUSDTContract.balanceOf(unichainContract.target);
-          const formattedUSDTBalance = Number(ethers.formatUnits(unichainUSDTBalance, 6));
+          const [unichainUSDTBalance, unichainUSDTFees] = await Promise.all([
+            unichainUSDTContract.balanceOf(unichainContract.target),
+            unichainContract.platformFees(import.meta.env.VITE_UNICHAIN_USDT_ADDRESS)
+          ]);
           
-          // Calculate fees from orders for Unichain USDT
-          const unichainUSDTOrdersQuery = query(
-            collection(db, 'orders'),
-            where('paymentMethod.network', '==', 1301),
-            where('paymentMethod.token', '==', 'USDT')
-          );
-          const unichainUSDTOrdersSnapshot = await getDocs(unichainUSDTOrdersQuery);
-          const unichainUSDTFees = unichainUSDTOrdersSnapshot.docs.reduce((sum, doc) => {
-            const orderData = doc.data();
-            return sum + (orderData.total * 0.05); // 5% platform fee
-          }, 0);
+          const formattedUSDTBalance = Number(ethers.formatUnits(unichainUSDTBalance, 6));
+          const formattedUSDTFees = Number(ethers.formatUnits(unichainUSDTFees, 6));
 
           newBalances.unichain.USDT = {
             total: formattedUSDTBalance,
-            fees: unichainUSDTFees,
-            available: formattedUSDTBalance - unichainUSDTFees,
+            fees: formattedUSDTFees,
+            available: formattedUSDTBalance - formattedUSDTFees,
             error: null
           };
           
-          // Get USDC balance for Unichain
+          // Get USDC balance and fees for Unichain
           const unichainUSDCContract = new ethers.Contract(
             import.meta.env.VITE_UNICHAIN_USDC_ADDRESS,
             tokenABI,
             unichainProvider
           );
-          const unichainUSDCBalance = await unichainUSDCContract.balanceOf(unichainContract.target);
-          const formattedUSDCBalance = Number(ethers.formatUnits(unichainUSDCBalance, 6));
+          const [unichainUSDCBalance, unichainUSDCFees] = await Promise.all([
+            unichainUSDCContract.balanceOf(unichainContract.target),
+            unichainContract.platformFees(import.meta.env.VITE_UNICHAIN_USDC_ADDRESS)
+          ]);
           
-          // Calculate fees from orders for Unichain USDC
-          const unichainUSDCOrdersQuery = query(
-            collection(db, 'orders'),
-            where('paymentMethod.network', '==', 1301),
-            where('paymentMethod.token', '==', 'USDC')
-          );
-          const unichainUSDCOrdersSnapshot = await getDocs(unichainUSDCOrdersQuery);
-          const unichainUSDCFees = unichainUSDCOrdersSnapshot.docs.reduce((sum, doc) => {
-            const orderData = doc.data();
-            return sum + (orderData.total * 0.05); // 5% platform fee
-          }, 0);
+          const formattedUSDCBalance = Number(ethers.formatUnits(unichainUSDCBalance, 6));
+          const formattedUSDCFees = Number(ethers.formatUnits(unichainUSDCFees, 6));
 
           newBalances.unichain.USDC = {
             total: formattedUSDCBalance,
-            fees: unichainUSDCFees,
-            available: formattedUSDCBalance - unichainUSDCFees,
+            fees: formattedUSDCFees,
+            available: formattedUSDCBalance - formattedUSDCFees,
             error: null
           };
         } catch (error) {
@@ -483,59 +473,45 @@ export default function AdminDashboard() {
       // Fetch Polygon balances
       if (polygonContract && polygonContract.target) {
         try {
-          // Get USDT balance for Polygon
+          // Get USDT balance and fees for Polygon
           const polygonUSDTContract = new ethers.Contract(
             import.meta.env.VITE_USDT_ADDRESS_POLYGON,
             tokenABI,
             polygonProvider
           );
-          const polygonUSDTBalance = await polygonUSDTContract.balanceOf(polygonContract.target);
-          const formattedUSDTBalance = Number(ethers.formatUnits(polygonUSDTBalance, 6));
+          const [polygonUSDTBalance, polygonUSDTFees] = await Promise.all([
+            polygonUSDTContract.balanceOf(polygonContract.target),
+            polygonContract.platformFees(import.meta.env.VITE_USDT_ADDRESS_POLYGON)
+          ]);
           
-          // Calculate fees from orders for Polygon USDT
-          const polygonUSDTOrdersQuery = query(
-            collection(db, 'orders'),
-            where('paymentMethod.network', '==', 137),
-            where('paymentMethod.token', '==', 'USDT')
-          );
-          const polygonUSDTOrdersSnapshot = await getDocs(polygonUSDTOrdersQuery);
-          const polygonUSDTFees = polygonUSDTOrdersSnapshot.docs.reduce((sum, doc) => {
-            const orderData = doc.data();
-            return sum + (orderData.total * 0.05); // 5% platform fee
-          }, 0);
+          const formattedUSDTBalance = Number(ethers.formatUnits(polygonUSDTBalance, 6));
+          const formattedUSDTFees = Number(ethers.formatUnits(polygonUSDTFees, 6));
 
           newBalances.polygon.USDT = {
             total: formattedUSDTBalance,
-            fees: polygonUSDTFees,
-            available: formattedUSDTBalance - polygonUSDTFees,
+            fees: formattedUSDTFees,
+            available: formattedUSDTBalance - formattedUSDTFees,
             error: null
           };
           
-          // Get USDC balance for Polygon
+          // Get USDC balance and fees for Polygon
           const polygonUSDCContract = new ethers.Contract(
             import.meta.env.VITE_USDC_ADDRESS_POLYGON,
             tokenABI,
             polygonProvider
           );
-          const polygonUSDCBalance = await polygonUSDCContract.balanceOf(polygonContract.target);
-          const formattedUSDCBalance = Number(ethers.formatUnits(polygonUSDCBalance, 6));
+          const [polygonUSDCBalance, polygonUSDCFees] = await Promise.all([
+            polygonUSDCContract.balanceOf(polygonContract.target),
+            polygonContract.platformFees(import.meta.env.VITE_USDC_ADDRESS_POLYGON)
+          ]);
           
-          // Calculate fees from orders for Polygon USDC
-          const polygonUSDCOrdersQuery = query(
-            collection(db, 'orders'),
-            where('paymentMethod.network', '==', 137),
-            where('paymentMethod.token', '==', 'USDC')
-          );
-          const polygonUSDCOrdersSnapshot = await getDocs(polygonUSDCOrdersQuery);
-          const polygonUSDCFees = polygonUSDCOrdersSnapshot.docs.reduce((sum, doc) => {
-            const orderData = doc.data();
-            return sum + (orderData.total * 0.05); // 5% platform fee
-          }, 0);
+          const formattedUSDCBalance = Number(ethers.formatUnits(polygonUSDCBalance, 6));
+          const formattedUSDCFees = Number(ethers.formatUnits(polygonUSDCFees, 6));
 
           newBalances.polygon.USDC = {
             total: formattedUSDCBalance,
-            fees: polygonUSDCFees,
-            available: formattedUSDCBalance - polygonUSDCFees,
+            fees: formattedUSDCFees,
+            available: formattedUSDCBalance - formattedUSDCFees,
             error: null
           };
         } catch (error) {
@@ -597,10 +573,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-[#FF1B6B] mb-6">Admin Dashboard</h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* All-time Sales Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
         <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
           <div className="flex items-center justify-between">
             <div>
@@ -612,31 +585,46 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Current Sales Card */}
         <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Current Sales</p>
               <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.currentSales.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>After withdrawals</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal for sellers</p>
             </div>
             <FiDollarSign className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        {/* Platform Earnings Card */}
         <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Platform Earnings</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.platformFee.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>5% platform fee</p>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>All-time Platform Fees</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${(stats.totalSales * 0.05).toFixed(2)}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total platform fees earned</p>
             </div>
             <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        {/* Active Sellers Card */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Current Platform Fees</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                ${(
+                  (contractBalances?.unichain?.USDT?.fees || 0) + 
+                  (contractBalances?.unichain?.USDC?.fees || 0) + 
+                  (contractBalances?.polygon?.USDT?.fees || 0) + 
+                  (contractBalances?.polygon?.USDC?.fees || 0)
+                ).toFixed(2)}
+              </p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal</p>
+            </div>
+            <FiDollarSign className="text-3xl text-[#FF1B6B]" />
+          </div>
+        </div>
+
         <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
           <div className="flex items-center justify-between">
             <div>

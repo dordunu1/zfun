@@ -16,7 +16,9 @@ module.exports = {
     unichain: {
       url: "https://sepolia.unichain.org",
       accounts: [process.env.PRIVATE_KEY],
-      chainId: 1301
+      timeout: 120000,
+      networkCheckTimeout: 120000,
+      timeoutBlocks: 200
     },
     polygon: {
       url: "https://polygon-rpc.com",

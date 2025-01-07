@@ -30,6 +30,8 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
 
     // Seller balances for each token
     mapping(address => mapping(address => uint256)) public sellerBalances; // seller => token => amount
+    // Platform fees for each token
+    mapping(address => uint256) public platformFees; // token => amount
     mapping(uint256 => Order) public orders;
     uint256 public nextOrderId;
 
@@ -37,6 +39,7 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
     event WithdrawalRequested(address indexed seller, address token, uint256 amount);
     event WithdrawalApproved(address indexed seller, address token, uint256 amount);
     event PlatformFeeUpdated(uint256 newFee);
+    event PlatformFeeWithdrawn(address indexed token, uint256 amount);
 
     constructor(address _usdt, address _usdc) {
         USDT = IERC20(_usdt);
@@ -65,8 +68,9 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
             timestamp: block.timestamp
         });
 
-        // Update seller's balance
+        // Update seller's balance and platform fees
         sellerBalances[_seller][_token] += sellerAmount;
+        platformFees[_token] += platformFee;
 
         emit OrderCreated(nextOrderId, msg.sender, _seller, _token, _amount);
         nextOrderId++;
@@ -96,10 +100,21 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
         emit PlatformFeeUpdated(_newFee);
     }
 
+    // Get available platform fees for a token
+    function getPlatformFees(address _token) external view returns (uint256) {
+        require(_token == address(USDT) || _token == address(USDC), "Unsupported token");
+        return platformFees[_token];
+    }
+
     // Admin can withdraw platform fees
     function withdrawPlatformFees(address _token, uint256 _amount) external onlyOwner {
         require(_token == address(USDT) || _token == address(USDC), "Unsupported token");
+        require(platformFees[_token] >= _amount, "Insufficient platform fees");
+        
+        platformFees[_token] -= _amount;
         IERC20(_token).safeTransfer(owner(), _amount);
+        
+        emit PlatformFeeWithdrawn(_token, _amount);
     }
 
     function pause() external onlyOwner {
