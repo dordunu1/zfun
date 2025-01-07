@@ -30,12 +30,12 @@ export default function AdminDashboard() {
   const [walletAddress, setWalletAddress] = useState('');
   const [contractBalances, setContractBalances] = useState({
     unichain: {
-      USDT: { total: 0, fees: 0 },
-      USDC: { total: 0, fees: 0 }
+      USDT: { total: 0, fees: 0, available: 0, error: null },
+      USDC: { total: 0, fees: 0, available: 0, error: null }
     },
     polygon: {
-      USDT: { total: 0, fees: 0 },
-      USDC: { total: 0, fees: 0 }
+      USDT: { total: 0, fees: 0, available: 0, error: null },
+      USDC: { total: 0, fees: 0, available: 0, error: null }
     }
   });
   const [stats, setStats] = useState({
@@ -76,6 +76,10 @@ export default function AdminDashboard() {
   const [loadingMore, setLoadingMore] = useState(false);
   const ordersPerPage = 50;
   const [contractBalancesLoading, setContractBalancesLoading] = useState(true);
+  const [networkLoadingStates, setNetworkLoadingStates] = useState({
+    unichain: false,
+    polygon: false
+  });
 
   const loadMoreOrders = async () => {
     if (loadingMore || !hasMore) return;
@@ -379,7 +383,10 @@ export default function AdminDashboard() {
 
   // Add function to fetch contract balances
   const fetchContractBalances = async () => {
-    setContractBalancesLoading(true);
+    setNetworkLoadingStates({
+      unichain: true,
+      polygon: true
+    });
     try {
       // Token ABI for balance checking
       const tokenABI = ["function balanceOf(address) view returns (uint256)"];
@@ -388,22 +395,30 @@ export default function AdminDashboard() {
       const unichainProvider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
       const unichainContract = await getMerchPlatformContract(unichainProvider, '1301');
       
-      console.log('Unichain Contract Address:', unichainContract?.target);
+      // Get Polygon balances - using more reliable RPC
+      const polygonProvider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/' + import.meta.env.VITE_ALCHEMY_API_KEY);
+      const polygonContract = await getMerchPlatformContract(polygonProvider, '137');
+      
+      console.log('Contract Addresses:', {
+        unichain: unichainContract?.target,
+        polygon: polygonContract?.target
+      });
       
       let newBalances = {
         unichain: {
-          USDT: { total: 0, fees: 0, available: 0 },
-          USDC: { total: 0, fees: 0, available: 0 }
+          USDT: { total: 0, fees: 0, available: 0, error: null },
+          USDC: { total: 0, fees: 0, available: 0, error: null }
         },
         polygon: {
-          USDT: { total: 0, fees: 0, available: 0 },
-          USDC: { total: 0, fees: 0, available: 0 }
+          USDT: { total: 0, fees: 0, available: 0, error: null },
+          USDC: { total: 0, fees: 0, available: 0, error: null }
         }
       };
       
+      // Fetch Unichain balances
       if (unichainContract && unichainContract.target) {
         try {
-          // Get USDT balance
+          // Get USDT balance for Unichain
           const unichainUSDTContract = new ethers.Contract(
             import.meta.env.VITE_UNICHAIN_USDT_ADDRESS,
             tokenABI,
@@ -412,40 +427,26 @@ export default function AdminDashboard() {
           const unichainUSDTBalance = await unichainUSDTContract.balanceOf(unichainContract.target);
           const formattedUSDTBalance = Number(ethers.formatUnits(unichainUSDTBalance, 6));
           
-          // Calculate fees from orders
-          const ordersQuery = query(
+          // Calculate fees from orders for Unichain USDT
+          const unichainUSDTOrdersQuery = query(
             collection(db, 'orders'),
             where('paymentMethod.network', '==', 1301),
             where('paymentMethod.token', '==', 'USDT')
           );
-          const ordersSnapshot = await getDocs(ordersQuery);
-          const usdtFees = ordersSnapshot.docs.reduce((sum, doc) => {
+          const unichainUSDTOrdersSnapshot = await getDocs(unichainUSDTOrdersQuery);
+          const unichainUSDTFees = unichainUSDTOrdersSnapshot.docs.reduce((sum, doc) => {
             const orderData = doc.data();
             return sum + (orderData.total * 0.05); // 5% platform fee
           }, 0);
 
           newBalances.unichain.USDT = {
             total: formattedUSDTBalance,
-            fees: usdtFees,
-            available: formattedUSDTBalance - usdtFees
+            fees: unichainUSDTFees,
+            available: formattedUSDTBalance - unichainUSDTFees,
+            error: null
           };
           
-          console.log('Unichain USDT:', newBalances.unichain.USDT);
-          
-          // Update state immediately after getting USDT values
-          setContractBalances(prevBalances => ({
-            ...prevBalances || newBalances,
-            unichain: {
-              ...(prevBalances?.unichain || newBalances.unichain),
-              USDT: newBalances.unichain.USDT
-            }
-          }));
-        } catch (error) {
-          console.error('Error fetching USDT balances:', error);
-        }
-
-        try {
-          // Get USDC balance
+          // Get USDC balance for Unichain
           const unichainUSDCContract = new ethers.Contract(
             import.meta.env.VITE_UNICHAIN_USDC_ADDRESS,
             tokenABI,
@@ -454,49 +455,106 @@ export default function AdminDashboard() {
           const unichainUSDCBalance = await unichainUSDCContract.balanceOf(unichainContract.target);
           const formattedUSDCBalance = Number(ethers.formatUnits(unichainUSDCBalance, 6));
           
-          // Calculate fees from orders
-          const ordersQuery = query(
+          // Calculate fees from orders for Unichain USDC
+          const unichainUSDCOrdersQuery = query(
             collection(db, 'orders'),
             where('paymentMethod.network', '==', 1301),
             where('paymentMethod.token', '==', 'USDC')
           );
-          const ordersSnapshot = await getDocs(ordersQuery);
-          const usdcFees = ordersSnapshot.docs.reduce((sum, doc) => {
+          const unichainUSDCOrdersSnapshot = await getDocs(unichainUSDCOrdersQuery);
+          const unichainUSDCFees = unichainUSDCOrdersSnapshot.docs.reduce((sum, doc) => {
             const orderData = doc.data();
             return sum + (orderData.total * 0.05); // 5% platform fee
           }, 0);
 
           newBalances.unichain.USDC = {
             total: formattedUSDCBalance,
-            fees: usdcFees,
-            available: formattedUSDCBalance - usdcFees
+            fees: unichainUSDCFees,
+            available: formattedUSDCBalance - unichainUSDCFees,
+            error: null
           };
-          
-          console.log('Unichain USDC:', newBalances.unichain.USDC);
-          
-          // Update state immediately after getting USDC values
-          setContractBalances(prevBalances => ({
-            ...prevBalances || newBalances,
-            unichain: {
-              ...(prevBalances?.unichain || newBalances.unichain),
-              USDC: newBalances.unichain.USDC
-            }
-          }));
         } catch (error) {
-          console.error('Error fetching USDC balances:', error);
+          console.error('Error fetching Unichain balances:', error);
+          newBalances.unichain.USDT.error = 'Failed to fetch Unichain USDT balance';
+          newBalances.unichain.USDC.error = 'Failed to fetch Unichain USDC balance';
         }
       }
 
-      // Update stats state with the final balances
-      setStats(prev => ({
-        ...prev,
-        contractBalances: newBalances
-      }));
+      // Fetch Polygon balances
+      if (polygonContract && polygonContract.target) {
+        try {
+          // Get USDT balance for Polygon
+          const polygonUSDTContract = new ethers.Contract(
+            import.meta.env.VITE_USDT_ADDRESS_POLYGON,
+            tokenABI,
+            polygonProvider
+          );
+          const polygonUSDTBalance = await polygonUSDTContract.balanceOf(polygonContract.target);
+          const formattedUSDTBalance = Number(ethers.formatUnits(polygonUSDTBalance, 6));
+          
+          // Calculate fees from orders for Polygon USDT
+          const polygonUSDTOrdersQuery = query(
+            collection(db, 'orders'),
+            where('paymentMethod.network', '==', 137),
+            where('paymentMethod.token', '==', 'USDT')
+          );
+          const polygonUSDTOrdersSnapshot = await getDocs(polygonUSDTOrdersQuery);
+          const polygonUSDTFees = polygonUSDTOrdersSnapshot.docs.reduce((sum, doc) => {
+            const orderData = doc.data();
+            return sum + (orderData.total * 0.05); // 5% platform fee
+          }, 0);
 
+          newBalances.polygon.USDT = {
+            total: formattedUSDTBalance,
+            fees: polygonUSDTFees,
+            available: formattedUSDTBalance - polygonUSDTFees,
+            error: null
+          };
+          
+          // Get USDC balance for Polygon
+          const polygonUSDCContract = new ethers.Contract(
+            import.meta.env.VITE_USDC_ADDRESS_POLYGON,
+            tokenABI,
+            polygonProvider
+          );
+          const polygonUSDCBalance = await polygonUSDCContract.balanceOf(polygonContract.target);
+          const formattedUSDCBalance = Number(ethers.formatUnits(polygonUSDCBalance, 6));
+          
+          // Calculate fees from orders for Polygon USDC
+          const polygonUSDCOrdersQuery = query(
+            collection(db, 'orders'),
+            where('paymentMethod.network', '==', 137),
+            where('paymentMethod.token', '==', 'USDC')
+          );
+          const polygonUSDCOrdersSnapshot = await getDocs(polygonUSDCOrdersQuery);
+          const polygonUSDCFees = polygonUSDCOrdersSnapshot.docs.reduce((sum, doc) => {
+            const orderData = doc.data();
+            return sum + (orderData.total * 0.05); // 5% platform fee
+          }, 0);
+
+          newBalances.polygon.USDC = {
+            total: formattedUSDCBalance,
+            fees: polygonUSDCFees,
+            available: formattedUSDCBalance - polygonUSDCFees,
+            error: null
+          };
+        } catch (error) {
+          console.error('Error fetching Polygon balances:', error);
+          newBalances.polygon.USDT.error = 'Failed to fetch Polygon USDT balance';
+          newBalances.polygon.USDC.error = 'Failed to fetch Polygon USDC balance';
+        }
+      }
+
+      // Update state with all balances
+      setContractBalances(newBalances);
       console.log('Updated Contract Balances:', newBalances);
     } catch (error) {
       console.error('Error fetching contract balances:', error);
     } finally {
+      setNetworkLoadingStates({
+        unichain: false,
+        polygon: false
+      });
       setContractBalancesLoading(false);
     }
   };
@@ -834,79 +892,135 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Contract Balances Section */}
-      <h2 className="text-2xl font-bold text-[#FF1B6B] mb-6">Platform Contract Balances</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Unichain Balances */}
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-          <h2 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>
-            Unichain Network
-          </h2>
-          {contractBalancesLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-8 h-8 border-4 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {Object.entries(contractBalances.unichain).map(([token, balance]) => (
-                <div key={token} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="flex items-center">
-                    <img src={TOKEN_INFO[token].logo} alt={token} className="w-8 h-8 mr-3" />
-                    <div>
-                      <div className="font-medium">{token}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        Total: ${balance.total.toFixed(2)}
+      {/* Platform Contract Balances Section */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-[#FF1B6B] mb-4">Platform Contract Balances</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Unichain Network Card */}
+          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg`}>
+            <h3 className="text-lg font-semibold mb-4">Unichain Network</h3>
+            {networkLoadingStates.unichain ? (
+              <div className="flex justify-center items-center py-4">
+                <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* USDT Balance */}
+                <div className="mb-4">
+                  <div className="flex items-center mb-2">
+                    <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
+                    <span className="font-medium">USDT</span>
+                  </div>
+                  {contractBalances.unichain.USDT.error ? (
+                    <p className="text-red-500 text-sm">{contractBalances.unichain.USDT.error}</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Total</p>
+                        <p className="font-medium">${contractBalances.unichain.USDT.total.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Fees</p>
+                        <p className="font-medium">${contractBalances.unichain.USDT.fees.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Available</p>
+                        <p className="font-medium">${contractBalances.unichain.USDT.available.toFixed(2)}</p>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-[#FF1B6B]">
-                      Platform Fees: ${balance.fees.toFixed(2)}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      Available: ${Math.max(0, balance.total - balance.fees).toFixed(2)}
-                    </div>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                {/* USDC Balance */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
+                    <span className="font-medium">USDC</span>
+                  </div>
+                  {contractBalances.unichain.USDC.error ? (
+                    <p className="text-red-500 text-sm">{contractBalances.unichain.USDC.error}</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Total</p>
+                        <p className="font-medium">${contractBalances.unichain.USDC.total.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Fees</p>
+                        <p className="font-medium">${contractBalances.unichain.USDC.fees.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Available</p>
+                        <p className="font-medium">${contractBalances.unichain.USDC.available.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
-        {/* Polygon Balances */}
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-          <h2 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>
-            Polygon Network
-          </h2>
-          {contractBalancesLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-8 h-8 border-4 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {Object.entries(contractBalances.polygon).map(([token, balance]) => (
-                <div key={token} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="flex items-center">
-                    <img src={TOKEN_INFO[token].logo} alt={token} className="w-8 h-8 mr-3" />
-                    <div>
-                      <div className="font-medium">{token}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        Total: ${balance.total.toFixed(2)}
+          {/* Polygon Network Card */}
+          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg`}>
+            <h3 className="text-lg font-semibold mb-4">Polygon Network</h3>
+            {networkLoadingStates.polygon ? (
+              <div className="flex justify-center items-center py-4">
+                <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* USDT Balance */}
+                <div className="mb-4">
+                  <div className="flex items-center mb-2">
+                    <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
+                    <span className="font-medium">USDT</span>
+                  </div>
+                  {contractBalances.polygon.USDT.error ? (
+                    <p className="text-red-500 text-sm">{contractBalances.polygon.USDT.error}</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Total</p>
+                        <p className="font-medium">${contractBalances.polygon.USDT.total.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Fees</p>
+                        <p className="font-medium">${contractBalances.polygon.USDT.fees.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Available</p>
+                        <p className="font-medium">${contractBalances.polygon.USDT.available.toFixed(2)}</p>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-[#FF1B6B]">
-                      Platform Fees: ${balance.fees.toFixed(2)}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      Available: ${Math.max(0, balance.total - balance.fees).toFixed(2)}
-                    </div>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+                {/* USDC Balance */}
+                <div>
+                  <div className="flex items-center mb-2">
+                    <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
+                    <span className="font-medium">USDC</span>
+                  </div>
+                  {contractBalances.polygon.USDC.error ? (
+                    <p className="text-red-500 text-sm">{contractBalances.polygon.USDC.error}</p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-500">Total</p>
+                        <p className="font-medium">${contractBalances.polygon.USDC.total.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Fees</p>
+                        <p className="font-medium">${contractBalances.polygon.USDC.fees.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Available</p>
+                        <p className="font-medium">${contractBalances.polygon.USDC.available.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
