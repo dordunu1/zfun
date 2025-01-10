@@ -535,7 +535,7 @@ const Checkout = () => {
           shippingConfirmedAt: null,
           fundsAvailable: false,
           fundsAvailableAt: null,
-          shippingDeadline: new Date(Date.now() + 1 * 60 * 60 * 1000), // 1 hour
+          shippingDeadline: new Date(Date.now() + 72 * 60 * 60 * 1000), // 72 hours (3 days)
           fundsReleaseDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000) // 15 days
         });
       }
