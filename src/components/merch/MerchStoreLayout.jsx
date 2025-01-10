@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX } from 'react-icons/bi';
+import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX, BiRefresh, BiShield } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -28,6 +28,7 @@ const MerchStoreLayout = () => {
     { to: '/merch-store', icon: BiHomeAlt, label: 'Browse', exact: true },
     { to: '/merch-store/cart', icon: BiCart, label: 'Cart', count: cartCount },
     { to: '/merch-store/orders', icon: BiPackage, label: 'My Orders' },
+    { to: '/merch-store/my-refunds', icon: BiRefresh, label: 'My Refunds' },
     { to: '/merch-store/settings', icon: BiCog, label: 'Settings' },
   ];
 
@@ -37,10 +38,16 @@ const MerchStoreLayout = () => {
     { to: '/merch-store/add-product', icon: BiListPlus, label: 'Add Product' },
     { to: '/merch-store/sales', icon: BiDollarCircle, label: 'Sales' },
     { to: '/merch-store/orders-received', icon: BiHistory, label: 'Orders' },
+    { to: '/merch-store/refunds', icon: BiRefresh, label: 'Buyers Refunds' },
     { to: '/merch-store/settings', icon: BiCog, label: 'Settings' },
   ];
 
-  const navItems = user?.isSeller ? sellerNavItems : buyerNavItems;
+  // Common navigation items (shown to both buyers and sellers)
+  const commonNavItems = [
+    { to: '/merch-store/terms', icon: BiShield, label: 'Terms & Conditions' }
+  ];
+
+  const navItems = [...(user?.isSeller ? sellerNavItems : buyerNavItems), ...commonNavItems];
 
   return (
     <div className="min-h-screen bg-white">
@@ -292,11 +299,34 @@ const MerchStoreLayout = () => {
       )}
 
       {/* Main Content */}
-      <div className={`${user ? 'lg:ml-64 mt-16' : 'mt-16'} min-h-[calc(100vh-4rem)] bg-white`}>
-        <div className="max-w-7xl mx-auto p-4 sm:p-6">
+      <main className={`min-h-screen pt-16 ${user ? 'lg:pl-64' : ''}`}>
+        <div className="h-full">
           <Outlet />
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className={`bg-white border-t border-gray-100 py-6 ${user ? 'lg:pl-64' : ''}`}>
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <BiStore className="w-6 h-6 text-[#FF1B6B]" />
+            <span className="text-gray-600 font-medium">MerchStore</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Link 
+              to="/merch-store/terms" 
+              className="text-gray-600 hover:text-[#FF1B6B] transition-colors text-sm flex items-center gap-2"
+            >
+              <BiShield className="w-4 h-4" />
+              Terms & Conditions
+            </Link>
+          </div>
+          <div className="text-sm text-gray-500">
+            © {new Date().getFullYear()} MerchStore. All rights reserved.
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 };

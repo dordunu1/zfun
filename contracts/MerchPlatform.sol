@@ -26,6 +26,7 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
         uint256 amount;
         bool isCompleted;
         uint256 timestamp;
+        bool isRefunded;    // New field to track refund status
     }
 
     // Seller balances for each token
@@ -37,6 +38,7 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
     event WithdrawalRequested(address indexed seller, address token, uint256 amount);
     event WithdrawalApproved(address indexed seller, address token, uint256 amount);
     event PlatformFeeUpdated(uint256 newFee);
+    event RefundProcessed(uint256 indexed orderId, address indexed buyer, address indexed seller, address token, uint256 amount);
 
     constructor(address _usdt, address _usdc) {
         USDT = IERC20(_usdt);
@@ -62,7 +64,8 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
             token: _token,
             amount: sellerAmount,
             isCompleted: false,
-            timestamp: block.timestamp
+            timestamp: block.timestamp,
+            isRefunded: false
         });
 
         // Update seller's balance
@@ -88,6 +91,31 @@ contract MerchPlatform is ReentrancyGuard, Pausable, Ownable {
         IERC20(_token).safeTransfer(_seller, _amount);
 
         emit WithdrawalApproved(_seller, _token, _amount);
+    }
+
+    function processRefund(
+        uint256 _orderId,
+        address _buyer,
+        address _seller,
+        uint256 _amount
+    ) external onlyOwner nonReentrant {
+        Order storage order = orders[_orderId];
+        require(!order.isRefunded, "Order already refunded");
+        require(order.buyer == _buyer, "Invalid buyer address");
+        require(order.seller == _seller, "Invalid seller address");
+        require(sellerBalances[_seller][order.token] >= _amount, "Insufficient seller balance");
+        
+        // Update order status
+        order.isRefunded = true;
+        
+        // Deduct from seller's balance
+        sellerBalances[_seller][order.token] -= _amount;
+        
+        // Transfer tokens to buyer
+        IERC20(order.token).safeTransfer(_buyer, _amount);
+        
+        // Emit refund event
+        emit RefundProcessed(_orderId, _buyer, _seller, order.token, _amount);
     }
 
     function updatePlatformFee(uint256 _newFee) external onlyOwner {

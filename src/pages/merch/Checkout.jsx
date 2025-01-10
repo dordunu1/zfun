@@ -456,13 +456,36 @@ const Checkout = () => {
           tokenContract.address,
           amount
         );
-        await createOrderTx.wait();
-      }
+        const receipt = await createOrderTx.wait();
+        console.log('Transaction receipt:', receipt);
 
-      setTransactionStatus('Saving order details...');
+        // Look for OrderCreated event
+        const event = receipt.logs.find(log => {
+          try {
+            const parsedLog = merchPlatform.interface.parseLog(log);
+            console.log('Parsed log:', parsedLog);
+            return parsedLog.name === 'OrderCreated';
+          } catch (e) {
+            return false;
+          }
+        });
 
-      // Create separate orders for each seller
-      for (const [sellerId, orderData] of Object.entries(sellerOrders)) {
+        if (!event) {
+          console.error('OrderCreated event not found in logs');
+          console.log('All logs:', receipt.logs);
+          throw new Error('Failed to get order ID from transaction');
+        }
+
+        // Parse the event data
+        const parsedEvent = merchPlatform.interface.parseLog(event);
+        console.log('Parsed OrderCreated event:', parsedEvent);
+        
+        // The orderId is the first indexed parameter
+        const numericOrderId = parsedEvent.args.orderId.toString();
+        console.log('Order ID from event:', numericOrderId);
+
+        setTransactionStatus('Saving order details...');
+
         // Update product quantities
         const updateQuantityPromises = orderData.items.map(async (item) => {
           const productRef = doc(db, 'products', item.product.id);
@@ -475,7 +498,9 @@ const Checkout = () => {
         });
         await Promise.all(updateQuantityPromises);
 
+        // Create Firebase order for THIS seller only
         await addDoc(collection(db, 'orders'), {
+          numericOrderId, // Store the numeric order ID from the contract
           buyerId: user.uid,
           sellerId: sellerId,
           sellerName: orderData.items[0].product.sellerName,
@@ -559,315 +584,317 @@ const Checkout = () => {
       animate="visible"
       className="min-h-screen bg-[#FFF5F7] p-4 md:p-8"
     >
-      <motion.h1
-        variants={itemVariants}
-        className="text-3xl font-bold text-gray-900 mb-8"
-      >
-        Checkout
-      </motion.h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Order Summary */}
-        <motion.div
+      <div className="max-w-6xl mx-auto">
+        <motion.h1
           variants={itemVariants}
-          className="lg:col-span-2 space-y-6"
+          className="text-3xl font-bold text-gray-900 mb-8"
         >
-          <motion.div variants={itemVariants} className="bg-white rounded-lg p-6">
-            <h2 className="font-bold text-gray-800 mb-4">Order Summary</h2>
-            {cartItems.map((item) => (
-              <div key={item.id} className="flex items-start space-x-4 mb-4 pb-4 border-b last:border-b-0">
-                <img
-                  src={item.product.images[0]}
-                  alt={item.product.name}
-                  className="w-20 h-20 object-cover rounded-lg"
-                />
-                <div className="flex-1 flex justify-between">
-                  <div>
-                    <h3 className="font-medium text-gray-800">{item.product.name}</h3>
-                    <div className="text-sm text-gray-600 mt-1">
-                      <p>Quantity: {item.quantity}</p>
-                      {item.size && <p>Size: {item.size}</p>}
-                      {item.color && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <span>Color:</span>
-                          <span className="flex items-center gap-1">
-                            <span
-                              className="w-4 h-4 rounded-full border border-gray-300"
-                              style={{ 
-                                backgroundColor: item.color.toLowerCase(),
-                                borderColor: item.color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
-                              }}
-                            />
-                            {item.color}
-                          </span>
-                        </div>
+          Checkout
+        </motion.h1>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Order Summary */}
+          <motion.div
+            variants={itemVariants}
+            className="lg:col-span-2 space-y-6"
+          >
+            <motion.div variants={itemVariants} className="bg-white rounded-lg p-6">
+              <h2 className="font-bold text-gray-800 mb-4">Order Summary</h2>
+              {cartItems.map((item) => (
+                <div key={item.id} className="flex items-start space-x-4 mb-4 pb-4 border-b last:border-b-0">
+                  <img
+                    src={item.product.images[0]}
+                    alt={item.product.name}
+                    className="w-20 h-20 object-cover rounded-lg"
+                  />
+                  <div className="flex-1 flex justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-800">{item.product.name}</h3>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <p>Quantity: {item.quantity}</p>
+                        {item.size && <p>Size: {item.size}</p>}
+                        {item.color && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <span>Color:</span>
+                            <span className="flex items-center gap-1">
+                              <span
+                                className="w-4 h-4 rounded-full border border-gray-300"
+                                style={{ 
+                                  backgroundColor: item.color.toLowerCase(),
+                                  borderColor: item.color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
+                                }}
+                              />
+                              {item.color}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</p>
+                      {item.product.shippingFee > 0 && (
+                        <p className="text-sm text-gray-600">+ ${item.product.shippingFee.toFixed(2)} shipping</p>
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</p>
-                    {item.product.shippingFee > 0 && (
-                      <p className="text-sm text-gray-600">+ ${item.product.shippingFee.toFixed(2)} shipping</p>
-                    )}
-                  </div>
                 </div>
-              </div>
-            ))}
-            <div className="border-t pt-4 mt-4 space-y-2">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>${orderSummary.subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Shipping</span>
-                <span>${orderSummary.shippingTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-gray-800 pt-2 border-t">
-                <span>Total</span>
-                <span>${orderSummary.total.toFixed(2)}</span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Shipping Address */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Shipping Address
-            </h2>
-            {buyerProfile?.shippingAddress ? (
-              <div className="space-y-2">
-                <p className="text-gray-600">
-                  {buyerProfile.shippingAddress.street}
-                </p>
-                <p className="text-gray-600">
-                  {buyerProfile.shippingAddress.city}, {buyerProfile.shippingAddress.state} {buyerProfile.shippingAddress.postalCode}
-                </p>
-                <p className="text-gray-600">
-                  {buyerProfile.shippingAddress.country}
-                </p>
-                <button
-                  onClick={() => navigate('/merch-store/settings')}
-                  className="mt-4 text-sm text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
-                >
-                  Edit Address
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-[#FF1B6B]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</h3>
-                      <p className="mt-1 text-sm text-gray-600">
-                        Please add your shipping address to continue with the checkout process.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => navigate('/merch-store/settings')}
-                  className="w-full px-4 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                  </svg>
-                  Add Shipping Address
-                </button>
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Payment Section */}
-        <motion.div
-          variants={itemVariants}
-          className="lg:col-span-1 space-y-6"
-        >
-          {/* Connect Wallet */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Payment Method
-            </h2>
-            {!walletConnected ? (
-              <div className="space-y-4">
-                <p className="text-gray-600">Please connect your wallet in your profile settings first.</p>
-                <button
-                  onClick={() => navigate('/merch-store/settings')}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors"
-                >
-                  <BiWallet className="w-5 h-5" />
-                  <span>Go to Settings</span>
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <BiWallet className="w-5 h-5 text-gray-600" />
-                    <span className="text-sm text-gray-600">
-                      {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => navigate('/merch-store/settings')}
-                    className="text-sm text-[#FF1B6B] hover:text-[#D4145A]"
-                  >
-                    Change in Settings
-                  </button>
-                </div>
-
-                {/* Network Information */}
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <BiNetworkChart className="w-5 h-5 text-gray-600" />
-                      <span className="text-sm text-gray-600">Network Required:</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {NETWORK_NAMES[chainId]}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Token Balance */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">
-                    Payment Token
-                  </p>
-                  <div className="p-3 rounded-lg border-2 border-[#FF1B6B] bg-pink-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img 
-                          src={cartItems[0]?.product?.tokenLogo} 
-                          alt={selectedToken}
-                          className="w-5 h-5"
-                        />
-                        <span>{selectedToken}</span>
-                      </div>
-                      <span className="text-sm text-gray-600">
-                        Balance: {parseFloat(tokenBalance).toFixed(2)} {selectedToken}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Transaction Status */}
-                {transactionStatus && (
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
-                      <span className="text-sm text-blue-600">{transactionStatus}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Order Total */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Order Summary
-            </h2>
-            <div className="space-y-2">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <div className="flex items-center gap-1">
-                  <img 
-                    src={cartItems[0]?.product?.tokenLogo} 
-                    alt={selectedToken}
-                    className="w-4 h-4"
-                  />
+              ))}
+              <div className="border-t pt-4 mt-4 space-y-2">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
                   <span>${orderSummary.subtotal.toFixed(2)}</span>
                 </div>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Shipping</span>
-                <div className="flex items-center gap-1">
-                  <img 
-                    src={cartItems[0]?.product?.tokenLogo} 
-                    alt={selectedToken}
-                    className="w-4 h-4"
-                  />
+                <div className="flex justify-between text-gray-600">
+                  <span>Shipping</span>
                   <span>${orderSummary.shippingTotal.toFixed(2)}</span>
                 </div>
-              </div>
-              <div className="h-px bg-gray-200 my-2" />
-              <div className="flex justify-between font-medium text-gray-900">
-                <span>Total</span>
-                <div className="flex items-center gap-1">
-                  <img 
-                    src={cartItems[0]?.product?.tokenLogo} 
-                    alt={selectedToken}
-                    className="w-4 h-4"
-                  />
+                <div className="flex justify-between font-bold text-gray-800 pt-2 border-t">
+                  <span>Total</span>
                   <span>${orderSummary.total.toFixed(2)}</span>
                 </div>
               </div>
+            </motion.div>
+
+            {/* Shipping Address */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Shipping Address
+              </h2>
+              {buyerProfile?.shippingAddress ? (
+                <div className="space-y-2">
+                  <p className="text-gray-600">
+                    {buyerProfile.shippingAddress.street}
+                  </p>
+                  <p className="text-gray-600">
+                    {buyerProfile.shippingAddress.city}, {buyerProfile.shippingAddress.state} {buyerProfile.shippingAddress.postalCode}
+                  </p>
+                  <p className="text-gray-600">
+                    {buyerProfile.shippingAddress.country}
+                  </p>
+                  <button
+                    onClick={() => navigate('/merch-store/settings')}
+                    className="mt-4 text-sm text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
+                  >
+                    Edit Address
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-[#FF1B6B]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                          Please add your shipping address to continue with the checkout process.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/merch-store/settings')}
+                    className="w-full px-4 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                    </svg>
+                    Add Shipping Address
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Payment Section */}
+          <motion.div
+            variants={itemVariants}
+            className="lg:col-span-1 space-y-4"
+          >
+            {/* Connect Wallet */}
+            <div className="bg-white rounded-lg shadow-sm p-4 max-w-sm mx-auto">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Payment Method
+              </h2>
+              {!walletConnected ? (
+                <div className="space-y-4">
+                  <p className="text-gray-600">Please connect your wallet in your profile settings first.</p>
+                  <button
+                    onClick={() => navigate('/merch-store/settings')}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors"
+                  >
+                    <BiWallet className="w-5 h-5" />
+                    <span>Go to Settings</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <BiWallet className="w-5 h-5 text-gray-600" />
+                      <span className="text-sm text-gray-600">
+                        {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => navigate('/merch-store/settings')}
+                      className="text-sm text-[#FF1B6B] hover:text-[#D4145A]"
+                    >
+                      Change in Settings
+                    </button>
+                  </div>
+
+                  {/* Network Information */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <BiNetworkChart className="w-5 h-5 text-gray-600" />
+                        <span className="text-sm text-gray-600">Network Required:</span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {NETWORK_NAMES[chainId]}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Token Balance */}
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">
+                      Payment Token
+                    </p>
+                    <div className="p-3 rounded-lg border-2 border-[#FF1B6B] bg-pink-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={cartItems[0]?.product?.tokenLogo} 
+                            alt={selectedToken}
+                            className="w-5 h-5"
+                          />
+                          <span>{selectedToken}</span>
+                        </div>
+                        <span className="text-sm text-gray-600">
+                          Balance: {parseFloat(tokenBalance).toFixed(2)} {selectedToken}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Transaction Status */}
+                  {transactionStatus && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
+                        <span className="text-sm text-blue-600">{transactionStatus}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {!buyerProfile?.shippingAddress && (
-              <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</p>
-                    <p className="text-sm text-gray-600 mt-1">Please add your shipping address in settings to enable order placement.</p>
+            {/* Order Total */}
+            <div className="bg-white rounded-lg shadow-sm p-4 max-w-sm mx-auto">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Order Summary
+              </h2>
+              <div className="space-y-2">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <div className="flex items-center gap-1">
+                    <img 
+                      src={cartItems[0]?.product?.tokenLogo} 
+                      alt={selectedToken}
+                      className="w-4 h-4"
+                    />
+                    <span>${orderSummary.subtotal.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Shipping</span>
+                  <div className="flex items-center gap-1">
+                    <img 
+                      src={cartItems[0]?.product?.tokenLogo} 
+                      alt={selectedToken}
+                      className="w-4 h-4"
+                    />
+                    <span>${orderSummary.shippingTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="h-px bg-gray-200 my-2" />
+                <div className="flex justify-between font-medium text-gray-900">
+                  <span>Total</span>
+                  <div className="flex items-center gap-1">
+                    <img 
+                      src={cartItems[0]?.product?.tokenLogo} 
+                      alt={selectedToken}
+                      className="w-4 h-4"
+                    />
+                    <span>${orderSummary.total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
-            )}
 
-            <button
-              onClick={handlePlaceOrder}
-              disabled={
-                !walletConnected || 
-                cartItems.length === 0 || 
-                !buyerProfile?.shippingAddress || 
-                !buyerProfile?.shippingAddress?.street || 
-                !buyerProfile?.shippingAddress?.city || 
-                !buyerProfile?.shippingAddress?.state || 
-                !buyerProfile?.shippingAddress?.postalCode || 
-                !buyerProfile?.shippingAddress?.country ||
-                isProcessing || 
-                parseFloat(tokenBalance) < orderSummary.total
-              }
-              className={`w-full mt-6 px-4 py-3 rounded-lg text-white transition-colors ${
-                !buyerProfile?.shippingAddress || 
-                !buyerProfile?.shippingAddress?.street || 
-                !buyerProfile?.shippingAddress?.city || 
-                !buyerProfile?.shippingAddress?.state || 
-                !buyerProfile?.shippingAddress?.postalCode || 
-                !buyerProfile?.shippingAddress?.country
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-[#FF1B6B] hover:bg-[#D4145A] disabled:opacity-50 disabled:cursor-not-allowed'
-              }`}
-            >
-              {(!buyerProfile?.shippingAddress || 
-                !buyerProfile?.shippingAddress?.street || 
-                !buyerProfile?.shippingAddress?.city || 
-                !buyerProfile?.shippingAddress?.state || 
-                !buyerProfile?.shippingAddress?.postalCode || 
-                !buyerProfile?.shippingAddress?.country) ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                  Add Shipping Address Required
-                </span>
-              ) : isProcessing ? 'Processing...' :
-                 parseFloat(tokenBalance) < orderSummary.total ? `Insufficient ${selectedToken} Balance` :
-                 'Place Order'}
-            </button>
-          </div>
-        </motion.div>
+              {!buyerProfile?.shippingAddress && (
+                <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</p>
+                      <p className="text-sm text-gray-600 mt-1">Please add your shipping address in settings to enable order placement.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handlePlaceOrder}
+                disabled={
+                  !walletConnected || 
+                  cartItems.length === 0 || 
+                  !buyerProfile?.shippingAddress || 
+                  !buyerProfile?.shippingAddress?.street || 
+                  !buyerProfile?.shippingAddress?.city || 
+                  !buyerProfile?.shippingAddress?.state || 
+                  !buyerProfile?.shippingAddress?.postalCode || 
+                  !buyerProfile?.shippingAddress?.country ||
+                  isProcessing || 
+                  parseFloat(tokenBalance) < orderSummary.total
+                }
+                className={`w-full mt-6 px-4 py-3 rounded-lg text-white transition-colors ${
+                  !buyerProfile?.shippingAddress || 
+                  !buyerProfile?.shippingAddress?.street || 
+                  !buyerProfile?.shippingAddress?.city || 
+                  !buyerProfile?.shippingAddress?.state || 
+                  !buyerProfile?.shippingAddress?.postalCode || 
+                  !buyerProfile?.shippingAddress?.country
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-[#FF1B6B] hover:bg-[#D4145A] disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+              >
+                {(!buyerProfile?.shippingAddress || 
+                  !buyerProfile?.shippingAddress?.street || 
+                  !buyerProfile?.shippingAddress?.city || 
+                  !buyerProfile?.shippingAddress?.state || 
+                  !buyerProfile?.shippingAddress?.postalCode || 
+                  !buyerProfile?.shippingAddress?.country) ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    </svg>
+                    Add Shipping Address Required
+                  </span>
+                ) : isProcessing ? 'Processing...' :
+                   parseFloat(tokenBalance) < orderSummary.total ? `Insufficient ${selectedToken} Balance` :
+                   'Place Order'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </motion.div>
   );

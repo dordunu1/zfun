@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiBox, FiDollarSign, FiShoppingBag, FiTrendingUp, FiUsers, FiCreditCard } from 'react-icons/fi';
+import { FiBox, FiDollarSign, FiShoppingBag, FiTrendingUp, FiUsers, FiCreditCard, FiAlertCircle } from 'react-icons/fi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
@@ -238,8 +238,12 @@ const SellerDashboard = () => {
         const now = new Date();
         const incomingPaymentsList = orders.filter(order => {
           if (order.paymentStatus === 'completed' && !order.shippingConfirmed) {
-            const shippingDeadline = order.shippingDeadline?.toDate();
-            return shippingDeadline && shippingDeadline > now;
+            // Exclude canceled orders
+            if (order.status === 'cancelled') return false;
+            
+            const orderDate = order.createdAt.toDate();
+            const shippingDeadline = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
+            return now <= shippingDeadline;
           }
           return false;
         });
@@ -312,10 +316,10 @@ const SellerDashboard = () => {
             }
           });
 
-          // Calculate available balance for each token (net revenue minus withdrawals)
+          // Calculate available balance for each token (net revenue minus withdrawals and pending refunds)
           const balances = {
-            USDC: parseFloat((Math.max(0, tokenRevenue.USDC.net - totalWithdrawn.USDC)).toFixed(2)),
-            USDT: parseFloat((Math.max(0, tokenRevenue.USDT.net - totalWithdrawn.USDT)).toFixed(2))
+            USDC: parseFloat((Math.max(0, tokenRevenue.USDC.net - totalWithdrawn.USDC - (sellerData?.pendingRefunds?.USDC || 0))).toFixed(2)),
+            USDT: parseFloat((Math.max(0, tokenRevenue.USDT.net - totalWithdrawn.USDT - (sellerData?.pendingRefunds?.USDT || 0))).toFixed(2))
           };
 
           // Also account for pending withdrawals
@@ -337,23 +341,27 @@ const SellerDashboard = () => {
               gross: tokenRevenue.USDC.gross,
               net: tokenRevenue.USDC.net,
               withdrawn: totalWithdrawn.USDC,
+              pendingRefunds: sellerData?.pendingRefunds?.USDC || 0,
               available: balances.USDC
             },
             USDT: {
               gross: tokenRevenue.USDT.gross,
               net: tokenRevenue.USDT.net,
               withdrawn: totalWithdrawn.USDT,
+              pendingRefunds: sellerData?.pendingRefunds?.USDT || 0,
               available: balances.USDT
             }
           });
 
+          // Add pending refunds to the stats
           setStats({
             totalProducts: productsSnapshot.size,
             totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
             totalCustomers: customers.size,
             grossRevenue: totalGrossRevenue,
             netRevenue: totalNetRevenue,
-            balances
+            balances,
+            pendingRefunds: sellerData?.pendingRefunds || { USDC: 0, USDT: 0 }
           });
 
           // Set recent orders (only completed ones)
@@ -660,7 +668,11 @@ const SellerDashboard = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {payment.shippingConfirmed ? (
+                        {payment.status === 'cancelled' ? (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                            Canceled
+                          </span>
+                        ) : payment.shippingConfirmed ? (
                           <div className="flex flex-col gap-1">
                             <span className="text-xs font-medium text-green-600">
                               Shipping Confirmed
@@ -986,6 +998,33 @@ const SellerDashboard = () => {
         }}
         token={selectedToken}
       />
+
+      {/* Add this after the balances display */}
+      {stats.pendingRefunds && (stats.pendingRefunds.USDC > 0 || stats.pendingRefunds.USDT > 0) && (
+        <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 mt-4">
+          <div className="flex items-start gap-2">
+            <FiAlertCircle className="text-yellow-500 text-lg mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">Pending Refunds</p>
+              <div className="mt-2 space-y-1">
+                {stats.pendingRefunds.USDC > 0 && (
+                  <p className="text-sm text-yellow-700">
+                    USDC: ${stats.pendingRefunds.USDC.toFixed(2)}
+                  </p>
+                )}
+                {stats.pendingRefunds.USDT > 0 && (
+                  <p className="text-sm text-yellow-700">
+                    USDT: ${stats.pendingRefunds.USDT.toFixed(2)}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-yellow-600 mt-2">
+                These amounts are reserved for potential refunds and have been deducted from your available balance.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };

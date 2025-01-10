@@ -28,10 +28,14 @@ import Checkout from './pages/merch/Checkout';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals';
-import AdminSales from './pages/admin/Sales';
+import AdminSales from './pages/admin/AdminSales';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminRefunds from './pages/admin/AdminRefunds';
+import SellerRefunds from './pages/merch/SellerRefunds';
+import Refunds from './pages/merch/Refunds';
+import TermsAndConditions from './pages/merch/TermsAndConditions';
 
-const ADMIN_WALLET = "0x34B5e3B8465e0A4b40b4D0819C1eB6c38E160b33"; // We'll replace this with your actual address
+const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF"; // We'll replace this with your actual address
 
 function AdminRoute({ children }) {
   const { isAdmin, loading } = useMerchAuth();
@@ -192,12 +196,32 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'my-refunds',
+        element: (
+          <ProtectedRoute>
+            <Refunds />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'refunds',
+        element: (
+          <ProtectedRoute sellerOnly>
+            <SellerRefunds />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: 'settings',
         element: (
           <ProtectedRoute>
             <Settings />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: 'terms',
+        element: <TermsAndConditions />,
       },
     ],
   },
@@ -213,6 +237,10 @@ export const router = createBrowserRouter([
       {
         path: 'withdrawals',
         element: <AdminRoute><AdminWithdrawals /></AdminRoute>,
+      },
+      {
+        path: 'refunds',
+        element: <AdminRoute><AdminRefunds /></AdminRoute>,
       },
       {
         path: 'sales',

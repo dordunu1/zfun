@@ -17,21 +17,123 @@ export const SUPPORTED_TOKENS = {
 };
 
 export const ABI = [
-  "function createOrder(address _seller, address _token, uint256 _amount) external",
-  "function requestWithdrawal(address _token, uint256 _amount) external",
-  "function approveWithdrawal(address _seller, address _token, uint256 _amount) external",
-  "function withdrawPlatformFees(address _token, uint256 _amount) external",
-  "function pause() external",
-  "function unpause() external",
-  "function owner() external view returns (address)",
-  "function paused() external view returns (bool)",
-  "function sellerBalances(address seller, address token) external view returns (uint256)",
-  "function platformBalance(address token) external view returns (uint256)",
-  "function platformFees(address token) external view returns (uint256)",
-  "event OrderCreated(uint256 indexed orderId, address indexed buyer, address indexed seller, address token, uint256 amount)",
-  "event WithdrawalRequested(address indexed seller, address token, uint256 amount)",
-  "event WithdrawalApproved(address indexed seller, address token, uint256 amount)",
-  "event PlatformFeeUpdated(uint256 newFee)"
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "orderId", "type": "uint256"},
+      {"indexed": true, "internalType": "address", "name": "buyer", "type": "address"},
+      {"indexed": true, "internalType": "address", "name": "seller", "type": "address"},
+      {"indexed": false, "internalType": "address", "name": "token", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "OrderCreated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {"internalType": "address","name": "_seller","type": "address"},
+      {"internalType": "address","name": "_token","type": "address"},
+      {"internalType": "uint256","name": "_amount","type": "uint256"}
+    ],
+    "name": "createOrder",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "address","name": "_token","type": "address"},
+      {"internalType": "uint256","name": "_amount","type": "uint256"}
+    ],
+    "name": "requestWithdrawal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "address","name": "_seller","type": "address"},
+      {"internalType": "address","name": "_token","type": "address"},
+      {"internalType": "uint256","name": "_amount","type": "uint256"}
+    ],
+    "name": "approveWithdrawal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256","name": "_orderId","type": "uint256"},
+      {"internalType": "address","name": "_buyer","type": "address"},
+      {"internalType": "address","name": "_seller","type": "address"},
+      {"internalType": "uint256","name": "_amount","type": "uint256"}
+    ],
+    "name": "processRefund",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [{"internalType": "address","name": "","type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [{"internalType": "bool","name": "","type": "bool"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address","name": "","type": "address"},{"internalType": "address","name": "","type": "address"}],
+    "name": "sellerBalances",
+    "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256","name": "","type": "uint256"}],
+    "name": "orders",
+    "outputs": [
+      {"internalType": "uint256","name": "orderId","type": "uint256"},
+      {"internalType": "address","name": "buyer","type": "address"},
+      {"internalType": "address","name": "seller","type": "address"},
+      {"internalType": "address","name": "token","type": "address"},
+      {"internalType": "uint256","name": "amount","type": "uint256"},
+      {"internalType": "bool","name": "isCompleted","type": "bool"},
+      {"internalType": "uint256","name": "timestamp","type": "uint256"},
+      {"internalType": "bool","name": "isRefunded","type": "bool"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "address","name": "_token","type": "address"},
+      {"internalType": "uint256","name": "_amount","type": "uint256"}
+    ],
+    "name": "withdrawPlatformFees",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
 ];
 
 export const getContractAddress = (chainId) => {

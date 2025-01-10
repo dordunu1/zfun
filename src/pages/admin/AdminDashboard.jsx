@@ -7,40 +7,19 @@ import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 import detectEthereumProvider from '@metamask/detect-provider';
 import { ethers } from 'ethers';
-import { getMerchPlatformContract } from '../../contracts/MerchPlatform';
 
-const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
-const TOKEN_INFO = {
-  USDT: {
-    logo: '/logos/usdt.png',
-    name: 'USDT (Tether)',
-    decimals: 6
-  },
-  USDC: {
-    logo: '/logos/usdc.png',
-    name: 'USDC (USD Coin)',
-    decimals: 6
-  }
-};
+// Get admin wallet from environment variable - same for all chains
+const ADMIN_WALLET = import.meta.env.VITE_ADMIN_WALLET || "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
 export default function AdminDashboard() {
   const { isAdmin } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
-  const [contractBalances, setContractBalances] = useState({
-    unichain: {
-      USDT: { total: 0, fees: 0, available: 0, error: null },
-      USDC: { total: 0, fees: 0, available: 0, error: null }
-    },
-    polygon: {
-      USDT: { total: 0, fees: 0, available: 0, error: null },
-      USDC: { total: 0, fees: 0, available: 0, error: null }
-    }
-  });
   const [stats, setStats] = useState({
     totalSales: 0,
     currentSales: 0,
+    totalRefunds: 0,
     activeSellers: 0,
     pendingWithdrawals: 0,
     platformBalance: 0,
@@ -48,22 +27,14 @@ export default function AdminDashboard() {
     totalProducts: 0,
     totalCustomers: 0,
     platformFee: 0,
+    totalPlatformFees: 0,
+    withdrawnFees: 0,
     totalEarnings: 0,
     recentOrders: [],
     topSellers: [],
     salesByNetwork: {
       unichain: 0,
       polygon: 0
-    },
-    contractBalances: {
-      unichain: {
-        USDT: { total: 0, fees: 0, available: 0 },
-        USDC: { total: 0, fees: 0, available: 0 }
-      },
-      polygon: {
-        USDT: { total: 0, fees: 0, available: 0 },
-        USDC: { total: 0, fees: 0, available: 0 }
-      }
     }
   });
   const [recentActivity, setRecentActivity] = useState([]);
@@ -75,11 +46,6 @@ export default function AdminDashboard() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const ordersPerPage = 50;
-  const [contractBalancesLoading, setContractBalancesLoading] = useState(true);
-  const [networkLoadingStates, setNetworkLoadingStates] = useState({
-    unichain: false,
-    polygon: false
-  });
 
   const loadMoreOrders = async () => {
     if (loadingMore || !hasMore) return;
@@ -237,7 +203,6 @@ export default function AdminDashboard() {
       const sellersQuery = query(collection(db, 'users'), where('isSeller', '==', true));
       const sellersSnapshot = await getDocs(sellersQuery);
       
-      // Get both pending and approved withdrawals in one query
       const withdrawalsQuery = query(
         collection(db, 'withdrawals'),
         where('status', 'in', ['pending', 'approved'])
@@ -250,127 +215,122 @@ export default function AdminDashboard() {
         limit(ordersPerPage)
       );
       const ordersSnapshot = await getDocs(ordersQuery);
+
+      // Get all sellers data first
+      const sellersData = {};
+      for (const doc of sellersSnapshot.docs) {
+        sellersData[doc.id] = {
+          id: doc.id,
+          name: doc.data().storeName || doc.data().name || 'Unknown Store',
+          totalSales: 0,
+          ordersCount: 0
+        };
+      }
+      
       const orders = await Promise.all(ordersSnapshot.docs.map(async doc => {
         const orderData = {
           id: doc.id,
           ...doc.data()
         };
-        
-        if (orderData.sellerId) {
-          const sellerDoc = await getDocs(query(
-            collection(db, 'users'),
-            where('uid', '==', orderData.sellerId)
-          ));
-          if (!sellerDoc.empty) {
-            const sellerData = sellerDoc.docs[0].data();
-            orderData.sellerName = sellerData.name || 'Unknown Seller';
-          }
-        }
-        
         return orderData;
       }));
 
       setHasMore(orders.length === ordersPerPage);
 
-      const productsQuery = query(collection(db, 'products'));
-      const productsSnapshot = await getDocs(productsQuery);
+      // Calculate platform-wide metrics
+      const validOrders = orders.filter(order => order.status !== 'cancelled');
+      const activeOrders = validOrders.filter(order => order.status === 'completed' || order.status === 'processing');
+      const refundedOrders = validOrders.filter(order => order.status === 'refunded');
 
-      const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
-      const platformFee = orders.reduce((sum, order) => sum + (order.total * 0.05), 0);
-      
-      // Calculate total withdrawn amount
+      // Calculate total sales from active orders (completed + processing)
+      const totalSales = activeOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
+
+      // Calculate total refunds (95% of refunded order totals)
+      const totalRefunds = refundedOrders.reduce((sum, order) => sum + ((Number(order.total) || 0) * 0.95), 0);
+
+      // Calculate platform fees (5% of total sales)
+      const currentPlatformFees = totalSales * 0.05;
+      const totalPlatformFees = [...activeOrders, ...refundedOrders].reduce((sum, order) => sum + (Number(order.total) * 0.05), 0);
+
+      // Get withdrawn fees from approved platform fee withdrawals
+      const withdrawnFees = withdrawalsSnapshot.docs
+        .filter(doc => doc.data().status === 'approved' && doc.data().type === 'platform_fee')
+        .reduce((sum, doc) => sum + doc.data().amount, 0);
+
+      // Calculate current sales (total sales from active orders only)
+      const currentSales = activeOrders
+        .filter(order => order.status === 'completed' || order.status === 'processing')
+        .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
+
+      // Calculate total withdrawn amount (for sellers)
       const totalWithdrawn = withdrawalsSnapshot.docs
-        .filter(doc => doc.data().status === 'approved')
+        .filter(doc => doc.data().status === 'approved' && doc.data().type !== 'platform_fee')
         .reduce((sum, doc) => sum + doc.data().amount, 0);
       
-      // Current sales should be the available balance (total - platform fees - withdrawn)
-      const currentSales = totalSales - platformFee - totalWithdrawn;
+      const uniqueCustomers = new Set([...activeOrders, ...refundedOrders].map(order => order.buyerId)).size;
 
-      const uniqueCustomers = new Set(orders.map(order => order.buyerId)).size;
-      
-      const salesByNetwork = orders.reduce((acc, order) => {
-        const network = order.paymentMethod?.network;
-        if (network === 1301) acc.unichain += order.total;
-        if (network === 137) acc.polygon += order.total;
-        return acc;
-      }, { unichain: 0, polygon: 0 });
-
-      const sellerSales = {};
-      orders.forEach(order => {
-        if (!sellerSales[order.sellerId]) {
-          sellerSales[order.sellerId] = {
-            id: order.sellerId,
-            name: order.sellerName,
-            total: 0,
-            orders: 0
+      // Calculate seller statistics from active orders
+      const sellerStats = {};
+      activeOrders.forEach(order => {
+        const sellerId = order.sellerId;
+        const sellerName = order.sellerName || 'Unknown Store';
+        
+        if (!sellerStats[sellerId]) {
+          sellerStats[sellerId] = {
+            id: sellerId,
+            name: sellerName,
+            totalSales: 0,
+            ordersCount: 0
           };
         }
-        sellerSales[order.sellerId].total += order.total;
-        sellerSales[order.sellerId].orders += 1;
+        sellerStats[sellerId].totalSales += Number(order.total) || 0;
+        sellerStats[sellerId].ordersCount += 1;
       });
 
-      const topSellers = Object.values(sellerSales)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 5);
+      // Sort sellers by total sales and get top 5
+      const topSellers = Object.values(sellerStats)
+        .sort((a, b) => b.totalSales - a.totalSales)
+        .slice(0, 5)
+        .map(seller => ({
+          id: seller.id,
+          name: seller.name,
+          total: seller.totalSales,
+          orders: seller.ordersCount
+        }));
 
-      // Get contract balances
-      const tokenABI = ["function balanceOf(address) view returns (uint256)"];
-      const unichainProvider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
-      const unichainContract = await getMerchPlatformContract(unichainProvider, '1301');
-      
-      let unichainUSDTTotal = 0;
-      if (unichainContract && unichainContract.target) {
-        const unichainUSDTAddress = import.meta.env.VITE_UNICHAIN_USDT_ADDRESS;
-        if (unichainUSDTAddress) {
-          const unichainUSDT = new ethers.Contract(unichainUSDTAddress, tokenABI, unichainProvider);
-          const balance = await unichainUSDT.balanceOf(unichainContract.target);
-          unichainUSDTTotal = Number(ethers.formatUnits(balance, 6));
+      // Get total products count
+      const productsQuery = query(collection(db, 'products'));
+      const productsSnapshot = await getDocs(productsQuery);
+      const totalProducts = productsSnapshot.size;
+
+      // Calculate sales by network from orders
+      let salesByNetwork = { unichain: 0, polygon: 0 };
+      activeOrders.forEach(order => {
+        if (order.paymentMethod?.network === 1301) {
+          salesByNetwork.unichain += Number(order.total) || 0;
+        } else if (order.paymentMethod?.network === 137) {
+          salesByNetwork.polygon += Number(order.total) || 0;
         }
-      }
+      });
 
-      // Set both stats and contract balances together
+      // Update stats with correct platform fee values
       setStats({
         totalSales,
-        currentSales,
+        currentSales: Math.max(0, currentSales),
+        totalRefunds,
         activeSellers: sellersSnapshot.size,
         pendingWithdrawals: withdrawalsSnapshot.docs.filter(doc => doc.data().status === 'pending').length,
-        platformBalance: platformFee,
+        platformBalance: currentPlatformFees,
         totalOrders: orders.length,
-        totalProducts: productsSnapshot.size,
+        totalProducts,
         totalCustomers: uniqueCustomers,
-        platformFee: platformFee,
-        totalEarnings: platformFee,
+        platformFee: currentPlatformFees,  // Current platform fees (5% of current sales)
+        totalPlatformFees,  // All-time platform fees
+        withdrawnFees,  // Total withdrawn platform fees
+        totalEarnings: totalPlatformFees + withdrawnFees,  // Total platform earnings including withdrawn
         recentOrders: orders,
         topSellers,
         salesByNetwork
-      });
-
-      // Set contract balances using the same values
-      setContractBalances({
-        unichain: {
-          USDT: { 
-            total: unichainUSDTTotal,
-            fees: platformFee,
-            available: currentSales
-          },
-          USDC: { 
-            total: 0,
-            fees: 0,
-            available: 0
-          }
-        },
-        polygon: {
-          USDT: { 
-            total: 0,
-            fees: 0,
-            available: 0
-          },
-          USDC: { 
-            total: 0,
-            fees: 0,
-            available: 0
-          }
-        }
       });
 
     } catch (error) {
@@ -380,169 +340,6 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
-
-  // Add function to fetch contract balances
-  const fetchContractBalances = async () => {
-    setNetworkLoadingStates({
-      unichain: true,
-      polygon: true
-    });
-    try {
-      // Token ABI for balance checking
-      const tokenABI = ["function balanceOf(address) view returns (uint256)"];
-      const platformABI = [
-        "function platformFees(address) external view returns (uint256)",
-        "function balanceOf(address) view returns (uint256)"
-      ];
-
-      // Get Unichain balances
-      const unichainProvider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
-      const unichainContract = await getMerchPlatformContract(unichainProvider, '1301');
-      
-      // Get Polygon balances - using more reliable RPC
-      const polygonProvider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/' + import.meta.env.VITE_ALCHEMY_API_KEY);
-      const polygonContract = await getMerchPlatformContract(polygonProvider, '137');
-      
-      console.log('Contract Addresses:', {
-        unichain: unichainContract?.target,
-        polygon: polygonContract?.target
-      });
-      
-      let newBalances = {
-        unichain: {
-          USDT: { total: 0, fees: 0, available: 0, error: null },
-          USDC: { total: 0, fees: 0, available: 0, error: null }
-        },
-        polygon: {
-          USDT: { total: 0, fees: 0, available: 0, error: null },
-          USDC: { total: 0, fees: 0, available: 0, error: null }
-        }
-      };
-      
-      // Fetch Unichain balances
-      if (unichainContract && unichainContract.target) {
-        try {
-          // Get USDT balance and fees for Unichain
-          const unichainUSDTContract = new ethers.Contract(
-            import.meta.env.VITE_UNICHAIN_USDT_ADDRESS,
-            tokenABI,
-            unichainProvider
-          );
-          const [unichainUSDTBalance, unichainUSDTFees] = await Promise.all([
-            unichainUSDTContract.balanceOf(unichainContract.target),
-            unichainContract.platformFees(import.meta.env.VITE_UNICHAIN_USDT_ADDRESS)
-          ]);
-          
-          const formattedUSDTBalance = Number(ethers.formatUnits(unichainUSDTBalance, 6));
-          const formattedUSDTFees = Number(ethers.formatUnits(unichainUSDTFees, 6));
-
-          newBalances.unichain.USDT = {
-            total: formattedUSDTBalance,
-            fees: formattedUSDTFees,
-            available: formattedUSDTBalance - formattedUSDTFees,
-            error: null
-          };
-          
-          // Get USDC balance and fees for Unichain
-          const unichainUSDCContract = new ethers.Contract(
-            import.meta.env.VITE_UNICHAIN_USDC_ADDRESS,
-            tokenABI,
-            unichainProvider
-          );
-          const [unichainUSDCBalance, unichainUSDCFees] = await Promise.all([
-            unichainUSDCContract.balanceOf(unichainContract.target),
-            unichainContract.platformFees(import.meta.env.VITE_UNICHAIN_USDC_ADDRESS)
-          ]);
-          
-          const formattedUSDCBalance = Number(ethers.formatUnits(unichainUSDCBalance, 6));
-          const formattedUSDCFees = Number(ethers.formatUnits(unichainUSDCFees, 6));
-
-          newBalances.unichain.USDC = {
-            total: formattedUSDCBalance,
-            fees: formattedUSDCFees,
-            available: formattedUSDCBalance - formattedUSDCFees,
-            error: null
-          };
-        } catch (error) {
-          console.error('Error fetching Unichain balances:', error);
-          newBalances.unichain.USDT.error = 'Failed to fetch Unichain USDT balance';
-          newBalances.unichain.USDC.error = 'Failed to fetch Unichain USDC balance';
-        }
-      }
-
-      // Fetch Polygon balances
-      if (polygonContract && polygonContract.target) {
-        try {
-          // Get USDT balance and fees for Polygon
-          const polygonUSDTContract = new ethers.Contract(
-            import.meta.env.VITE_USDT_ADDRESS_POLYGON,
-            tokenABI,
-            polygonProvider
-          );
-          const [polygonUSDTBalance, polygonUSDTFees] = await Promise.all([
-            polygonUSDTContract.balanceOf(polygonContract.target),
-            polygonContract.platformFees(import.meta.env.VITE_USDT_ADDRESS_POLYGON)
-          ]);
-          
-          const formattedUSDTBalance = Number(ethers.formatUnits(polygonUSDTBalance, 6));
-          const formattedUSDTFees = Number(ethers.formatUnits(polygonUSDTFees, 6));
-
-          newBalances.polygon.USDT = {
-            total: formattedUSDTBalance,
-            fees: formattedUSDTFees,
-            available: formattedUSDTBalance - formattedUSDTFees,
-            error: null
-          };
-          
-          // Get USDC balance and fees for Polygon
-          const polygonUSDCContract = new ethers.Contract(
-            import.meta.env.VITE_USDC_ADDRESS_POLYGON,
-            tokenABI,
-            polygonProvider
-          );
-          const [polygonUSDCBalance, polygonUSDCFees] = await Promise.all([
-            polygonUSDCContract.balanceOf(polygonContract.target),
-            polygonContract.platformFees(import.meta.env.VITE_USDC_ADDRESS_POLYGON)
-          ]);
-          
-          const formattedUSDCBalance = Number(ethers.formatUnits(polygonUSDCBalance, 6));
-          const formattedUSDCFees = Number(ethers.formatUnits(polygonUSDCFees, 6));
-
-          newBalances.polygon.USDC = {
-            total: formattedUSDCBalance,
-            fees: formattedUSDCFees,
-            available: formattedUSDCBalance - formattedUSDCFees,
-            error: null
-          };
-        } catch (error) {
-          console.error('Error fetching Polygon balances:', error);
-          newBalances.polygon.USDT.error = 'Failed to fetch Polygon USDT balance';
-          newBalances.polygon.USDC.error = 'Failed to fetch Polygon USDC balance';
-        }
-      }
-
-      // Update state with all balances
-      setContractBalances(newBalances);
-      console.log('Updated Contract Balances:', newBalances);
-    } catch (error) {
-      console.error('Error fetching contract balances:', error);
-    } finally {
-      setNetworkLoadingStates({
-        unichain: false,
-        polygon: false
-      });
-      setContractBalancesLoading(false);
-    }
-  };
-
-  // Add useEffect to fetch contract balances periodically
-  useEffect(() => {
-    if (walletConnected && walletAddress.toLowerCase() === ADMIN_WALLET.toLowerCase()) {
-      fetchContractBalances();
-      const interval = setInterval(fetchContractBalances, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [walletConnected, walletAddress]);
 
   if (!isAdmin) {
     return <Navigate to="/merch-store" replace />;
@@ -573,13 +370,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
         <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>All-time Sales</p>
               <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.totalSales.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total volume</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total volume (excl. refunds)</p>
             </div>
             <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
           </div>
@@ -589,10 +386,21 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Current Sales</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.currentSales.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal for sellers</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${Math.max(0, stats.currentSales).toFixed(2)}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal</p>
             </div>
             <FiDollarSign className="text-3xl text-[#FF1B6B]" />
+          </div>
+        </div>
+
+        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-red-500`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Refunds</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.totalRefunds.toFixed(2)}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Refunded amount (excl. platform fees)</p>
+            </div>
+            <FiCreditCard className="text-3xl text-red-500" />
           </div>
         </div>
 
@@ -600,8 +408,8 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>All-time Platform Fees</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${(stats.totalSales * 0.05).toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total platform fees earned</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.totalPlatformFees.toFixed(2)}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total platform fees (incl. withdrawn)</p>
             </div>
             <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
           </div>
@@ -611,14 +419,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Current Platform Fees</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                ${(
-                  (contractBalances?.unichain?.USDT?.fees || 0) + 
-                  (contractBalances?.unichain?.USDC?.fees || 0) + 
-                  (contractBalances?.polygon?.USDT?.fees || 0) + 
-                  (contractBalances?.polygon?.USDC?.fees || 0)
-                ).toFixed(2)}
-              </p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.platformFee.toFixed(2)}</p>
               <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal</p>
             </div>
             <FiDollarSign className="text-3xl text-[#FF1B6B]" />
@@ -631,6 +432,39 @@ export default function AdminDashboard() {
               <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Active Sellers</p>
               <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.activeSellers}</p>
               <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>{stats.totalProducts} products listed</p>
+            </div>
+            <FiUsers className="text-3xl text-[#FF1B6B]" />
+          </div>
+        </div>
+
+        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Orders</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalOrders}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>All-time orders</p>
+            </div>
+            <FiShoppingBag className="text-3xl text-[#FF1B6B]" />
+          </div>
+        </div>
+
+        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Products</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalProducts}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Listed products</p>
+            </div>
+            <FiGrid className="text-3xl text-[#FF1B6B]" />
+          </div>
+        </div>
+
+        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Customers</p>
+              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalCustomers}</p>
+              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Unique buyers</p>
             </div>
             <FiUsers className="text-3xl text-[#FF1B6B]" />
           </div>
@@ -878,138 +712,6 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
-      </div>
-
-      {/* Platform Contract Balances Section */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-[#FF1B6B] mb-4">Platform Contract Balances</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Unichain Network Card */}
-          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg`}>
-            <h3 className="text-lg font-semibold mb-4">Unichain Network</h3>
-            {networkLoadingStates.unichain ? (
-              <div className="flex justify-center items-center py-4">
-                <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : (
-              <>
-                {/* USDT Balance */}
-                <div className="mb-4">
-                  <div className="flex items-center mb-2">
-                    <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
-                    <span className="font-medium">USDT</span>
-                  </div>
-                  {contractBalances.unichain.USDT.error ? (
-                    <p className="text-red-500 text-sm">{contractBalances.unichain.USDT.error}</p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-gray-500">Total</p>
-                        <p className="font-medium">${contractBalances.unichain.USDT.total.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Fees</p>
-                        <p className="font-medium">${contractBalances.unichain.USDT.fees.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Available</p>
-                        <p className="font-medium">${contractBalances.unichain.USDT.available.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {/* USDC Balance */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
-                    <span className="font-medium">USDC</span>
-                  </div>
-                  {contractBalances.unichain.USDC.error ? (
-                    <p className="text-red-500 text-sm">{contractBalances.unichain.USDC.error}</p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-gray-500">Total</p>
-                        <p className="font-medium">${contractBalances.unichain.USDC.total.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Fees</p>
-                        <p className="font-medium">${contractBalances.unichain.USDC.fees.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Available</p>
-                        <p className="font-medium">${contractBalances.unichain.USDC.available.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Polygon Network Card */}
-          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg`}>
-            <h3 className="text-lg font-semibold mb-4">Polygon Network</h3>
-            {networkLoadingStates.polygon ? (
-              <div className="flex justify-center items-center py-4">
-                <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : (
-              <>
-                {/* USDT Balance */}
-                <div className="mb-4">
-                  <div className="flex items-center mb-2">
-                    <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
-                    <span className="font-medium">USDT</span>
-                  </div>
-                  {contractBalances.polygon.USDT.error ? (
-                    <p className="text-red-500 text-sm">{contractBalances.polygon.USDT.error}</p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-gray-500">Total</p>
-                        <p className="font-medium">${contractBalances.polygon.USDT.total.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Fees</p>
-                        <p className="font-medium">${contractBalances.polygon.USDT.fees.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Available</p>
-                        <p className="font-medium">${contractBalances.polygon.USDT.available.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {/* USDC Balance */}
-                <div>
-                  <div className="flex items-center mb-2">
-                    <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
-                    <span className="font-medium">USDC</span>
-                  </div>
-                  {contractBalances.polygon.USDC.error ? (
-                    <p className="text-red-500 text-sm">{contractBalances.polygon.USDC.error}</p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-gray-500">Total</p>
-                        <p className="font-medium">${contractBalances.polygon.USDC.total.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Fees</p>
-                        <p className="font-medium">${contractBalances.polygon.USDC.fees.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Available</p>
-                        <p className="font-medium">${contractBalances.polygon.USDC.available.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

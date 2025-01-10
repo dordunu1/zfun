@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { FiCheck, FiX, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
@@ -11,6 +11,22 @@ import detectEthereumProvider from '@metamask/detect-provider';
 import AdminRecentWithdrawals from './AdminRecentWithdrawals';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
+
+// Get token addresses from environment variables
+const getTokenAddresses = (chainId) => {
+  if (chainId === 1301) { // Unichain
+    return {
+      USDT: import.meta.env.VITE_UNICHAIN_USDT_ADDRESS,
+      USDC: import.meta.env.VITE_UNICHAIN_USDC_ADDRESS
+    };
+  } else if (chainId === 137) { // Polygon
+    return {
+      USDT: import.meta.env.VITE_USDT_ADDRESS_POLYGON,
+      USDC: import.meta.env.VITE_USDC_ADDRESS_POLYGON
+    };
+  }
+  return null;
+};
 
 export default function AdminWithdrawals() {
   const [withdrawals, setWithdrawals] = useState([]);
@@ -258,145 +274,110 @@ export default function AdminWithdrawals() {
     }));
 
     try {
-      // Platform contract ABI
-      const platformABI = [
-        "function platformFees(address) external view returns (uint256)",
-        "function withdrawPlatformFees(address,uint256)"
-      ];
+      // Token ABI for balance checking
+      const tokenABI = ["function balanceOf(address) view returns (uint256)"];
 
       // Get Unichain balances
       console.log('Connecting to Unichain network...');
       const unichainProvider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
-      const unichainContract = new ethers.Contract(
-        import.meta.env.VITE_MERCH_PLATFORM_ADDRESS_1301,
-        platformABI,
-        unichainProvider
-      );
-      
+      const unichainContract = await getMerchPlatformContract(unichainProvider, '1301');
+      const unichainAddresses = getTokenAddresses(1301);
+
       // Get Polygon balances
       console.log('Connecting to Polygon network...');
       const polygonProvider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/' + import.meta.env.VITE_ALCHEMY_API_KEY);
-      const polygonContract = new ethers.Contract(
-        import.meta.env.VITE_MERCH_PLATFORM_ADDRESS_137,
-        platformABI,
-        polygonProvider
-      );
+      const polygonContract = await getMerchPlatformContract(polygonProvider, '137');
+      const polygonAddresses = getTokenAddresses(137);
 
-      // Fetch Unichain fees
-      if (unichainContract) {
-        try {
-          // Get USDT fees
-          console.log('Fetching Unichain USDT fees...');
-          const unichainUSDTFees = await unichainContract.platformFees(import.meta.env.VITE_UNICHAIN_USDT_ADDRESS);
-          const formattedUSDTFees = Number(ethers.formatUnits(unichainUSDTFees, 6));
-          console.log('Unichain USDT Platform Fees:', formattedUSDTFees);
-
-          setPlatformFeeAmounts(prev => ({
-            ...prev,
-            unichain: {
-              ...prev.unichain,
-              USDT: { 
-                fees: formattedUSDTFees.toString(),
-                amount: '',
-                loading: false,
-                error: null
-              }
-            }
-          }));
-
-          // Get USDC fees
-          console.log('Fetching Unichain USDC fees...');
-          const unichainUSDCFees = await unichainContract.platformFees(import.meta.env.VITE_UNICHAIN_USDC_ADDRESS);
-          const formattedUSDCFees = Number(ethers.formatUnits(unichainUSDCFees, 6));
-          console.log('Unichain USDC Platform Fees:', formattedUSDCFees);
-
-          setPlatformFeeAmounts(prev => ({
-            ...prev,
-            unichain: {
-              ...prev.unichain,
-              USDC: { 
-                fees: formattedUSDCFees.toString(),
-                amount: '',
-                loading: false,
-                error: null
-              }
-            }
-          }));
-        } catch (error) {
-          console.error('Error fetching Unichain fees:', error);
-          setPlatformFeeAmounts(prev => ({
-            ...prev,
-            unichain: {
-              USDT: { ...prev.unichain.USDT, loading: false, error: error.message },
-              USDC: { ...prev.unichain.USDC, loading: false, error: error.message }
-            }
-          }));
-        }
-      }
-
-      // Fetch Polygon fees
-      if (polygonContract) {
-        try {
-          // Get USDT fees
-          console.log('Fetching Polygon USDT fees...');
-          const polygonUSDTFees = await polygonContract.platformFees(import.meta.env.VITE_USDT_ADDRESS_POLYGON);
-          const formattedUSDTFees = Number(ethers.formatUnits(polygonUSDTFees, 6));
-          console.log('Polygon USDT Platform Fees:', formattedUSDTFees);
-
-          setPlatformFeeAmounts(prev => ({
-            ...prev,
-            polygon: {
-              ...prev.polygon,
-              USDT: { 
-                fees: formattedUSDTFees.toString(),
-                amount: '',
-                loading: false,
-                error: null
-              }
-            }
-          }));
-
-          // Get USDC fees
-          console.log('Fetching Polygon USDC fees...');
-          const polygonUSDCFees = await polygonContract.platformFees(import.meta.env.VITE_USDC_ADDRESS_POLYGON);
-          const formattedUSDCFees = Number(ethers.formatUnits(polygonUSDCFees, 6));
-          console.log('Polygon USDC Platform Fees:', formattedUSDCFees);
-
-          setPlatformFeeAmounts(prev => ({
-            ...prev,
-            polygon: {
-              ...prev.polygon,
-              USDC: { 
-                fees: formattedUSDCFees.toString(),
-                amount: '',
-                loading: false,
-                error: null
-              }
-            }
-          }));
-        } catch (error) {
-          console.error('Error fetching Polygon fees:', error);
-          setPlatformFeeAmounts(prev => ({
-            ...prev,
-            polygon: {
-              USDT: { ...prev.polygon.USDT, loading: false, error: error.message },
-              USDC: { ...prev.polygon.USDC, loading: false, error: error.message }
-            }
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error in fetchPlatformFees:', error);
-      setPlatformFeeAmounts(prev => ({
+      let newFeeAmounts = {
         unichain: {
-          USDT: { ...prev.unichain.USDT, loading: false, error: error.message },
-          USDC: { ...prev.unichain.USDC, loading: false, error: error.message }
+          USDT: { amount: '', fees: '0', loading: false, error: null },
+          USDC: { amount: '', fees: '0', loading: false, error: null }
         },
         polygon: {
-          USDT: { ...prev.polygon.USDT, loading: false, error: error.message },
-          USDC: { ...prev.polygon.USDC, loading: false, error: error.message }
+          USDT: { amount: '', fees: '0', loading: false, error: null },
+          USDC: { amount: '', fees: '0', loading: false, error: null }
         }
-      }));
+      };
+
+      // Fetch Unichain balances
+      if (unichainContract && unichainAddresses) {
+        try {
+          // Get USDT balance
+          const unichainUSDTContract = new ethers.Contract(
+            unichainAddresses.USDT,
+            tokenABI,
+            unichainProvider
+          );
+          const unichainUSDTBalance = await unichainUSDTContract.balanceOf(unichainContract.target);
+          newFeeAmounts.unichain.USDT = {
+            amount: '',
+            fees: ethers.formatUnits(unichainUSDTBalance, 6),
+            loading: false,
+            error: null
+          };
+
+          // Get USDC balance
+          const unichainUSDCContract = new ethers.Contract(
+            unichainAddresses.USDC,
+            tokenABI,
+            unichainProvider
+          );
+          const unichainUSDCBalance = await unichainUSDCContract.balanceOf(unichainContract.target);
+          newFeeAmounts.unichain.USDC = {
+            amount: '',
+            fees: ethers.formatUnits(unichainUSDCBalance, 6),
+            loading: false,
+            error: null
+          };
+        } catch (error) {
+          console.error('Error fetching Unichain balances:', error);
+          newFeeAmounts.unichain.USDT.error = 'Failed to fetch balance';
+          newFeeAmounts.unichain.USDC.error = 'Failed to fetch balance';
+        }
+      }
+
+      // Fetch Polygon balances
+      if (polygonContract && polygonAddresses) {
+        try {
+          // Get USDT balance
+          const polygonUSDTContract = new ethers.Contract(
+            polygonAddresses.USDT,
+            tokenABI,
+            polygonProvider
+          );
+          const polygonUSDTBalance = await polygonUSDTContract.balanceOf(polygonContract.target);
+          newFeeAmounts.polygon.USDT = {
+            amount: '',
+            fees: ethers.formatUnits(polygonUSDTBalance, 6),
+            loading: false,
+            error: null
+          };
+
+          // Get USDC balance
+          const polygonUSDCContract = new ethers.Contract(
+            polygonAddresses.USDC,
+            tokenABI,
+            polygonProvider
+          );
+          const polygonUSDCBalance = await polygonUSDCContract.balanceOf(polygonContract.target);
+          newFeeAmounts.polygon.USDC = {
+            amount: '',
+            fees: ethers.formatUnits(polygonUSDCBalance, 6),
+            loading: false,
+            error: null
+          };
+        } catch (error) {
+          console.error('Error fetching Polygon balances:', error);
+          newFeeAmounts.polygon.USDT.error = 'Failed to fetch balance';
+          newFeeAmounts.polygon.USDC.error = 'Failed to fetch balance';
+        }
+      }
+
+      setPlatformFeeAmounts(newFeeAmounts);
+    } catch (error) {
+      console.error('Error in fetchPlatformFees:', error);
+      toast.error('Failed to fetch platform fees');
     }
   };
 
@@ -457,9 +438,16 @@ export default function AdminWithdrawals() {
         throw new Error('Could not get contract instance');
       }
 
-      const tokenAddress = token === 'USDT' 
-        ? (chainId === '1301' ? import.meta.env.VITE_UNICHAIN_USDT_ADDRESS : import.meta.env.VITE_USDT_ADDRESS_POLYGON)
-        : (chainId === '1301' ? import.meta.env.VITE_UNICHAIN_USDC_ADDRESS : import.meta.env.VITE_USDC_ADDRESS_POLYGON);
+      // Get token addresses for the current chain
+      const tokenAddresses = getTokenAddresses(Number(chainId));
+      if (!tokenAddresses) {
+        throw new Error(`No token addresses found for chain ${chainId}`);
+      }
+
+      const tokenAddress = tokenAddresses[token];
+      if (!tokenAddress) {
+        throw new Error(`No address found for token ${token} on chain ${chainId}`);
+      }
 
       console.log('Contract and token details:', {
         contractAddress: contract.target,
@@ -467,28 +455,54 @@ export default function AdminWithdrawals() {
         withdrawAmount: amount
       });
 
-      const parsedAmount = ethers.parseUnits(amount, 6);
-      
-      console.log('Calling withdrawPlatformFees with params:', {
-        tokenAddress,
-        amount: parsedAmount.toString()
-      });
+      const parsedAmount = ethers.parseUnits(amount.toString(), 6);
 
-      // Prepare the transaction
+      // Show pending toast
+      toast.loading('Please confirm the transaction in MetaMask...', { id: 'platform-fee-withdrawal' });
+      
+      // Call withdrawPlatformFees function
       const tx = await contract.withdrawPlatformFees(
         tokenAddress,
-        parsedAmount,
-        { gasLimit: 300000 }
+        parsedAmount
       );
 
       console.log('Transaction submitted:', tx.hash);
-      toast.loading(`Processing platform fee withdrawal of ${amount} ${token}...`, { id: 'platform-fee-withdrawal' });
+      toast.loading(`Processing platform fee withdrawal...`, { id: 'platform-fee-withdrawal' });
 
       const receipt = await tx.wait();
       console.log('Transaction receipt:', receipt);
 
       if (receipt.status === 1) {
+        // Create a withdrawal record in Firestore
+        const withdrawalRef = doc(collection(db, 'withdrawals'));
+        await setDoc(withdrawalRef, {
+          id: withdrawalRef.id,
+          amount: parseFloat(amount),
+          token,
+          network,
+          status: 'completed',
+          type: 'platform_fee',
+          walletAddress: walletAddress,
+          timestamp: new Date(),
+          transactionHash: tx.hash,
+          processedAt: new Date(),
+          processedBy: walletAddress
+        });
+
         toast.success(`Successfully withdrew ${amount} ${token}`, { id: 'platform-fee-withdrawal' });
+        
+        // Clear the input field
+        setPlatformFeeAmounts(prev => ({
+          ...prev,
+          [network]: {
+            ...prev[network],
+            [token]: {
+              ...prev[network][token],
+              amount: ''
+            }
+          }
+        }));
+
         // Refresh platform fees
         fetchPlatformFees();
       } else {
@@ -550,7 +564,7 @@ export default function AdminWithdrawals() {
                       <div className="text-sm text-red-500">{platformFeeAmounts.unichain.USDT.error}</div>
                     ) : (
                       <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Platform Fees: ${Number(platformFeeAmounts.unichain.USDT.fees).toFixed(2)}
+                        Platform Fees: ${parseFloat(platformFeeAmounts.unichain.USDT.fees || 0).toFixed(2)}
                       </div>
                     )}
                   </div>
@@ -590,7 +604,7 @@ export default function AdminWithdrawals() {
                       <div className="text-sm text-red-500">{platformFeeAmounts.unichain.USDC.error}</div>
                     ) : (
                       <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Platform Fees: ${Number(platformFeeAmounts.unichain.USDC.fees).toFixed(2)}
+                        Platform Fees: ${parseFloat(platformFeeAmounts.unichain.USDC.fees || 0).toFixed(2)}
                       </div>
                     )}
                   </div>
@@ -639,7 +653,7 @@ export default function AdminWithdrawals() {
                       <div className="text-sm text-red-500">{platformFeeAmounts.polygon.USDT.error}</div>
                     ) : (
                       <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Platform Fees: ${Number(platformFeeAmounts.polygon.USDT.fees).toFixed(2)}
+                        Platform Fees: ${parseFloat(platformFeeAmounts.polygon.USDT.fees || 0).toFixed(2)}
                       </div>
                     )}
                   </div>
@@ -679,7 +693,7 @@ export default function AdminWithdrawals() {
                       <div className="text-sm text-red-500">{platformFeeAmounts.polygon.USDC.error}</div>
                     ) : (
                       <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Platform Fees: ${Number(platformFeeAmounts.polygon.USDC.fees).toFixed(2)}
+                        Platform Fees: ${parseFloat(platformFeeAmounts.polygon.USDC.fees || 0).toFixed(2)}
                       </div>
                     )}
                   </div>

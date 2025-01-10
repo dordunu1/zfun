@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BiPackage, BiCheck, BiX, BiMap, BiInfoCircle } from 'react-icons/bi';
+import { BiPackage, BiCheck, BiX, BiMap, BiInfoCircle, BiTrash } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, writeBatch, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 
@@ -405,6 +405,25 @@ const OrdersReceived = () => {
     }
   };
 
+  const cancelOrder = async (orderId) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      
+      // Only update the order status
+      await updateDoc(orderRef, {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancelledBy: 'seller'
+      });
+      
+      toast.success('Order cancelled successfully');
+      fetchOrders(); // Refresh the orders list
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      toast.error('Failed to cancel order');
+    }
+  };
+
   const filteredOrders = orders.filter(order => {
     if (filter === 'all') return true;
     return order.status === filter;
@@ -441,7 +460,7 @@ const OrdersReceived = () => {
           <p className="text-gray-500">Manage your incoming orders</p>
         </div>
         <div className="flex gap-2">
-          {['all', 'pending', 'processing', 'completed', 'cancelled'].map((status) => (
+          {['all', 'processing', 'completed', 'cancelled'].map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
@@ -553,15 +572,6 @@ const OrdersReceived = () => {
                         >
                           <BiInfoCircle className="w-5 h-5" />
                         </button>
-                        {order.status === 'pending' && (
-                          <button
-                            onClick={() => updateOrderStatus(order.id, 'processing')}
-                            className="p-2 text-blue-400 hover:text-blue-600 transition-colors"
-                            title="Mark as Processing"
-                          >
-                            <BiCheck className="w-5 h-5" />
-                          </button>
-                        )}
                         {order.status === 'processing' && !order.shippingConfirmed && (
                           <button
                             onClick={() => {

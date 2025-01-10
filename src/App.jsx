@@ -3,7 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminSales from './pages/admin/Sales';
+import AdminSales from './pages/admin/AdminSales';
 import { Outlet } from 'react-router-dom';
 import { Web3Modal } from '@web3modal/react';
 import Sidebar from './components/Sidebar';

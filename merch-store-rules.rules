@@ -101,6 +101,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Refund Requests Collection
+    match /refundRequests/{refundId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == resource.data.buyerId || 
+         isSeller(resource.data.sellerId) ||
+         isAdmin());
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.buyerId;
+      allow update: if isAdmin();
+    }
+
     // Activity Collection
     match /activity/{activityId} {
       // Only admin can read activity

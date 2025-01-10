@@ -3,10 +3,14 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { BiPackage, BiChevronRight } from 'react-icons/bi';
 import { FaPlaneDeparture } from 'react-icons/fa';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
+import { FiAlertCircle } from 'react-icons/fi';
+import { getMerchPlatformContract, parseTokenAmount } from '../../contracts/MerchPlatform';
+import { ethers } from 'ethers';
+import detectEthereumProvider from '@metamask/detect-provider';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -104,10 +108,237 @@ const OrdersSkeleton = () => (
   </div>
 );
 
+const RefundRequestModal = ({ isOpen, onClose, order }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
+
+  useEffect(() => {
+    checkWalletConnection();
+  }, []);
+
+  const checkWalletConnection = async () => {
+    try {
+      const provider = await detectEthereumProvider();
+      if (provider) {
+        const accounts = await provider.request({ method: 'eth_accounts' });
+        if (accounts.length > 0) {
+          setWalletAddress(accounts[0]);
+          setWalletConnected(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking wallet connection:', error);
+    }
+  };
+
+  const handleSubmitRefund = async () => {
+    if (order.status !== 'cancelled') {
+      toast.error('Only cancelled orders are eligible for refund requests');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Get seller's wallet address from sellers collection
+      const sellerDoc = await getDoc(doc(db, 'sellers', order.sellerId));
+      if (!sellerDoc.exists()) {
+        throw new Error(`Seller not found with ID: ${order.sellerId}`);
+      }
+      
+      const sellerWallet = sellerDoc.data().walletAddress;
+      const buyerWallet = order.paymentMethod?.buyerWallet;
+
+      // Validate addresses
+      if (!buyerWallet || !ethers.isAddress(buyerWallet)) {
+        throw new Error('Invalid buyer wallet address');
+      }
+
+      if (!sellerWallet || !ethers.isAddress(sellerWallet)) {
+        throw new Error(`Invalid seller wallet address: ${sellerWallet}`);
+      }
+
+      const refundAmount = order.total * 0.95; // Calculate 95% of the total (5% platform fee deducted)
+
+      // Create refund request in Firestore
+      const refundRequest = {
+        orderId: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        amount: refundAmount,
+        originalAmount: order.total,
+        paymentAddress: buyerWallet, // Use buyer's wallet address
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        network: order.paymentMethod.network,
+        orderDetails: {
+          items: order.items,
+          total: order.total,
+          paymentMethod: order.paymentMethod
+        }
+      };
+
+      // Add the refund request to Firestore
+      await addDoc(collection(db, 'refundRequests'), refundRequest);
+
+      toast.success('Refund request submitted successfully');
+      onClose();
+
+    } catch (error) {
+      console.error('Error submitting refund request:', error);
+      toast.error(error.message || 'Failed to submit refund request');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const platformFee = order.total * 0.05;
+  const refundAmount = order.total * 0.95;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Request Refund</h2>
+        
+        {order.status !== 'cancelled' ? (
+          <div className="mb-4 p-4 bg-yellow-50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <FiAlertCircle className="text-yellow-500 text-lg mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-yellow-800">Not Eligible for Refund</p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Only cancelled orders are eligible for refund requests. This order's status is "{order.status}".
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <FiAlertCircle className="text-blue-500 text-lg mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Refund Processing Time</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Refund requests typically take up to 1 week to process.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mb-4 p-4 bg-pink-50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <FiAlertCircle className="text-[#FF1B6B] text-lg mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-[#FF1B6B]">Platform Fee Notice</p>
+                  <p className="text-sm text-[#FF1B6B]/80 mt-1">
+                    The 5% platform fee (${platformFee.toFixed(2)}) is non-refundable as it was deducted at the time of purchase.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Order ID
+            </label>
+            <input
+              type="text"
+              value={`#${order.id.slice(-6)}`}
+              disabled
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Payment Address
+            </label>
+            <input
+              type="text"
+              value={order.paymentMethod.buyerWallet}
+              disabled
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Original Amount
+              </label>
+              <div className="flex items-center gap-2">
+                <img
+                  src={`/${order.paymentMethod?.token?.toLowerCase() || 'usdt'}.png`}
+                  alt={order.paymentMethod?.token || 'USDT'}
+                  className="w-5 h-5"
+                />
+                <input
+                  type="text"
+                  value={`$${order.total.toFixed(2)}`}
+                  disabled
+                  className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700 line-through"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#FF1B6B] mb-1">
+                Refund Amount (after 5% platform fee)
+              </label>
+              <div className="flex items-center gap-2">
+                <img
+                  src={`/${order.paymentMethod?.token?.toLowerCase() || 'usdt'}.png`}
+                  alt={order.paymentMethod?.token || 'USDT'}
+                  className="w-5 h-5"
+                />
+                <input
+                  type="text"
+                  value={`$${refundAmount.toFixed(2)}`}
+                  disabled
+                  className="flex-1 px-3 py-2 bg-[#FF1B6B]/5 border border-[#FF1B6B]/20 rounded-lg text-gray-700 font-medium"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 hover:text-gray-900"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmitRefund}
+            disabled={isSubmitting || order.status !== 'cancelled'}
+            className={`px-4 py-2 rounded-lg text-white ${
+              order.status !== 'cancelled'
+                ? 'bg-gray-400 cursor-not-allowed'
+                : isSubmitting
+                ? 'bg-[#FF1B6B] opacity-50 cursor-not-allowed'
+                : 'bg-[#FF1B6B] hover:bg-[#D4145A]'
+            }`}
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Refund Request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Orders = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -257,8 +488,8 @@ const Orders = () => {
                       </Link>
                       <div className="flex items-center gap-2 mt-1">
                         <img
-                          src={`/${item.token?.toLowerCase() || 'usdt'}.png`}
-                          alt={item.token || 'USDT'}
+                          src={`/${order.paymentMethod?.token?.toLowerCase() || 'usdt'}.png`}
+                          alt={order.paymentMethod?.token || 'USDT'}
                           className="w-4 h-4"
                         />
                         <span className="text-[#FF1B6B] font-medium">
@@ -281,8 +512,8 @@ const Orders = () => {
                     <span className="text-gray-500">Total Amount</span>
                     <div className="flex items-center gap-1">
                       <img
-                        src={`/${order.items[0]?.token?.toLowerCase() || 'usdt'}.png`}
-                        alt={order.items[0]?.token || 'USDT'}
+                        src={`/${order.paymentMethod?.token?.toLowerCase() || 'usdt'}.png`}
+                        alt={order.paymentMethod?.token || 'USDT'}
                         className="w-4 h-4"
                       />
                       <span className="font-medium text-gray-800">
@@ -314,9 +545,34 @@ const Orders = () => {
                   </div>
                 )}
               </div>
+
+              {/* Add Refund Button */}
+              <div className="flex justify-end mt-3 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setIsRefundModalOpen(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
+                >
+                  Request Refund
+                </button>
+              </div>
             </motion.div>
           ))}
         </motion.div>
+      )}
+
+      {/* Add RefundRequestModal */}
+      {selectedOrder && (
+        <RefundRequestModal
+          isOpen={isRefundModalOpen}
+          onClose={() => {
+            setIsRefundModalOpen(false);
+            setSelectedOrder(null);
+          }}
+          order={selectedOrder}
+        />
       )}
     </motion.div>
   );

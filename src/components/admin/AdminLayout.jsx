@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { FiGrid, FiDollarSign, FiCreditCard, FiSettings, FiSun, FiMoon } from 'react-icons/fi';
+import { FiGrid, FiDollarSign, FiCreditCard, FiSettings, FiSun, FiMoon, FiRefreshCcw } from 'react-icons/fi';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -25,6 +25,7 @@ export default function AdminLayout() {
   const navItems = [
     { path: '/admin', icon: <FiGrid />, label: 'Dashboard' },
     { path: '/admin/withdrawals', icon: <FiCreditCard />, label: 'Withdrawals' },
+    { path: '/admin/refunds', icon: <FiRefreshCcw />, label: 'Refunds' },
     { path: '/admin/sales', icon: <FiDollarSign />, label: 'Sales' },
     { path: '/admin/settings', icon: <FiSettings />, label: 'Settings' },
   ];
@@ -33,6 +34,7 @@ export default function AdminLayout() {
     { name: 'Dashboard', to: '/admin', icon: FiGrid },
     { name: 'Sales', to: '/admin/sales', icon: FiDollarSign },
     { name: 'Withdrawals', to: '/admin/withdrawals', icon: FiCreditCard },
+    { name: 'Refunds', to: '/admin/refunds', icon: FiRefreshCcw },
     { name: 'Settings', to: '/admin/settings', icon: FiSettings },
   ];
 
