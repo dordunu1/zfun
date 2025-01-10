@@ -237,12 +237,13 @@ const SellerDashboard = () => {
         // Calculate incoming payments (orders within 3-day shipping window)
         const now = new Date();
         const incomingPaymentsList = orders.filter(order => {
-          if (order.paymentStatus === 'completed' && !order.shippingConfirmed) {
-            // Exclude canceled orders
-            if (order.status === 'cancelled') return false;
+          if (order.paymentStatus === 'completed') {
+            // Exclude canceled and refunded orders
+            if (order.status === 'cancelled' || order.status === 'refunded') return false;
             
             const orderDate = order.createdAt.toDate();
             const shippingDeadline = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
+            // Keep showing orders until the 3-day window is complete, regardless of shipping status
             return now <= shippingDeadline;
           }
           return false;
