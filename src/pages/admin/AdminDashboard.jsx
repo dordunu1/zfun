@@ -239,10 +239,12 @@ export default function AdminDashboard() {
 
       // Calculate platform-wide metrics
       const validOrders = orders.filter(order => order.status !== 'cancelled');
-      const activeOrders = validOrders.filter(order => order.status === 'completed' || order.status === 'processing');
+      const activeOrders = validOrders.filter(order => 
+        order.status === 'shipped' || order.status === 'processing' || order.status === 'completed'
+      );
       const refundedOrders = validOrders.filter(order => order.status === 'refunded');
 
-      // Calculate total sales from active orders (completed + processing)
+      // Calculate total sales from active orders (completed + processing + shipped)
       const totalSales = activeOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
 
       // Calculate total refunds (95% of refunded order totals)
@@ -257,9 +259,9 @@ export default function AdminDashboard() {
         .filter(doc => doc.data().status === 'approved' && doc.data().type === 'platform_fee')
         .reduce((sum, doc) => sum + doc.data().amount, 0);
 
-      // Calculate current sales (total sales from active orders only)
+      // Calculate current sales (total sales from active orders)
       const currentSales = activeOrders
-        .filter(order => order.status === 'completed' || order.status === 'processing')
+        .filter(order => order.status === 'shipped' || order.status === 'processing' || order.status === 'completed')
         .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
 
       // Calculate total withdrawn amount (for sellers)
@@ -616,8 +618,10 @@ export default function AdminDashboard() {
                         <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                            order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                            order.status === 'shipped' ? 'bg-green-100 text-green-800' :
                             order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                            order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-yellow-100 text-yellow-800'
                           }`}>
                             {order.status}
@@ -662,8 +666,10 @@ export default function AdminDashboard() {
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                    order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                    order.status === 'shipped' ? 'bg-green-100 text-green-800' :
                     order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                    order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-yellow-100 text-yellow-800'
                   }`}>
                     {order.status}
