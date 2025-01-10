@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BiStore, BiUser, BiDollar, BiShield, BiCreditCard, BiPackage } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
@@ -6,6 +6,9 @@ import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 import detectEthereumProvider from '@metamask/detect-provider';
+import ReactCountryFlag from 'react-country-flag';
+import countryList from 'react-select-country-list';
+import Select from 'react-select';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -121,15 +124,18 @@ const Settings = () => {
   const [showNetworkConfirm, setShowNetworkConfirm] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState(null);
   const [buyerProfile, setBuyerProfile] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    walletAddress: '',
+    fullName: '',
+    email: user?.email || '',
+    phoneNumber: '',
     shippingAddress: {
       street: '',
       city: '',
       state: '',
-      country: '',
+      country: {
+        name: '',
+        code: '',
+        flag: ''
+      },
       postalCode: ''
     }
   });
@@ -151,6 +157,70 @@ const Settings = () => {
     walletAddress: '',
     preferredToken: 'USDT'
   });
+
+  const [hasChanges, setHasChanges] = useState(false);
+  const [originalSettings, setOriginalSettings] = useState(null);
+
+  const [buyerProfileHasChanges, setBuyerProfileHasChanges] = useState(false);
+  const [originalBuyerProfile, setOriginalBuyerProfile] = useState(null);
+
+  const countries = useMemo(() => countryList().getData(), []);
+  
+  const countryOptions = useMemo(() => 
+    countries.map(country => ({
+      value: country.value,
+      label: (
+        <div className="flex items-center gap-2">
+          <ReactCountryFlag 
+            countryCode={country.value} 
+            svg 
+            style={{
+              width: '1.5em',
+              height: '1.5em',
+            }}
+          />
+          {country.label}
+        </div>
+      ),
+      searchLabel: country.label
+    })), 
+    [countries]
+  );
+
+  const customStyles = {
+    control: (provided) => ({
+      ...provided,
+      padding: '2px',
+      borderColor: '#E5E7EB',
+      '&:hover': {
+        borderColor: '#FF1B6B'
+      }
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected ? '#FF1B6B' : state.isFocused ? '#FFE4E4' : 'white',
+      color: state.isSelected ? 'white' : '#374151',
+      '&:hover': {
+        backgroundColor: state.isSelected ? '#FF1B6B' : '#FFE4E4',
+      }
+    })
+  };
+
+  const handleCountryChange = (selectedOption) => {
+    const newProfile = {
+      ...buyerProfile,
+      shippingAddress: {
+        ...buyerProfile.shippingAddress,
+        country: {
+          name: selectedOption.searchLabel,
+          code: selectedOption.value,
+          flag: `https://flagcdn.com/${selectedOption.value.toLowerCase()}.svg`
+        }
+      }
+    };
+    setBuyerProfile(newProfile);
+    setBuyerProfileHasChanges(JSON.stringify(newProfile) !== JSON.stringify(originalBuyerProfile));
+  };
 
   useEffect(() => {
     const initializeSettings = async () => {
@@ -183,22 +253,66 @@ const Settings = () => {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        setBuyerProfile({
-          name: userData.name || '',
-          email: userData.email || '',
-          phone: userData.phone || '',
-          walletAddress: userData.walletAddress || '',
-          shippingAddress: userData.shippingAddress || {
-            street: '',
-            city: '',
-            state: '',
-            country: '',
-            postalCode: ''
+        const profileData = {
+          fullName: userData.fullName || '',
+          email: userData.email || user?.email || '',
+          phoneNumber: userData.phoneNumber || '',
+          shippingAddress: {
+            street: userData.shippingAddress?.street || '',
+            city: userData.shippingAddress?.city || '',
+            state: userData.shippingAddress?.state || '',
+            country: userData.shippingAddress?.country || {
+              name: '',
+              code: '',
+              flag: ''
+            },
+            postalCode: userData.shippingAddress?.postalCode || ''
           }
-        });
+        };
+        setBuyerProfile(profileData);
+        setOriginalBuyerProfile(JSON.parse(JSON.stringify(profileData)));
+        setBuyerProfileHasChanges(false);
       }
     } catch (error) {
+      console.error('Error fetching buyer profile:', error);
       toast.error('Failed to load profile');
+    }
+  };
+
+  const handleBuyerInputChange = (e) => {
+    const { name, value } = e.target;
+    let newProfile;
+    if (name.includes('shippingAddress.')) {
+      const field = name.split('.')[1];
+      newProfile = {
+        ...buyerProfile,
+        shippingAddress: {
+          ...buyerProfile.shippingAddress,
+          [field]: value
+        }
+      };
+    } else {
+      newProfile = {
+        ...buyerProfile,
+        [name]: value
+      };
+    }
+    setBuyerProfile(newProfile);
+    setBuyerProfileHasChanges(JSON.stringify(newProfile) !== JSON.stringify(originalBuyerProfile));
+  };
+
+  const handleBuyerProfileSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        ...buyerProfile,
+        updatedAt: new Date()
+      }, { merge: true });
+      setOriginalBuyerProfile(JSON.parse(JSON.stringify(buyerProfile)));
+      setBuyerProfileHasChanges(false);
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      toast.error('Failed to update profile');
     }
   };
 
@@ -222,7 +336,11 @@ const Settings = () => {
           description: '',
           contactEmail: user.email,
           phoneNumber: '',
-          country: '',
+          country: {
+            name: '',
+            code: '',
+            flag: ''
+          },
           city: '',
           postalCode: '',
           shippingCountries: [],
@@ -236,52 +354,32 @@ const Settings = () => {
         
         await setDoc(sellerRef, initialSellerData);
         setStoreSettings(initialSellerData);
+        setOriginalSettings(initialSellerData);
         setWalletSettings({
           walletAddress: userData.walletAddress || '',
           preferredToken: initialSellerData.preferredToken
         });
       } else {
         const sellerData = sellerDoc.data();
-        setStoreSettings(sellerData);
+        // Ensure country data is in the correct format
+        const formattedSellerData = {
+          ...sellerData,
+          country: sellerData.country?.code ? sellerData.country : {
+            name: sellerData.country || '',
+            code: '',
+            flag: ''
+          }
+        };
+        setStoreSettings(formattedSellerData);
+        setOriginalSettings(formattedSellerData);
         setWalletSettings({
           walletAddress: sellerData.walletAddress || '',
           preferredToken: sellerData.preferredToken || 'USDC'
         });
       }
+      setHasChanges(false);
     } catch (error) {
       toast.error('Failed to load seller settings');
-    }
-  };
-
-  const handleBuyerProfileSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await setDoc(doc(db, 'users', user.uid), {
-        ...buyerProfile,
-        updatedAt: new Date()
-      }, { merge: true });
-      toast.success('Profile updated successfully');
-    } catch (error) {
-      toast.error('Failed to update profile');
-    }
-  };
-
-  const handleBuyerInputChange = (e) => {
-    const { name, value } = e.target;
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setBuyerProfile(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value
-        }
-      }));
-    } else {
-      setBuyerProfile(prev => ({
-        ...prev,
-        [name]: value
-      }));
     }
   };
 
@@ -463,6 +561,8 @@ const Settings = () => {
         ...storeSettings,
         updatedAt: new Date()
       });
+      setOriginalSettings(storeSettings);
+      setHasChanges(false);
       toast.success('Store settings updated successfully');
     } catch (error) {
       toast.error('Failed to update store settings');
@@ -471,10 +571,16 @@ const Settings = () => {
 
   const handleStoreInputChange = (e) => {
     const { name, value } = e.target;
-    setStoreSettings(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setStoreSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [name]: value
+      };
+      // Compare with original settings to determine if there are changes
+      const hasChanged = JSON.stringify(newSettings) !== JSON.stringify(originalSettings);
+      setHasChanges(hasChanged);
+      return newSettings;
+    });
   };
 
   if (loading) {
@@ -593,13 +699,21 @@ const Settings = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Country
                       </label>
-                      <input
-                        type="text"
-                        name="country"
-                        value={storeSettings.country}
-                        onChange={handleStoreInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
-                      />
+                      <div className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center gap-2">
+                        {storeSettings.country?.code && (
+                          <ReactCountryFlag
+                            countryCode={storeSettings.country.code}
+                            svg
+                            style={{
+                              width: '1.5em',
+                              height: '1.5em',
+                            }}
+                          />
+                        )}
+                        <span className="text-gray-700">
+                          {storeSettings.country?.name || 'Country not set'}
+                        </span>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -657,7 +771,12 @@ const Settings = () => {
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+                    disabled={!hasChanges}
+                    className={`px-6 py-2 rounded-lg transition-colors ${
+                      hasChanges 
+                        ? 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]' 
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     Save Store Settings
                   </button>
@@ -888,11 +1007,11 @@ const Settings = () => {
                       </label>
                       <input
                         type="text"
-                        name="name"
-                        value={buyerProfile.name}
+                        name="fullName"
+                        value={buyerProfile.fullName}
                         onChange={handleBuyerInputChange}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                        placeholder="Enter your full name"
+                        placeholder="Your full name"
                       />
                     </div>
                     <div>
@@ -905,7 +1024,7 @@ const Settings = () => {
                         value={buyerProfile.email}
                         onChange={handleBuyerInputChange}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                        placeholder="Enter your email"
+                        placeholder="Your email"
                       />
                     </div>
                     <div>
@@ -914,11 +1033,11 @@ const Settings = () => {
                       </label>
                       <input
                         type="tel"
-                        name="phone"
-                        value={buyerProfile.phone}
+                        name="phoneNumber"
+                        value={buyerProfile.phoneNumber}
                         onChange={handleBuyerInputChange}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-                        placeholder="Enter your phone number"
+                        placeholder="Your phone number"
                       />
                     </div>
                   </div>
@@ -927,7 +1046,12 @@ const Settings = () => {
                 <div className="pt-4">
                   <button
                     type="submit"
-                    className="w-full px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+                    disabled={!buyerProfileHasChanges}
+                    className={`w-full px-4 py-2 rounded-lg transition-colors ${
+                      buyerProfileHasChanges 
+                        ? 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]' 
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     Save Profile
                   </button>
@@ -982,12 +1106,16 @@ const Settings = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Country
                     </label>
-                    <input
-                      type="text"
-                      name="shippingAddress.country"
-                      value={buyerProfile.shippingAddress.country}
-                      onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    <Select
+                      options={countryOptions}
+                      styles={customStyles}
+                      onChange={handleCountryChange}
+                      required
+                      placeholder="Select country"
+                      className="country-select"
+                      value={buyerProfile.shippingAddress.country?.code ? 
+                        countryOptions.find(option => option.value === buyerProfile.shippingAddress.country.code) 
+                        : null}
                     />
                   </div>
                   <div>
@@ -1007,7 +1135,12 @@ const Settings = () => {
                 <div className="pt-4">
                   <button
                     type="submit"
-                    className="w-full px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+                    disabled={!buyerProfileHasChanges}
+                    className={`w-full px-4 py-2 rounded-lg transition-colors ${
+                      buyerProfileHasChanges 
+                        ? 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]' 
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
                     Save Shipping Address
                   </button>

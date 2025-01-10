@@ -34,7 +34,14 @@ service cloud.firestore {
       // Allow creation of new seller profiles and updates by owner
       allow create: if isAuthenticated() && 
         request.resource.data.userId == request.auth.uid;
-      allow update: if isSeller(sellerId) || isAdmin();
+      allow update: if 
+        isSeller(sellerId) || 
+        isAdmin() ||
+        // Allow balance updates when processing orders
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance']) &&
+         request.resource.data.balance is map &&
+         request.resource.data.balance.available is number &&
+         request.resource.data.balance.pending is number);
     }
 
     // Products Collection

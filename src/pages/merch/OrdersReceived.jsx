@@ -346,6 +346,73 @@ const OrdersReceived = () => {
         ...doc.data()
       }));
 
+      // Check for new orders and update seller's balance
+      const newOrders = ordersData.filter(order => 
+        order.status === 'processing' && 
+        !order.balanceUpdated
+      );
+
+      if (newOrders.length > 0) {
+        const sellerRef = doc(db, 'sellers', user.sellerId);
+        const sellerDoc = await getDoc(sellerRef);
+        
+        if (sellerDoc.exists()) {
+          try {
+            const sellerData = sellerDoc.data();
+            
+            // Initialize balance if it doesn't exist
+            if (!sellerData.balance) {
+              await updateDoc(sellerRef, {
+                balance: { available: 0, pending: 0 }
+              });
+              sellerData.balance = { available: 0, pending: 0 };
+            }
+            
+            // Calculate total new amount from orders
+            const totalNewAmount = newOrders.reduce((sum, order) => {
+              const orderTotal = parseFloat(order.total);
+              return sum + (isNaN(orderTotal) ? 0 : orderTotal);
+            }, 0);
+            
+            // Update seller's balance
+            const updatedBalance = {
+              available: parseFloat(sellerData.balance.available || 0),
+              pending: parseFloat(sellerData.balance.pending || 0) + totalNewAmount
+            };
+
+            // Update the seller document with new balance
+            await updateDoc(sellerRef, {
+              balance: {
+                available: updatedBalance.available,
+                pending: updatedBalance.pending
+              }
+            });
+
+            // Mark orders as balance updated
+            const batch = writeBatch(db);
+            newOrders.forEach(order => {
+              const orderRef = doc(db, 'orders', order.id);
+              batch.update(orderRef, { balanceUpdated: true });
+            });
+            await batch.commit();
+
+            console.log('Balance updated successfully:', {
+              previousBalance: sellerData.balance,
+              newBalance: updatedBalance,
+              totalNewAmount,
+              updatedOrders: newOrders.length
+            });
+          } catch (error) {
+            console.error('Error updating balance:', error);
+            console.error('Error details:', {
+              sellerId: user.sellerId,
+              sellerData: sellerDoc.data(),
+              newOrders: newOrders
+            });
+          }
+        }
+      }
+
       setOrders(ordersData);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -368,6 +435,21 @@ const OrdersReceived = () => {
         return;
       }
 
+      // Get seller's current balance
+      const sellerRef = doc(db, 'sellers', user.sellerId);
+      const sellerDoc = await getDoc(sellerRef);
+      const currentBalance = sellerDoc.data().balance || { available: 0, pending: 0 };
+      const orderAmount = Number(orderData.total || 0);
+
+      // Move order amount from pending to available
+      await updateDoc(sellerRef, {
+        balance: {
+          available: Number((Number(currentBalance.available || 0) + orderAmount).toFixed(2)),
+          pending: Number((Number(currentBalance.pending || 0) - orderAmount).toFixed(2))
+        }
+      });
+
+      // Update order status
       await updateDoc(orderRef, {
         status: 'shipped',
         updatedAt: new Date(),

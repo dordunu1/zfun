@@ -152,6 +152,7 @@ const AddProduct = () => {
     price: '',
     quantity: '',
     category: '',
+    subCategory: '',
     images: [],
     network: 'polygon',
     acceptedToken: 'USDC',
@@ -182,6 +183,49 @@ const AddProduct = () => {
     { id: 'unichain', name: 'Unichain Testnet', logo: '/unichain-logo.png' }
   ];
 
+  const CLOTHING_SUBCATEGORIES = {
+    "Men's Wear": [
+      "T-Shirts",
+      "Shirts",
+      "Pants",
+      "Hoodies",
+      "Jackets",
+      "Suits"
+    ],
+    "Women's Wear": [
+      "Dresses",
+      "Tops",
+      "Skirts",
+      "Pants",
+      "Blouses",
+      "Jackets"
+    ],
+    "Footwear": [
+      "Sneakers",
+      "Formal Shoes",
+      "Boots",
+      "Sandals",
+      "Slippers"
+    ]
+  };
+
+  const ACCESSORIES_SUBCATEGORIES = {
+    "Fashion Accessories": [
+      "Bags",
+      "Belts",
+      "Hats",
+      "Scarves",
+      "Jewelry"
+    ],
+    "Tech Accessories": [
+      "Phone Cases",
+      "Laptop Bags",
+      "Headphone Cases",
+      "Tablet Covers",
+      "Chargers"
+    ]
+  };
+
   useEffect(() => {
     const loadSellerPreferences = async () => {
       try {
@@ -202,7 +246,8 @@ const AddProduct = () => {
             ...prev,
             network: sellerData.preferredNetwork,
             acceptedToken: sellerData.preferredToken,
-            tokenLogo: `/logos/${sellerData.preferredToken.toLowerCase()}.png`
+            tokenLogo: `/logos/${sellerData.preferredToken.toLowerCase()}.png`,
+            shippingFee: sellerData.shippingFee || 0
           }));
         }
         setLoading(false);
@@ -258,11 +303,14 @@ const AddProduct = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'acceptedToken') {
+    if (name === 'category') {
       setProductData(prev => ({
         ...prev,
-        acceptedToken: value,
-        tokenLogo: `/logos/${value.toLowerCase()}.png`
+        category: value,
+        subCategory: '',
+        hasVariants: false,
+        selectedSizes: [],
+        selectedColors: []
       }));
     } else {
       setProductData(prev => ({
@@ -319,14 +367,20 @@ const AddProduct = () => {
       return;
     }
 
-    if (productData.category === 'clothing' && productData.hasVariants) {
-      if (productData.selectedSizes.length === 0) {
-        toast.error('Please select at least one size');
+    if (productData.category === 'clothing') {
+      if (!productData.subCategory) {
+        toast.error('Please select a subcategory');
         return;
       }
-      if (productData.selectedColors.length === 0) {
-        toast.error('Please select at least one color');
-        return;
+      if (productData.hasVariants) {
+        if (productData.selectedSizes.length === 0) {
+          toast.error('Please select at least one size');
+          return;
+        }
+        if (productData.selectedColors.length === 0) {
+          toast.error('Please select at least one color');
+          return;
+        }
       }
     }
 
@@ -353,6 +407,7 @@ const AddProduct = () => {
         price: Number(productData.price),
         quantity: Number(productData.quantity),
         category: productData.category,
+        subCategory: productData.subCategory,
         network: productData.network,
         acceptedToken: productData.acceptedToken,
         tokenLogo: `/${productData.acceptedToken.toLowerCase()}.png`,
@@ -401,6 +456,13 @@ const AddProduct = () => {
     setProductData(prev => ({
       ...prev,
       network: networkId
+    }));
+  };
+
+  const handleSubCategorySelect = (mainCategory, subItem) => {
+    setProductData(prev => ({
+      ...prev,
+      subCategory: `${mainCategory} - ${subItem}`
     }));
   };
 
@@ -529,11 +591,70 @@ const AddProduct = () => {
                 <option value="">Select Category</option>
                 <option value="clothing">Clothing</option>
                 <option value="accessories">Accessories</option>
+                <option value="electronics">Electronics</option>
+                <option value="home">Home</option>
                 <option value="art">Art</option>
                 <option value="collectibles">Collectibles</option>
               </select>
             </div>
           </motion.div>
+
+          {/* Subcategory Section */}
+          {(productData.category === 'clothing' || productData.category === 'accessories') && (
+            <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Product Type *
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Main Categories */}
+                <div className="space-y-4">
+                  {Object.entries(productData.category === 'clothing' ? CLOTHING_SUBCATEGORIES : ACCESSORIES_SUBCATEGORIES)
+                    .map(([mainCategory, subItems]) => (
+                    <div key={mainCategory} className="bg-white rounded-lg p-4">
+                      <h3 className="font-medium text-gray-900 mb-3">{mainCategory}</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {subItems.map((subItem) => (
+                          <button
+                            key={subItem}
+                            type="button"
+                            onClick={() => handleSubCategorySelect(mainCategory, subItem)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                              productData.subCategory === `${mainCategory} - ${subItem}`
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {subItem}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Selected Category Display */}
+                <div className="bg-white rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-3">Selected Category</h3>
+                  {productData.subCategory ? (
+                    <div className="bg-pink-50 border border-pink-100 rounded-lg p-4">
+                      <p className="text-gray-700">
+                        <span className="font-medium">Main Category:</span>{' '}
+                        {productData.subCategory.split(' - ')[0]}
+                      </p>
+                      <p className="text-gray-700 mt-2">
+                        <span className="font-medium">Sub Category:</span>{' '}
+                        {productData.subCategory.split(' - ')[1]}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-gray-500">
+                      Please select a category from the left
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* Variants Section */}
           {productData.category === 'clothing' && (
@@ -645,15 +766,9 @@ const AddProduct = () => {
                     className="w-full pl-4 pr-24 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                     placeholder="0.00"
                   />
-                  <select
-                    name="acceptedToken"
-                    value={productData.acceptedToken}
-                    onChange={handleInputChange}
-                    className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B]"
-                  >
-                    <option value="USDT">USDT</option>
-                    <option value="USDC">USDC</option>
-                  </select>
+                  <div className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                    {productData.acceptedToken}
+                  </div>
                 </div>
 
                 {/* Payment Information Display */}
@@ -721,11 +836,14 @@ const AddProduct = () => {
                     min="0"
                     step="0.01"
                     value={productData.shippingFee}
-                    onChange={handleInputChange}
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                    disabled
+                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-gray-50"
                     placeholder="0.00"
                   />
                 </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  Shipping fee is set in your store settings
+                </p>
               </div>
 
               <div>

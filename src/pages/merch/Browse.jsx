@@ -1,7 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { BiSearch, BiFilter, BiStar } from 'react-icons/bi';
+import { BiSearch, BiFilter, BiStar, BiMenu } from 'react-icons/bi';
+import { 
+  MdGrid3X3,
+  MdOutlineShoppingBag,
+  MdDevices,
+  MdOutlineHome,
+  MdOutlinePalette,
+  MdOutlineCollections,
+  // Clothing and Fashion icons
+  MdOutlineCheckroom,
+  MdOutlineDry,
+  MdOutlineStyle,
+  MdOutlineSportsHockey,
+  MdOutlineDryCleaning,
+  MdOutlineBusinessCenter,
+  MdOutlinePerson,
+  MdOutlinePersonOutline,
+  MdOutlineWoman,
+  MdOutlineSportsBasketball,
+  MdOutlineWork,
+  // Footwear icons
+  MdOutlineDirectionsRun,
+  MdOutlineDirectionsWalk,
+  // Fashion Accessories icons
+  MdOutlineShoppingBag as MdOutlineBag,
+  MdOutlineWatchLater,
+  MdOutlineFace,
+  MdOutlineDiamond,
+  // Tech Accessories icons
+  MdOutlinePhoneAndroid,
+  MdOutlineLaptop,
+  MdOutlineHeadphones,
+  MdOutlineTablet,
+  MdOutlineBatteryChargingFull,
+  MdOutlineNightlight
+} from 'react-icons/md';
+import {
+  GiTShirt,
+  GiPoloShirt,
+  GiArmoredPants,
+  GiHoodie,
+  GiLabCoat,
+  GiSuitcase,
+  GiDress,
+  GiSkirt,
+  GiRunningShoe,
+  GiBoots,
+  GiBelt
+} from 'react-icons/gi';
+import {
+  FaShoePrints,
+  FaSocks
+} from 'react-icons/fa';
 import { collection, query, getDocs, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
@@ -145,15 +197,89 @@ const Browse = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('latest');
   const [selectedNetwork, setSelectedNetwork] = useState('all');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  const CLOTHING_SUBCATEGORIES = {
+    "Men's Wear": [
+      { name: "T-Shirts", icon: <GiTShirt className="text-lg" /> },
+      { name: "Shirts", icon: <GiPoloShirt className="text-lg" /> },
+      { name: "Pants", icon: <GiArmoredPants className="text-lg" /> },
+      { name: "Hoodies", icon: <GiHoodie className="text-lg" /> },
+      { name: "Jackets", icon: <GiLabCoat className="text-lg" /> },
+      { name: "Suits", icon: <GiSuitcase className="text-lg" /> }
+    ],
+    "Women's Wear": [
+      { name: "Dresses", icon: <GiDress className="text-lg" /> },
+      { name: "Tops", icon: <GiTShirt className="text-lg" /> },
+      { name: "Skirts", icon: <GiSkirt className="text-lg" /> },
+      { name: "Pants", icon: <GiArmoredPants className="text-lg" /> },
+      { name: "Blouses", icon: <GiPoloShirt className="text-lg" /> },
+      { name: "Jackets", icon: <GiLabCoat className="text-lg" /> }
+    ],
+    "Footwear": [
+      { name: "Sneakers", icon: <GiRunningShoe className="text-lg" /> },
+      { name: "Formal Shoes", icon: <span className="text-lg text-gray-400 group-hover/item:text-[#FF1B6B] transition-colors">👞</span> },
+      { name: "Boots", icon: <GiBoots className="text-lg" /> },
+      { name: "Sandals", icon: <FaShoePrints className="text-lg" /> },
+      { name: "Slippers", icon: <span className="text-lg text-gray-400 group-hover/item:text-[#FF1B6B] transition-colors">🥿</span> }
+    ]
+  };
+
+  const ACCESSORIES_SUBCATEGORIES = {
+    "Fashion Accessories": [
+      { name: "Bags", icon: <MdOutlineBag className="text-lg" /> },
+      { name: "Belts", icon: <GiBelt className="text-lg" /> },
+      { name: "Hats", icon: <MdOutlineFace className="text-lg" /> },
+      { name: "Scarves", icon: <span className="text-lg text-gray-400 group-hover/item:text-[#FF1B6B] transition-colors">🧣</span> },
+      { name: "Jewelry", icon: <MdOutlineDiamond className="text-lg" /> }
+    ],
+    "Tech Accessories": [
+      { name: "Phone Cases", icon: <MdOutlinePhoneAndroid className="text-lg" /> },
+      { name: "Laptop Bags", icon: <MdOutlineLaptop className="text-lg" /> },
+      { name: "Headphone Cases", icon: <MdOutlineHeadphones className="text-lg" /> },
+      { name: "Tablet Covers", icon: <MdOutlineTablet className="text-lg" /> },
+      { name: "Chargers", icon: <MdOutlineBatteryChargingFull className="text-lg" /> }
+    ]
+  };
 
   const categories = [
-    'all',
-    'clothing',
-    'accessories',
-    'electronics',
-    'home',
-    'art',
-    'collectibles'
+    { 
+      id: 'all', 
+      name: 'All Categories',
+      icon: <MdGrid3X3 className="text-xl" />
+    },
+    { 
+      id: 'clothing', 
+      name: 'Clothing',
+      icon: <MdOutlineCheckroom className="text-xl" />,
+      subcategories: CLOTHING_SUBCATEGORIES
+    },
+    { 
+      id: 'accessories', 
+      name: 'Accessories',
+      icon: <MdOutlineShoppingBag className="text-xl" />,
+      subcategories: ACCESSORIES_SUBCATEGORIES 
+    },
+    { 
+      id: 'electronics', 
+      name: 'Electronics',
+      icon: <MdDevices className="text-xl" />
+    },
+    { 
+      id: 'home', 
+      name: 'Home',
+      icon: <MdOutlineHome className="text-xl" />
+    },
+    { 
+      id: 'art', 
+      name: 'Art',
+      icon: <MdOutlinePalette className="text-xl" />
+    },
+    { 
+      id: 'collectibles', 
+      name: 'Collectibles',
+      icon: <MdOutlineCollections className="text-xl" />
+    }
   ];
 
   const networks = [
@@ -175,7 +301,14 @@ const Browse = () => {
       const constraints = [where('status', '==', 'active')];
       
       if (selectedCategory !== 'all') {
-        constraints.push(where('category', '==', selectedCategory));
+        // Check if it's a subcategory selection
+        if (selectedCategory.includes('-')) {
+          const [mainCategory, categoryGroup, subCategory] = selectedCategory.split('-');
+          constraints.push(where('category', '==', mainCategory));
+          constraints.push(where('subCategory', '==', `${categoryGroup} - ${subCategory}`));
+        } else {
+          constraints.push(where('category', '==', selectedCategory));
+        }
       }
 
       if (selectedNetwork !== 'all') {
@@ -247,16 +380,96 @@ const Browse = () => {
     >
       {/* Search and Filter */}
       <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative w-[400px]">
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
-          />
-          <BiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl" />
+        <div className="flex gap-2 flex-1">
+          {/* Categories Dropdown */}
+          <div className="relative group">
+            <button
+              className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors hover:bg-gray-50 min-w-[160px] text-left flex items-center gap-2"
+            >
+              <BiMenu className="text-xl text-gray-500" />
+              <span className="text-gray-700">
+                {categories.find(cat => cat.id === selectedCategory)?.name || 'All Categories'}
+              </span>
+              <svg
+                className="w-5 h-5 text-gray-500 ml-auto transition-transform group-hover:rotate-180"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Dropdown Menu */}
+            <div className="absolute left-0 top-full mt-1 w-[280px] bg-white rounded-lg shadow-lg border border-gray-100 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+              {categories.map((category) => (
+                <div key={category.id} className="group/item">
+                  <button
+                    onClick={() => {
+                      setSelectedCategory(category.id);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-pink-50 text-gray-700 hover:text-[#FF1B6B] flex items-center gap-3"
+                  >
+                    <span className="text-gray-500 group-hover/item:text-[#FF1B6B] transition-colors">
+                      {category.icon}
+                    </span>
+                    <span>{category.name}</span>
+                    {category.subcategories && (
+                      <svg
+                        className="w-4 h-4 text-gray-500 ml-auto"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    )}
+                  </button>
+
+                  {/* Subcategories */}
+                  {category.subcategories && (
+                    <div className="absolute left-[279px] top-0 w-[280px] bg-white rounded-lg shadow-lg border border-gray-100 invisible opacity-0 group-hover/item:visible group-hover/item:opacity-100 transition-all duration-200">
+                      {Object.entries(category.subcategories).map(([mainCategory, subItems]) => (
+                        <div key={mainCategory} className="p-2">
+                          <div className="px-2 py-1 text-sm font-medium text-gray-900">{mainCategory}</div>
+                          <div className="grid grid-cols-2 gap-1">
+                            {subItems.map((subItem) => (
+                              <button
+                                key={subItem.name}
+                                onClick={() => {
+                                  setSelectedCategory(`${category.id}-${mainCategory}-${subItem.name}`);
+                                }}
+                                className="px-2 py-1 text-sm text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B] rounded text-left flex items-center gap-2"
+                              >
+                                <span className="text-gray-400 group-hover/item:text-[#FF1B6B] transition-colors">
+                                  {subItem.icon}
+                                </span>
+                                <span>{subItem.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+            />
+            <BiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xl" />
+          </div>
         </div>
+
         <div className="flex items-center gap-3">
           <select
             value={selectedNetwork}
@@ -279,23 +492,6 @@ const Browse = () => {
             <option value="price_high">Price: High to Low</option>
           </select>
         </div>
-      </motion.div>
-
-      {/* Categories */}
-      <motion.div variants={itemVariants} className="flex gap-2 overflow-x-auto pb-2">
-        {categories.map((category) => (
-          <button
-            key={category}
-            onClick={() => setSelectedCategory(category)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              selectedCategory === category
-                ? 'bg-[#FF1B6B] text-white'
-                : 'bg-white text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
-            }`}
-          >
-            {category.charAt(0).toUpperCase() + category.slice(1)}
-          </button>
-        ))}
       </motion.div>
 
       {/* Products Grid */}

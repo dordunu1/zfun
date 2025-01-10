@@ -50,14 +50,17 @@ const EditProduct = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [originalProduct, setOriginalProduct] = useState(null);
+  const [hasChanges, setHasChanges] = useState(false);
   const [product, setProduct] = useState({
     name: '',
     description: '',
     price: '',
     quantity: '',
-    images: [],
     category: '',
-    network: 'polygon', // Default network
+    subCategory: '',
+    images: [],
+    network: 'polygon',
     acceptedToken: 'USDT',
     tokenLogo: '/logos/usdt.png',
     shippingFee: 0,
@@ -67,9 +70,59 @@ const EditProduct = () => {
     colors: []
   });
 
+  const CLOTHING_SUBCATEGORIES = {
+    "Men's Wear": [
+      "T-Shirts",
+      "Shirts",
+      "Pants",
+      "Hoodies",
+      "Jackets",
+      "Suits"
+    ],
+    "Women's Wear": [
+      "Dresses",
+      "Tops",
+      "Skirts",
+      "Pants",
+      "Blouses",
+      "Jackets"
+    ],
+    "Footwear": [
+      "Sneakers",
+      "Formal Shoes",
+      "Boots",
+      "Sandals",
+      "Slippers"
+    ]
+  };
+
+  const ACCESSORIES_SUBCATEGORIES = {
+    "Fashion Accessories": [
+      "Bags",
+      "Belts",
+      "Hats",
+      "Scarves",
+      "Jewelry"
+    ],
+    "Tech Accessories": [
+      "Phone Cases",
+      "Laptop Bags",
+      "Headphone Cases",
+      "Tablet Covers",
+      "Chargers"
+    ]
+  };
+
   useEffect(() => {
     fetchProduct();
   }, [id]);
+
+  useEffect(() => {
+    if (originalProduct) {
+      const hasModifications = JSON.stringify(originalProduct) !== JSON.stringify(product);
+      setHasChanges(hasModifications);
+    }
+  }, [product, originalProduct]);
 
   const fetchProduct = async () => {
     try {
@@ -82,7 +135,7 @@ const EditProduct = () => {
           return;
         }
 
-        // Get seller's preferred network
+        // Get seller's preferred network and shipping fee
         const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
         if (sellerDoc.exists()) {
           const sellerData = sellerDoc.data();
@@ -91,16 +144,21 @@ const EditProduct = () => {
             navigate('/merch/settings');
             return;
           }
-          // Set the product's network to seller's preferred network
+          // Set the product's network to seller's preferred network and shipping fee
           data.network = sellerData.preferredNetwork;
+          data.acceptedToken = sellerData.preferredToken;
+          data.shippingFee = sellerData.shippingFee || 0;
         }
 
-        setProduct({
+        const productData = {
           ...data,
           hasVariants: data.hasVariants || false,
           sizes: data.sizes || [],
           colors: data.colors || []
-        });
+        };
+
+        setProduct(productData);
+        setOriginalProduct(productData);
       } else {
         toast.error('Product not found');
         navigate('/merch-store/products');
@@ -115,31 +173,28 @@ const EditProduct = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'network') {
-      // When network changes, reset token to first available token for that network
-      if (NETWORK_INFO[value] && NETWORK_INFO[value].tokens) {
-        const firstToken = Object.keys(NETWORK_INFO[value].tokens)[0];
-        setProduct(prev => ({
-          ...prev,
-          network: value,
-          acceptedToken: firstToken,
-          tokenLogo: NETWORK_INFO[value].tokens[firstToken].logo
-        }));
-      }
-    } else if (name === 'acceptedToken') {
-      if (NETWORK_INFO[product.network]?.tokens?.[value]) {
-        setProduct(prev => ({
-          ...prev,
-          acceptedToken: value,
-          tokenLogo: NETWORK_INFO[product.network].tokens[value].logo
-        }));
-      }
+    if (name === 'category') {
+      setProduct(prev => ({
+        ...prev,
+        category: value,
+        subCategory: '',
+        hasVariants: false,
+        sizes: [],
+        colors: []
+      }));
     } else {
       setProduct(prev => ({
         ...prev,
-        [name]: name === 'price' || name === 'quantity' ? Number(value) : value
+        [name]: value
       }));
     }
+  };
+
+  const handleSubCategorySelect = (mainCategory, subItem) => {
+    setProduct(prev => ({
+      ...prev,
+      subCategory: `${mainCategory} - ${subItem}`
+    }));
   };
 
   const handleImageUpload = async (e) => {
@@ -195,14 +250,20 @@ const EditProduct = () => {
     setUploading(true);
 
     try {
-      if (product.category === 'clothing' && product.hasVariants) {
-        if (product.sizes.length === 0) {
-          toast.error('Please select at least one size');
+      if (product.category === 'clothing') {
+        if (!product.subCategory) {
+          toast.error('Please select a subcategory');
           return;
         }
-        if (product.colors.length === 0) {
-          toast.error('Please select at least one color');
-          return;
+        if (product.hasVariants) {
+          if (product.sizes.length === 0) {
+            toast.error('Please select at least one size');
+            return;
+          }
+          if (product.colors.length === 0) {
+            toast.error('Please select at least one color');
+            return;
+          }
         }
       }
 
@@ -214,6 +275,7 @@ const EditProduct = () => {
         price: Number(product.price),
         quantity: Number(product.quantity),
         category: product.category,
+        subCategory: product.subCategory,
         network: product.network,
         acceptedToken: product.acceptedToken,
         tokenLogo: product.tokenLogo,
@@ -339,12 +401,70 @@ const EditProduct = () => {
                 <option value="">Select Category</option>
                 <option value="clothing">Clothing</option>
                 <option value="accessories">Accessories</option>
-                <option value="collectibles">Collectibles</option>
+                <option value="electronics">Electronics</option>
+                <option value="home">Home</option>
                 <option value="art">Art</option>
-                <option value="other">Other</option>
+                <option value="collectibles">Collectibles</option>
               </select>
             </div>
           </div>
+
+          {/* Subcategory Section */}
+          {(product.category === 'clothing' || product.category === 'accessories') && (
+            <div className="bg-gray-50 rounded-xl p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Product Type *
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Main Categories */}
+                <div className="space-y-4">
+                  {Object.entries(product.category === 'clothing' ? CLOTHING_SUBCATEGORIES : ACCESSORIES_SUBCATEGORIES)
+                    .map(([mainCategory, subItems]) => (
+                    <div key={mainCategory} className="bg-white rounded-lg p-4">
+                      <h3 className="font-medium text-gray-900 mb-3">{mainCategory}</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {subItems.map((subItem) => (
+                          <button
+                            key={subItem}
+                            type="button"
+                            onClick={() => handleSubCategorySelect(mainCategory, subItem)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                              product.subCategory === `${mainCategory} - ${subItem}`
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {subItem}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Selected Category Display */}
+                <div className="bg-white rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-3">Selected Category</h3>
+                  {product.subCategory ? (
+                    <div className="bg-pink-50 border border-pink-100 rounded-lg p-4">
+                      <p className="text-gray-700">
+                        <span className="font-medium">Main Category:</span>{' '}
+                        {product.subCategory.split(' - ')[0]}
+                      </p>
+                      <p className="text-gray-700 mt-2">
+                        <span className="font-medium">Sub Category:</span>{' '}
+                        {product.subCategory.split(' - ')[1]}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-gray-500">
+                      Please select a category from the left
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Description Section */}
           <div className="bg-gray-50 rounded-xl p-6">
@@ -399,20 +519,9 @@ const EditProduct = () => {
                     className="w-full pl-4 pr-24 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                     placeholder="0.00"
                   />
-                  <select
-                    name="acceptedToken"
-                    value={product.acceptedToken}
-                    onChange={handleInputChange}
-                    className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B]"
-                  >
-                    {NETWORK_INFO[product.network]?.tokens && 
-                      Object.entries(NETWORK_INFO[product.network].tokens).map(([token, info]) => (
-                        <option key={token} value={token}>
-                          {token}
-                        </option>
-                      ))
-                    }
-                  </select>
+                  <div className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                    {product.acceptedToken}
+                  </div>
                 </div>
 
                 {/* Payment Information Display */}
@@ -567,13 +676,13 @@ const EditProduct = () => {
                     min="0"
                     step="0.01"
                     value={product.shippingFee}
-                    onChange={handleInputChange}
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                    disabled
+                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-gray-50"
                     placeholder="0.00"
                   />
                 </div>
                 <p className="mt-1 text-sm text-gray-500">
-                  Additional shipping fee for this product
+                  Shipping fee is set in your store settings
                 </p>
               </div>
 
@@ -603,9 +712,11 @@ const EditProduct = () => {
             </button>
             <button
               type="submit"
-              disabled={uploading}
+              disabled={uploading || !hasChanges}
               className={`px-8 py-3 rounded-lg font-medium text-white ${
-                uploading ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#FF1B6B] hover:bg-[#D4145A]'
+                uploading || !hasChanges 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-[#FF1B6B] hover:bg-[#D4145A]'
               } transition-colors flex items-center gap-2`}
             >
               {uploading ? (

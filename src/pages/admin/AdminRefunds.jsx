@@ -373,6 +373,16 @@ export default function AdminRefunds() {
         status: 'refunded'
       });
 
+      // Update seller's balance
+      const sellerBalanceRef = doc(db, 'sellers', refundRequest.sellerId);
+      const sellerBalanceDoc = await getDoc(sellerBalanceRef);
+      if (sellerBalanceDoc.exists()) {
+        const currentBalance = sellerBalanceDoc.data().balance || 0;
+        await updateDoc(sellerBalanceRef, {
+          balance: Math.max(0, currentBalance - Number(roundedAmount)) // Ensure balance doesn't go below 0
+        });
+      }
+
       // Update seller's revenue data
       const sellerRevenueRef = doc(db, 'sellers', refundRequest.sellerId);
       const sellerRevenueDoc = await getDoc(sellerRevenueRef);

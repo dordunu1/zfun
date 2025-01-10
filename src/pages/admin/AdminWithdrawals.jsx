@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, writeBatch, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { FiCheck, FiX, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
@@ -199,29 +199,22 @@ export default function AdminWithdrawals() {
       const receipt = await tx.wait();
 
       if (receipt.status === 1) {
-        // Get seller's current balance from Firestore
-        const sellerDoc = await getDoc(doc(db, 'sellers', withdrawal.sellerId));
+        // Update withdrawal status
+        await updateDoc(doc(db, 'withdrawals', withdrawal.id), {
+          status: 'completed',
+          completedAt: serverTimestamp(),
+          transactionHash: tx.hash
+        });
+
+        // Update seller's balance
+        const sellerRef = doc(db, 'sellers', withdrawal.sellerId);
+        const sellerDoc = await getDoc(sellerRef);
         if (sellerDoc.exists()) {
-          const sellerData = sellerDoc.data();
-          const currentBalance = sellerData.balances?.[withdrawal.token] || 0;
-          
-          // Calculate new balance
-          const newBalance = Math.max(0, currentBalance - withdrawal.amount);
-          
-          // Update seller's balance in Firestore
-          await updateDoc(doc(db, 'sellers', withdrawal.sellerId), {
-            [`balances.${withdrawal.token}`]: newBalance,
-            updatedAt: new Date()
+          const currentBalance = sellerDoc.data().balance || 0;
+          await updateDoc(sellerRef, {
+            balance: Math.max(0, currentBalance - withdrawal.amount) // Ensure balance doesn't go below 0
           });
         }
-
-        // Update withdrawal status in Firestore
-        await updateDoc(doc(db, 'withdrawals', withdrawal.id), {
-          status: 'approved',
-          processedAt: new Date(),
-          transactionHash: tx.hash,
-          processedBy: walletAddress
-        });
 
         toast.success('Withdrawal approved successfully', { id: 'withdrawal' });
         

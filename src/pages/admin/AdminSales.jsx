@@ -165,7 +165,25 @@ export default function AdminSales() {
       });
 
       // Process seller-specific data
-      const sellerData = Object.values(uniqueSellers).map(seller => {
+      const sellerData = await Promise.all(Object.values(uniqueSellers).map(async seller => {
+        // Fetch seller's data from Firebase
+        const sellerDoc = await getDoc(doc(db, 'sellers', seller.id));
+        console.log('Fetching seller data:', {
+          sellerId: seller.id,
+          sellerName: seller.name,
+          hasDoc: sellerDoc.exists(),
+          data: sellerDoc.data()
+        });
+        
+        const sellerData = sellerDoc.data() || {};
+        console.log('Seller balance:', {
+          sellerId: seller.id,
+          balance: sellerData.balance
+        });
+        
+        // Get the available balance from the balance object
+        const currentBalance = Number(sellerData.balance?.available || 0);
+        
         const sellerOrders = validOrders.filter(order => order.sellerId === seller.id);
         const sellerNonRefundedOrders = sellerOrders.filter(order => order.status !== 'refunded');
         const sellerRefundedOrders = sellerOrders.filter(order => order.status === 'refunded');
@@ -183,21 +201,36 @@ export default function AdminSales() {
 
         // Calculate period sales (excluding refunds)
         const calculatePeriodSales = (days) => {
-          const cutoff = new Date();
-          cutoff.setDate(cutoff.getDate() - days);
+          const now = new Date();
+          const cutoff = new Date(now);
+          cutoff.setHours(0, 0, 0, 0); // Start of today
+          cutoff.setDate(cutoff.getDate() - days); // Go back X days
+
           return sellerOrders
             .filter(order => {
-              const orderDate = order.createdAt;
-              return orderDate >= cutoff && 
-                (order.status === 'shipped' || order.status === 'processing' || order.status === 'completed') &&
-                order.status !== 'refunded';
+              if (!order.createdAt) return false;
+              
+              // Convert order date to start of its day for fair comparison
+              const orderDate = new Date(order.createdAt);
+              orderDate.setHours(0, 0, 0, 0);
+              
+              // Check if the order is within the time period
+              const isWithinPeriod = orderDate >= cutoff;
+              
+              // Check if the order status is valid
+              const hasValidStatus = (
+                order.status === 'shipped' || 
+                order.status === 'processing' || 
+                order.status === 'completed'
+              ) && order.status !== 'refunded';
+              
+              return isWithinPeriod && hasValidStatus;
             })
             .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
         };
 
-        // Calculate available to withdraw (total balance minus refunds and platform fees)
-        const platformFee = totalBalance * 0.05; // 5% platform fee
-        const availableToWithdraw = Math.max(0, totalBalance - totalRefunds - platformFee);
+        // Use the actual balance from Firebase
+        const availableToWithdraw = currentBalance;
 
         return {
           id: seller.id,
@@ -207,14 +240,18 @@ export default function AdminSales() {
           totalRefunds: totalRefunds || 0,
           sales: {
             '1d': calculatePeriodSales(1) || 0,
-            '7d': calculatePeriodSales(7) || 0,
-            '30d': calculatePeriodSales(30) || 0,
-            '6m': calculatePeriodSales(180) || 0,
-            'all': totalBalance || 0
+            'all': sellerOrders
+              .filter(order => 
+                (order.status === 'shipped' || 
+                order.status === 'processing' || 
+                order.status === 'completed') &&
+                order.status !== 'refunded'
+              )
+              .reduce((sum, order) => sum + (Number(order.total) || 0), 0)
           },
           availableToWithdraw
         };
-      });
+      }));
 
       setSellerSales(sellerData);
     } catch (error) {
@@ -429,7 +466,7 @@ export default function AdminSales() {
         <div className="flex justify-between items-center mb-6">
           <h2 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Sales Overview</h2>
           <div className="flex space-x-2">
-            {['1d', '7d', '30d', '6m', 'all'].map((filter) => (
+            {['1d', 'all'].map((filter) => (
               <button
                 key={filter}
                 onClick={() => setTimeFilter(filter)}
@@ -441,7 +478,7 @@ export default function AdminSales() {
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {filter === '1d' ? '24h' : filter === '7d' ? '7d' : filter === '30d' ? '30d' : filter === '6m' ? '6m' : 'All Time'}
+                {filter === '1d' ? '24h' : 'All Time'}
               </button>
             ))}
           </div>
@@ -491,11 +528,7 @@ export default function AdminSales() {
               <tr>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Seller</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>24h</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>7d</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>30d</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>6m</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>All Time</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Refunds</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Available to Withdraw</th>
               </tr>
             </thead>
@@ -510,23 +543,11 @@ export default function AdminSales() {
                     ${seller.sales['1d'].toFixed(2)}
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                    ${seller.sales['7d'].toFixed(2)}
-                  </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                    ${seller.sales['30d'].toFixed(2)}
-                  </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                    ${seller.sales['6m'].toFixed(2)}
-                  </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                     ${seller.sales['all'].toFixed(2)}
-                  </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm text-red-500`}>
-                    ${seller.totalRefunds.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-[#FF1B6B]">
-                      ${seller.availableToWithdraw.toFixed(2)}
+                      ${Number(seller.availableToWithdraw || 0).toFixed(2)}
                     </div>
                   </td>
                 </tr>
