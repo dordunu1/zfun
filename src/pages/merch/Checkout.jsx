@@ -565,7 +565,7 @@ const Checkout = () => {
           buyerInfo: {
             name: buyerProfile.name,
             email: buyerProfile.email,
-            phone: buyerProfile.phone
+            phone: buyerProfile.phoneNumber || null
           },
           flag: typeof buyerProfile.shippingAddress.country === 'object' && buyerProfile.shippingAddress.country.code
             ? `https://flagcdn.com/${buyerProfile.shippingAddress.country.code.toLowerCase()}.svg`

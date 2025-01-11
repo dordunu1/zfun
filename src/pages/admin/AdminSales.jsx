@@ -91,7 +91,9 @@ export default function AdminSales() {
       const orders = ordersSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        flag: doc.data().flag || null,
+        shippingAddress: doc.data().shippingAddress || {}
       }));
 
       // Get unique sellers from orders with their names
@@ -153,14 +155,23 @@ export default function AdminSales() {
         averageOrderValue: activeOrders.length ? totalSales / activeOrders.length : 0,
         uniqueCustomers: new Set(activeOrders.map(order => order.buyerId)).size,
         tokenSales,
-        recentOrders: orders.slice(0, 10).map(order => ({
-          id: order.id || '',
-          buyerInfo: order.buyerInfo || {},
-          total: Number(order.total) || 0,
-          status: order.status || 'unknown',
-          createdAt: order.createdAt || new Date(),
-          sellerId: order.sellerId || '',
-          sellerName: order.sellerName || 'Unknown Seller'
+        recentOrders: await Promise.all(orders.slice(0, 10).map(async order => {
+          // Fetch seller data to get the flag
+          const sellerDoc = await getDoc(doc(db, 'sellers', order.sellerId));
+          const sellerData = sellerDoc.exists() ? sellerDoc.data() : {};
+          
+          return {
+            id: order.id || '',
+            buyerInfo: order.buyerInfo || {},
+            total: Number(order.total) || 0,
+            status: order.status || 'unknown',
+            createdAt: order.createdAt || new Date(),
+            sellerId: order.sellerId || '',
+            sellerName: order.sellerName || 'Unknown Seller',
+            sellerFlag: sellerData.country?.flag || null,
+            flag: order.flag || null,
+            shippingAddress: order.shippingAddress || {}
+          };
         }))
       });
 
@@ -168,18 +179,11 @@ export default function AdminSales() {
       const sellerData = await Promise.all(Object.values(uniqueSellers).map(async seller => {
         // Fetch seller's data from Firebase
         const sellerDoc = await getDoc(doc(db, 'sellers', seller.id));
-        console.log('Fetching seller data:', {
-          sellerId: seller.id,
-          sellerName: seller.name,
-          hasDoc: sellerDoc.exists(),
-          data: sellerDoc.data()
-        });
-        
         const sellerData = sellerDoc.data() || {};
-        console.log('Seller balance:', {
-          sellerId: seller.id,
-          balance: sellerData.balance
-        });
+        
+        // Get the flag and country from seller's data
+        const flag = sellerData.country?.flag || null;
+        const country = sellerData.country || null;
         
         // Get the available balance from the balance object
         const currentBalance = Number(sellerData.balance?.available || 0);
@@ -235,6 +239,8 @@ export default function AdminSales() {
         return {
           id: seller.id,
           name: seller.name,
+          flag: flag,
+          country: country,
           totalOrders: sellerNonRefundedOrders.length || 0,
           totalBalance: totalBalance || 0,
           totalRefunds: totalRefunds || 0,
@@ -415,13 +421,25 @@ export default function AdminSales() {
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-              <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Order ID</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Customer</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Seller</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Status</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Date</th>
+              <tr className="bg-gray-50">
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Order ID
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Seller
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Customer
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Amount
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Status
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Date
+                </th>
               </tr>
             </thead>
             <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
@@ -431,10 +449,30 @@ export default function AdminSales() {
                     {order.id.slice(-6)}
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                    {order.buyerInfo?.name || 'Anonymous'}
+                    <div className="flex items-center gap-2">
+                      <span>{order.sellerName}</span>
+                      {order.sellerFlag && (
+                        <img 
+                          src={order.sellerFlag}
+                          alt="Seller country flag"
+                          className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                        />
+                      )}
+                    </div>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                    {order.sellerName}
+                    <div className="flex items-center gap-2">
+                      <span>{order.buyerInfo?.name || 'Anonymous'}</span>
+                      {order.flag && (
+                        <img 
+                          src={order.flag}
+                          alt={typeof order.shippingAddress?.country === 'object' 
+                            ? order.shippingAddress?.country.name 
+                            : order.shippingAddress?.country}
+                          className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                        />
+                      )}
+                    </div>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                     ${order.total?.toFixed(2)}
@@ -536,8 +574,25 @@ export default function AdminSales() {
               {sellerSales.map((seller) => (
                 <tr key={seller.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{seller.name}</div>
-                    <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{seller.totalOrders} orders</div>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {seller.name}
+                          </span>
+                          {seller.country?.flag && (
+                            <img 
+                              src={seller.country.flag}
+                              alt={seller.country.name || 'Country flag'}
+                              className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                            />
+                          )}
+                        </div>
+                        <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {seller.totalOrders} orders
+                        </div>
+                      </div>
+                    </div>
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                     ${seller.sales['1d'].toFixed(2)}
