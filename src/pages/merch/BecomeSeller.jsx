@@ -250,7 +250,7 @@ export default function BecomeSeller() {
   const navigate = useNavigate();
   const { user } = useMerchAuth();
   const [step, setStep] = useState(1);
-  const listingFee = 18.00;
+  const listingFee = 750.00;
   const [isProcessing, setIsProcessing] = useState(false);
   const countries = useMemo(() => countryList().getData(), []);
   const [phonePlaceholder, setPhonePlaceholder] = useState('+233 XX XXX XXXX'); // Default to Ghana
