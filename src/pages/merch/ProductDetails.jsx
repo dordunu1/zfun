@@ -7,6 +7,7 @@ import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
 import ProductReviews from '../../components/reviews/ProductReviews';
+import ReactCountryFlag from 'react-country-flag';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -334,316 +335,334 @@ const ProductDetails = () => {
   }
 
   return (
-    <motion.div
-      className="max-w-6xl mx-auto p-4"
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-    >
-      {/* Back Button */}
-      <motion.button
-        variants={itemVariants}
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-600 hover:text-[#FF1B6B] mb-6"
+    <div className="container mx-auto px-4 py-8">
+      <motion.div
+        className="max-w-6xl mx-auto p-4"
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
       >
-        <BiArrowBack className="text-xl" />
-        <span>Back</span>
-      </motion.button>
+        {/* Back Button */}
+        <motion.button
+          variants={itemVariants}
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-600 hover:text-[#FF1B6B] mb-6"
+        >
+          <BiArrowBack className="text-xl" />
+          <span>Back</span>
+        </motion.button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Image Gallery */}
-        <motion.div variants={itemVariants} className="space-y-4">
-          <div className="aspect-square rounded-lg overflow-hidden bg-white">
-            <img
-              src={product.images[selectedImage]}
-              alt={product.name}
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {product.images.map((image, index) => (
-              <button
-                key={index}
-                onClick={() => setSelectedImage(index)}
-                className={`aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
-                  selectedImage === index
-                    ? 'border-[#FF1B6B]'
-                    : 'border-transparent hover:border-gray-200'
-                }`}
-              >
-                <img
-                  src={image}
-                  alt={`${product.name} - Image ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              </button>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Product Info */}
-        <motion.div variants={itemVariants} className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">
-              {product.name}
-            </h1>
-            <p className="text-gray-600">{product.description}</p>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Image Gallery */}
+          <motion.div variants={itemVariants} className="space-y-4">
+            <div className="aspect-square rounded-lg overflow-hidden bg-white">
               <img
-                src={product.tokenLogo}
-                alt={product.acceptedToken}
-                className="w-6 h-6"
+                src={product.images[selectedImage]}
+                alt={product.name}
+                className="w-full h-full object-contain"
               />
-              <span className="text-2xl font-bold text-[#FF1B6B]">
-                ${product.price.toFixed(2)}
-              </span>
             </div>
-            <div className={`px-4 py-2 rounded-lg font-medium ${
-              product.quantity > 10 
-                ? 'bg-green-100 text-green-700' 
-                : product.quantity > 0 
-                  ? 'bg-orange-100 text-orange-700' 
-                  : 'bg-red-100 text-red-700'
-            }`}>
-              {product.quantity > 10 
-                ? 'In Stock' 
-                : product.quantity > 0 
-                  ? `Only ${product.quantity} left` 
-                  : 'Out of Stock'}
-            </div>
-          </div>
-
-          {/* Size and Color Selection for Clothing */}
-          {product.category === 'clothing' && product.hasVariants && (
-            <div className="space-y-4">
-              {/* Size Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Size
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size) => (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => setSelectedSize(size)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedSize === size
-                          ? 'bg-[#FF1B6B] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Color Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {product.colors.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setSelectedColor(color)}
-                      className={`group relative inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedColor === color
-                          ? 'bg-[#FF1B6B] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className="w-4 h-4 rounded-full mr-2 border border-gray-300"
-                        style={{ 
-                          backgroundColor: color.toLowerCase(),
-                          borderColor: color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
-                        }}
-                      />
-                      {color}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Quantity Selector */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <span className="text-gray-600">Quantity:</span>
-              <div className="flex items-center gap-2">
+            <div className="grid grid-cols-4 gap-2">
+              {product.images.map((image, index) => (
                 <button
-                  onClick={() => handleQuantityChange(-1)}
-                  disabled={quantity <= 1}
-                  className="p-1 rounded-full hover:bg-pink-50 disabled:opacity-50 disabled:hover:bg-transparent"
+                  key={index}
+                  onClick={() => setSelectedImage(index)}
+                  className={`aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
+                    selectedImage === index
+                      ? 'border-[#FF1B6B]'
+                      : 'border-transparent hover:border-gray-200'
+                  }`}
                 >
-                  <BiMinus className="text-xl" />
+                  <img
+                    src={image}
+                    alt={`${product.name} - Image ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
                 </button>
-                <span className="w-12 text-center font-medium">{quantity}</span>
-                <button
-                  onClick={() => handleQuantityChange(1)}
-                  disabled={quantity >= product.quantity}
-                  className="p-1 rounded-full hover:bg-pink-50 disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  <BiPlus className="text-xl" />
-                </button>
-              </div>
+              ))}
             </div>
+          </motion.div>
 
-            {/* Price Breakdown */}
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">${(product.price * quantity).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Shipping Fee:</span>
-                <span className="font-medium">${(product.shippingFee || 0).toFixed(2)}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between font-medium">
-                <span>Total:</span>
-                <span className="text-[#FF1B6B]">${totalPrice.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={addToCart}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
-            >
-              <BiCart className="text-xl" />
-              Add to Cart
-            </button>
-          </div>
-
-          {/* Additional Info */}
-          <div className="border-t pt-6 space-y-4">
-            <h2 className="font-medium text-gray-800">Additional Information</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Category:</span>
-                <span className="ml-2 text-gray-800">
-                  {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Payment Token:</span>
-                <span className="ml-2 text-gray-800">{product.acceptedToken}</span>
-              </div>
-              {product.category === 'clothing' && product.hasVariants && (
-                <>
-                  <div>
-                    <span className="text-gray-500">Available Sizes:</span>
-                    <span className="ml-2 text-gray-800">
-                      {product.sizes.join(', ')}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Available Colors:</span>
-                    <span className="ml-2 text-gray-800">
-                      {product.colors.join(', ')}
-                    </span>
-                  </div>
-                </>
+          {/* Product Info */}
+          <motion.div variants={itemVariants} className="space-y-6">
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                {product.name}
+              </h1>
+              {seller && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200 shrink-0">
+                  <span className="text-sm font-medium text-gray-700">{seller.storeName}</span>
+                  {seller.country?.code && (
+                    <ReactCountryFlag
+                      countryCode={seller.country.code}
+                      svg
+                      style={{
+                        width: '1.2em',
+                        height: '1.2em',
+                      }}
+                      className="rounded-sm shadow-sm"
+                    />
+                  )}
+                </div>
               )}
             </div>
+            <p className="text-gray-600">{product.description}</p>
 
-            {/* Shipping Information */}
-            <div className="border-t pt-4 mt-4">
-              <h3 className="font-medium text-gray-800 mb-3">Shipping Details</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                  <span className="text-gray-600">Shipping Fee:</span>
-                  <span className="font-medium text-gray-900">${product.shippingFee?.toFixed(2) || '0.00'}</span>
-                </div>
-                {product.shippingInfo && (
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Shipping Information:</h4>
-                    <p className="text-sm text-gray-600">{product.shippingInfo}</p>
-                  </div>
-                )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img
+                  src={product.tokenLogo}
+                  alt={product.acceptedToken}
+                  className="w-6 h-6"
+                />
+                <span className="text-2xl font-bold text-[#FF1B6B]">
+                  ${product.price.toFixed(2)}
+                </span>
+              </div>
+              <div className={`px-4 py-2 rounded-lg font-medium ${
+                product.quantity > 10 
+                  ? 'bg-green-100 text-green-700' 
+                  : product.quantity > 0 
+                    ? 'bg-orange-100 text-orange-700' 
+                    : 'bg-red-100 text-red-700'
+              }`}>
+                {product.quantity > 10 
+                  ? 'In Stock' 
+                  : product.quantity > 0 
+                    ? `Only ${product.quantity} left` 
+                    : 'Out of Stock'}
               </div>
             </div>
-          </div>
-        </motion.div>
-      </div>
 
-      {/* Similar Products */}
-      {similarProducts.length > 0 && (
+            {/* Size and Color Selection for Clothing */}
+            {product.category === 'clothing' && product.hasVariants && (
+              <div className="space-y-4">
+                {/* Size Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Size
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {product.sizes.map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setSelectedSize(size)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          selectedSize === size
+                            ? 'bg-[#FF1B6B] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Color
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {product.colors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setSelectedColor(color)}
+                        className={`group relative inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          selectedColor === color
+                            ? 'bg-[#FF1B6B] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className="w-4 h-4 rounded-full mr-2 border border-gray-300"
+                          style={{ 
+                            backgroundColor: color.toLowerCase(),
+                            borderColor: color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
+                          }}
+                        />
+                        {color}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Quantity Selector */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <span className="text-gray-600">Quantity:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleQuantityChange(-1)}
+                    disabled={quantity <= 1}
+                    className="p-1 rounded-full hover:bg-pink-50 disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    <BiMinus className="text-xl" />
+                  </button>
+                  <span className="w-12 text-center font-medium">{quantity}</span>
+                  <button
+                    onClick={() => handleQuantityChange(1)}
+                    disabled={quantity >= product.quantity}
+                    className="p-1 rounded-full hover:bg-pink-50 disabled:opacity-50 disabled:hover:bg-transparent"
+                  >
+                    <BiPlus className="text-xl" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Price Breakdown */}
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="font-medium">${(product.price * quantity).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Shipping Fee:</span>
+                  <span className="font-medium">${(product.shippingFee || 0).toFixed(2)}</span>
+                </div>
+                <div className="border-t pt-2 flex justify-between font-medium">
+                  <span>Total:</span>
+                  <span className="text-[#FF1B6B]">${totalPrice.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={addToCart}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+              >
+                <BiCart className="text-xl" />
+                Add to Cart
+              </button>
+            </div>
+
+            {/* Additional Info */}
+            <div className="border-t pt-6 space-y-4">
+              <h2 className="font-medium text-gray-800">Additional Information</h2>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Category:</span>
+                  <span className="ml-2 text-gray-800">
+                    {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Payment Token:</span>
+                  <span className="ml-2 text-gray-800">{product.acceptedToken}</span>
+                </div>
+                {product.category === 'clothing' && product.hasVariants && (
+                  <>
+                    <div>
+                      <span className="text-gray-500">Available Sizes:</span>
+                      <span className="ml-2 text-gray-800">
+                        {product.sizes.join(', ')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Available Colors:</span>
+                      <span className="ml-2 text-gray-800">
+                        {product.colors.join(', ')}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Shipping Information */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-medium text-gray-800 mb-3">Shipping Details</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                    <span className="text-gray-600">Shipping Fee:</span>
+                    <span className="font-medium text-gray-900">${product.shippingFee?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  {product.shippingInfo && (
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Shipping Information:</h4>
+                      <p className="text-sm text-gray-600">{product.shippingInfo}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Similar Products */}
+        {similarProducts.length > 0 && (
+          <motion.div
+            variants={itemVariants}
+            className="mt-12 border-t pt-8"
+          >
+            <h2 className="text-xl font-bold text-gray-800 mb-2">
+              {similarProducts[0].sellerId === product.sellerId 
+                ? `More from ${product.sellerName}`
+                : 'Similar Products'}
+            </h2>
+            <p className="text-gray-500 text-sm mb-6">
+              {similarProducts[0].sellerId === product.sellerId 
+                ? 'Check out other items from this store'
+                : 'You might also like these products'}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {similarProducts.map((product) => (
+                <motion.div
+                  key={product.id}
+                  className="bg-white rounded-lg shadow-sm overflow-hidden group"
+                  whileHover={{ y: -3 }}
+                >
+                  <button
+                    onClick={() => {
+                      navigate(`/merch-store/product/${product.id}`);
+                      window.scrollTo(0, 0);
+                    }}
+                    className="w-full text-left"
+                  >
+                    <div className="aspect-square relative overflow-hidden">
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-medium text-gray-800 mb-1 truncate">
+                        {product.name}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={product.tokenLogo}
+                          alt={product.acceptedToken}
+                          className="w-4 h-4"
+                        />
+                        <p className="text-[#FF1B6B] font-medium">
+                          ${product.price.toFixed(2)}
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        by {product.sellerName}
+                      </p>
+                    </div>
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Reviews Section */}
         <motion.div
           variants={itemVariants}
           className="mt-12 border-t pt-8"
         >
-          <h2 className="text-xl font-bold text-gray-800 mb-2">
-            {similarProducts[0].sellerId === product.sellerId 
-              ? `More from ${product.sellerName}`
-              : 'Similar Products'}
-          </h2>
-          <p className="text-gray-500 text-sm mb-6">
-            {similarProducts[0].sellerId === product.sellerId 
-              ? 'Check out other items from this store'
-              : 'You might also like these products'}
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {similarProducts.map((product) => (
-              <motion.div
-                key={product.id}
-                className="bg-white rounded-lg shadow-sm overflow-hidden group"
-                whileHover={{ y: -3 }}
-              >
-                <button
-                  onClick={() => {
-                    navigate(`/merch-store/product/${product.id}`);
-                    window.scrollTo(0, 0);
-                  }}
-                  className="w-full text-left"
-                >
-                  <div className="aspect-square relative overflow-hidden">
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                  </div>
-                  <div className="p-3">
-                    <h3 className="font-medium text-gray-800 mb-1 truncate">
-                      {product.name}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={product.tokenLogo}
-                        alt={product.acceptedToken}
-                        className="w-4 h-4"
-                      />
-                      <p className="text-[#FF1B6B] font-medium">
-                        ${product.price.toFixed(2)}
-                      </p>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      by {product.sellerName}
-                    </p>
-                  </div>
-                </button>
-              </motion.div>
-            ))}
-          </div>
+          <ProductReviews productId={id} />
         </motion.div>
-      )}
-
-      {/* Reviews Section */}
-      <motion.div
-        variants={itemVariants}
-        className="mt-12 border-t pt-8"
-      >
-        <ProductReviews productId={id} />
       </motion.div>
-    </motion.div>
+    </div>
   );
 };
 
