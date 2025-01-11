@@ -118,7 +118,7 @@ export default function Login() {
             </div>
 
             <div className="text-sm">
-              <Link to="/forgot-password" className="font-medium text-[#FF1B6B] hover:text-[#D4145A]">
+              <Link to="/merch-store/forgot-password" className="font-medium text-[#FF1B6B] hover:text-[#D4145A]">
                 Forgot your password?
               </Link>
             </div>

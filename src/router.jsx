@@ -34,6 +34,8 @@ import AdminRefunds from './pages/admin/AdminRefunds';
 import SellerRefunds from './pages/merch/SellerRefunds';
 import Refunds from './pages/merch/Refunds';
 import TermsAndConditions from './pages/merch/TermsAndConditions';
+import ForgotPassword from './pages/merch/ForgotPassword';
+import ResetPassword from './pages/merch/ResetPassword';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF"; // We'll replace this with your actual address
 
@@ -222,6 +224,14 @@ export const router = createBrowserRouter([
       {
         path: 'terms',
         element: <TermsAndConditions />,
+      },
+      {
+        path: 'forgot-password',
+        element: <ForgotPassword />,
+      },
+      {
+        path: 'reset-password',
+        element: <ResetPassword />,
       },
     ],
   },

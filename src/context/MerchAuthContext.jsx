@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  signInWithPopup
+  signInWithPopup,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase/merchConfig';
@@ -121,12 +122,8 @@ export function MerchAuthProvider({ children }) {
             postalCode: ''
           }
         });
-        toast.success('Account created successfully!');
-      } else {
-        toast.success('Welcome back!');
       }
       
-      // Remove the immediate sign out
       return user;
     } catch (error) {
       console.error('Google login error:', error);
@@ -147,6 +144,16 @@ export function MerchAuthProvider({ children }) {
     }
   };
 
+  const resetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success('Password reset email sent! Please check your inbox.');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      throw new Error(error.message);
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -154,6 +161,7 @@ export function MerchAuthProvider({ children }) {
     login,
     loginWithGoogle,
     logout,
+    resetPassword,
     isAdmin,
     cartCount,
     updateCartCount

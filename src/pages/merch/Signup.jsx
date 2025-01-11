@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FcGoogle } from 'react-icons/fc';
 import { motion } from 'framer-motion';
 import { useMerchAuth } from '../../context/MerchAuthContext';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 
@@ -15,6 +15,7 @@ export default function Signup() {
     confirmPassword: '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { signup, loginWithGoogle } = useMerchAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,18 +72,43 @@ export default function Signup() {
   };
 
   const handleGoogleSignup = async () => {
+    setIsGoogleLoading(true);
     try {
       const userCredential = await loginWithGoogle();
       
-      // Show success message and redirect
-      toast.success('Account created successfully!');
+      // Check if this was a new signup or returning user
+      const userDoc = await getDoc(doc(db, 'users', userCredential.uid));
+      const isNewUser = userDoc.data().createdAt === new Date().toISOString();
+      
+      // Show appropriate success message
+      toast.success(isNewUser ? 'Account created successfully!' : 'Welcome back!');
+      
       navigate('/merch-store', {
         replace: true
       });
     } catch (error) {
-      toast.error(error.message);
+      setIsGoogleLoading(false);
+      if (error.message !== 'Sign in cancelled') {
+        toast.error(error.message);
+      }
     }
   };
+
+  // If we're in a loading state, don't show the form
+  if (isGoogleLoading) {
+    return (
+      <div className="min-h-screen bg-[#FFF5F7] flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <div className="w-16 h-16 border-4 border-[#FF1B6B] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Setting up your account...</p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FFF5F7] flex items-center justify-center p-4">
@@ -189,10 +215,11 @@ export default function Signup() {
             <button
               type="button"
               onClick={handleGoogleSignup}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] transition-colors"
+              disabled={isGoogleLoading}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FcGoogle className="w-5 h-5" />
-              Google
+              {isGoogleLoading ? 'Setting up account...' : 'Google'}
             </button>
           </div>
         </form>
