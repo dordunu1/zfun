@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { Navigate } from 'react-router-dom';
 import { FiDollarSign, FiUsers, FiCreditCard, FiShoppingBag, FiTrendingUp, FiGrid, FiList, FiSearch } from 'react-icons/fi';
@@ -16,6 +16,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStore, setSelectedStore] = useState('all');
   const [stats, setStats] = useState({
     totalSales: 0,
     currentSales: 0,
@@ -41,11 +43,27 @@ export default function AdminDashboard() {
   const [orderViewType, setOrderViewType] = useState('list');
   const theme = localStorage.getItem('admin-theme') || 'light';
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredOrders, setFilteredOrders] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const ordersPerPage = 50;
+
+  const getUniqueStores = () => {
+    const stores = stats.recentOrders?.map(order => order.sellerName) || [];
+    return ['all', ...new Set(stores)];
+  };
+
+  const filteredOrders = useMemo(() => {
+    return stats.recentOrders?.filter(order => {
+      const matchesSearch = 
+        (order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (order.buyerInfo?.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesStore = selectedStore === 'all' || order.sellerName === selectedStore;
+      
+      return matchesSearch && matchesStore;
+    });
+  }, [stats.recentOrders, searchTerm, selectedStore]);
 
   const loadMoreOrders = async () => {
     if (loadingMore || !hasMore) return;
@@ -67,28 +85,17 @@ export default function AdminDashboard() {
           ...doc.data()
         };
         
+        // Fetch seller data including flag
         if (orderData.sellerId) {
-          const sellerDoc = await getDocs(query(
+          const sellerQuery = query(
             collection(db, 'sellers'),
             where('uid', '==', orderData.sellerId)
-          ));
-          if (!sellerDoc.empty) {
-            const sellerData = sellerDoc.docs[0].data();
+          );
+          const sellerSnapshot = await getDocs(sellerQuery);
+          if (!sellerSnapshot.empty) {
+            const sellerData = sellerSnapshot.docs[0].data();
             orderData.sellerName = sellerData.storeName || sellerData.name || 'Unknown Seller';
-            orderData.sellerCountryLogo = sellerData.countryLogo;
-          }
-        }
-        
-        if (orderData.buyerId) {
-          const buyerDoc = await getDocs(query(
-            collection(db, 'users'),
-            where('uid', '==', orderData.buyerId)
-          ));
-          if (!buyerDoc.empty) {
-            const buyerData = buyerDoc.docs[0].data();
-            if (buyerData.country) {
-              orderData.flag = `https://flagcdn.com/${buyerData.country.toLowerCase()}.svg`;
-            }
+            orderData.sellerFlag = sellerData.country?.flag || null;
           }
         }
         
@@ -197,24 +204,10 @@ export default function AdminDashboard() {
     }
   }, [walletConnected, walletAddress]);
 
-  useEffect(() => {
-    if (stats.recentOrders.length > 0) {
-      const filtered = stats.recentOrders.filter(order => {
-        const searchLower = searchQuery.toLowerCase();
-        return (
-          order.id.toLowerCase().includes(searchLower) ||
-          (order.buyerInfo?.name || '').toLowerCase().includes(searchLower) ||
-          (order.sellerName || '').toLowerCase().includes(searchLower) ||
-          order.status.toLowerCase().includes(searchLower)
-        );
-      });
-      setFilteredOrders(filtered);
-    }
-  }, [searchQuery, stats.recentOrders]);
-
   const fetchDashboardData = async () => {
     try {
-      const sellersQuery = query(collection(db, 'users'), where('isSeller', '==', true));
+      setLoading(true);
+      const sellersQuery = query(collection(db, 'sellers'));
       const sellersSnapshot = await getDocs(sellersQuery);
       
       const withdrawalsQuery = query(
@@ -230,62 +223,38 @@ export default function AdminDashboard() {
       );
       const ordersSnapshot = await getDocs(ordersQuery);
 
-      // Get all sellers data first
-      const sellersData = {};
-      for (const doc of sellersSnapshot.docs) {
-        const sellerData = doc.data();
-        sellersData[doc.id] = {
+      // Create a map of seller data for quick lookup
+      const sellersMap = {};
+      sellersSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        sellersMap[doc.id] = {
           id: doc.id,
-          name: sellerData.storeName || sellerData.name || 'Unknown Store',
-          country: {
-            name: sellerData.country?.name,
-            flag: sellerData.country ? `https://flagcdn.com/${sellerData.country.toLowerCase()}.svg` : null
-          },
-          totalSales: 0,
-          ordersCount: 0
+          name: data.storeName || data.name || 'Unknown Store',
+          flag: data.country?.flag || null
         };
-      }
-      
-      const orders = await Promise.all(ordersSnapshot.docs.map(async doc => {
+      });
+
+      // Process orders with seller data
+      const processedOrders = await Promise.all(ordersSnapshot.docs.map(async doc => {
         const orderData = {
           id: doc.id,
           ...doc.data()
         };
-
-        // Get seller data from sellers collection
-        if (orderData.sellerId) {
-          const sellerDoc = await getDocs(query(
-            collection(db, 'sellers'),
-            where('uid', '==', orderData.sellerId)
-          ));
-          if (!sellerDoc.empty) {
-            const sellerData = sellerDoc.docs[0].data();
-            orderData.sellerName = sellerData.storeName || sellerData.name || 'Unknown Seller';
-            orderData.sellerCountryLogo = sellerData.countryLogo;
-          }
+        
+        // Add seller data from the map
+        if (orderData.sellerId && sellersMap[orderData.sellerId]) {
+          const sellerData = sellersMap[orderData.sellerId];
+          orderData.sellerName = sellerData.name;
+          orderData.sellerFlag = sellerData.flag;
         }
-
-        // Get buyer's country flag from users collection (unchanged)
-        if (orderData.buyerId) {
-          const buyerDoc = await getDocs(query(
-            collection(db, 'users'),
-            where('uid', '==', orderData.buyerId)
-          ));
-          if (!buyerDoc.empty) {
-            const buyerData = buyerDoc.docs[0].data();
-            if (buyerData.country) {
-              orderData.flag = `https://flagcdn.com/${buyerData.country.toLowerCase()}.svg`;
-            }
-          }
-        }
-
+        
         return orderData;
       }));
 
-      setHasMore(orders.length === ordersPerPage);
+      setHasMore(processedOrders.length === ordersPerPage);
 
       // Calculate platform-wide metrics
-      const validOrders = orders.filter(order => order.status !== 'cancelled');
+      const validOrders = processedOrders.filter(order => order.status !== 'cancelled');
       const activeOrders = validOrders.filter(order => 
         order.status === 'shipped' || order.status === 'processing' || order.status === 'completed'
       );
@@ -322,12 +291,13 @@ export default function AdminDashboard() {
       const sellerStats = {};
       activeOrders.forEach(order => {
         const sellerId = order.sellerId;
-        const sellerName = order.sellerName || 'Unknown Store';
+        const sellerName = sellersMap[sellerId]?.name || 'Unknown Store';
         
         if (!sellerStats[sellerId]) {
           sellerStats[sellerId] = {
             id: sellerId,
             name: sellerName,
+            flag: sellersMap[sellerId]?.flag || null,
             totalSales: 0,
             ordersCount: 0
           };
@@ -343,6 +313,7 @@ export default function AdminDashboard() {
         .map(seller => ({
           id: seller.id,
           name: seller.name,
+          flag: seller.flag,
           total: seller.totalSales,
           orders: seller.ordersCount
         }));
@@ -362,7 +333,6 @@ export default function AdminDashboard() {
         }
       });
 
-      // Update stats with correct platform fee values
       setStats({
         totalSales,
         currentSales: Math.max(0, currentSales),
@@ -370,14 +340,14 @@ export default function AdminDashboard() {
         activeSellers: sellersSnapshot.size,
         pendingWithdrawals: withdrawalsSnapshot.docs.filter(doc => doc.data().status === 'pending').length,
         platformBalance: currentPlatformFees,
-        totalOrders: orders.length,
+        totalOrders: processedOrders.length,
         totalProducts,
         totalCustomers: uniqueCustomers,
-        platformFee: currentPlatformFees,  // Current platform fees (5% of current sales)
-        totalPlatformFees,  // All-time platform fees
-        withdrawnFees,  // Total withdrawn platform fees
-        totalEarnings: totalPlatformFees + withdrawnFees,  // Total platform earnings including withdrawn
-        recentOrders: orders,
+        platformFee: currentPlatformFees,
+        totalPlatformFees,
+        withdrawnFees,
+        totalEarnings: totalPlatformFees + withdrawnFees,
+        recentOrders: processedOrders,
         topSellers,
         salesByNetwork
       });
@@ -554,14 +524,16 @@ export default function AdminDashboard() {
                   <span className={`w-6 h-6 rounded-full bg-[#FF1B6B] flex items-center justify-center text-white text-sm`}>
                     {index + 1}
                   </span>
-                  {seller.country?.flag && (
-                    <img 
-                      src={seller.country.flag}
-                      alt={seller.country.name || 'Country flag'}
-                      className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
-                    />
-                  )}
-                  <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>{seller.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>{seller.name}</span>
+                    {seller.flag && (
+                      <img 
+                        src={seller.flag}
+                        alt="Seller country flag"
+                        className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -577,10 +549,55 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-12`}>
-        <div className="flex flex-col space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Recent Orders</h2>
+      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Recent Orders</h3>
+          <div className="flex items-center gap-4">
+            <select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(e.target.value)}
+              className={`px-3 py-2 rounded-md text-sm ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-gray-200 border-gray-600'
+                  : 'bg-white text-gray-700 border-gray-300'
+              } border focus:outline-none focus:ring-2 focus:ring-[#FF1B6B]`}
+            >
+              {getUniqueStores().map((store) => (
+                <option key={store} value={store}>
+                  {store === 'all' ? 'All Stores' : store}
+                </option>
+              ))}
+            </select>
+
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by Order ID or Customer"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`pl-10 pr-4 py-2 rounded-md text-sm ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 text-gray-200 border-gray-600'
+                    : 'bg-white text-gray-700 border-gray-300'
+                } border focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] w-64`}
+              />
+              <svg
+                className={`absolute left-3 top-2.5 h-5 w-5 ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setOrderViewType('list')}
@@ -608,119 +625,95 @@ export default function AdminDashboard() {
               </button>
             </div>
           </div>
-          
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FiSearch className={`h-5 w-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by order ID, customer, seller or status..."
-              className={`pl-10 pr-4 py-2 w-full rounded-lg border ${
-                theme === 'dark'
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-              } focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent`}
-            />
-          </div>
         </div>
 
         {orderViewType === 'list' ? (
-          <div className="mt-4">
-            <div className="border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <tr>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Order ID</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Seller</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Customer</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Items</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Amount</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Status</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Date</th>
-                    </tr>
-                  </thead>
-                </table>
-              </div>
-              <div 
-                className="overflow-y-auto"
-                style={{ maxHeight: '400px' }}
-                onScroll={handleScroll}
-              >
-                <table className="min-w-full divide-y divide-gray-200">
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          #{order.id.slice(-6)}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          <div className="flex items-center gap-2">
-                            {order.sellerCountryLogo && (
-                              <img 
-                                src={order.sellerCountryLogo}
-                                alt="Seller country"
-                                className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
-                              />
-                            )}
-                            {order.sellerName || 'Unknown Seller'}
-                          </div>
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          <div className="flex items-center gap-2">
-                            {order.flag && (
-                              <img 
-                                src={order.flag}
-                                alt="Buyer Country"
-                                className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
-                              />
-                            )}
-                            {order.buyerInfo?.name || 'Anonymous'}
-                          </div>
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          ${order.total.toFixed(2)}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
-                            order.status === 'shipped' ? 'bg-green-100 text-green-800' :
-                            order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          {new Date(order.createdAt?.toDate()).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {loadingMore && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-6 h-6 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
+                <tr className="bg-gray-50">
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Order ID
+                  </th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Seller
+                  </th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Customer
+                  </th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Amount
+                  </th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Status
+                  </th>
+                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                    Date
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                {filteredOrders?.map((order) => (
+                  <tr key={order.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {order.id.slice(-6)}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      <div className="flex items-center gap-2">
+                        <span>{order.sellerName}</span>
+                        {order.sellerFlag && (
+                          <img 
+                            src={order.sellerFlag}
+                            alt="Seller country flag"
+                            className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                          />
+                        )}
+                      </div>
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      <div className="flex items-center gap-2">
+                        <span>{order.buyerInfo?.name || 'Anonymous'}</span>
+                        {order.flag && (
+                          <img 
+                            src={order.flag}
+                            alt={typeof order.shippingAddress?.country === 'object' 
+                              ? order.shippingAddress?.country.name 
+                              : order.shippingAddress?.country}
+                            className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                          />
+                        )}
+                      </div>
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      ${order.total?.toFixed(2)}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        order.status === 'shipped' ? 'bg-green-100 text-green-800' :
+                        order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : new Date(order.createdAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div 
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 overflow-y-auto"
-            style={{ maxHeight: '400px' }}
+            style={{ maxHeight: '600px' }}
             onScroll={handleScroll}
           >
-            {filteredOrders.map((order) => (
+            {filteredOrders?.map((order) => (
               <div
                 key={order.id}
                 className={`${
@@ -733,52 +726,58 @@ export default function AdminDashboard() {
                       Order #{order.id.slice(-6)}
                     </p>
                     <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {new Date(order.createdAt?.toDate()).toLocaleString()}
+                      {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : new Date(order.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    order.status === 'processing' ? 'bg-blue-100 text-blue-700' :
                     order.status === 'shipped' ? 'bg-green-100 text-green-800' :
+                    order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
                     order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                     order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-yellow-100 text-yellow-800'
+                    'bg-gray-100 text-gray-800'
                   }`}>
                     {order.status}
                   </span>
                 </div>
 
-                <div className="border-t border-b border-gray-200 py-3 space-y-1">
+                <div className="border-t border-b border-gray-200 py-3 space-y-2">
                   <div className="flex justify-between items-center">
                     <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Customer</span>
-                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.buyerInfo?.name || 'Anonymous'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                        {order.buyerInfo?.name || 'Anonymous'}
+                      </span>
+                      {order.flag && (
+                        <img 
+                          src={order.flag}
+                          alt="Buyer country flag"
+                          className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                        />
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Seller</span>
-                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.sellerName || 'Unknown Seller'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Items</span>
-                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Network</span>
-                    <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {order.paymentMethod?.network === 1301 ? 'Unichain' : 'Polygon'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                        {order.sellerName}
+                      </span>
+                      {order.sellerFlag && (
+                        <img 
+                          src={order.sellerFlag}
+                          alt="Seller country flag"
+                          className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Total Amount</span>
                   <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                    ${order.total.toFixed(2)}
+                    ${order.total?.toFixed(2)}
                   </span>
                 </div>
               </div>
