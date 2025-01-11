@@ -315,11 +315,11 @@ export default function Signup() {
 
         <p className="text-xs text-center text-gray-500">
           By creating an account, you agree to our{' '}
-          <Link to="/terms" className="text-[#FF1B6B] hover:text-[#D4145A]">
+          <Link to="/merch-store/terms" className="text-[#FF1B6B] hover:text-[#D4145A]">
             Terms of Service
           </Link>{' '}
           and{' '}
-          <Link to="/privacy" className="text-[#FF1B6B] hover:text-[#D4145A]">
+          <Link to="/merch-store/terms" className="text-[#FF1B6B] hover:text-[#D4145A]">
             Privacy Policy
           </Link>
         </p>
