@@ -69,12 +69,26 @@ export default function AdminDashboard() {
         
         if (orderData.sellerId) {
           const sellerDoc = await getDocs(query(
-            collection(db, 'users'),
+            collection(db, 'sellers'),
             where('uid', '==', orderData.sellerId)
           ));
           if (!sellerDoc.empty) {
             const sellerData = sellerDoc.docs[0].data();
-            orderData.sellerName = sellerData.name || 'Unknown Seller';
+            orderData.sellerName = sellerData.storeName || sellerData.name || 'Unknown Seller';
+            orderData.sellerCountryLogo = sellerData.countryLogo;
+          }
+        }
+        
+        if (orderData.buyerId) {
+          const buyerDoc = await getDocs(query(
+            collection(db, 'users'),
+            where('uid', '==', orderData.buyerId)
+          ));
+          if (!buyerDoc.empty) {
+            const buyerData = buyerDoc.docs[0].data();
+            if (buyerData.country) {
+              orderData.flag = `https://flagcdn.com/${buyerData.country.toLowerCase()}.svg`;
+            }
           }
         }
         
@@ -219,9 +233,14 @@ export default function AdminDashboard() {
       // Get all sellers data first
       const sellersData = {};
       for (const doc of sellersSnapshot.docs) {
+        const sellerData = doc.data();
         sellersData[doc.id] = {
           id: doc.id,
-          name: doc.data().storeName || doc.data().name || 'Unknown Store',
+          name: sellerData.storeName || sellerData.name || 'Unknown Store',
+          country: {
+            name: sellerData.country?.name,
+            flag: sellerData.country ? `https://flagcdn.com/${sellerData.country.toLowerCase()}.svg` : null
+          },
           totalSales: 0,
           ordersCount: 0
         };
@@ -232,6 +251,34 @@ export default function AdminDashboard() {
           id: doc.id,
           ...doc.data()
         };
+
+        // Get seller data from sellers collection
+        if (orderData.sellerId) {
+          const sellerDoc = await getDocs(query(
+            collection(db, 'sellers'),
+            where('uid', '==', orderData.sellerId)
+          ));
+          if (!sellerDoc.empty) {
+            const sellerData = sellerDoc.docs[0].data();
+            orderData.sellerName = sellerData.storeName || sellerData.name || 'Unknown Seller';
+            orderData.sellerCountryLogo = sellerData.countryLogo;
+          }
+        }
+
+        // Get buyer's country flag from users collection (unchanged)
+        if (orderData.buyerId) {
+          const buyerDoc = await getDocs(query(
+            collection(db, 'users'),
+            where('uid', '==', orderData.buyerId)
+          ));
+          if (!buyerDoc.empty) {
+            const buyerData = buyerDoc.docs[0].data();
+            if (buyerData.country) {
+              orderData.flag = `https://flagcdn.com/${buyerData.country.toLowerCase()}.svg`;
+            }
+          }
+        }
+
         return orderData;
       }));
 
@@ -507,6 +554,13 @@ export default function AdminDashboard() {
                   <span className={`w-6 h-6 rounded-full bg-[#FF1B6B] flex items-center justify-center text-white text-sm`}>
                     {index + 1}
                   </span>
+                  {seller.country?.flag && (
+                    <img 
+                      src={seller.country.flag}
+                      alt={seller.country.name || 'Country flag'}
+                      className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                    />
+                  )}
                   <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>{seller.name}</span>
                 </div>
                 <div className="text-right">
@@ -581,8 +635,8 @@ export default function AdminDashboard() {
                   <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
                     <tr>
                       <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Order ID</th>
-                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Customer</th>
                       <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Seller</th>
+                      <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Customer</th>
                       <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Items</th>
                       <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Amount</th>
                       <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider sticky top-0 bg-inherit`}>Status</th>
@@ -604,10 +658,28 @@ export default function AdminDashboard() {
                           #{order.id.slice(-6)}
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          {order.buyerInfo?.name || 'Anonymous'}
+                          <div className="flex items-center gap-2">
+                            {order.sellerCountryLogo && (
+                              <img 
+                                src={order.sellerCountryLogo}
+                                alt="Seller country"
+                                className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                              />
+                            )}
+                            {order.sellerName || 'Unknown Seller'}
+                          </div>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          {order.sellerName || 'Unknown Seller'}
+                          <div className="flex items-center gap-2">
+                            {order.flag && (
+                              <img 
+                                src={order.flag}
+                                alt="Buyer Country"
+                                className="w-3.5 h-2.5 object-cover rounded-[2px] shadow-sm"
+                              />
+                            )}
+                            {order.buyerInfo?.name || 'Anonymous'}
+                          </div>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
                           {order.items.reduce((total, item) => total + (item.quantity || 0), 0)} items
