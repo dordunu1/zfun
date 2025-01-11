@@ -30,5 +30,16 @@ service firebase.storage {
                   request.resource.size < 2 * 1024 * 1024 && // 2MB max
                   request.resource.contentType.matches('image/.*');
     }
+
+    // Review images rules
+    match /reviews/{productId}/{imageId} {
+      // Allow read access to everyone
+      allow read: if true;
+      
+      // Allow authenticated users to upload review images
+      allow write: if isAuthenticated() &&
+                  request.resource.size < 2 * 1024 * 1024 && // 2MB max
+                  request.resource.contentType.matches('image/.*');
+    }
   }
 } 

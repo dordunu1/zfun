@@ -6,6 +6,7 @@ import { doc, getDoc, collection, query, where, getDocs, limit, updateDoc, addDo
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
+import ProductReviews from '../../components/reviews/ProductReviews';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -634,6 +635,14 @@ const ProductDetails = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Reviews Section */}
+      <motion.div
+        variants={itemVariants}
+        className="mt-12 border-t pt-8"
+      >
+        <ProductReviews productId={id} />
+      </motion.div>
     </motion.div>
   );
 };

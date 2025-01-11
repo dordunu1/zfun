@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { BiPackage, BiChevronRight } from 'react-icons/bi';
-import { FaPlaneDeparture, FaBox, FaCheckCircle } from 'react-icons/fa';
+import { BiPackage, BiChevronRight, BiStar, BiCheck, BiX, BiImage } from 'react-icons/bi';
+import { FaPlaneDeparture, FaBox, FaCheckCircle, FaStar } from 'react-icons/fa';
 import { collection, query, where, getDocs, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
@@ -12,6 +12,8 @@ import { getMerchPlatformContract, parseTokenAmount } from '../../contracts/Merc
 import { ethers } from 'ethers';
 import detectEthereumProvider from '@metamask/detect-provider';
 import TrackingModal from '../../components/TrackingModal';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../firebase/merchConfig';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -397,6 +399,181 @@ const DeliveryConfirmationModal = ({ isOpen, onClose, onConfirm, orderId }) => {
   );
 };
 
+const ReviewModal = ({ isOpen, onClose, order, item }) => {
+  const [rating, setRating] = useState(0);
+  const [review, setReview] = useState('');
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useMerchAuth();
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('Image must be less than 2MB');
+        return;
+      }
+      setImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!rating) {
+      toast.error('Please select a rating');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let imageUrl = '';
+      if (image) {
+        const imageRef = ref(storage, `reviews/${item.productId}/${user.uid}_${Date.now()}`);
+        await uploadBytes(imageRef, image);
+        imageUrl = await getDownloadURL(imageRef);
+      }
+
+      const reviewData = {
+        productId: item.productId,
+        orderId: order.id,
+        userId: user.uid,
+        rating,
+        review: review.trim(),
+        image: imageUrl,
+        createdAt: new Date(),
+        userName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        productName: item.name,
+        productImage: item.image
+      };
+
+      await addDoc(collection(db, 'reviews'), reviewData);
+      toast.success('Review submitted successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      toast.error('Failed to submit review');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose} />
+      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Write a Review</h3>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              <BiX className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+            <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />
+            <div>
+              <h4 className="font-medium text-gray-900">{item.name}</h4>
+              <p className="text-sm text-gray-500">Order #{order.id.slice(-6)}</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    className="focus:outline-none"
+                  >
+                    <FaStar
+                      className={`w-6 h-6 ${
+                        star <= rating ? 'text-[#FF1B6B]' : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Review</label>
+              <textarea
+                value={review}
+                onChange={(e) => setReview(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#FF1B6B] focus:border-[#FF1B6B]"
+                rows="4"
+                placeholder="Share your experience with this product..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Add Image (optional)
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <BiImage className="w-5 h-5 text-gray-500" />
+                    <span className="text-sm text-gray-700">Choose Image</span>
+                  </div>
+                </label>
+                {imagePreview && (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImage(null);
+                        setImagePreview('');
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-0.5"
+                    >
+                      <BiX className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-2 px-4 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#FF1B6B]/90 disabled:opacity-50"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Review'}
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    </>
+  );
+};
+
 const Orders = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
@@ -407,6 +584,8 @@ const Orders = () => {
   const [selectedOrderForDelivery, setSelectedOrderForDelivery] = useState(null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [selectedTracking, setSelectedTracking] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedItemForReview, setSelectedItemForReview] = useState(null);
 
   useEffect(() => {
     fetchOrders();
@@ -608,7 +787,22 @@ const Orders = () => {
                         </span>
                       </div>
                     </div>
-                    <BiChevronRight className="text-gray-400 text-xl" />
+                    <div className="flex items-center gap-2">
+                      {order.status === 'delivered' && (
+                        <button
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setSelectedItemForReview(item);
+                            setIsReviewModalOpen(true);
+                          }}
+                          className="text-sm text-[#FF1B6B] hover:text-[#FF1B6B]/80 font-medium flex items-center gap-1"
+                        >
+                          <BiStar className="w-4 h-4" />
+                          Write a Review
+                        </button>
+                      )}
+                      <BiChevronRight className="text-gray-400 text-xl" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -728,6 +922,19 @@ const Orders = () => {
           }}
           trackingNumber={selectedTracking.trackingNumber}
           carrier={selectedTracking.carrier}
+        />
+      )}
+
+      {/* Review Modal */}
+      {selectedItemForReview && (
+        <ReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => {
+            setIsReviewModalOpen(false);
+            setSelectedItemForReview(null);
+          }}
+          order={selectedOrder}
+          item={selectedItemForReview}
         />
       )}
     </motion.div>
