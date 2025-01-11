@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { BiSearch, BiFilter, BiStar, BiMenu } from 'react-icons/bi';
@@ -198,6 +198,16 @@ const Browse = () => {
   const [sortBy, setSortBy] = useState('latest');
   const [selectedNetwork, setSelectedNetwork] = useState('all');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const networkDropdownRef = useRef(null);
+  const sortDropdownRef = useRef(null);
+
+  const sortOptions = [
+    { value: 'latest', label: 'Latest' },
+    { value: 'price_low', label: 'Price: Low to High' },
+    { value: 'price_high', label: 'Price: High to Low' }
+  ];
 
   const CLOTHING_SUBCATEGORIES = {
     "Men's Wear": [
@@ -471,26 +481,83 @@ const Browse = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={selectedNetwork}
-            onChange={(e) => setSelectedNetwork(e.target.value)}
-            className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+          {/* Network Dropdown */}
+          <div 
+            className="relative"
+            ref={networkDropdownRef}
+            onMouseEnter={() => setNetworkDropdownOpen(true)}
+            onMouseLeave={() => setNetworkDropdownOpen(false)}
           >
-            {networks.map(network => (
-              <option key={network.value} value={network.value}>
-                {network.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+            <button
+              type="button"
+              className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors hover:bg-gray-50 min-w-[160px] text-left flex items-center justify-between"
+            >
+              <span>{networks.find(n => n.value === selectedNetwork)?.label || 'All Networks'}</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${networkDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {networkDropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200">
+                {networks.map(network => (
+                  <button
+                    key={network.value}
+                    onClick={() => setSelectedNetwork(network.value)}
+                    className={`w-full px-4 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
+                      selectedNetwork === network.value ? 'bg-pink-50 text-[#FF1B6B]' : 'text-gray-700'
+                    }`}
+                  >
+                    {network.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sort Dropdown */}
+          <div 
+            className="relative"
+            ref={sortDropdownRef}
+            onMouseEnter={() => setSortDropdownOpen(true)}
+            onMouseLeave={() => setSortDropdownOpen(false)}
           >
-            <option value="latest">Latest</option>
-            <option value="price_low">Price: Low to High</option>
-            <option value="price_high">Price: High to Low</option>
-          </select>
+            <button
+              type="button"
+              className="px-4 py-3 bg-white rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors hover:bg-gray-50 min-w-[160px] text-left flex items-center justify-between"
+            >
+              <span>{sortOptions.find(opt => opt.value === sortBy)?.label || 'Latest'}</span>
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform ${sortDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {sortDropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200">
+                {sortOptions.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`w-full px-4 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
+                      sortBy === option.value ? 'bg-pink-50 text-[#FF1B6B]' : 'text-gray-700'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -532,7 +599,7 @@ const Browse = () => {
                         alt={product.acceptedToken}
                         className="w-4 h-4"
                       />
-                      <p className="text-[#FF1B6B] font-medium">
+                      <p className="text-[#FF1B6B] font-medium text-sm">
                         ${product.price.toFixed(2)}
                       </p>
                     </div>

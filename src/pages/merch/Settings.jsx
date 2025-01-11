@@ -257,6 +257,7 @@ const Settings = () => {
           fullName: userData.fullName || '',
           email: userData.email || user?.email || '',
           phoneNumber: userData.phoneNumber || '',
+          walletAddress: userData.walletAddress || '',
           shippingAddress: {
             street: userData.shippingAddress?.street || '',
             city: userData.shippingAddress?.city || '',
@@ -272,6 +273,22 @@ const Settings = () => {
         setBuyerProfile(profileData);
         setOriginalBuyerProfile(JSON.parse(JSON.stringify(profileData)));
         setBuyerProfileHasChanges(false);
+
+        // Check if MetaMask is installed and connected
+        if (userData.walletAddress && window.ethereum) {
+          try {
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts.length > 0 && accounts[0].toLowerCase() === userData.walletAddress.toLowerCase()) {
+              // Wallet is still connected, no need to reconnect
+              setBuyerProfile(prev => ({
+                ...prev,
+                walletAddress: accounts[0]
+              }));
+            }
+          } catch (error) {
+            console.error('Error checking wallet connection:', error);
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching buyer profile:', error);
@@ -391,17 +408,10 @@ const Settings = () => {
         return;
       }
 
-      // Request user to select an account
+      // Request account access and permissions
       const accounts = await window.ethereum.request({
-        method: 'wallet_requestPermissions',
-        params: [{
-          eth_accounts: {}
-        }]
-      }).then(() => 
-        window.ethereum.request({
-          method: 'eth_requestAccounts'
-        })
-      );
+        method: 'eth_requestAccounts'
+      });
       
       if (accounts.length === 0) {
         toast.error('Please connect your wallet');
