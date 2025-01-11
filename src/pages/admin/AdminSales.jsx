@@ -110,7 +110,10 @@ export default function AdminSales() {
       // Calculate platform-wide metrics
       const validOrders = orders.filter(order => order.status !== 'cancelled');
       const activeOrders = validOrders.filter(order => 
-        order.status === 'shipped' || order.status === 'processing' || order.status === 'completed'
+        order.status === 'shipped' || 
+        order.status === 'processing' || 
+        order.status === 'completed' ||
+        order.status === 'delivered'
       );
       const refundedOrders = validOrders.filter(order => order.status === 'refunded');
 
@@ -225,7 +228,8 @@ export default function AdminSales() {
               const hasValidStatus = (
                 order.status === 'shipped' || 
                 order.status === 'processing' || 
-                order.status === 'completed'
+                order.status === 'completed' ||
+                order.status === 'delivered'
               ) && order.status !== 'refunded';
               
               return isWithinPeriod && hasValidStatus;
@@ -484,6 +488,7 @@ export default function AdminSales() {
                       order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
                       order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                       order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'delivered' ? 'bg-orange-100 text-orange-600' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {order.status}

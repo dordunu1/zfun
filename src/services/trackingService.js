@@ -1,87 +1,73 @@
 const API_KEY = import.meta.env.VITE_17TRACK_API_KEY;
-const API_URL = 'https://api.17track.net/track/v2';
+const API_URL = 'https://api.17track.net/track/v2/GetTrackInfo';
 
-const carrierCodes = {
-  'fedex': 100001,
-  'ups': 100058,
-  'usps': 100001,
-  'dhl': 100003,
-  'speedaf': 190161,
-  'other': null,  // For unknown carriers
-  // More carriers
-  'aramex': 100009,
-  'dpd': 100013,
-  'tnt': 100048,
-  'sf express': 100080,
-  'china post': 100190,
-  'singapore post': 100223,
-  'malaysia post': 100224,
-  'pos indonesia': 100228,
-  'thailand post': 100234,
-  'vietnam post': 100236,
-  'philippines post': 100246,
-  'j&t express': 190161,
-  'ninja van': 190202,
-  'pos laju': 190189
+// Carrier code mapping
+export const carrierCodes = {
+  'fedex': '100001',
+  'ups': '100002',
+  'usps': '100003',
+  'dhl': '100004',
+  'speedaf': '190161',
+  'other': null
 };
 
-export const getTrackingInfo = async (trackingNumber, carrier) => {
+export const getTrackingInfo = async (trackingNumber, carrier = 'other') => {
   try {
-    const carrierCode = carrierCodes[carrier.toLowerCase()] || null;
-    
     const response = await fetch(API_URL, {
       method: 'POST',
+      credentials: 'omit',
       headers: {
-        '17token': API_KEY,
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        '17token': API_KEY
       },
-      mode: 'cors',
       body: JSON.stringify({
         "data": [{
           "number": trackingNumber,
-          "carrier": carrierCode
+          "carrier": carrierCodes[carrier.toLowerCase()] || null
         }]
       })
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch tracking information');
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
     return data?.data?.[0] || null;
-
   } catch (error) {
-    console.error('Error fetching tracking info:', error);
+    console.error('Error in getTrackingInfo:', error);
     throw error;
   }
 };
 
 export const formatTrackingStatus = (status) => {
-  // 17track status codes mapping
-  const statusMap = {
-    0: 'Not Found',
-    10: 'In Transit',
-    20: 'Pickup',
-    30: 'Delivered',
-    35: 'Failed Attempt',
-    40: 'Exception',
-  };
-
-  return statusMap[status] || 'Unknown';
+  switch (status) {
+    case 0:
+      return 'Not Found';
+    case 10:
+      return 'In Transit';
+    case 20:
+      return 'Pickup';
+    case 30:
+      return 'Delivered';
+    case 35:
+      return 'Failed Attempt';
+    case 40:
+      return 'Exception';
+    default:
+      return 'Unknown';
+  }
 };
 
-export const getTrackingTimeline = (trackInfo) => {
-  if (!trackInfo?.track_info?.steps) return [];
+export const getTrackingTimeline = (data) => {
+  if (!data || !data.track_info || !data.track_info.tracking) {
+    return [];
+  }
 
-  return trackInfo.track_info.steps.map(step => ({
-    date: new Date(step.date),
-    status: formatTrackingStatus(step.status),
-    location: step.location,
-    description: step.description,
-  }));
+  return data.track_info.tracking.map(event => ({
+    status: formatTrackingStatus(event.status),
+    description: event.description,
+    date: new Date(event.time),
+    location: event.location
+  })).sort((a, b) => b.date - a.date);
 }; 

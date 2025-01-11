@@ -256,11 +256,14 @@ export default function AdminDashboard() {
       // Calculate platform-wide metrics
       const validOrders = processedOrders.filter(order => order.status !== 'cancelled');
       const activeOrders = validOrders.filter(order => 
-        order.status === 'shipped' || order.status === 'processing' || order.status === 'completed'
+        order.status === 'shipped' || 
+        order.status === 'processing' || 
+        order.status === 'completed' ||
+        order.status === 'delivered'
       );
       const refundedOrders = validOrders.filter(order => order.status === 'refunded');
 
-      // Calculate total sales from active orders (completed + processing + shipped)
+      // Calculate total sales from active orders (completed + processing + shipped + delivered)
       const totalSales = activeOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
 
       // Calculate total refunds (95% of refunded order totals)
@@ -277,7 +280,12 @@ export default function AdminDashboard() {
 
       // Calculate current sales (total sales from active orders)
       const currentSales = activeOrders
-        .filter(order => order.status === 'shipped' || order.status === 'processing' || order.status === 'completed')
+        .filter(order => 
+          order.status === 'shipped' || 
+          order.status === 'processing' || 
+          order.status === 'completed' ||
+          order.status === 'delivered'
+        )
         .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
 
       // Calculate total withdrawn amount (for sellers)
@@ -694,6 +702,7 @@ export default function AdminDashboard() {
                         order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
                         order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                         order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'delivered' ? 'bg-orange-100 text-orange-600' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {order.status}
@@ -735,6 +744,7 @@ export default function AdminDashboard() {
                     order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
                     order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                     order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
+                    order.status === 'delivered' ? 'bg-orange-100 text-orange-600' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {order.status}
