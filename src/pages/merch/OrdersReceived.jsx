@@ -532,6 +532,8 @@ const OrdersReceived = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'delivered':
+        return 'bg-green-100 text-green-700';
       case 'completed':
         return 'bg-green-100 text-green-700';
       case 'processing':
@@ -698,8 +700,14 @@ const OrdersReceived = () => {
                             <span className="text-xs text-gray-500">
                               {order.carrier.toUpperCase()}: {order.trackingNumber}
                             </span>
-                            <span className="text-xs font-medium text-blue-600">
-                              {order.shippingStatus === 'in_transit' ? 'In Transit' : 'Delivered'}
+                            <span className={`text-xs font-medium flex items-center gap-1 ${
+                              order.shippingStatus === 'delivered' ? 'text-green-600' : 'text-blue-600'
+                            }`}>
+                              {order.shippingStatus === 'delivered' ? (
+                                <>
+                                  Delivered <BiCheck className="w-4 h-4" />
+                                </>
+                              ) : 'In Transit'}
                             </span>
                           </div>
                         )}

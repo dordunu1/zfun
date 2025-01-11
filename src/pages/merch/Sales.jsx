@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BiDollarCircle, BiPackage, BiUser, BiTrendingUp } from 'react-icons/bi';
+import { BiDollarCircle, BiPackage, BiUser, BiTrendingUp, BiCheck, BiDownload } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 const StatCard = ({ title, value, icon: Icon, trend, subtitle, secondaryValue }) => (
   <motion.div
@@ -166,6 +167,11 @@ const Sales = () => {
 
   const fetchSalesData = async () => {
     try {
+      const now = new Date();
+      const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
       const ordersQuery = query(
         collection(db, 'orders'),
         where('sellerId', '==', user.sellerId),
@@ -187,6 +193,46 @@ const Sales = () => {
         id: doc.id,
         ...doc.data()
       }));
+
+      // Calculate metrics for this month and last month
+      const thisMonthOrders = orders.filter(order => {
+        const orderDate = order.createdAt?.toDate();
+        return orderDate >= firstDayThisMonth;
+      });
+
+      const lastMonthOrders = orders.filter(order => {
+        const orderDate = order.createdAt?.toDate();
+        return orderDate >= firstDayLastMonth && orderDate <= lastDayLastMonth;
+      });
+
+      // Calculate revenues
+      const thisMonthRevenue = thisMonthOrders.reduce((sum, order) => {
+        if (order.status !== 'cancelled' && order.status !== 'refunded') {
+          return sum + (order.total || 0);
+        }
+        return sum;
+      }, 0);
+
+      const lastMonthRevenue = lastMonthOrders.reduce((sum, order) => {
+        if (order.status !== 'cancelled' && order.status !== 'refunded') {
+          return sum + (order.total || 0);
+        }
+        return sum;
+      }, 0);
+
+      // Calculate unique customers
+      const thisMonthCustomers = new Set(thisMonthOrders.map(order => order.buyerId)).size;
+      const lastMonthCustomers = new Set(lastMonthOrders.map(order => order.buyerId)).size;
+
+      // Calculate percentage changes
+      const calculatePercentageChange = (current, previous) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return ((current - previous) / previous) * 100;
+      };
+
+      const revenueChange = calculatePercentageChange(thisMonthRevenue, lastMonthRevenue);
+      const ordersChange = calculatePercentageChange(thisMonthOrders.length, lastMonthOrders.length);
+      const customersChange = calculatePercentageChange(thisMonthCustomers, lastMonthCustomers);
 
       // Calculate total withdrawn amount
       const totalWithdrawn = withdrawalsSnapshot.docs.reduce((sum, doc) => {
@@ -227,7 +273,10 @@ const Sales = () => {
         recentOrders: orders.slice(0, 5),
         allOrders: orders,
         allTimeRevenue: allTimeRevenue,
-        totalWithdrawn: totalWithdrawn
+        totalWithdrawn: totalWithdrawn,
+        revenueChange: parseFloat(revenueChange.toFixed(1)),
+        ordersChange: parseFloat(ordersChange.toFixed(1)),
+        customersChange: parseFloat(customersChange.toFixed(1))
       });
     } catch (error) {
       console.error('Error fetching sales data:', error);
@@ -246,6 +295,62 @@ const Sales = () => {
   // Change page
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
+  const exportToExcel = () => {
+    try {
+      // Prepare monthly summary data
+      const monthlySummary = {
+        'Monthly Summary': [{
+          Month: new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),
+          'All Time Revenue': salesData.allTimeRevenue.toFixed(2),
+          'Net Revenue (Current Month)': salesData.totalRevenue.toFixed(2),
+          'Total Orders': salesData.totalOrders,
+          'Total Customers': salesData.totalCustomers,
+          'Total Withdrawn': salesData.totalWithdrawn.toFixed(2),
+          'Total Refunds': salesData.totalRefunds.toFixed(2),
+          'Revenue Change': `${salesData.revenueChange}%`,
+          'Orders Change': `${salesData.ordersChange}%`,
+          'Customers Change': `${salesData.customersChange}%`
+        }]
+      };
+
+      // Prepare detailed sales data
+      const detailedSales = salesData.allOrders.map(order => ({
+        'Order ID': `#${order.id.slice(-6)}`,
+        'Date': new Date(order.createdAt?.toDate()).toLocaleString(),
+        'Customer Name': order.buyerInfo?.name || 'Anonymous',
+        'Customer Email': order.buyerInfo?.email || 'N/A',
+        'Items Count': order.items.reduce((total, item) => total + (item.quantity || 0), 0),
+        'Products': order.items.map(item => `${item.name} (${item.quantity})`).join(', '),
+        'Status': order.status,
+        'Subtotal': order.total.toFixed(2),
+        'Shipping Fee': order.items.reduce((total, item) => total + (item.shippingFee || 0), 0).toFixed(2),
+        'Total': order.total.toFixed(2)
+      }));
+
+      // Create workbook with multiple sheets
+      const wb = XLSX.utils.book_new();
+      
+      // Add Monthly Summary sheet
+      const summaryWs = XLSX.utils.json_to_sheet(monthlySummary['Monthly Summary']);
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Monthly Summary');
+      
+      // Add Detailed Sales sheet
+      const detailsWs = XLSX.utils.json_to_sheet(detailedSales);
+      XLSX.utils.book_append_sheet(wb, detailsWs, 'Detailed Sales');
+
+      // Generate filename with current date
+      const date = new Date();
+      const filename = `sales_report_${date.getFullYear()}_${String(date.getMonth() + 1).padStart(2, '0')}.xlsx`;
+
+      // Save the file
+      XLSX.writeFile(wb, filename);
+      toast.success('Sales report downloaded successfully');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to download sales report');
+    }
+  };
+
   if (loading) {
     return <SalesSkeleton />;
   }
@@ -259,8 +364,19 @@ const Sales = () => {
       {/* Fixed Header Section */}
       <div className="sticky top-0 bg-[#FFF5F7] z-10 pt-4 pb-4">
         <div className="max-w-5xl mx-auto px-4">
-          <h1 className="text-xl font-bold text-gray-900">Sales Overview</h1>
-          <p className="text-sm text-gray-500">Monitor your store's performance</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Sales Overview</h1>
+              <p className="text-sm text-gray-500">Monitor your store's performance</p>
+            </div>
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+            >
+              <BiDownload className="w-5 h-5" />
+              <span>Export Sales</span>
+            </button>
+          </div>
         </div>
 
         {/* Statistics Grid */}
@@ -275,20 +391,20 @@ const Sales = () => {
             title="Net Revenue"
             value={`$${salesData.totalRevenue.toFixed(2)}`}
             icon={BiDollarCircle}
-            trend={12}
+            trend={salesData.revenueChange}
             secondaryValue={salesData.totalRefunds > 0 ? `$${salesData.totalRefunds.toFixed(2)}` : undefined}
           />
           <StatCard
             title="Total Orders"
             value={salesData.totalOrders}
             icon={BiPackage}
-            trend={8}
+            trend={salesData.ordersChange}
           />
           <StatCard
             title="Total Customers"
             value={salesData.totalCustomers}
             icon={BiUser}
-            trend={15}
+            trend={salesData.customersChange}
           />
         </div>
       </div>
@@ -325,14 +441,17 @@ const Sales = () => {
                           {new Date(order.createdAt?.toDate()).toLocaleDateString()}
                         </td>
                         <td className="py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            order.status === 'completed'
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
+                            order.status === 'delivered'
                               ? 'bg-green-100 text-green-700'
-                              : order.status === 'pending'
+                              : order.status === 'shipped' || order.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-700'
+                              : order.status === 'completed'
+                              ? 'bg-green-100 text-green-700'
                               : 'bg-gray-100 text-gray-700'
                           }`}>
                             {order.status}
+                            {(order.status === 'delivered') && <BiCheck className="w-4 h-4" />}
                           </span>
                         </td>
                       </tr>
@@ -375,14 +494,17 @@ const Sales = () => {
                             {new Date(order.createdAt?.toDate()).toLocaleDateString()}
                           </td>
                           <td className="py-3">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              order.status === 'completed'
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
+                              order.status === 'delivered'
                                 ? 'bg-green-100 text-green-700'
-                                : order.status === 'pending'
+                                : order.status === 'shipped' || order.status === 'pending'
                                 ? 'bg-yellow-100 text-yellow-700'
+                                : order.status === 'completed'
+                                ? 'bg-green-100 text-green-700'
                                 : 'bg-gray-100 text-gray-700'
                             }`}>
                               {order.status}
+                              {(order.status === 'delivered') && <BiCheck className="w-4 h-4" />}
                             </span>
                           </td>
                         </tr>

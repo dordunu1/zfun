@@ -162,6 +162,22 @@ const CountdownTimer = ({ targetDate }) => {
   );
 };
 
+const getProgressBarWidth = (order) => {
+  if (order.status === 'delivered') return '100%';
+  if (order.status === 'shipped') return '75%';
+  if (order.status === 'processing') return '50%';
+  if (order.paymentStatus === 'completed') return '25%';
+  return '0%';
+};
+
+const getProgressBarColor = (order) => {
+  if (order.status === 'delivered') return 'bg-orange-500';
+  if (order.status === 'shipped') return 'bg-green-500';
+  if (order.status === 'processing') return 'bg-blue-500';
+  if (order.paymentStatus === 'completed') return 'bg-gray-500';
+  return 'bg-gray-200';
+};
+
 const SellerDashboard = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
@@ -682,11 +698,11 @@ const SellerDashboard = () => {
                               {payment.carrier}: {payment.trackingNumber}
                             </span>
                             <div className="flex items-center gap-2">
-                              <span>Processing</span>
-                              <div className="w-20 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
-                                  style={{ width: `${Math.min(100, ((72 - hoursRemaining) / 72) * 100)}%` }}
+                              <span>{payment.status === 'delivered' ? 'Delivered' : 'Processing'}</span>
+                              <div className="relative w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`absolute left-0 top-0 h-full transition-all duration-300 ${getProgressBarColor(payment)}`}
+                                  style={{ width: getProgressBarWidth(payment) }}
                                 />
                               </div>
                             </div>
@@ -732,7 +748,7 @@ const SellerDashboard = () => {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-800">Recent Activity</h2>
           <Link
-            to="/merch-store/orders"
+            to="/merch-store/orders-received"
             className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
           >
             View All Orders
