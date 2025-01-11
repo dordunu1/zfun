@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FcGoogle } from 'react-icons/fc';
+import { FiEye, FiEyeOff, FiCheck } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -14,11 +15,31 @@ export default function Signup() {
     password: '',
     confirmPassword: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { signup, loginWithGoogle } = useMerchAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Password validation regex
+  const passwordRegex = {
+    length: /.{6,}/,
+    uppercase: /[A-Z]/,
+    lowercase: /[a-z]/,
+    number: /[0-9]/,
+    special: /[!@#$%^&*]/
+  };
+
+  // Check password requirements
+  const passwordChecks = {
+    length: passwordRegex.length.test(formData.password),
+    uppercase: passwordRegex.uppercase.test(formData.password),
+    lowercase: passwordRegex.lowercase.test(formData.password),
+    number: passwordRegex.number.test(formData.password),
+    special: passwordRegex.special.test(formData.password)
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,6 +57,31 @@ export default function Signup() {
       toast.error('Passwords do not match');
       setIsLoading(false);
       return;
+    }
+
+    // Password validation
+    const passwordRegex = {
+      length: /.{6,}/,
+      uppercase: /[A-Z]/,
+      lowercase: /[a-z]/,
+      number: /[0-9]/,
+      special: /[!@#$%^&*]/
+    };
+
+    const validations = [
+      { test: passwordRegex.length, message: 'Password must be at least 6 characters long' },
+      { test: passwordRegex.uppercase, message: 'Password must include at least one uppercase letter' },
+      { test: passwordRegex.lowercase, message: 'Password must include at least one lowercase letter' },
+      { test: passwordRegex.number, message: 'Password must include at least one number' },
+      { test: passwordRegex.special, message: 'Password must include at least one special character' }
+    ];
+
+    for (const validation of validations) {
+      if (!validation.test.test(formData.password)) {
+        toast.error(validation.message);
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
@@ -165,32 +211,75 @@ export default function Signup() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                placeholder="Create a password"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent pr-10"
+                  placeholder="Create a password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 mt-1 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                </button>
+              </div>
+              <div className="mt-2 space-y-1">
+                <p className="text-sm text-gray-600 font-medium">Password must include:</p>
+                <ul className="text-xs space-y-1 pl-1">
+                  <li className={`flex items-center gap-2 ${passwordChecks.length ? 'text-green-600' : 'text-gray-500'}`}>
+                    {passwordChecks.length && <FiCheck className="w-4 h-4" />}
+                    <span>At least 6 characters</span>
+                  </li>
+                  <li className={`flex items-center gap-2 ${passwordChecks.uppercase ? 'text-green-600' : 'text-gray-500'}`}>
+                    {passwordChecks.uppercase && <FiCheck className="w-4 h-4" />}
+                    <span>At least one uppercase letter (A-Z)</span>
+                  </li>
+                  <li className={`flex items-center gap-2 ${passwordChecks.lowercase ? 'text-green-600' : 'text-gray-500'}`}>
+                    {passwordChecks.lowercase && <FiCheck className="w-4 h-4" />}
+                    <span>At least one lowercase letter (a-z)</span>
+                  </li>
+                  <li className={`flex items-center gap-2 ${passwordChecks.number ? 'text-green-600' : 'text-gray-500'}`}>
+                    {passwordChecks.number && <FiCheck className="w-4 h-4" />}
+                    <span>At least one number (0-9)</span>
+                  </li>
+                  <li className={`flex items-center gap-2 ${passwordChecks.special ? 'text-green-600' : 'text-gray-500'}`}>
+                    {passwordChecks.special && <FiCheck className="w-4 h-4" />}
+                    <span>At least one special character (!@#$%^&*)</span>
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
               </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
-                placeholder="Confirm your password"
-              />
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent pr-10"
+                  placeholder="Confirm your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 mt-1 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
 
