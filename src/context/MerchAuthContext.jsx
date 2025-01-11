@@ -76,7 +76,10 @@ export function MerchAuthProvider({ children }) {
         isSeller: false,
         isBuyer: true,
       });
-      // Remove the immediate sign out
+      
+      // Sign out immediately after creating account
+      await signOut(auth);
+      
       return user;
     } catch (error) {
       console.error('Signup error:', error);

@@ -39,7 +39,7 @@ export default function Signup() {
 
     try {
       // Create user account using context's signup function
-      const userCredential = await signup(formData.email, formData.password, { 
+      await signup(formData.email, formData.password, { 
         name: formData.name,
         email: formData.email,
         isBuyer: true,
@@ -73,14 +73,10 @@ export default function Signup() {
   const handleGoogleSignup = async () => {
     try {
       const userCredential = await loginWithGoogle();
-
+      
       // Show success message and redirect
-      toast.success('Account created successfully! Please sign in with Google.');
-      navigate('/merch-store/login', {
-        state: { 
-          message: 'Account created successfully! Please sign in with Google.',
-          email: userCredential.email
-        },
+      toast.success('Account created successfully!');
+      navigate('/merch-store', {
         replace: true
       });
     } catch (error) {

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FcGoogle } from 'react-icons/fc';
 import { motion } from 'framer-motion';
 import { useMerchAuth } from '../../context/MerchAuthContext';
@@ -11,6 +11,14 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const { login, loginWithGoogle } = useMerchAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // If we have state from signup, pre-fill the email
+    if (location.state?.email) {
+      setEmail(location.state.email);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +41,9 @@ export default function Login() {
       toast.success('Welcome!');
       navigate('/merch-store');
     } catch (error) {
-      toast.error(error.message);
+      if (error.message !== 'Sign in cancelled') {
+        toast.error(error.message);
+      }
     }
   };
 
@@ -48,11 +58,17 @@ export default function Login() {
           <h2 className="text-3xl font-bold text-gray-900">Welcome back</h2>
           <p className="mt-2 text-sm text-gray-600">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-[#FF1B6B] hover:text-[#D4145A] font-medium">
+            <Link to="/merch-store/signup" className="text-[#FF1B6B] hover:text-[#D4145A] font-medium">
               Sign up
             </Link>
           </p>
         </div>
+
+        {location.state?.message && (
+          <div className="bg-green-50 border border-green-100 rounded-lg p-4">
+            <p className="text-sm text-green-800">{location.state.message}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           <div className="space-y-4">

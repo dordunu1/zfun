@@ -153,7 +153,9 @@ const Sales = () => {
     totalOrders: 0,
     totalCustomers: 0,
     recentOrders: [],
-    allOrders: []
+    allOrders: [],
+    allTimeRevenue: 0,
+    totalWithdrawn: 0
   });
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 50;
@@ -170,11 +172,27 @@ const Sales = () => {
         orderBy('createdAt', 'desc')
       );
 
-      const ordersSnapshot = await getDocs(ordersQuery);
+      const withdrawalsQuery = query(
+        collection(db, 'withdrawals'),
+        where('sellerId', '==', user.sellerId),
+        where('status', '==', 'completed')
+      );
+
+      const [ordersSnapshot, withdrawalsSnapshot] = await Promise.all([
+        getDocs(ordersQuery),
+        getDocs(withdrawalsQuery)
+      ]);
+
       const orders = ordersSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+
+      // Calculate total withdrawn amount
+      const totalWithdrawn = withdrawalsSnapshot.docs.reduce((sum, doc) => {
+        const withdrawal = doc.data();
+        return sum + (withdrawal.amount || 0);
+      }, 0);
 
       // Filter out cancelled orders and handle refunds for revenue calculation
       const validOrders = orders.filter(order => order.status !== 'cancelled');
@@ -197,6 +215,9 @@ const Sales = () => {
       // Calculate statistics
       const uniqueCustomers = new Set(validOrders.map(order => order.buyerId)).size;
 
+      // Calculate all time revenue (current revenue + withdrawn amount)
+      const allTimeRevenue = grossRevenue + totalWithdrawn;
+
       setSalesData({
         totalRevenue: grossRevenue,
         grossRevenue: grossRevenue,
@@ -204,7 +225,9 @@ const Sales = () => {
         totalOrders: orders.length,
         totalCustomers: uniqueCustomers,
         recentOrders: orders.slice(0, 5),
-        allOrders: orders
+        allOrders: orders,
+        allTimeRevenue: allTimeRevenue,
+        totalWithdrawn: totalWithdrawn
       });
     } catch (error) {
       console.error('Error fetching sales data:', error);
@@ -241,7 +264,13 @@ const Sales = () => {
         </div>
 
         {/* Statistics Grid */}
-        <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div className="max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+          <StatCard
+            title="All Time Revenue"
+            value={`$${salesData.allTimeRevenue.toFixed(2)}`}
+            icon={BiDollarCircle}
+            subtitle={`Withdrawn: $${salesData.totalWithdrawn.toFixed(2)}`}
+          />
           <StatCard
             title="Net Revenue"
             value={`$${salesData.totalRevenue.toFixed(2)}`}
