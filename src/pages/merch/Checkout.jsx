@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BiWallet, BiCreditCard, BiNetworkChart } from 'react-icons/bi';
+import { BiWallet, BiCreditCard, BiNetworkChart, BiX } from 'react-icons/bi';
 import { FaEthereum } from 'react-icons/fa';
 import { SiTether } from 'react-icons/si';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
@@ -151,7 +151,46 @@ const Checkout = () => {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          setBuyerProfile(userData);
+          
+          // Check if we have a complete shipping address
+          const hasCompleteAddress = userData.shippingAddress && 
+            userData.shippingAddress.street && 
+            userData.shippingAddress.city && 
+            userData.shippingAddress.state && 
+            userData.shippingAddress.postalCode && 
+            userData.shippingAddress.country;
+
+          // If we have a complete address but no flag, add the flag
+          if (hasCompleteAddress && !userData.flag && userData.shippingAddress?.country) {
+            try {
+              // Handle country whether it's a string or object
+              const countryValue = typeof userData.shippingAddress.country === 'object' 
+                ? userData.shippingAddress.country.code 
+                : userData.shippingAddress.country;
+              
+              // Get country code and ensure it's a string and properly formatted
+              const country = String(countryValue);
+              // Some countries might have spaces or special characters, so we clean it
+              const countryCode = country.trim().toLowerCase().split(' ')[0].slice(0, 2);
+              
+              if (countryCode) {
+                const flagUrl = `https://flagcdn.com/${countryCode}.svg`;
+                await updateDoc(doc(db, 'users', user.uid), {
+                  flag: flagUrl
+                });
+                userData.flag = flagUrl;
+              }
+            } catch (error) {
+              console.error('Error setting flag URL:', error);
+              // Don't throw the error, just log it and continue
+            }
+          }
+
+          setBuyerProfile({
+            ...userData,
+            hasCompleteAddress
+          });
+
           // Set wallet connection status based on profile
           if (userData.walletAddress) {
             setWalletConnected(true);
@@ -161,6 +200,7 @@ const Checkout = () => {
 
         setLoading(false);
       } catch (error) {
+        console.error('Error loading checkout data:', error);
         toast.error('Failed to load checkout data');
         setLoading(false);
       }
@@ -527,6 +567,9 @@ const Checkout = () => {
             email: buyerProfile.email,
             phone: buyerProfile.phone
           },
+          flag: typeof buyerProfile.shippingAddress.country === 'object' && buyerProfile.shippingAddress.country.code
+            ? `https://flagcdn.com/${buyerProfile.shippingAddress.country.code.toLowerCase()}.svg`
+            : null,
           shippingAddress: buyerProfile.shippingAddress,
           subtotal: orderData.amount,
           total: orderData.amount,
@@ -556,6 +599,96 @@ const Checkout = () => {
       setIsProcessing(false);
       setTransactionStatus('');
     }
+  };
+
+  // Update the shipping address check in the render section
+  const hasValidShippingAddress = buyerProfile?.hasCompleteAddress;
+
+  // Update the place order button disabled condition
+  const isOrderButtonDisabled = 
+    !walletConnected || 
+    cartItems.length === 0 || 
+    !hasValidShippingAddress ||
+    isProcessing || 
+    parseFloat(tokenBalance) < orderSummary.total;
+
+  // Update the shipping address section render
+  const renderShippingAddress = () => {
+    if (hasValidShippingAddress) {
+      // Get the country code for the flag
+      const getCountryCode = () => {
+        const country = buyerProfile.shippingAddress.country;
+        if (typeof country === 'object' && country.code) {
+          return country.code.toLowerCase();
+        }
+        return null;
+      };
+
+      const countryCode = getCountryCode();
+      const flagUrl = countryCode ? `https://flagcdn.com/${countryCode}.svg` : null;
+
+      return (
+        <div className="space-y-2">
+          <p className="text-gray-600">
+            {buyerProfile.shippingAddress.street}
+          </p>
+          <p className="text-gray-600">
+            {buyerProfile.shippingAddress.city}, {buyerProfile.shippingAddress.state} {buyerProfile.shippingAddress.postalCode}
+          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-gray-600">
+              {typeof buyerProfile.shippingAddress.country === 'object' 
+                ? buyerProfile.shippingAddress.country.name 
+                : buyerProfile.shippingAddress.country}
+            </p>
+            {flagUrl && (
+              <img 
+                src={flagUrl}
+                alt={typeof buyerProfile.shippingAddress.country === 'object' 
+                  ? buyerProfile.shippingAddress.country.name 
+                  : buyerProfile.shippingAddress.country}
+                className="w-5 h-4 object-cover rounded-sm shadow-sm"
+              />
+            )}
+          </div>
+          <button
+            onClick={() => navigate('/merch-store/settings')}
+            className="mt-4 text-sm text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
+          >
+            Edit Address
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-[#FF1B6B]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Please add your shipping address to continue with the checkout process.
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => navigate('/merch-store/settings')}
+          className="w-full px-4 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+          </svg>
+          Add Shipping Address
+        </button>
+      </div>
+    );
   };
 
   if (loading) {
@@ -660,52 +793,7 @@ const Checkout = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Shipping Address
               </h2>
-              {buyerProfile?.shippingAddress ? (
-                <div className="space-y-2">
-                  <p className="text-gray-600">
-                    {buyerProfile.shippingAddress.street}
-                  </p>
-                  <p className="text-gray-600">
-                    {buyerProfile.shippingAddress.city}, {buyerProfile.shippingAddress.state} {buyerProfile.shippingAddress.postalCode}
-                  </p>
-                  <p className="text-gray-600">
-                    {buyerProfile.shippingAddress.country}
-                  </p>
-                  <button
-                    onClick={() => navigate('/merch-store/settings')}
-                    className="mt-4 text-sm text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
-                  >
-                    Edit Address
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-[#FF1B6B]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</h3>
-                        <p className="mt-1 text-sm text-gray-600">
-                          Please add your shipping address to continue with the checkout process.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => navigate('/merch-store/settings')}
-                    className="w-full px-4 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors flex items-center justify-center gap-2"
-                  >
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                    </svg>
-                    Add Shipping Address
-                  </button>
-                </div>
-              )}
+              {renderShippingAddress()}
             </div>
           </motion.div>
 
@@ -853,42 +941,14 @@ const Checkout = () => {
 
               <button
                 onClick={handlePlaceOrder}
-                disabled={
-                  !walletConnected || 
-                  cartItems.length === 0 || 
-                  !buyerProfile?.shippingAddress || 
-                  !buyerProfile?.shippingAddress?.street || 
-                  !buyerProfile?.shippingAddress?.city || 
-                  !buyerProfile?.shippingAddress?.state || 
-                  !buyerProfile?.shippingAddress?.postalCode || 
-                  !buyerProfile?.shippingAddress?.country ||
-                  isProcessing || 
-                  parseFloat(tokenBalance) < orderSummary.total
-                }
+                disabled={isOrderButtonDisabled}
                 className={`w-full mt-6 px-4 py-3 rounded-lg text-white transition-colors ${
-                  !buyerProfile?.shippingAddress || 
-                  !buyerProfile?.shippingAddress?.street || 
-                  !buyerProfile?.shippingAddress?.city || 
-                  !buyerProfile?.shippingAddress?.state || 
-                  !buyerProfile?.shippingAddress?.postalCode || 
-                  !buyerProfile?.shippingAddress?.country
+                  isOrderButtonDisabled
                     ? 'bg-gray-300 cursor-not-allowed'
                     : 'bg-[#FF1B6B] hover:bg-[#D4145A] disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >
-                {(!buyerProfile?.shippingAddress || 
-                  !buyerProfile?.shippingAddress?.street || 
-                  !buyerProfile?.shippingAddress?.city || 
-                  !buyerProfile?.shippingAddress?.state || 
-                  !buyerProfile?.shippingAddress?.postalCode || 
-                  !buyerProfile?.shippingAddress?.country) ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                    </svg>
-                    Add Shipping Address Required
-                  </span>
-                ) : isProcessing ? 'Processing...' :
+                {isOrderButtonDisabled ? 'Add Shipping Address Required' : isProcessing ? 'Processing...' :
                    parseFloat(tokenBalance) < orderSummary.total ? `Insufficient ${selectedToken} Balance` :
                    'Place Order'}
               </button>

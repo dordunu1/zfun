@@ -212,6 +212,14 @@ const TrackingModal = ({ isOpen, onClose, onSubmit, orderId }) => {
 const OrderDetailsModal = ({ order, onClose }) => {
   if (!order) return null;
 
+  // Helper function to get country name
+  const getCountryName = (country) => {
+    if (typeof country === 'object' && country.name) {
+      return country.name;
+    }
+    return country;
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -236,7 +244,16 @@ const OrderDetailsModal = ({ order, onClose }) => {
           <div>
             <h3 className="font-medium mb-2">Customer Information</h3>
             <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">Name: {order.buyerInfo?.name}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-sm text-gray-600">Name: {order.buyerInfo?.name}</p>
+                {order.flag && (
+                  <img 
+                    src={order.flag}
+                    alt={getCountryName(order.shippingAddress?.country)}
+                    className="w-5 h-4 object-cover rounded-sm shadow-sm"
+                  />
+                )}
+              </div>
               <p className="text-sm text-gray-600">Email: {order.buyerInfo?.email}</p>
               <p className="text-sm text-gray-600">Phone: {order.buyerInfo?.phone}</p>
             </div>
@@ -250,7 +267,9 @@ const OrderDetailsModal = ({ order, onClose }) => {
               <p className="text-sm text-gray-600">
                 {order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.postalCode}
               </p>
-              <p className="text-sm text-gray-600">{order.shippingAddress?.country}</p>
+              <p className="text-sm text-gray-600">
+                {getCountryName(order.shippingAddress?.country)}
+              </p>
             </div>
           </div>
 
@@ -607,7 +626,16 @@ const OrdersReceived = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <p className="font-medium text-gray-900">{order.buyerInfo?.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{order.buyerInfo?.name}</p>
+                          {order.flag && (
+                            <img 
+                              src={order.flag} 
+                              alt={`${order.shippingAddress?.country} flag`}
+                              className="w-5 h-4 object-cover rounded-sm shadow-sm"
+                            />
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">{order.buyerInfo?.email}</p>
                       </div>
                     </td>
