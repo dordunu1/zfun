@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { BiPackage, BiChevronRight } from 'react-icons/bi';
-import { FaPlaneDeparture } from 'react-icons/fa';
+import { FaPlaneDeparture, FaBox, FaCheckCircle } from 'react-icons/fa';
 import { collection, query, where, getDocs, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
@@ -11,6 +11,7 @@ import { FiAlertCircle } from 'react-icons/fi';
 import { getMerchPlatformContract, parseTokenAmount } from '../../contracts/MerchPlatform';
 import { ethers } from 'ethers';
 import detectEthereumProvider from '@metamask/detect-provider';
+import TrackingModal from '../../components/TrackingModal';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -333,12 +334,79 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
   );
 };
 
+const DeliveryConfirmationModal = ({ isOpen, onClose, onConfirm, orderId }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsSubmitting(true);
+    await onConfirm(orderId);
+    setIsSubmitting(false);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white bg-opacity-90" onClick={onClose} />
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 relative z-50">
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Delivery</h3>
+        
+        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+          <div className="flex items-start gap-2">
+            <FiAlertCircle className="text-blue-500 text-lg mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-blue-800">Please confirm that you have received your order.</p>
+              <p className="text-sm text-blue-700 mt-1">
+                This will help release the payment to the seller.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-4 p-4 bg-pink-50 rounded-lg">
+          <div className="flex items-start gap-2">
+            <FiAlertCircle className="text-[#FF1B6B] text-lg mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-[#FF1B6B]">Automatic Fund Release Notice</p>
+              <p className="text-sm text-[#FF1B6B]/80 mt-1">
+                If delivery is not confirmed within 2-3 weeks of shipping and no complaint is raised about non-receipt while tracking shows delivered, the seller's funds will be automatically released.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 hover:text-gray-900"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-lg text-white bg-[#FF1B6B] hover:bg-[#D4145A] disabled:opacity-50"
+          >
+            {isSubmitting ? 'Confirming...' : 'Confirm Delivery'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Orders = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+  const [selectedOrderForDelivery, setSelectedOrderForDelivery] = useState(null);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [selectedTracking, setSelectedTracking] = useState(null);
 
   useEffect(() => {
     fetchOrders();
@@ -402,6 +470,46 @@ const Orders = () => {
         stiffness: 100
       }
     }
+  };
+
+  const confirmDelivery = async (orderId) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        status: 'delivered',
+        deliveredAt: new Date(),
+        shippingStatus: 'delivered',
+        deliveryConfirmedByBuyer: true
+      });
+
+      // Update local state
+      setOrders(prev =>
+        prev.map(order =>
+          order.id === orderId
+            ? {
+                ...order,
+                status: 'delivered',
+                deliveredAt: new Date(),
+                shippingStatus: 'delivered',
+                deliveryConfirmedByBuyer: true
+              }
+            : order
+        )
+      );
+
+      toast.success('Delivery confirmed successfully');
+    } catch (error) {
+      console.error('Error confirming delivery:', error);
+      toast.error('Failed to confirm delivery');
+    }
+  };
+
+  const handleTrackingClick = (order) => {
+    setSelectedTracking({
+      trackingNumber: order.trackingNumber,
+      carrier: order.carrier
+    });
+    setIsTrackingModalOpen(true);
   };
 
   if (loading) {
@@ -534,14 +642,41 @@ const Orders = () => {
                       <span className="font-medium">{order.carrier || 'other'}</span> Tracking: 
                       <span className="ml-1 font-medium">{order.trackingNumber}</span>
                     </div>
-                    {order.shippingStatus === 'in_transit' ? (
-                      <div className="flex items-center gap-1 text-blue-600">
-                        <FaPlaneDeparture className="text-base" />
-                        <span className="font-medium">In Transit</span>
-                      </div>
-                    ) : (
-                      <span className="text-green-600 font-medium">Delivered</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {order.status === 'shipped' && !order.deliveryConfirmedByBuyer && (
+                        <button
+                          onClick={() => {
+                            setSelectedOrderForDelivery(order.id);
+                            setIsDeliveryModalOpen(true);
+                          }}
+                          className="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                        >
+                          Confirm Delivery
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleTrackingClick(order)}
+                        className="px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                      >
+                        Track Package
+                      </button>
+                      {order.shippingStatus === 'in_transit' ? (
+                        <div className="flex items-center gap-1 text-blue-600">
+                          <FaPlaneDeparture className="text-base" />
+                          <span className="font-medium">In Transit</span>
+                        </div>
+                      ) : order.deliveryConfirmedByBuyer ? (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <FaCheckCircle className="text-base" />
+                          <span className="font-medium">Delivered</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-600">
+                          <FaBox className="text-base" />
+                          <span className="font-medium">Processing</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -572,6 +707,27 @@ const Orders = () => {
             setSelectedOrder(null);
           }}
           order={selectedOrder}
+        />
+      )}
+
+      {/* Add DeliveryConfirmationModal */}
+      <DeliveryConfirmationModal
+        isOpen={isDeliveryModalOpen}
+        onClose={() => setIsDeliveryModalOpen(false)}
+        onConfirm={confirmDelivery}
+        orderId={selectedOrderForDelivery}
+      />
+
+      {/* Add TrackingModal */}
+      {selectedTracking && (
+        <TrackingModal
+          isOpen={isTrackingModalOpen}
+          onClose={() => {
+            setIsTrackingModalOpen(false);
+            setSelectedTracking(null);
+          }}
+          trackingNumber={selectedTracking.trackingNumber}
+          carrier={selectedTracking.carrier}
         />
       )}
     </motion.div>
