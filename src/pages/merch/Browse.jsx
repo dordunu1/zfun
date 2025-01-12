@@ -57,6 +57,7 @@ import {
 import { collection, query, getDocs, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
+import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -336,10 +337,29 @@ const Browse = () => {
       q = query(q, ...constraints, limit(50));
       const querySnapshot = await getDocs(q);
       
-      const productsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Fetch all unique seller IDs from products
+      const sellerIds = [...new Set(querySnapshot.docs.map(doc => doc.data().sellerId))];
+      
+      // Fetch all sellers in one batch
+      const sellersSnapshot = await getDocs(query(
+        collection(db, 'sellers'),
+        where('__name__', 'in', sellerIds)
+      ));
+      
+      // Create a map of seller verification status
+      const sellerVerificationMap = {};
+      sellersSnapshot.docs.forEach(doc => {
+        sellerVerificationMap[doc.id] = doc.data().verificationStatus === 'approved';
+      });
+
+      const productsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          isSellerVerified: sellerVerificationMap[data.sellerId] || false
+        };
+      });
 
       setProducts(productsData);
     } catch (error) {
@@ -615,9 +635,19 @@ const Browse = () => {
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-500">
-                      by {product.sellerName}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-xs text-gray-500">
+                        by {product.sellerName}
+                      </p>
+                      {product.isSellerVerified && (
+                        <div className="group relative inline-flex items-center">
+                          <VerificationCheckmark className="!w-[10px] !h-[10px] min-w-[10px] min-h-[10px]" />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1 py-0.5 bg-gray-900 text-white text-[8px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-10">
+                            Verified Store
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <p className={`text-xs font-medium ${
                       product.quantity > 10 
                         ? 'text-green-600' 

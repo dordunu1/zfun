@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BiArrowBack, BiCart, BiStar, BiStore, BiPlus, BiMinus } from 'react-icons/bi';
+import { FiCopy } from 'react-icons/fi';
 import { doc, getDoc, collection, query, where, getDocs, limit, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
 import ProductReviews from '../../components/reviews/ProductReviews';
 import ReactCountryFlag from 'react-country-flag';
+import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -135,6 +137,7 @@ const ProductDetails = () => {
   const [totalPrice, setTotalPrice] = useState(0);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [copiedAddress, setCopiedAddress] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -330,6 +333,65 @@ const ProductDetails = () => {
     }
   };
 
+  const getTokenContractAddress = () => {
+    if (!seller || !product) return null;
+    
+    // Map network names to chain IDs
+    const networkToChainId = {
+      'sepolia': '11155111',
+      'polygon': '137',
+      'unichain': '1301'
+    };
+    
+    // Get network from seller's Firestore data and convert to chain ID
+    const networkName = seller.preferredNetwork?.toLowerCase();
+    const network = networkToChainId[networkName];
+    
+    if (!network) {
+      console.warn('Invalid network name:', networkName);
+      return null;
+    }
+    
+    const token = product.acceptedToken;
+    
+    const contractAddresses = {
+      '11155111': { // Sepolia
+        'USDC': import.meta.env.VITE_USDC_ADDRESS_SEPOLIA,
+        'USDT': import.meta.env.VITE_USDT_ADDRESS_SEPOLIA
+      },
+      '137': { // Polygon
+        'USDC': import.meta.env.VITE_USDC_ADDRESS_POLYGON,
+        'USDT': import.meta.env.VITE_USDT_ADDRESS_POLYGON
+      },
+      '1301': { // Unichain
+        'USDC': import.meta.env.VITE_UNICHAIN_USDC_ADDRESS,
+        'USDT': import.meta.env.VITE_UNICHAIN_USDT_ADDRESS
+      }
+    };
+
+    const address = contractAddresses[network]?.[token];
+    if (!address) {
+      console.warn(`No contract address found for token ${token} on network ${network}`);
+      return null;
+    }
+
+    return address;
+  };
+
+  const handleCopyAddress = async () => {
+    const address = getTokenContractAddress();
+    if (address) {
+      await navigator.clipboard.writeText(address);
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    }
+  };
+
+  const shortenAddress = (address) => {
+    if (!address) return '';
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   if (loading) {
     return <ProductDetailsSkeleton />;
   }
@@ -392,6 +454,14 @@ const ProductDetails = () => {
               {seller && (
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200 shrink-0">
                   <span className="text-sm font-medium text-gray-700">{seller.storeName}</span>
+                  {seller.verificationStatus === 'approved' && (
+                    <div className="group relative inline-flex items-center">
+                      <VerificationCheckmark className="!w-[10px] !h-[10px] min-w-[10px] min-h-[10px]" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1 py-0.5 bg-gray-900 text-white text-[8px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-10">
+                        Verified Store
+                      </div>
+                    </div>
+                  )}
                   {seller.country?.code && (
                     <ReactCountryFlag
                       countryCode={seller.country.code}
@@ -541,52 +611,129 @@ const ProductDetails = () => {
             </div>
 
             {/* Additional Info */}
-            <div className="border-t pt-6 space-y-4">
-              <h2 className="font-medium text-gray-800">Additional Information</h2>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500">Category:</span>
-                  <span className="ml-2 text-gray-800">
-                    {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
-                  </span>
+            <div className="border-t pt-6 space-y-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Additional Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Category and Payment Token */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Category</span>
+                      <span className="text-gray-800 font-medium">
+                        {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Payment Token</span>
+                      <div className="flex items-center gap-2">
+                        <img src={product.tokenLogo} alt={product.acceptedToken} className="w-4 h-4" />
+                        <span className="text-gray-800 font-medium">{product.acceptedToken}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-500">Payment Token:</span>
-                  <span className="ml-2 text-gray-800">{product.acceptedToken}</span>
+
+                {/* Token Contract Address */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Token Contract</span>
+                      {getTokenContractAddress() && (
+                        <div className="flex items-center gap-2">
+                          <div className="px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
+                            {seller?.preferredNetwork?.toUpperCase()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <div className="bg-gray-50 rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between">
+                          <div className="px-4 py-2.5 font-mono text-sm text-gray-700">
+                            {getTokenContractAddress() ? shortenAddress(getTokenContractAddress()) : 'Network or token not configured'}
+                          </div>
+                          {getTokenContractAddress() && (
+                            <button
+                              onClick={handleCopyAddress}
+                              className="px-4 py-2.5 text-gray-400 hover:text-[#FF1B6B] transition-colors"
+                              title="Copy full contract address"
+                            >
+                              <FiCopy className={`text-lg ${copiedAddress ? 'text-[#FF1B6B]' : ''}`} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {copiedAddress && (
+                        <div className="absolute -right-2 top-1/2 -translate-y-1/2 transform translate-x-full">
+                          <span className="bg-[#FF1B6B] text-white text-xs px-2 py-1 rounded">
+                            Copied!
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {getTokenContractAddress() && (
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-[#FF1B6B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Copy to acquire {product.acceptedToken} on {
+                          seller?.preferredNetwork?.toLowerCase() === 'sepolia' ? 'Sepolia' :
+                          seller?.preferredNetwork?.toLowerCase() === 'polygon' ? 'Polygon' :
+                          seller?.preferredNetwork?.toLowerCase() === 'unichain' ? 'Unichain' : 'Unknown'
+                        } network
+                      </p>
+                    )}
+                  </div>
                 </div>
+
+                {/* Variants Information */}
                 {product.category === 'clothing' && product.hasVariants && (
-                  <>
-                    <div>
-                      <span className="text-gray-500">Available Sizes:</span>
-                      <span className="ml-2 text-gray-800">
-                        {product.sizes.join(', ')}
-                      </span>
+                  <div className="bg-white p-6 rounded-2xl shadow-sm md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <span className="text-gray-600 block mb-3">Available Sizes</span>
+                        <div className="flex flex-wrap gap-2">
+                          {product.sizes.map((size) => (
+                            <span key={size} className="px-3 py-1 rounded-full text-sm font-medium text-gray-700 bg-gray-50">
+                              {size}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block mb-3">Available Colors</span>
+                        <div className="flex flex-wrap gap-2">
+                          {product.colors.map((color) => (
+                            <div key={color} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50">
+                              <span
+                                className="w-3 h-3 rounded-full border border-gray-200"
+                                style={{ backgroundColor: color.toLowerCase() }}
+                              />
+                              <span className="text-sm font-medium text-gray-700">{color}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Available Colors:</span>
-                      <span className="ml-2 text-gray-800">
-                        {product.colors.join(', ')}
-                      </span>
-                    </div>
-                  </>
+                  </div>
                 )}
               </div>
+            </div>
 
-              {/* Shipping Information */}
-              <div className="border-t pt-4 mt-4">
-                <h3 className="font-medium text-gray-800 mb-3">Shipping Details</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                    <span className="text-gray-600">Shipping Fee:</span>
-                    <span className="font-medium text-gray-900">${product.shippingFee?.toFixed(2) || '0.00'}</span>
-                  </div>
-                  {product.shippingInfo && (
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Shipping Information:</h4>
-                      <p className="text-sm text-gray-600">{product.shippingInfo}</p>
-                    </div>
-                  )}
+            {/* Shipping Information */}
+            <div className="border-t pt-6 mt-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Shipping Details</h3>
+              <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Shipping Fee</span>
+                  <span className="font-medium text-[#FF1B6B]">${product.shippingFee?.toFixed(2) || '0.00'}</span>
                 </div>
+                {product.shippingInfo && (
+                  <div className="pt-4 border-t">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Shipping Information</h4>
+                    <p className="text-sm text-gray-600 leading-relaxed">{product.shippingInfo}</p>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>

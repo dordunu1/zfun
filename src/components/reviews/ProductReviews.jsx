@@ -277,6 +277,8 @@ const ProductReviews = ({ productId }) => {
   const [averageRating, setAverageRating] = useState(0);
   const [canReview, setCanReview] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const reviewsPerPage = 10;
 
   const fetchReviews = async () => {
     try {
@@ -329,12 +331,26 @@ const ProductReviews = ({ productId }) => {
     fetchReviews();
   }, [productId, user]);
 
+  // Calculate pagination
+  const totalPages = Math.ceil(reviews.length / reviewsPerPage);
+  const indexOfLastReview = currentPage * reviewsPerPage;
+  const indexOfFirstReview = indexOfLastReview - reviewsPerPage;
+  const currentReviews = reviews.slice(indexOfFirstReview, indexOfLastReview);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({
+      top: document.getElementById('reviews-section').offsetTop - 100,
+      behavior: 'smooth'
+    });
+  };
+
   if (loading) {
     return <div className="animate-pulse">Loading reviews...</div>;
   }
 
   return (
-    <div className="mt-8">
+    <div className="mt-8" id="reviews-section">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h3 className="text-lg font-semibold">Customer Reviews</h3>
@@ -360,36 +376,75 @@ const ProductReviews = ({ productId }) => {
       {reviews.length === 0 ? (
         <p className="text-gray-500 text-center py-8">No reviews yet</p>
       ) : (
-        <div className="space-y-6">
-          {reviews.map((review) => (
-            <div key={review.id} className="border-b pb-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{review.userName}</p>
-                    <StarRating rating={review.rating} isInteractive={false} />
+        <>
+          <div className="space-y-6">
+            {currentReviews.map((review) => (
+              <div key={review.id} className="border-b pb-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{review.userName}</p>
+                      <StarRating rating={review.rating} isInteractive={false} />
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {review.createdAt.toLocaleDateString()}
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {review.createdAt.toLocaleDateString()}
-                  </p>
                 </div>
+                <p className="mt-2 text-gray-700">{review.review}</p>
+                {review.image && (
+                  <button
+                    onClick={() => setSelectedImage(review.image)}
+                    className="mt-3 block"
+                  >
+                    <img
+                      src={review.image}
+                      alt="Review"
+                      className="rounded-lg w-32 h-32 object-cover hover:opacity-90 transition-opacity"
+                    />
+                  </button>
+                )}
               </div>
-              <p className="mt-2 text-gray-700">{review.review}</p>
-              {review.image && (
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-8">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              {[...Array(totalPages)].map((_, index) => (
                 <button
-                  onClick={() => setSelectedImage(review.image)}
-                  className="mt-3 block"
+                  key={index + 1}
+                  onClick={() => handlePageChange(index + 1)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium ${
+                    currentPage === index + 1
+                      ? 'bg-[#FF1B6B] text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
                 >
-                  <img
-                    src={review.image}
-                    alt="Review"
-                    className="rounded-lg w-32 h-32 object-cover hover:opacity-90 transition-opacity"
-                  />
+                  {index + 1}
                 </button>
-              )}
+              ))}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       <ReviewModal
