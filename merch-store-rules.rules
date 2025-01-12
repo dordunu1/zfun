@@ -92,7 +92,15 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.rating >= 1 && 
-        request.resource.data.rating <= 5;
+        request.resource.data.rating <= 5 &&
+        // Required fields
+        request.resource.data.productId is string &&
+        request.resource.data.userId is string &&
+        request.resource.data.sellerId is string &&
+        request.resource.data.rating is number &&
+        request.resource.data.review is string &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.userName is string;
 
       // Allow update/delete only by the review author
       allow update, delete: if isAuthenticated() && 

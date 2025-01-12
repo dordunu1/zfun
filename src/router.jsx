@@ -31,6 +31,7 @@ import AdminWithdrawals from './pages/admin/AdminWithdrawals';
 import AdminSales from './pages/admin/AdminSales';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminRefunds from './pages/admin/AdminRefunds';
+import StoreVerification from './pages/admin/StoreVerification';
 import SellerRefunds from './pages/merch/SellerRefunds';
 import Refunds from './pages/merch/Refunds';
 import TermsAndConditions from './pages/merch/TermsAndConditions';
@@ -247,6 +248,10 @@ export const router = createBrowserRouter([
       {
         path: 'withdrawals',
         element: <AdminRoute><AdminWithdrawals /></AdminRoute>,
+      },
+      {
+        path: 'store-verification',
+        element: <AdminRoute><StoreVerification /></AdminRoute>,
       },
       {
         path: 'refunds',

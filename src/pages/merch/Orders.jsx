@@ -443,6 +443,7 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
         productId: item.productId,
         orderId: order.id,
         userId: user.uid,
+        sellerId: item.sellerId || order.sellerId,
         rating,
         review: review.trim(),
         image: imageUrl,

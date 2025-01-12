@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminSales from './pages/admin/AdminSales';
+import StoreVerification from './pages/admin/StoreVerification';
 import { Outlet } from 'react-router-dom';
 import { Web3Modal } from '@web3modal/react';
 import Sidebar from './components/Sidebar';
@@ -44,6 +45,7 @@ function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="sales" element={<AdminSales />} />
+                <Route path="store-verification" element={<StoreVerification />} />
                 {/* ... other admin routes ... */}
               </Route>
 

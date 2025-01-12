@@ -1,15 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX, BiRefresh, BiShield } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast, Toaster } from 'react-hot-toast';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '../../firebase/merchConfig';
+import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 
 const MerchStoreLayout = () => {
   const { logout, user, cartCount } = useMerchAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [seller, setSeller] = useState(null);
+
+  useEffect(() => {
+    if (user?.sellerId) {
+      const fetchSeller = async () => {
+        const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
+        if (sellerDoc.exists()) {
+          const sellerData = sellerDoc.data();
+          setSeller({
+            ...sellerData,
+            isVerified: sellerData.verificationStatus === 'approved'
+          });
+        }
+      };
+      fetchSeller();
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -174,6 +194,9 @@ const MerchStoreLayout = () => {
                     }`}>
                       <BiUser className="w-4 h-4" />
                       <span>{user.isSeller ? 'Seller Account' : 'Buyer Account'}</span>
+                      {user.isSeller && seller?.isVerified && (
+                        <VerificationCheckmark className="w-4 h-4 text-[#FF1B6B]" />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -249,6 +272,9 @@ const MerchStoreLayout = () => {
                 }`}>
                   <BiUser className="w-4 h-4" />
                   <span>{user.isSeller ? 'Seller Account' : 'Buyer Account'}</span>
+                  {user.isSeller && seller?.isVerified && (
+                    <VerificationCheckmark className="w-4 h-4 text-[#FF1B6B]" />
+                  )}
                 </div>
               </div>
             </div>

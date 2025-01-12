@@ -375,12 +375,40 @@ export default function AdminWithdrawals() {
   };
 
   useEffect(() => {
+    let intervalId;
+    
+    const fetchAndSetFees = async () => {
+      if (!walletConnected) return;
+      
+      try {
+        await fetchPlatformFees();
+      } catch (error) {
+        console.error('Error in fetchAndSetFees:', error);
+      }
+    };
+
+    // Initial fetch
+    fetchAndSetFees();
+
+    // Only set up interval if wallet is connected
     if (walletConnected) {
-      fetchPlatformFees();
-      const interval = setInterval(fetchPlatformFees, 30000);
-      return () => clearInterval(interval);
+      intervalId = setInterval(fetchAndSetFees, 60000); // Fetch every minute instead of every 30 seconds
     }
-  }, [walletConnected]);
+
+    // Cleanup function
+    return () => {
+      if (intervalId) {
+        console.log('Clearing platform fees interval');
+        clearInterval(intervalId);
+      }
+    };
+  }, [walletConnected]); // Only re-run when wallet connection status changes
+
+  // Add a manual refresh button
+  const handleManualRefresh = () => {
+    console.log('Manually refreshing platform fees...');
+    fetchPlatformFees();
+  };
 
   const handleAmountChange = (network, token, value) => {
     setPlatformFeeAmounts(prev => ({
@@ -405,19 +433,79 @@ export default function AdminWithdrawals() {
     }
 
     try {
-      const chainId = network === 'unichain' ? '1301' : '137';
+      // Show pending toast early to indicate processing
+      toast.loading('Preparing transaction...', { id: 'platform-fee-withdrawal' });
+
+      const chainId = network === 'unichain' ? 1301 : 137;
       console.log('Starting withdrawal process:', { network, token, chainId, amount });
 
+      // Request account access first
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+
       // Check if we need to switch networks
-      if (chain?.id !== Number(chainId) && switchNetwork) {
+      const currentChainId = Number(window.ethereum.networkVersion);
+      if (currentChainId !== chainId) {
         console.log('Switching network to:', chainId);
         try {
-          await switchNetwork(Number(chainId));
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (chainId === 137) {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x89' }], // 137 in hex
+            });
+          } else {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x515' }], // 1301 in hex
+            });
+          }
+          // Wait for network switch to complete
+          await new Promise(resolve => setTimeout(resolve, 2000));
         } catch (error) {
+          // Handle the case where the network needs to be added first
+          if (error.code === 4902) {
+            try {
+              if (chainId === 137) {
+                await window.ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: '0x89',
+                    chainName: 'Polygon Mainnet',
+                    nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+                    rpcUrls: ['https://polygon-rpc.com/'],
+                    blockExplorerUrls: ['https://polygonscan.com/']
+                  }]
+                });
+              } else {
+                await window.ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: '0x515',
+                    chainName: 'Unichain Testnet',
+                    nativeCurrency: { name: 'UNW', symbol: 'UNW', decimals: 18 },
+                    rpcUrls: [import.meta.env.VITE_UNICHAIN_RPC_URL],
+                    blockExplorerUrls: [import.meta.env.VITE_UNICHAIN_EXPLORER_URL]
+                  }]
+                });
+              }
+              // Wait after adding network
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            } catch (addError) {
+              console.error('Failed to add network:', addError);
+              toast.error(`Failed to add ${network} network to MetaMask`, { id: 'platform-fee-withdrawal' });
+              return;
+            }
+          }
           console.error('Network switch failed:', error);
-          throw new Error(`Failed to switch to ${network === 'unichain' ? 'Unichain' : 'Polygon'} network`);
+          toast.error(`Failed to switch to ${network} network`, { id: 'platform-fee-withdrawal' });
+          return;
         }
+      }
+
+      // Verify we're on the correct network after switching
+      const finalChainId = Number(window.ethereum.networkVersion);
+      if (finalChainId !== chainId) {
+        toast.error(`Please switch to ${network} network in MetaMask`, { id: 'platform-fee-withdrawal' });
+        return;
       }
 
       console.log('Getting provider and signer...');
@@ -425,21 +513,24 @@ export default function AdminWithdrawals() {
       const signer = await provider.getSigner();
       
       console.log('Getting contract instance...');
-      const contract = await getMerchPlatformContract(signer, chainId);
+      const contract = await getMerchPlatformContract(signer, chainId.toString());
       
       if (!contract) {
-        throw new Error('Could not get contract instance');
+        toast.error('Could not get contract instance', { id: 'platform-fee-withdrawal' });
+        return;
       }
 
       // Get token addresses for the current chain
-      const tokenAddresses = getTokenAddresses(Number(chainId));
+      const tokenAddresses = getTokenAddresses(chainId);
       if (!tokenAddresses) {
-        throw new Error(`No token addresses found for chain ${chainId}`);
+        toast.error(`No token addresses found for chain ${chainId}`, { id: 'platform-fee-withdrawal' });
+        return;
       }
 
       const tokenAddress = tokenAddresses[token];
       if (!tokenAddress) {
-        throw new Error(`No address found for token ${token} on chain ${chainId}`);
+        toast.error(`No address found for token ${token} on chain ${chainId}`, { id: 'platform-fee-withdrawal' });
+        return;
       }
 
       console.log('Contract and token details:', {
@@ -450,13 +541,14 @@ export default function AdminWithdrawals() {
 
       const parsedAmount = ethers.parseUnits(amount.toString(), 6);
 
-      // Show pending toast
+      // Update toast before transaction
       toast.loading('Please confirm the transaction in MetaMask...', { id: 'platform-fee-withdrawal' });
       
-      // Call withdrawPlatformFees function
+      // Call withdrawPlatformFees function with explicit gas limit
       const tx = await contract.withdrawPlatformFees(
         tokenAddress,
-        parsedAmount
+        parsedAmount,
+        { gasLimit: 500000 } // Add explicit gas limit
       );
 
       console.log('Transaction submitted:', tx.hash);
@@ -530,7 +622,15 @@ export default function AdminWithdrawals() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-[#FF1B6B] mb-6">Withdrawal Requests</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-[#FF1B6B]">Withdrawal Requests</h1>
+        <button
+          onClick={handleManualRefresh}
+          className="px-4 py-2 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none"
+        >
+          Refresh Balances
+        </button>
+      </div>
       
       {/* Platform Fee Withdrawal Section */}
       <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>

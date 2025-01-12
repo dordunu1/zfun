@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BiStar, BiImage, BiX } from 'react-icons/bi';
 import { FaStar } from 'react-icons/fa';
-import { collection, query, where, getDocs, addDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, orderBy, getDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
@@ -81,6 +81,15 @@ const ReviewModal = ({ isOpen, onClose, productId, onReviewAdded }) => {
         return;
       }
 
+      // Get product details to fetch sellerId
+      const productDoc = await getDoc(doc(db, 'products', productId));
+      if (!productDoc.exists()) {
+        toast.error('Product not found');
+        setIsSubmitting(false);
+        return;
+      }
+      const productData = productDoc.data();
+
       let imageUrl = '';
       if (image) {
         const imageRef = ref(storage, `reviews/${productId}/${user.uid}_${Date.now()}`);
@@ -88,19 +97,40 @@ const ReviewModal = ({ isOpen, onClose, productId, onReviewAdded }) => {
         imageUrl = await getDownloadURL(imageRef);
       }
 
-      // Create the review data object with only essential fields
+      // Create the review data object with sellerId
       const reviewData = {
         productId,
         userId: user.uid,
+        sellerId: productData.sellerId, // Add sellerId
         rating,
         review: review.trim(),
         image: imageUrl,
         createdAt: new Date(),
-        userName: user.displayName || 'Anonymous'
+        userName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        productName: productData.name, // Add product name for better admin insights
+        orderDate: validOrder.data().createdAt, // Add order date for verification purposes
+        verificationStatus: 'pending' // Add verification status field
       };
 
       // Add the review to Firestore
       await addDoc(collection(db, 'reviews'), reviewData);
+      
+      // Update seller's average rating
+      const sellerRef = doc(db, 'sellers', productData.sellerId);
+      const sellerDoc = await getDoc(sellerRef);
+      if (sellerDoc.exists()) {
+        const sellerData = sellerDoc.data();
+        const currentRating = sellerData.statistics?.rating || 0;
+        const totalReviews = sellerData.statistics?.totalReviews || 0;
+        
+        const newRating = ((currentRating * totalReviews) + rating) / (totalReviews + 1);
+        
+        await updateDoc(sellerRef, {
+          'statistics.rating': newRating,
+          'statistics.totalReviews': totalReviews + 1,
+          updatedAt: new Date()
+        });
+      }
       
       toast.success('Review submitted successfully');
       onReviewAdded();
