@@ -7,6 +7,56 @@ import { db } from '../../firebase/merchConfig';
 import toast from 'react-hot-toast';
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 
+const SellerSkeleton = () => (
+  <motion.div 
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+    className="p-4 rounded-lg border border-gray-200"
+  >
+    <div className="flex justify-between items-start">
+      <div className="w-full">
+        <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
+        <div className="h-4 bg-gray-200 rounded w-1/2 mb-3"></div>
+        <div className="flex items-center gap-1">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="w-4 h-4 bg-gray-200 rounded"></div>
+          ))}
+          <div className="h-4 bg-gray-200 rounded w-16 ml-2"></div>
+        </div>
+      </div>
+      <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+    </div>
+  </motion.div>
+);
+
+const ReviewSkeleton = () => (
+  <motion.div 
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+    className="border-b border-gray-100 pb-4"
+  >
+    <div className="flex justify-between items-center mb-2">
+      <div className="flex items-center gap-2">
+        <div className="h-5 bg-gray-200 rounded w-24"></div>
+        <div className="h-4 bg-gray-200 rounded w-20"></div>
+      </div>
+      <div className="flex gap-1">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="w-4 h-4 bg-gray-200 rounded"></div>
+        ))}
+      </div>
+    </div>
+    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    <div className="mt-2 flex items-center gap-2">
+      <div className="w-10 h-10 bg-gray-200 rounded"></div>
+      <div className="h-4 bg-gray-200 rounded w-32"></div>
+    </div>
+  </motion.div>
+);
+
 const StoreVerification = () => {
   const [sellers, setSellers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,36 +66,88 @@ const StoreVerification = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedSellerId, setSelectedSellerId] = useState(null);
+  const [viewMode, setViewMode] = useState('pending'); // 'pending' or 'verified'
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
 
   useEffect(() => {
     fetchSellers();
-  }, []);
+    // Clear selected seller when switching views
+    setSelectedSeller(null);
+    setReviews([]);
+  }, [viewMode]); // Refetch when view mode changes
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    
+    // Handle Firestore timestamp
+    if (timestamp.seconds) {
+      return new Date(timestamp.seconds * 1000).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    
+    // Handle ISO string or Date object
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   const fetchSellers = async () => {
     try {
+      setLoading(true);
       const sellersRef = collection(db, 'sellers');
-      const q = query(sellersRef, where('verificationRequested', '==', true));
+      const q = query(
+        sellersRef, 
+        where('verificationStatus', '==', viewMode),
+        orderBy('storeName', 'asc') // Add ordering for consistency
+      );
       const querySnapshot = await getDocs(q);
       
-      const sellersData = [];
-      for (const doc of querySnapshot.docs) {
+      // Get all seller IDs first
+      const sellerIds = querySnapshot.docs.map(doc => doc.id);
+      
+      // Batch fetch all reviews in one query
+      const reviewsRef = collection(db, 'reviews');
+      const reviewsQuery = query(
+        reviewsRef, 
+        where('sellerId', 'in', sellerIds.length ? sellerIds : ['dummy']),
+        orderBy('createdAt', 'desc')
+      );
+      const reviewsSnapshot = await getDocs(reviewsQuery);
+      
+      // Group reviews by seller ID
+      const reviewsBySeller = {};
+      reviewsSnapshot.docs.forEach(doc => {
+        const review = { id: doc.id, ...doc.data() };
+        if (!reviewsBySeller[review.sellerId]) {
+          reviewsBySeller[review.sellerId] = [];
+        }
+        reviewsBySeller[review.sellerId].push(review);
+      });
+      
+      // Map sellers with their reviews
+      const sellersData = querySnapshot.docs.map(doc => {
         const seller = { id: doc.id, ...doc.data() };
+        const sellerReviews = reviewsBySeller[doc.id] || [];
+        const totalRating = sellerReviews.reduce((sum, review) => sum + review.rating, 0);
+        const avgRating = sellerReviews.length > 0 ? totalRating / sellerReviews.length : 0;
         
-        // Get seller's reviews
-        const reviewsRef = collection(db, 'reviews');
-        const reviewsQuery = query(reviewsRef, where('sellerId', '==', doc.id));
-        const reviewsSnapshot = await getDocs(reviewsQuery);
-        
-        const reviews = reviewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-        const avgRating = reviews.length > 0 ? totalRating / reviews.length : 0;
-        
-        sellersData.push({
+        return {
           ...seller,
-          reviewCount: reviews.length,
-          averageRating: avgRating
-        });
-      }
+          reviewCount: sellerReviews.length,
+          averageRating: avgRating,
+          reviews: sellerReviews // Store reviews with seller data
+        };
+      });
       
       setSellers(sellersData);
     } catch (error) {
@@ -58,6 +160,16 @@ const StoreVerification = () => {
 
   const fetchSellerReviews = async (sellerId) => {
     try {
+      setIsLoadingReviews(true);
+      // Find the seller in our existing data
+      const seller = sellers.find(s => s.id === sellerId);
+      if (seller && seller.reviews) {
+        // Use cached reviews if available
+        setReviews(seller.reviews);
+        return;
+      }
+
+      // Fallback to fetching if not cached
       const reviewsRef = collection(db, 'reviews');
       const q = query(
         reviewsRef, 
@@ -73,6 +185,8 @@ const StoreVerification = () => {
     } catch (error) {
       console.error('Error fetching reviews:', error);
       toast.error('Failed to load reviews');
+    } finally {
+      setIsLoadingReviews(false);
     }
   };
 
@@ -152,8 +266,49 @@ const StoreVerification = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <motion.div 
+              initial={{ opacity: 0.6 }}
+              animate={{ opacity: 1 }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              className="h-8 bg-gray-200 rounded w-64"
+            />
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              {['Pending', 'Verified', 'Rejected'].map((text) => (
+                <motion.div 
+                  key={text}
+                  initial={{ opacity: 0.6 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                  className="w-24 h-9 bg-gray-200 rounded-md mx-1"
+                />
+              ))}
+            </div>
+          </div>
+          <motion.div 
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 1 }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            className="w-48 h-10 bg-gray-200 rounded-lg"
+          />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <motion.div 
+              initial={{ opacity: 0.6 }}
+              animate={{ opacity: 1 }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              className="h-6 bg-gray-200 rounded w-32 mb-4"
+            />
+            <div className="space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <SellerSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -161,7 +316,48 @@ const StoreVerification = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Store Verification Requests</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {viewMode === 'pending' 
+              ? 'Store Verification Requests' 
+              : viewMode === 'approved' 
+                ? 'Verified Stores'
+                : 'Rejected Stores'
+            }
+          </h1>
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('pending')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'pending'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setViewMode('approved')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'approved'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Verified
+            </button>
+            <button
+              onClick={() => setViewMode('rejected')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'rejected'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Rejected
+            </button>
+          </div>
+        </div>
         <div className="relative">
           <input
             type="text"
@@ -177,7 +373,14 @@ const StoreVerification = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sellers List */}
         <div className="bg-white rounded-lg shadow-sm p-4">
-          <h2 className="text-lg font-semibold mb-4">Stores</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            {viewMode === 'pending' 
+              ? 'Pending Requests' 
+              : viewMode === 'approved' 
+                ? 'Verified Stores'
+                : 'Rejected Stores'
+            }
+          </h2>
           <div className="space-y-4">
             {filteredSellers.map((seller) => (
               <div
@@ -196,6 +399,23 @@ const StoreVerification = () => {
                   <div>
                     <h3 className="font-medium text-gray-900">{seller.storeName}</h3>
                     <p className="text-sm text-gray-500">{seller.email}</p>
+                    {viewMode === 'approved' && seller.verificationDate && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Verified on {formatTimestamp(seller.verificationDate)}
+                      </p>
+                    )}
+                    {viewMode === 'rejected' && seller.rejectedAt && (
+                      <div className="mt-1">
+                        <p className="text-xs text-gray-400">
+                          Rejected on {formatTimestamp(seller.rejectedAt)}
+                        </p>
+                        {seller.rejectionReason && (
+                          <p className="text-xs text-red-500 mt-0.5">
+                            Reason: {seller.rejectionReason}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center mt-2">
                       <div className="flex items-center">
                         {[1, 2, 3, 4, 5].map((star) => (
@@ -214,7 +434,7 @@ const StoreVerification = () => {
                       </span>
                     </div>
                   </div>
-                  {seller.verificationStatus === 'pending' && (
+                  {viewMode === 'pending' && (
                     <div className="flex gap-2">
                       <button
                         onClick={(e) => {
@@ -236,23 +456,21 @@ const StoreVerification = () => {
                       </button>
                     </div>
                   )}
-                </div>
-                <div className="mt-2">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    seller.verificationStatus === 'approved'
-                      ? 'bg-green-100 text-green-700'
-                      : seller.verificationStatus === 'rejected'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {seller.verificationStatus || 'pending'}
-                  </span>
+                  {viewMode === 'approved' && (
+                    <VerificationCheckmark />
+                  )}
+                  {viewMode === 'rejected' && (
+                    <FiX className="w-6 h-6 text-red-500" />
+                  )}
                 </div>
               </div>
             ))}
             {filteredSellers.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                No verification requests found
+                {viewMode === 'pending' 
+                  ? 'No verification requests found'
+                  : 'No verified stores found'
+                }
               </div>
             )}
           </div>
@@ -285,54 +503,62 @@ const StoreVerification = () => {
               </div>
             </div>
 
-            <div className="space-y-4">
-              {reviews.map((review) => (
-                <div key={review.id} className="border-b border-gray-100 pb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">
-                        {review.userName}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {new Date(review.createdAt?.seconds * 1000).toLocaleDateString()}
-                      </span>
+            {isLoadingReviews ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <ReviewSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((review) => (
+                  <div key={review.id} className="border-b border-gray-100 pb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">
+                          {review.userName}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {new Date(review.createdAt?.seconds * 1000).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <FaStar
+                            key={star}
+                            className={`w-4 h-4 ${
+                              star <= review.rating ? 'text-[#FF1B6B]' : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <FaStar
-                          key={star}
-                          className={`w-4 h-4 ${
-                            star <= review.rating ? 'text-[#FF1B6B]' : 'text-gray-300'
-                          }`}
-                        />
-                      ))}
+                    <p className="text-gray-700">{review.review}</p>
+                    {review.image && (
+                      <img
+                        src={review.image}
+                        alt="Review"
+                        className="mt-2 rounded-lg w-24 h-24 object-cover cursor-pointer"
+                        onClick={() => window.open(review.image, '_blank')}
+                      />
+                    )}
+                    <div className="mt-2 flex items-center gap-2">
+                      <img
+                        src={review.productImage}
+                        alt={review.productName}
+                        className="w-10 h-10 rounded object-cover"
+                      />
+                      <span className="text-sm text-gray-500">{review.productName}</span>
                     </div>
                   </div>
-                  <p className="text-gray-700">{review.review}</p>
-                  {review.image && (
-                    <img
-                      src={review.image}
-                      alt="Review"
-                      className="mt-2 rounded-lg w-24 h-24 object-cover cursor-pointer"
-                      onClick={() => window.open(review.image, '_blank')}
-                    />
-                  )}
-                  <div className="mt-2 flex items-center gap-2">
-                    <img
-                      src={review.productImage}
-                      alt={review.productName}
-                      className="w-10 h-10 rounded object-cover"
-                    />
-                    <span className="text-sm text-gray-500">{review.productName}</span>
+                ))}
+                {reviews.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No reviews yet
                   </div>
-                </div>
-              ))}
-              {reviews.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No reviews yet
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
