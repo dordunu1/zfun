@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { BiArrowBack, BiCart, BiStar, BiStore, BiPlus, BiMinus } from 'react-icons/bi';
+import { BiArrowBack, BiCart, BiStar, BiStore, BiPlus, BiMinus, BiWallet } from 'react-icons/bi';
 import { FiCopy } from 'react-icons/fi';
-import { doc, getDoc, collection, query, where, getDocs, limit, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, limit, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
@@ -311,6 +311,69 @@ const ProductDetails = () => {
     }
   };
 
+  const handleBuyNow = async () => {
+    try {
+      if (!user) {
+        toast.error('Please login to purchase items');
+        navigate('/merch-store/login');
+        return;
+      }
+
+      if (product.category === 'clothing' && product.hasVariants) {
+        if (!selectedSize) {
+          toast.error('Please select a size');
+          return;
+        }
+        if (!selectedColor) {
+          toast.error('Please select a color');
+          return;
+        }
+      }
+
+      // Check if there's enough stock
+      const productDoc = await getDoc(doc(db, 'products', id));
+      if (!productDoc.exists()) {
+        toast.error('Product not found');
+        return;
+      }
+
+      const currentStock = productDoc.data().quantity;
+      if (quantity > currentStock) {
+        toast.error(`Sorry, only ${currentStock} items available in stock`);
+        return;
+      }
+
+      // Show loading toast
+      const loadingToast = toast.loading('Processing...');
+
+      // Clear existing cart first
+      const cartQuery = query(collection(db, 'cart'), where('userId', '==', user.uid));
+      const cartSnapshot = await getDocs(cartQuery);
+      const deletePromises = cartSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      // Add this item to cart
+      await addDoc(collection(db, 'cart'), {
+        userId: user.uid,
+        productId: id,
+        quantity: quantity,
+        size: selectedSize || null,
+        color: selectedColor || null,
+        addedAt: serverTimestamp()
+      });
+
+      // Update cart count
+      await updateCartCount(user.uid);
+
+      toast.dismiss(loadingToast);
+      // Navigate to checkout
+      navigate('/merch-store/checkout');
+    } catch (error) {
+      console.error('Error processing buy now:', error);
+      toast.error('Failed to process. Please try again.');
+    }
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -601,13 +664,23 @@ const ProductDetails = () => {
                 </div>
               </div>
 
-              <button
-                onClick={addToCart}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
-              >
-                <BiCart className="text-xl" />
-                Add to Cart
-              </button>
+              {/* Action Buttons */}
+              <div className="flex gap-4">
+                <button
+                  onClick={addToCart}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-100 text-gray-800 hover:bg-gray-100 hover:text-[#FF1B6B] rounded-lg transition-colors"
+                >
+                  <BiCart className="text-xl" />
+                  Add to Cart
+                </button>
+                <button
+                  onClick={handleBuyNow}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+                >
+                  <BiWallet className="text-xl" />
+                  Buy Now
+                </button>
+              </div>
             </div>
 
             {/* Additional Info */}
