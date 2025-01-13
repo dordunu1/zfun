@@ -6,7 +6,6 @@ export default function AdminRecentWithdrawals() {
   const [recentWithdrawals, setRecentWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const theme = localStorage.getItem('admin-theme') || 'light';
 
   const fetchRecentWithdrawals = async () => {
     try {
@@ -28,7 +27,7 @@ export default function AdminRecentWithdrawals() {
           timestamp: data.timestamp?.toDate?.() || null,
           processedAt: data.processedAt?.toDate?.() || null
         };
-      }).filter(Boolean); // Filter out any null/undefined entries
+      }).filter(Boolean);
 
       setRecentWithdrawals(withdrawals);
     } catch (err) {
@@ -45,8 +44,8 @@ export default function AdminRecentWithdrawals() {
 
   if (loading) {
     return (
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-        <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Recent Withdrawals
         </h2>
         <div className="flex justify-center">
@@ -58,53 +57,53 @@ export default function AdminRecentWithdrawals() {
 
   if (error) {
     return (
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-        <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Recent Withdrawals
         </h2>
-        <div className="text-red-500 text-center">{error}</div>
+        <div className="text-red-500 dark:text-red-400 text-center">{error}</div>
       </div>
     );
   }
 
   if (!recentWithdrawals || recentWithdrawals.length === 0) {
     return (
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-        <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Recent Withdrawals
         </h2>
-        <div className="text-center text-gray-500">No recent withdrawals</div>
+        <div className="text-center text-gray-500 dark:text-gray-400">No recent withdrawals</div>
       </div>
     );
   }
 
   return (
-    <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-      <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
         Recent Withdrawals
       </h2>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Date</th>
-              <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
-              <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Token</th>
-              <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Network</th>
-              <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Status</th>
-              <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Transaction</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Token</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Network</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Transaction</th>
             </tr>
           </thead>
-          <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {recentWithdrawals.map((withdrawal) => (
-              <tr key={withdrawal.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+              <tr key={withdrawal.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                   {withdrawal.timestamp ? new Date(withdrawal.timestamp).toLocaleString() : 'N/A'}
                 </td>
-                <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                   {withdrawal.amount?.toFixed(2) || '0.00'} {withdrawal.token || 'N/A'}
                 </td>
-                <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                   <div className="flex items-center">
                     <img 
                       src={`/logos/${withdrawal.token?.toLowerCase() || 'usdt'}.png`}
@@ -114,7 +113,7 @@ export default function AdminRecentWithdrawals() {
                     {withdrawal.token || 'N/A'}
                   </div>
                 </td>
-                <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                   <div className="flex items-center">
                     <img 
                       src={withdrawal.network === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
@@ -124,18 +123,18 @@ export default function AdminRecentWithdrawals() {
                     {withdrawal.network === 'unichain' ? 'Unichain Testnet' : 'Polygon'}
                   </div>
                 </td>
-                <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                     withdrawal.status === 'completed' 
-                      ? 'bg-green-100 text-green-800'
+                      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
                       : withdrawal.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
+                      ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'
+                      : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
                   }`}>
                     {withdrawal.status || 'N/A'}
                   </span>
                 </td>
-                <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                   {withdrawal.transactionHash ? (
                     <a 
                       href={`${withdrawal.network === 'unichain' 
@@ -144,7 +143,7 @@ export default function AdminRecentWithdrawals() {
                       }${withdrawal.transactionHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#FF1B6B] hover:text-[#D4145A]"
+                      className="text-[#FF1B6B] hover:text-[#D4145A] dark:text-[#FF1B6B] dark:hover:text-[#D4145A]"
                     >
                       View
                     </a>

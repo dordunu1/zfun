@@ -308,10 +308,10 @@ export default function AdminSales() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-[#FF1B6B]">Sales Analytics</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sales Analytics</h1>
         <button
           onClick={fetchSalesData}
-          className="px-4 py-2 bg-[#FF1B6B] text-white rounded-md hover:bg-[#FF1B6B]/90 flex items-center gap-2"
+          className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#FF1B6B]/90 flex items-center gap-2 transition-colors"
         >
           <FiRefreshCw className="w-4 h-4" />
           Refresh Data
@@ -320,68 +320,72 @@ export default function AdminSales() {
       
       {/* Platform Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Revenue</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${salesData.totalRevenue.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>{salesData.totalOrders} orders</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Revenue</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${salesData.totalRevenue.toFixed(2)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{salesData.totalOrders} orders</p>
               {salesData.totalRefunds > 0 && (
                 <p className="text-xs text-red-500">Refunds: ${salesData.totalRefunds.toFixed(2)}</p>
               )}
             </div>
-            <FiDollarSign className="text-3xl text-[#FF1B6B]" />
+            <div className="p-2 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+              <FiDollarSign className="text-3xl text-[#FF1B6B]" />
+            </div>
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Orders</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{salesData.totalOrders}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Active orders</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{salesData.totalOrders}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Active orders</p>
             </div>
-            <FiShoppingBag className="text-3xl text-[#FF1B6B]" />
+            <div className="p-2 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+              <FiShoppingBag className="text-3xl text-[#FF1B6B]" />
+            </div>
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Average Order Value</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${salesData.averageOrderValue.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Per order average</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Average Order Value</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${salesData.averageOrderValue.toFixed(2)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Per order average</p>
             </div>
-            <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
+            <div className="p-2 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+              <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
+            </div>
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Unique Customers</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{salesData.uniqueCustomers}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total buyers</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Unique Customers</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{salesData.uniqueCustomers}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Total buyers</p>
             </div>
-            <FiUsers className="text-3xl text-[#FF1B6B]" />
+            <div className="p-2 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+              <FiUsers className="text-3xl text-[#FF1B6B]" />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Recent Orders */}
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Recent Orders</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Orders</h3>
           <div className="flex gap-4">
             {/* Store Filter */}
             <select
               value={selectedStore}
               onChange={(e) => setSelectedStore(e.target.value)}
-              className={`px-3 py-2 rounded-md text-sm ${
-                theme === 'dark'
-                  ? 'bg-gray-700 text-gray-200 border-gray-600'
-                  : 'bg-white text-gray-700 border-gray-300'
-              } border focus:outline-none focus:ring-2 focus:ring-[#FF1B6B]`}
+              className="px-3 py-2 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-100 focus:border-[#FF1B6B]"
             >
               {getUniqueStores().map((store) => (
                 <option key={store} value={store}>
@@ -397,16 +401,10 @@ export default function AdminSales() {
                 placeholder="Search by Order ID or Customer"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`pl-10 pr-4 py-2 rounded-md text-sm ${
-                  theme === 'dark'
-                    ? 'bg-gray-700 text-gray-200 border-gray-600'
-                    : 'bg-white text-gray-700 border-gray-300'
-                } border focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] w-64`}
+                className="pl-10 pr-4 py-2 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-100 focus:border-[#FF1B6B] w-64"
               />
               <svg
-                className={`absolute left-3 top-2.5 h-5 w-5 ${
-                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                }`}
+                className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 dark:text-gray-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -423,36 +421,24 @@ export default function AdminSales() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-              <tr className="bg-gray-50">
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                  Order ID
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                  Seller
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                  Customer
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                  Amount
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                  Status
-                </th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                  Date
-                </th>
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-700">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Order ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Seller</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
               </tr>
             </thead>
-            <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {filteredOrders?.map((order) => (
-                <tr key={order.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     {order.id.slice(-6)}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     <div className="flex items-center gap-2">
                       <span>{order.sellerName}</span>
                       {order.sellerFlag && (
@@ -464,7 +450,7 @@ export default function AdminSales() {
                       )}
                     </div>
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     <div className="flex items-center gap-2">
                       <span>{order.buyerInfo?.name || 'Anonymous'}</span>
                       {order.flag && (
@@ -478,23 +464,23 @@ export default function AdminSales() {
                       )}
                     </div>
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     ${order.total?.toFixed(2)}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      order.status === 'shipped' ? 'bg-green-100 text-green-800' :
-                      order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'delivered' ? 'bg-orange-100 text-orange-600' :
-                      'bg-gray-100 text-gray-800'
+                      order.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                      order.status === 'shipped' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                      order.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' :
+                      order.status === 'cancelled' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
+                      order.status === 'refunded' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
+                      order.status === 'delivered' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300' :
+                      'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                     }`}>
                       {order.status}
                     </span>
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     {new Date(order.createdAt).toLocaleString()}
                   </td>
                 </tr>
@@ -505,20 +491,18 @@ export default function AdminSales() {
       </div>
 
       {/* Sales Overview */}
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className={`text-xl font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Sales Overview</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Sales Overview</h2>
           <div className="flex space-x-2">
             {['1d', 'all'].map((filter) => (
               <button
                 key={filter}
                 onClick={() => setTimeFilter(filter)}
-                className={`px-3 py-1 rounded-md text-sm ${
+                className={`px-3 py-1 rounded-lg text-sm ${
                   timeFilter === filter 
                     ? 'bg-[#FF1B6B] text-white' 
-                    : theme === 'dark'
-                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 {filter === '1d' ? '24h' : 'All Time'}
@@ -529,10 +513,9 @@ export default function AdminSales() {
 
         {/* Token Sales Summary */}
         <div className="mb-6">
-          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>Token Sales Summary</h3>
-          <div className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4`}>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Token Sales Summary</h3>
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4">
             {Object.entries(salesData.tokenSales || {}).map(([token, data]) => {
-              // Ensure data and its properties exist with default values
               const safeData = {
                 net: data?.net || 0,
                 refunds: data?.refunds || 0
@@ -546,10 +529,10 @@ export default function AdminSales() {
                     ) : (
                       <img src="/logos/usdt.png" alt="USDT" className="w-5 h-5" />
                     )}
-                    <span className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{token}</span>
+                    <span className="text-gray-700 dark:text-gray-300">{token}</span>
                   </div>
                   <div className="text-right">
-                    <p className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    <p className="font-medium text-gray-900 dark:text-white">
                       ${safeData.net.toFixed(2)}
                     </p>
                     {safeData.refunds > 0 && (
@@ -566,23 +549,23 @@ export default function AdminSales() {
 
         {/* Seller Sales Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-              <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Seller</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>24h</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>All Time</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Available to Withdraw</th>
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-700">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Seller</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">24h</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">All Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Available to Withdraw</th>
               </tr>
             </thead>
-            <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {sellerSales.map((seller) => (
-                <tr key={seller.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                <tr key={seller.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
                             {seller.name}
                           </span>
                           {seller.country?.flag && (
@@ -593,16 +576,16 @@ export default function AdminSales() {
                             />
                           )}
                         </div>
-                        <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                           {seller.totalOrders} orders
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     ${seller.sales['1d'].toFixed(2)}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                     ${seller.sales['all'].toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

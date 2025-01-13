@@ -41,7 +41,6 @@ export default function AdminDashboard() {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [orderViewType, setOrderViewType] = useState('list');
-  const theme = localStorage.getItem('admin-theme') || 'light';
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -374,9 +373,9 @@ export default function AdminDashboard() {
 
   if (!walletConnected || walletAddress.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
     return (
-      <div className={`flex flex-col items-center justify-center min-h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <h1 className="text-2xl font-bold text-[#FF1B6B] mb-4">Admin Authentication Required</h1>
-        <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} mb-6`}>Please connect your admin wallet to access the dashboard</p>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">Please connect your admin wallet to access the dashboard</p>
         <button
           onClick={handleConnectWallet}
           className="px-6 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
@@ -398,100 +397,100 @@ export default function AdminDashboard() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>All-time Sales</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.totalSales.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total volume (excl. refunds)</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">All-time Sales</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${stats.totalSales.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Total volume (excl. refunds)</p>
             </div>
             <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Current Sales</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${Math.max(0, stats.currentSales).toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Current Sales</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${Math.max(0, stats.currentSales).toFixed(2)}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Available for withdrawal</p>
             </div>
             <FiDollarSign className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-red-500`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-red-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Refunds</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.totalRefunds.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Refunded amount (excl. platform fees)</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Refunds</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${stats.totalRefunds.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Refunded amount (excl. platform fees)</p>
             </div>
             <FiCreditCard className="text-3xl text-red-500" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>All-time Platform Fees</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.totalPlatformFees.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Total platform fees (incl. withdrawn)</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">All-time Platform Fees</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${stats.totalPlatformFees.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Total platform fees (incl. withdrawn)</p>
             </div>
             <FiTrendingUp className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Current Platform Fees</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>${stats.platformFee.toFixed(2)}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Available for withdrawal</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Current Platform Fees</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">${stats.platformFee.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Available for withdrawal</p>
             </div>
             <FiDollarSign className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Active Sellers</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.activeSellers}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>{stats.totalProducts} products listed</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Active Sellers</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activeSellers}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{stats.totalProducts} products listed</p>
             </div>
             <FiUsers className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Orders</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalOrders}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>All-time orders</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalOrders}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">All-time orders</p>
             </div>
             <FiShoppingBag className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Products</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalProducts}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Listed products</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Products</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalProducts}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Listed products</p>
             </div>
             <FiGrid className="text-3xl text-[#FF1B6B]" />
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]`}>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border-l-4 border-[#FF1B6B]">
           <div className="flex items-center justify-between">
             <div>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Customers</p>
-              <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalCustomers}</p>
-              <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Unique buyers</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Customers</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalCustomers}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Unique buyers</p>
             </div>
             <FiUsers className="text-3xl text-[#FF1B6B]" />
           </div>
@@ -499,41 +498,41 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg`}>
-          <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>Sales by Network</h2>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Sales by Network</h2>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img src="/unichain-logo.png" alt="Unichain" className="w-6 h-6 object-contain" />
-                <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Unichain</span>
+                <span className="text-gray-600 dark:text-gray-300">Unichain</span>
               </div>
-              <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              <span className="font-medium text-gray-900 dark:text-white">
                 ${stats.salesByNetwork.unichain.toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img src="/polygon.png" alt="Polygon" className="w-6 h-6 object-contain" />
-                <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Polygon</span>
+                <span className="text-gray-600 dark:text-gray-300">Polygon</span>
               </div>
-              <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              <span className="font-medium text-gray-900 dark:text-white">
                 ${stats.salesByNetwork.polygon.toFixed(2)}
               </span>
             </div>
           </div>
         </div>
 
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow-lg`}>
-          <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>Top Sellers</h2>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Top Sellers</h2>
           <div className="space-y-4">
             {stats.topSellers.map((seller, index) => (
               <div key={seller.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className={`w-6 h-6 rounded-full bg-[#FF1B6B] flex items-center justify-center text-white text-sm`}>
+                  <span className="w-6 h-6 rounded-full bg-[#FF1B6B] flex items-center justify-center text-white text-sm">
                     {index + 1}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>{seller.name}</span>
+                    <span className="text-gray-600 dark:text-gray-300">{seller.name}</span>
                     {seller.flag && (
                       <img 
                         src={seller.flag}
@@ -544,10 +543,10 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  <span className="font-medium text-gray-900 dark:text-white">
                     ${seller.total.toFixed(2)}
                   </span>
-                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
                     {seller.orders} orders
                   </p>
                 </div>
@@ -557,18 +556,14 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>Recent Orders</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Orders</h3>
           <div className="flex items-center gap-4">
             <select
               value={selectedStore}
               onChange={(e) => setSelectedStore(e.target.value)}
-              className={`px-3 py-2 rounded-md text-sm ${
-                theme === 'dark'
-                  ? 'bg-gray-700 text-gray-200 border-gray-600'
-                  : 'bg-white text-gray-700 border-gray-300'
-              } border focus:outline-none focus:ring-2 focus:ring-[#FF1B6B]`}
+              className="px-3 py-2 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B]"
             >
               {getUniqueStores().map((store) => (
                 <option key={store} value={store}>
@@ -583,16 +578,10 @@ export default function AdminDashboard() {
                 placeholder="Search by Order ID or Customer"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`pl-10 pr-4 py-2 rounded-md text-sm ${
-                  theme === 'dark'
-                    ? 'bg-gray-700 text-gray-200 border-gray-600'
-                    : 'bg-white text-gray-700 border-gray-300'
-                } border focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] w-64`}
+                className="pl-10 pr-4 py-2 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] w-64"
               />
               <svg
-                className={`absolute left-3 top-2.5 h-5 w-5 ${
-                  theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                }`}
+                className="absolute left-3 top-2.5 h-5 w-5 text-gray-500 dark:text-gray-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -612,9 +601,7 @@ export default function AdminDashboard() {
                 className={`p-2 rounded-lg transition-colors ${
                   orderViewType === 'list'
                     ? 'bg-[#FF1B6B] text-white'
-                    : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white'
-                    : 'text-gray-600 hover:text-gray-900'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <FiList className="w-5 h-5" />
@@ -624,9 +611,7 @@ export default function AdminDashboard() {
                 className={`p-2 rounded-lg transition-colors ${
                   orderViewType === 'grid'
                     ? 'bg-[#FF1B6B] text-white'
-                    : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white'
-                    : 'text-gray-600 hover:text-gray-900'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <FiGrid className="w-5 h-5" />
@@ -637,36 +622,36 @@ export default function AdminDashboard() {
 
         {orderViewType === 'list' ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
-                <tr className="bg-gray-50">
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Order ID
                   </th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Seller
                   </th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Customer
                   </th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Date
                   </th>
                 </tr>
               </thead>
-              <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredOrders?.map((order) => (
-                  <tr key={order.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                  <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                       {order.id.slice(-6)}
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                       <div className="flex items-center gap-2">
                         <span>{order.sellerName}</span>
                         {order.sellerFlag && (
@@ -678,7 +663,7 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                       <div className="flex items-center gap-2">
                         <span>{order.buyerInfo?.name || 'Anonymous'}</span>
                         {order.flag && (
@@ -692,23 +677,23 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                       ${order.total?.toFixed(2)}
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        order.status === 'shipped' ? 'bg-green-100 text-green-800' :
-                        order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                        order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                        order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
-                        order.status === 'delivered' ? 'bg-orange-100 text-orange-600' :
-                        'bg-gray-100 text-gray-800'
+                        order.status === 'completed' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                        order.status === 'shipped' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                        order.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' :
+                        order.status === 'cancelled' ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200' :
+                        order.status === 'refunded' ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200' :
+                        order.status === 'delivered' ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-200' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                       }`}>
                         {order.status}
                       </span>
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                       {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : new Date(order.createdAt).toLocaleString()}
                     </td>
                   </tr>
@@ -725,37 +710,35 @@ export default function AdminDashboard() {
             {filteredOrders?.map((order) => (
               <div
                 key={order.id}
-                className={`${
-                  theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'
-                } p-4 rounded-lg space-y-3`}
+                className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-3"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-300">
                       Order #{order.id.slice(-6)}
                     </p>
-                    <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
                       {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleString() : new Date(order.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    order.status === 'shipped' ? 'bg-green-100 text-green-800' :
-                    order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                    order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                    order.status === 'refunded' ? 'bg-yellow-100 text-yellow-800' :
-                    order.status === 'delivered' ? 'bg-orange-100 text-orange-600' :
-                    'bg-gray-100 text-gray-800'
+                    order.status === 'completed' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                    order.status === 'shipped' ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                    order.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' :
+                    order.status === 'cancelled' ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200' :
+                    order.status === 'refunded' ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200' :
+                    order.status === 'delivered' ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-200' :
+                    'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                   }`}>
                     {order.status}
                   </span>
                 </div>
 
-                <div className="border-t border-b border-gray-200 py-3 space-y-2">
+                <div className="border-t border-b border-gray-200 dark:border-gray-600 py-3 space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Customer</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Customer</span>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-300">
                         {order.buyerInfo?.name || 'Anonymous'}
                       </span>
                       {order.flag && (
@@ -768,9 +751,9 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Seller</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Seller</span>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-300">
                         {order.sellerName}
                       </span>
                       {order.sellerFlag && (
@@ -785,8 +768,8 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>Total Amount</span>
-                  <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-300">Total Amount</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
                     ${order.total?.toFixed(2)}
                   </span>
                 </div>

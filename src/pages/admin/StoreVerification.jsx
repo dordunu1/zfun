@@ -12,20 +12,20 @@ const SellerSkeleton = () => (
     initial={{ opacity: 0.6 }}
     animate={{ opacity: 1 }}
     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-    className="p-4 rounded-lg border border-gray-200"
+    className="p-4 rounded-lg border border-gray-200 dark:border-gray-700"
   >
     <div className="flex justify-between items-start">
       <div className="w-full">
-        <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-3"></div>
+        <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-2"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-3"></div>
         <div className="flex items-center gap-1">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="w-4 h-4 bg-gray-200 rounded"></div>
+            <div key={i} className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
           ))}
-          <div className="h-4 bg-gray-200 rounded w-16 ml-2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16 ml-2"></div>
         </div>
       </div>
-      <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+      <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
     </div>
   </motion.div>
 );
@@ -35,24 +35,24 @@ const ReviewSkeleton = () => (
     initial={{ opacity: 0.6 }}
     animate={{ opacity: 1 }}
     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-    className="border-b border-gray-100 pb-4"
+    className="border-b border-gray-100 dark:border-gray-700 pb-4"
   >
     <div className="flex justify-between items-center mb-2">
       <div className="flex items-center gap-2">
-        <div className="h-5 bg-gray-200 rounded w-24"></div>
-        <div className="h-4 bg-gray-200 rounded w-20"></div>
+        <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
       </div>
       <div className="flex gap-1">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="w-4 h-4 bg-gray-200 rounded"></div>
+          <div key={i} className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
         ))}
       </div>
     </div>
-    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
     <div className="mt-2 flex items-center gap-2">
-      <div className="w-10 h-10 bg-gray-200 rounded"></div>
-      <div className="h-4 bg-gray-200 rounded w-32"></div>
+      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
     </div>
   </motion.div>
 );
@@ -273,16 +273,16 @@ const StoreVerification = () => {
               initial={{ opacity: 0.6 }}
               animate={{ opacity: 1 }}
               transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-              className="h-8 bg-gray-200 rounded w-64"
+              className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-64"
             />
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               {['Pending', 'Verified', 'Rejected'].map((text) => (
                 <motion.div 
                   key={text}
                   initial={{ opacity: 0.6 }}
                   animate={{ opacity: 1 }}
                   transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                  className="w-24 h-9 bg-gray-200 rounded-md mx-1"
+                  className="w-24 h-9 bg-gray-200 dark:bg-gray-700 rounded-md mx-1"
                 />
               ))}
             </div>
@@ -291,20 +291,33 @@ const StoreVerification = () => {
             initial={{ opacity: 0.6 }}
             animate={{ opacity: 1 }}
             transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-            className="w-48 h-10 bg-gray-200 rounded-lg"
+            className="w-48 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg"
           />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <motion.div 
               initial={{ opacity: 0.6 }}
               animate={{ opacity: 1 }}
               transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-              className="h-6 bg-gray-200 rounded w-32 mb-4"
+              className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-4"
             />
             <div className="space-y-4">
               {[...Array(4)].map((_, i) => (
                 <SellerSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <motion.div 
+              initial={{ opacity: 0.6 }}
+              animate={{ opacity: 1 }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"
+            />
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <ReviewSkeleton key={i} />
               ))}
             </div>
           </div>
@@ -317,7 +330,7 @@ const StoreVerification = () => {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {viewMode === 'pending' 
               ? 'Store Verification Requests' 
               : viewMode === 'approved' 
@@ -325,13 +338,13 @@ const StoreVerification = () => {
                 : 'Rejected Stores'
             }
           </h1>
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <button
               onClick={() => setViewMode('pending')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'pending'
-                  ? 'bg-white text-gray-900 shadow'
-                  : 'text-gray-500 hover:text-gray-900'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Pending
@@ -340,8 +353,8 @@ const StoreVerification = () => {
               onClick={() => setViewMode('approved')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'approved'
-                  ? 'bg-white text-gray-900 shadow'
-                  : 'text-gray-500 hover:text-gray-900'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Verified
@@ -350,8 +363,8 @@ const StoreVerification = () => {
               onClick={() => setViewMode('rejected')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'rejected'
-                  ? 'bg-white text-gray-900 shadow'
-                  : 'text-gray-500 hover:text-gray-900'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Rejected
@@ -364,16 +377,16 @@ const StoreVerification = () => {
             placeholder="Search stores..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent"
+            className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
-          <FiSearch className="absolute left-3 top-3 text-gray-400" />
+          <FiSearch className="absolute left-3 top-3 text-gray-400 dark:text-gray-500" />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sellers List */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h2 className="text-lg font-semibold mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             {viewMode === 'pending' 
               ? 'Pending Requests' 
               : viewMode === 'approved' 
@@ -391,26 +404,26 @@ const StoreVerification = () => {
                 }}
                 className={`p-4 rounded-lg border cursor-pointer transition-colors ${
                   selectedSeller?.id === seller.id
-                    ? 'border-[#FF1B6B] bg-pink-50'
-                    : 'border-gray-200 hover:border-[#FF1B6B] hover:bg-pink-50'
+                    ? 'border-[#FF1B6B] bg-pink-50 dark:bg-pink-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-[#FF1B6B] hover:bg-pink-50 dark:hover:bg-pink-900/20'
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-medium text-gray-900">{seller.storeName}</h3>
-                    <p className="text-sm text-gray-500">{seller.email}</p>
+                    <h3 className="font-medium text-gray-900 dark:text-white">{seller.storeName}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{seller.email}</p>
                     {viewMode === 'approved' && seller.verificationDate && (
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                         Verified on {formatTimestamp(seller.verificationDate)}
                       </p>
                     )}
                     {viewMode === 'rejected' && seller.rejectedAt && (
                       <div className="mt-1">
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
                           Rejected on {formatTimestamp(seller.rejectedAt)}
                         </p>
                         {seller.rejectionReason && (
-                          <p className="text-xs text-red-500 mt-0.5">
+                          <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
                             Reason: {seller.rejectionReason}
                           </p>
                         )}
@@ -424,12 +437,12 @@ const StoreVerification = () => {
                             className={`w-4 h-4 ${
                               star <= seller.averageRating
                                 ? 'text-[#FF1B6B]'
-                                : 'text-gray-300'
+                                : 'text-gray-300 dark:text-gray-600'
                             }`}
                           />
                         ))}
                       </div>
-                      <span className="ml-2 text-sm text-gray-600">
+                      <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
                         ({seller.reviewCount} reviews)
                       </span>
                     </div>
@@ -450,7 +463,7 @@ const StoreVerification = () => {
                           e.stopPropagation();
                           handleVerifyStore(seller.id, false);
                         }}
-                        className="p-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
                       >
                         <FiX className="w-5 h-5" />
                       </button>
@@ -460,13 +473,13 @@ const StoreVerification = () => {
                     <VerificationCheckmark />
                   )}
                   {viewMode === 'rejected' && (
-                    <FiX className="w-6 h-6 text-red-500" />
+                    <FiX className="w-6 h-6 text-red-500 dark:text-red-400" />
                   )}
                 </div>
               </div>
             ))}
             {filteredSellers.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 {viewMode === 'pending' 
                   ? 'No verification requests found'
                   : 'No verified stores found'
@@ -478,9 +491,9 @@ const StoreVerification = () => {
 
         {/* Reviews Panel */}
         {selectedSeller && (
-          <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
             <div className="mb-6">
-              <h2 className="text-lg font-semibold">{selectedSeller.storeName}</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedSeller.storeName}</h2>
               <div className="flex items-center gap-2 mt-2">
                 <div className="flex items-center">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -489,15 +502,15 @@ const StoreVerification = () => {
                       className={`w-5 h-5 ${
                         star <= selectedSeller.averageRating
                           ? 'text-[#FF1B6B]'
-                          : 'text-gray-300'
+                          : 'text-gray-300 dark:text-gray-600'
                       }`}
                     />
                   ))}
                 </div>
-                <span className="text-lg font-medium text-gray-900">
+                <span className="text-lg font-medium text-gray-900 dark:text-white">
                   {selectedSeller.averageRating.toFixed(1)}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
                   ({selectedSeller.reviewCount} reviews)
                 </span>
               </div>
@@ -512,13 +525,13 @@ const StoreVerification = () => {
             ) : (
               <div className="space-y-4">
                 {reviews.map((review) => (
-                  <div key={review.id} className="border-b border-gray-100 pb-4">
+                  <div key={review.id} className="border-b border-gray-100 dark:border-gray-700 pb-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">
+                        <span className="font-medium text-gray-900 dark:text-white">
                           {review.userName}
                         </span>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
                           {new Date(review.createdAt?.seconds * 1000).toLocaleDateString()}
                         </span>
                       </div>
@@ -527,13 +540,13 @@ const StoreVerification = () => {
                           <FaStar
                             key={star}
                             className={`w-4 h-4 ${
-                              star <= review.rating ? 'text-[#FF1B6B]' : 'text-gray-300'
+                              star <= review.rating ? 'text-[#FF1B6B]' : 'text-gray-300 dark:text-gray-600'
                             }`}
                           />
                         ))}
                       </div>
                     </div>
-                    <p className="text-gray-700">{review.review}</p>
+                    <p className="text-gray-700 dark:text-gray-300">{review.review}</p>
                     {review.image && (
                       <img
                         src={review.image}
@@ -548,12 +561,12 @@ const StoreVerification = () => {
                         alt={review.productName}
                         className="w-10 h-10 rounded object-cover"
                       />
-                      <span className="text-sm text-gray-500">{review.productName}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{review.productName}</span>
                     </div>
                   </div>
                 ))}
                 {reviews.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     No reviews yet
                   </div>
                 )}
@@ -566,16 +579,16 @@ const StoreVerification = () => {
       {/* Rejection Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Reject Verification Request</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reject Verification Request</h3>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Rejection Reason
               </label>
               <textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF1B6B]"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 rows="4"
                 placeholder="Please provide a reason for rejection..."
               />
@@ -587,13 +600,13 @@ const StoreVerification = () => {
                   setRejectionReason('');
                   setSelectedSellerId(null);
                 }}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleReject}
-                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
+                className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!rejectionReason.trim()}
               >
                 Reject

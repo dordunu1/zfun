@@ -9,8 +9,85 @@ import { NETWORK_NAMES } from '../../contracts/MerchPlatform';
 import { getMerchPlatformContract } from '../../contracts/MerchPlatform';
 import detectEthereumProvider from '@metamask/detect-provider';
 import AdminRecentWithdrawals from './AdminRecentWithdrawals';
+import { motion } from 'framer-motion';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
+
+// Skeleton Components
+const WithdrawalRequestSkeleton = () => (
+  <motion.div 
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+    className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-4"
+  >
+    <div className="flex justify-between items-start mb-4">
+      <div className="flex items-center space-x-3">
+        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+        <div>
+          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+        </div>
+      </div>
+      <div className="flex space-x-2">
+        <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      </div>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+      </div>
+    </div>
+  </motion.div>
+);
+
+const PlatformFeeSkeleton = () => (
+  <motion.div 
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+    className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8"
+  >
+    <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {[...Array(2)].map((_, i) => (
+        <div key={i} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+          <div className="flex items-center mb-4">
+            <div className="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded-full mr-2"></div>
+            <div className="h-5 bg-gray-200 dark:bg-gray-600 rounded w-32"></div>
+          </div>
+          <div className="space-y-4">
+            {[...Array(2)].map((_, j) => (
+              <div key={j} className="space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center">
+                    <div className="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded-full mr-2"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
+                  </div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded flex-grow"></div>
+                  <div className="h-8 w-20 bg-gray-200 dark:bg-gray-600 rounded"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </motion.div>
+);
 
 // Get token addresses from environment variables
 const getTokenAddresses = (chainId) => {
@@ -604,8 +681,25 @@ export default function AdminWithdrawals() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <motion.div 
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 1 }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-48"
+          />
+          <motion.div 
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 1 }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded"
+          />
+        </div>
+        <PlatformFeeSkeleton />
+        {[...Array(3)].map((_, i) => (
+          <WithdrawalRequestSkeleton key={i} />
+        ))}
       </div>
     );
   }
@@ -614,8 +708,10 @@ export default function AdminWithdrawals() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
         <FiAlertTriangle className="w-16 h-16 text-[#FF1B6B] mb-4" />
-        <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-2`}>Access Denied</h2>
-        <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} text-center mb-6`}>Please connect your admin wallet to access the withdrawals page.</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
+        <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+          Please connect your admin wallet to access the withdrawals page.
+        </p>
       </div>
     );
   }
@@ -623,24 +719,24 @@ export default function AdminWithdrawals() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-[#FF1B6B]">Withdrawal Requests</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Withdrawal Requests</h1>
         <button
           onClick={handleManualRefresh}
-          className="px-4 py-2 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none"
+          className="px-4 py-2 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
         >
           Refresh Balances
         </button>
       </div>
       
       {/* Platform Fee Withdrawal Section */}
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>
-        <h2 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-4`}>Platform Fee Withdrawals</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Platform Fee Withdrawals</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Unichain Network */}
-          <div className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg`}>
+          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
             <div className="flex items-center mb-4">
               <img src="/unichain-logo.png" alt="Unichain" className="w-6 h-6 mr-2" />
-              <h3 className={`text-md font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Unichain Network</h3>
+              <h3 className="text-md font-medium text-gray-900 dark:text-white">Unichain Network</h3>
             </div>
             <div className="space-y-4">
               {/* USDT */}
@@ -648,15 +744,15 @@ export default function AdminWithdrawals() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDT</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">USDT</span>
                   </div>
                   <div className="text-right">
                     {platformFeeAmounts.unichain.USDT.loading ? (
                       <div className="w-4 h-4 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin ml-auto" />
                     ) : platformFeeAmounts.unichain.USDT.error ? (
-                      <div className="text-sm text-red-500">{platformFeeAmounts.unichain.USDT.error}</div>
+                      <div className="text-sm text-red-500 dark:text-red-400">{platformFeeAmounts.unichain.USDT.error}</div>
                     ) : (
-                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
                         Platform Fees: ${parseFloat(platformFeeAmounts.unichain.USDT.fees || 0).toFixed(2)}
                       </div>
                     )}
@@ -668,15 +764,11 @@ export default function AdminWithdrawals() {
                     value={platformFeeAmounts.unichain.USDT.amount}
                     onChange={(e) => handleAmountChange('unichain', 'USDT', e.target.value)}
                     placeholder="Enter amount"
-                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
-                      theme === 'dark'
-                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
-                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
-                    }`}
+                    className="block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                   />
                   <button
                     onClick={() => handleWithdrawPlatformFees('unichain', 'USDT')}
-                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
                   >
                     Withdraw
                   </button>
@@ -688,15 +780,15 @@ export default function AdminWithdrawals() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDC</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">USDC</span>
                   </div>
                   <div className="text-right">
                     {platformFeeAmounts.unichain.USDC.loading ? (
                       <div className="w-4 h-4 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin ml-auto" />
                     ) : platformFeeAmounts.unichain.USDC.error ? (
-                      <div className="text-sm text-red-500">{platformFeeAmounts.unichain.USDC.error}</div>
+                      <div className="text-sm text-red-500 dark:text-red-400">{platformFeeAmounts.unichain.USDC.error}</div>
                     ) : (
-                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
                         Platform Fees: ${parseFloat(platformFeeAmounts.unichain.USDC.fees || 0).toFixed(2)}
                       </div>
                     )}
@@ -708,15 +800,11 @@ export default function AdminWithdrawals() {
                     value={platformFeeAmounts.unichain.USDC.amount}
                     onChange={(e) => handleAmountChange('unichain', 'USDC', e.target.value)}
                     placeholder="Enter amount"
-                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
-                      theme === 'dark'
-                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
-                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
-                    }`}
+                    className="block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                   />
                   <button
                     onClick={() => handleWithdrawPlatformFees('unichain', 'USDC')}
-                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
                   >
                     Withdraw
                   </button>
@@ -726,10 +814,10 @@ export default function AdminWithdrawals() {
           </div>
 
           {/* Polygon Network */}
-          <div className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg`}>
+          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
             <div className="flex items-center mb-4">
               <img src="/polygon.png" alt="Polygon" className="w-6 h-6 mr-2" />
-              <h3 className={`text-md font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Polygon Network</h3>
+              <h3 className="text-md font-medium text-gray-900 dark:text-white">Polygon Network</h3>
             </div>
             <div className="space-y-4">
               {/* USDT */}
@@ -737,15 +825,15 @@ export default function AdminWithdrawals() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <img src="/logos/usdt.png" alt="USDT" className="w-6 h-6 mr-2" />
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDT</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">USDT</span>
                   </div>
                   <div className="text-right">
                     {platformFeeAmounts.polygon.USDT.loading ? (
                       <div className="w-4 h-4 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin ml-auto" />
                     ) : platformFeeAmounts.polygon.USDT.error ? (
-                      <div className="text-sm text-red-500">{platformFeeAmounts.polygon.USDT.error}</div>
+                      <div className="text-sm text-red-500 dark:text-red-400">{platformFeeAmounts.polygon.USDT.error}</div>
                     ) : (
-                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
                         Platform Fees: ${parseFloat(platformFeeAmounts.polygon.USDT.fees || 0).toFixed(2)}
                       </div>
                     )}
@@ -757,15 +845,11 @@ export default function AdminWithdrawals() {
                     value={platformFeeAmounts.polygon.USDT.amount}
                     onChange={(e) => handleAmountChange('polygon', 'USDT', e.target.value)}
                     placeholder="Enter amount"
-                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
-                      theme === 'dark'
-                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
-                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
-                    }`}
+                    className="block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                   />
                   <button
                     onClick={() => handleWithdrawPlatformFees('polygon', 'USDT')}
-                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
                   >
                     Withdraw
                   </button>
@@ -777,15 +861,15 @@ export default function AdminWithdrawals() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <img src="/logos/usdc.png" alt="USDC" className="w-6 h-6 mr-2" />
-                    <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>USDC</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">USDC</span>
                   </div>
                   <div className="text-right">
                     {platformFeeAmounts.polygon.USDC.loading ? (
                       <div className="w-4 h-4 border-2 border-[#FF1B6B] border-t-transparent rounded-full animate-spin ml-auto" />
                     ) : platformFeeAmounts.polygon.USDC.error ? (
-                      <div className="text-sm text-red-500">{platformFeeAmounts.polygon.USDC.error}</div>
+                      <div className="text-sm text-red-500 dark:text-red-400">{platformFeeAmounts.polygon.USDC.error}</div>
                     ) : (
-                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
                         Platform Fees: ${parseFloat(platformFeeAmounts.polygon.USDC.fees || 0).toFixed(2)}
                       </div>
                     )}
@@ -797,15 +881,11 @@ export default function AdminWithdrawals() {
                     value={platformFeeAmounts.polygon.USDC.amount}
                     onChange={(e) => handleAmountChange('polygon', 'USDC', e.target.value)}
                     placeholder="Enter amount"
-                    className={`block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
-                      theme === 'dark'
-                        ? 'bg-gray-600 border-gray-500 text-white placeholder-gray-400'
-                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
-                    }`}
+                    className="block w-full px-3 py-1 text-sm rounded-md shadow-sm focus:ring-[#FF1B6B] focus:border-[#FF1B6B] bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                   />
                   <button
                     onClick={() => handleWithdrawPlatformFees('polygon', 'USDC')}
-                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
+                    className="px-3 py-1 text-sm font-medium text-white bg-[#FF1B6B] rounded hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
                   >
                     Withdraw
                   </button>
@@ -816,129 +896,125 @@ export default function AdminWithdrawals() {
         </div>
       </div>
 
-      <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden mb-8`}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-8">
         {withdrawals.length === 0 ? (
-          <div className={`p-6 text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+          <div className="p-6 text-center text-gray-500 dark:text-gray-400">
             No pending withdrawal requests
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className={theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}>
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Store</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Token</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Network</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Wallet</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Requested</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Store</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Token</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Network</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Wallet</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Requested</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y ${theme === 'dark' ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              {withdrawals.map((withdrawal) => {
-                const networkName = withdrawal.network === 'unichain' ? 'Unichain Testnet' : 'Polygon';
-                
-                return (
-                  <tr key={withdrawal.id} className={theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {withdrawal.storeAvatar ? (
-                          <img 
-                            src={withdrawal.storeAvatar} 
-                            alt={withdrawal.storeName || 'Store'}
-                            className="w-8 h-8 rounded-full mr-3"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#FF1B6B] bg-opacity-10 flex items-center justify-center mr-3">
-                            <span className="text-[#FF1B6B] text-sm font-medium">
-                              {(withdrawal.storeName || 'S').charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                        <div>
-                          <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                            {withdrawal.storeName || 'Unknown Store'}
-                          </div>
-                          <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {withdrawal.storeId}
-                          </div>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {withdrawals.map((withdrawal) => (
+                <tr key={withdrawal.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      {withdrawal.storeAvatar ? (
+                        <img 
+                          src={withdrawal.storeAvatar} 
+                          alt={withdrawal.storeName || 'Store'}
+                          className="w-8 h-8 rounded-full mr-3"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-[#FF1B6B] bg-opacity-10 flex items-center justify-center mr-3">
+                          <span className="text-[#FF1B6B] text-sm font-medium">
+                            {(withdrawal.storeName || 'S').charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {withdrawal.storeName || 'Unknown Store'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {withdrawal.storeId}
                         </div>
                       </div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      <div className="text-sm font-medium">{withdrawal.amount.toFixed(2)}</div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      <div className="flex items-center">
-                        <img 
-                          src={`/logos/${withdrawal.token.toLowerCase()}.png`}
-                          alt={withdrawal.token}
-                          className="w-5 h-5 mr-2"
-                        />
-                        {withdrawal.token}
-                      </div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                      <div className="flex items-center">
-                        <img 
-                          src={withdrawal.network === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
-                          alt={networkName}
-                          className="w-5 h-5 mr-2"
-                        />
-                        {networkName}
-                      </div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                      <div className="flex items-center space-x-1">
-                        <span className="truncate max-w-[120px]">{withdrawal.walletAddress}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    ${withdrawal.amount.toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <div className="flex items-center">
+                      <img 
+                        src={`/logos/${withdrawal.token.toLowerCase()}.png`}
+                        alt={withdrawal.token}
+                        className="w-5 h-5 mr-2"
+                      />
+                      {withdrawal.token}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <div className="flex items-center">
+                      <img 
+                        src={withdrawal.network === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
+                        alt={withdrawal.network === 'unichain' ? 'Unichain Testnet' : 'Polygon'}
+                        className="w-5 h-5 mr-2"
+                      />
+                      {withdrawal.network === 'unichain' ? 'Unichain Testnet' : 'Polygon'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center space-x-1">
+                      <span className="truncate max-w-[120px]">{withdrawal.walletAddress}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(withdrawal.walletAddress);
+                          toast.success('Wallet address copied!');
+                        }}
+                        className="text-[#FF1B6B] hover:text-[#D4145A] dark:hover:text-[#FF1B6B]"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                          <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {new Date(withdrawal.timestamp?.toDate()).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    {processingId === withdrawal.id ? (
+                      <button
+                        disabled
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-[#FF1B6B] opacity-50 cursor-not-allowed"
+                      >
+                        <FiLoader className="mr-1 animate-spin" />
+                        Processing...
+                      </button>
+                    ) : (
+                      <>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(withdrawal.walletAddress);
-                            toast.success('Wallet address copied!');
-                          }}
-                          className="text-[#FF1B6B] hover:text-[#D4145A]"
+                          onClick={() => handleApprove(withdrawal)}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-[#FF1B6B] hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                            <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                          </svg>
+                          <FiCheck className="mr-1" />
+                          Approve
                         </button>
-                      </div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {new Date(withdrawal.timestamp?.toDate()).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {processingId === withdrawal.id ? (
                         <button
-                          disabled
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-[#FF1B6B] opacity-50 cursor-not-allowed"
+                          onClick={() => handleReject(withdrawal.id)}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-gray-800"
                         >
-                          <FiLoader className="mr-1 animate-spin" />
-                          Processing...
+                          <FiX className="mr-1" />
+                          Reject
                         </button>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleApprove(withdrawal)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-[#FF1B6B] hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B]"
-                          >
-                            <FiCheck className="mr-1" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReject(withdrawal.id)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                          >
-                            <FiX className="mr-1" />
-                            Reject
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

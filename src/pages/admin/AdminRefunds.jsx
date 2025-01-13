@@ -7,8 +7,76 @@ import { FiAlertTriangle, FiCheck, FiX, FiDollarSign, FiClock, FiCheckCircle } f
 import { getMerchPlatformContract, SUPPORTED_TOKENS } from '../../contracts/MerchPlatform';
 import { ethers } from 'ethers';
 import detectEthereumProvider from '@metamask/detect-provider';
+import { motion } from 'framer-motion';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
+
+// Skeleton Components
+const RefundRequestSkeleton = () => (
+  <motion.div 
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+    className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6"
+  >
+    <div className="flex justify-between items-start mb-4">
+      <div>
+        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-2"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48"></div>
+      </div>
+      <div className="flex gap-2">
+        <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      </div>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+      </div>
+    </div>
+  </motion.div>
+);
+
+const RefundHistorySkeleton = () => (
+  <motion.div 
+    initial={{ opacity: 0.6 }}
+    animate={{ opacity: 1 }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+    className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden"
+  >
+    <div className="overflow-x-auto">
+      <table className="min-w-full">
+        <thead className="bg-gray-50 dark:bg-gray-700">
+          <tr>
+            {[...Array(9)].map((_, i) => (
+              <th key={i} className="px-6 py-3">
+                <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+          {[...Array(5)].map((_, i) => (
+            <tr key={i}>
+              {[...Array(9)].map((_, j) => (
+                <td key={j} className="px-6 py-4">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </motion.div>
+);
 
 const TransactionHashModal = ({ isOpen, onClose, onSubmit, refundRequest }) => {
   const [txHash, setTxHash] = useState('');
@@ -36,18 +104,18 @@ const TransactionHashModal = ({ isOpen, onClose, onSubmit, refundRequest }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Submit Transaction Hash</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Submit Transaction Hash</h2>
         
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+        <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
           <div className="flex items-start gap-2">
-            <FiAlertTriangle className="text-blue-500 text-lg mt-0.5" />
+            <FiAlertTriangle className="text-blue-500 dark:text-blue-400 text-lg mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-blue-800">Refund Details</p>
-              <p className="text-sm text-blue-700 mt-1">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Refund Details</p>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
                 Amount: ${refundRequest.amount.toFixed(2)} {refundRequest.order.paymentMethod.token}
               </p>
-              <p className="text-sm text-blue-700">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
                 To: {refundRequest.paymentAddress.slice(0, 6)}...{refundRequest.paymentAddress.slice(-4)}
               </p>
             </div>
@@ -56,7 +124,7 @@ const TransactionHashModal = ({ isOpen, onClose, onSubmit, refundRequest }) => {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Transaction Hash
             </label>
             <input
@@ -64,7 +132,7 @@ const TransactionHashModal = ({ isOpen, onClose, onSubmit, refundRequest }) => {
               value={txHash}
               onChange={(e) => setTxHash(e.target.value)}
               placeholder="0x..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#FF1B6B] focus:border-[#FF1B6B]"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-[#FF1B6B] focus:border-[#FF1B6B] bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
           </div>
         </div>
@@ -72,7 +140,7 @@ const TransactionHashModal = ({ isOpen, onClose, onSubmit, refundRequest }) => {
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
           >
             Cancel
           </button>
@@ -500,8 +568,35 @@ export default function AdminRefunds() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-[#FF1B6B] border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex justify-between items-center mb-6">
+          <motion.div 
+            initial={{ opacity: 0.6 }}
+            animate={{ opacity: 1 }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-64"
+          />
+          <div className="flex gap-2">
+            {[...Array(2)].map((_, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0.6 }}
+                animate={{ opacity: 1 }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg"
+              />
+            ))}
+          </div>
+        </div>
+        {activeTab === 'pending' ? (
+          <div className="space-y-6">
+            {[...Array(3)].map((_, i) => (
+              <RefundRequestSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          <RefundHistorySkeleton />
+        )}
       </div>
     );
   }
@@ -510,8 +605,8 @@ export default function AdminRefunds() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
         <FiAlertTriangle className="w-16 h-16 text-[#FF1B6B] mb-4" />
-        <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-800'} mb-2`}>Access Denied</h2>
-        <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} text-center mb-6`}>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
+        <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
           Please connect your admin wallet to access the refunds page.
         </p>
       </div>
@@ -521,14 +616,14 @@ export default function AdminRefunds() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-[#FF1B6B]">Refunds Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Refunds Management</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('pending')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'pending'
                 ? 'bg-[#FF1B6B] text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             Pending Requests
@@ -538,7 +633,7 @@ export default function AdminRefunds() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'history'
                 ? 'bg-[#FF1B6B] text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
             Refunds History
@@ -547,24 +642,23 @@ export default function AdminRefunds() {
       </div>
       
       {activeTab === 'pending' ? (
-        // Existing Pending Requests Section
         refundRequests.length === 0 ? (
-          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 text-center`}>
-            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No pending refund requests</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 text-center">
+            <p className="text-gray-500 dark:text-gray-400">No pending refund requests</p>
           </div>
         ) : (
           <div className="grid gap-6">
             {refundRequests.map((request) => (
               <div
                 key={request.id}
-                className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Order #{request.orderId.slice(-6)}
                     </h3>
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       Requested on {request.createdAt.toLocaleString()}
                     </p>
                   </div>
@@ -589,26 +683,26 @@ export default function AdminRefunds() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                         Buyer ID:
                       </span>
-                      <span className={`ml-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-300">
                         {request.buyerId}
                       </span>
                     </div>
                     <div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                         Seller ID:
                       </span>
-                      <span className={`ml-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-300">
                         {request.sellerId}
                       </span>
                     </div>
                     <div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                         Refund Amount:
                       </span>
-                      <span className={`ml-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-300">
                         ${request.amount.toFixed(2)}
                       </span>
                     </div>
@@ -616,26 +710,26 @@ export default function AdminRefunds() {
 
                   <div className="space-y-2">
                     <div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                         Payment Address:
                       </span>
-                      <span className={`ml-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-800'} break-all`}>
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-300 break-all">
                         {request.paymentAddress}
                       </span>
                     </div>
                     <div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                         Token:
                       </span>
-                      <span className={`ml-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-300">
                         {request.order?.paymentMethod?.token}
                       </span>
                     </div>
                     <div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                         Network:
                       </span>
-                      <span className={`ml-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>
+                      <span className="ml-2 text-sm text-gray-900 dark:text-gray-300">
                         {request.order?.paymentMethod?.network === 1301 ? 'Unichain' : 'Polygon'}
                       </span>
                     </div>
@@ -646,63 +740,58 @@ export default function AdminRefunds() {
           </div>
         )
       ) : (
-        // Refunds History Section
-        <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden`}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
           {refundHistory.length === 0 ? (
             <div className="p-6 text-center">
-              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>No refund history found</p>
+              <p className="text-gray-500 dark:text-gray-400">No refund history found</p>
             </div>
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Network</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Processed On</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
+                      {['Order ID', 'Buyer', 'Seller', 'Amount', 'Status', 'Token', 'Network', 'Processed On', 'Transaction'].map((header) => (
+                        <th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          {header}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} divide-y divide-gray-200`}>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {currentHistory.map((refund) => (
-                      <tr key={refund.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <tr key={refund.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                           #{refund.orderId.slice(-6)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {refund.buyerName}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {refund.sellerName}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           ${refund.amount.toFixed(2)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                             refund.status === 'approved'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
                           }`}>
                             {refund.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {refund.order?.paymentMethod?.token}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {refund.order?.paymentMethod?.network === 1301 ? 'Unichain' : 'Polygon'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {refund.processedAt.toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
                           {refund.transactionHash ? (
                             <a
                               href={`${refund.order?.paymentMethod?.network === 1301 
@@ -710,7 +799,7 @@ export default function AdminRefunds() {
                                 : 'https://polygonscan.com'}/tx/${refund.transactionHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[#FF1B6B] hover:text-[#D4145A]"
+                              className="text-[#FF1B6B] hover:text-[#D4145A] dark:text-pink-400 dark:hover:text-pink-300"
                             >
                               View
                             </a>
@@ -724,7 +813,7 @@ export default function AdminRefunds() {
 
               {/* Pagination Controls */}
               {totalHistoryPages > 1 && (
-                <div className="px-4 py-3 flex items-center justify-center border-t border-gray-200">
+                <div className="px-4 py-3 flex items-center justify-center border-t border-gray-200 dark:border-gray-700">
                   <div className="flex gap-1">
                     {Array.from({ length: totalHistoryPages }, (_, i) => (
                       <button
@@ -733,7 +822,7 @@ export default function AdminRefunds() {
                         className={`px-2 py-1 text-xs font-medium rounded-md transition-colors ${
                           historyPage === i + 1
                             ? 'bg-[#FF1B6B] text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                       >
                         {i + 1}
