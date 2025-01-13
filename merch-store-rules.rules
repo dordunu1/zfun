@@ -56,8 +56,17 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
         isConversationParticipant(request.resource.data.conversationId);
       
-      // Allow update/delete of own messages only
-      allow update, delete: if isAuthenticated() && 
+      // Allow update of read/delivered status by recipient, or full update by sender
+      allow update: if isAuthenticated() && (
+        // Sender can update everything
+        request.auth.uid == resource.data.senderId ||
+        // Recipient can only update read/delivered status
+        (isConversationParticipant(resource.data.conversationId) &&
+         request.auth.uid != resource.data.senderId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['delivered', 'read']))
+      );
+      
+      allow delete: if isAuthenticated() && 
         request.auth.uid == resource.data.senderId;
     }
 
