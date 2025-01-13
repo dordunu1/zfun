@@ -539,7 +539,7 @@ const Checkout = () => {
         await Promise.all(updateQuantityPromises);
 
         // Create Firebase order for THIS seller only
-        await addDoc(collection(db, 'orders'), {
+        const orderRef = await addDoc(collection(db, 'orders'), {
           numericOrderId, // Store the numeric order ID from the contract
           buyerId: user.uid,
           sellerId: sellerId,
