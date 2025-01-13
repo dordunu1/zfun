@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { FiGrid, FiDollarSign, FiCreditCard, FiSettings, FiSun, FiMoon, FiRefreshCcw, FiCheckCircle } from 'react-icons/fi';
+import { FiGrid, FiDollarSign, FiCreditCard, FiSettings, FiSun, FiMoon, FiRefreshCcw, FiCheckCircle, FiBarChart2 } from 'react-icons/fi';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -27,6 +27,7 @@ export default function AdminLayout() {
     { path: '/admin/withdrawals', icon: <FiCreditCard />, label: 'Withdrawals' },
     { path: '/admin/refunds', icon: <FiRefreshCcw />, label: 'Refunds' },
     { path: '/admin/sales', icon: <FiDollarSign />, label: 'Sales' },
+    { path: '/admin/stores-revenue', icon: <FiBarChart2 />, label: 'Stores Revenue' },
     { path: '/admin/store-verification', icon: <FiCheckCircle />, label: 'Store Verification' },
     { path: '/admin/settings', icon: <FiSettings />, label: 'Settings' },
   ];

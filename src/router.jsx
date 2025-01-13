@@ -39,6 +39,7 @@ import ForgotPassword from './pages/merch/ForgotPassword';
 import ResetPassword from './pages/merch/ResetPassword';
 import Inbox from './pages/merch/Inbox';
 import SellerInbox from './pages/merch/SellerInbox';
+import StoresRevenue from './pages/admin/StoresRevenue';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF"; // We'll replace this with your actual address
 
@@ -304,6 +305,10 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <AdminRoute><AdminSettings /></AdminRoute>,
+      },
+      {
+        path: 'stores-revenue',
+        element: <StoresRevenue />
       },
     ],
   },
