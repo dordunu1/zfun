@@ -8,6 +8,92 @@ import { storage, db } from '../../firebase/merchConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 
+const styles = `
+  :root {
+    color-scheme: light;
+  }
+  
+  input[type="datetime-local"] {
+    color-scheme: light !important;
+    background-color: white !important;
+    color: #1F2937 !important;
+  }
+
+  /* Style the calendar popup */
+  ::-webkit-calendar-picker-indicator {
+    filter: none !important;
+    color: #1F2937 !important;
+    opacity: 0.7;
+  }
+
+  /* Style the selected date */
+  input[type="datetime-local"]::-webkit-datetime-selected {
+    background-color: #FF1B6B !important;
+    color: white !important;
+  }
+
+  /* Style the current date */
+  input[type="datetime-local"]::-webkit-datetime-today {
+    color: #FF1B6B !important;
+  }
+
+  /* Style the calendar grid */
+  input[type="datetime-local"]::-webkit-calendar-grid {
+    background-color: white !important;
+  }
+
+  /* Style the selected cells */
+  input[type="datetime-local"]::-webkit-calendar-cell-selected {
+    background-color: #FF1B6B !important;
+    color: white !important;
+  }
+
+  /* Style the hover state */
+  input[type="datetime-local"]::-webkit-calendar-cell:hover {
+    background-color: rgba(255, 27, 107, 0.1) !important;
+  }
+
+  /* Style the focused state */
+  input[type="datetime-local"]:focus {
+    border-color: #FF1B6B !important;
+    box-shadow: 0 0 0 1px #FF1B6B !important;
+  }
+
+  /* Style the checkbox */
+  input[type="checkbox"] {
+    accent-color: #FF1B6B !important;
+    border-color: #FF1B6B !important;
+  }
+
+  input[type="checkbox"]:checked {
+    background-color: #FF1B6B !important;
+    border-color: #FF1B6B !important;
+  }
+
+  input[type="checkbox"]:focus {
+    box-shadow: 0 0 0 2px rgba(255, 27, 107, 0.3) !important;
+  }
+
+  /* Override any blue highlights */
+  ::selection {
+    background-color: rgba(255, 27, 107, 0.2) !important;
+  }
+
+  /* Style the time picker */
+  input[type="datetime-local"]::-webkit-time-picker {
+    background-color: white !important;
+  }
+
+  input[type="datetime-local"]::-webkit-time-picker-selected {
+    background-color: #FF1B6B !important;
+    color: white !important;
+  }
+
+  input[type="datetime-local"]::-webkit-time-picker-indicator:hover {
+    background-color: rgba(255, 27, 107, 0.1) !important;
+  }
+`;
+
 // Token logos and networks
 const NETWORK_INFO = {
   polygon: {
@@ -161,7 +247,9 @@ const AddProduct = () => {
     shippingInfo: '',
     hasVariants: false,
     selectedSizes: [],
-    selectedColors: []
+    selectedColors: [],
+    hasDiscount: false,
+    discountPercent: 0
   });
 
   const SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
@@ -420,6 +508,11 @@ const AddProduct = () => {
         hasVariants: productData.hasVariants,
         sizes: productData.hasVariants ? productData.selectedSizes : [],
         colors: productData.hasVariants ? productData.selectedColors : [],
+        hasDiscount: productData.hasDiscount,
+        discountPercent: productData.hasDiscount ? Number(productData.discountPercent) : 0,
+        discountedPrice: productData.hasDiscount ? 
+          Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
+          Number(productData.price),
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -500,6 +593,7 @@ const AddProduct = () => {
       animate="visible"
       variants={containerVariants}
     >
+      <style>{styles}</style>
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <motion.div variants={itemVariants}>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Add New Product</h1>
@@ -769,6 +863,90 @@ const AddProduct = () => {
                   <div className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
                     {productData.acceptedToken}
                   </div>
+                </div>
+
+                {/* Discount Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="hasDiscount"
+                      checked={productData.hasDiscount}
+                      onChange={(e) => {
+                        setProductData(prev => ({
+                          ...prev,
+                          hasDiscount: e.target.checked,
+                          discountPercent: e.target.checked ? prev.discountPercent : 0
+                        }));
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
+                    />
+                    <label htmlFor="hasDiscount" className="text-sm font-medium text-gray-700">
+                      Apply Discount
+                    </label>
+                  </div>
+
+                  {productData.hasDiscount && (
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <input
+                          type="number"
+                          name="discountPercent"
+                          value={productData.discountPercent}
+                          onChange={(e) => {
+                            const value = Math.min(Math.max(0, Number(e.target.value)), 99);
+                            setProductData(prev => ({
+                              ...prev,
+                              discountPercent: value
+                            }));
+                          }}
+                          min="0"
+                          max="99"
+                          className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                          placeholder="Enter discount percentage"
+                        />
+                        <div className="absolute right-0 top-0 bottom-0 w-12 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                          %
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Discount Ends At
+                        </label>
+                        <input
+                          type="datetime-local"
+                          name="discountEndsAt"
+                          value={productData.discountEndsAt || ''}
+                          onChange={(e) => {
+                            setProductData(prev => ({
+                              ...prev,
+                              discountEndsAt: e.target.value
+                            }));
+                          }}
+                          min={new Date().toISOString().slice(0, 16)}
+                          className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                        />
+                      </div>
+
+                      {productData.discountPercent > 0 && productData.price > 0 && (
+                        <div className="bg-pink-50 border border-pink-100 rounded-lg p-3">
+                          <p className="text-sm text-gray-700">
+                            <span className="font-medium">Original Price:</span>{' '}
+                            {productData.price} {productData.acceptedToken}
+                          </p>
+                          <p className="text-sm text-[#FF1B6B] mt-1">
+                            <span className="font-medium">Discounted Price:</span>{' '}
+                            {(productData.price * (1 - productData.discountPercent / 100)).toFixed(2)} {productData.acceptedToken}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            <span className="font-medium">Savings:</span>{' '}
+                            {(productData.price * (productData.discountPercent / 100)).toFixed(2)} {productData.acceptedToken}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment Information Display */}

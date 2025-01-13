@@ -191,6 +191,183 @@ const BrowseSkeleton = () => (
   </div>
 );
 
+const CountdownTimer = ({ endsAt }) => {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date().getTime();
+      const endTime = new Date(endsAt).getTime();
+      const difference = endTime - now;
+
+      if (difference <= 0) {
+        return 'Ended';
+      }
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        return `${days}D : ${hours}H`;
+      } else if (hours > 0) {
+        return `${hours}H : ${minutes}M`;
+      } else if (minutes > 0) {
+        return `${minutes}M : ${seconds}S`;
+      } else {
+        return `${seconds}S`;
+      }
+    };
+
+    setTimeLeft(calculateTimeLeft());
+    const timer = setInterval(() => {
+      const remaining = calculateTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining === 'Ended') {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endsAt]);
+
+  return timeLeft;
+};
+
+const ProductCard = ({ product }) => {
+  const [displayState, setDisplayState] = useState(0); // 0: discount, 1: savings, 2: time
+
+  useEffect(() => {
+    if (product.hasDiscount) {
+      const interval = setInterval(() => {
+        setDisplayState((prev) => (prev + 1) % 3);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [product.hasDiscount]);
+
+  const savings = product.price - product.discountedPrice;
+
+  return (
+    <motion.div
+      className="bg-white rounded-lg shadow-sm overflow-hidden group"
+      whileHover={{ y: -3 }}
+    >
+      <Link to={`/merch-store/product/${product.id}`}>
+        <div className="aspect-square relative overflow-hidden">
+          <ProductImages images={product.images} />
+          {product.rating && (
+            <div className="absolute top-2 right-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-medium text-gray-800 flex items-center gap-1">
+              <BiStar className="text-yellow-400" />
+              {product.rating}
+            </div>
+          )}
+          {product.hasDiscount && (
+            <motion.div
+              className="absolute top-2 left-2 bg-[#FF1B6B] text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              {displayState === 0 ? (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                  <span>{product.discountPercent}% OFF</span>
+                </>
+              ) : displayState === 1 ? (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Save {product.acceptedToken} {savings.toFixed(2)}</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Ends in <CountdownTimer endsAt={product.discountEndsAt} /></span>
+                </>
+              )}
+            </motion.div>
+          )}
+        </div>
+        <div className="p-3">
+          <h3 className="font-medium text-gray-800 mb-1 truncate">
+            {product.name}
+          </h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <img
+                src={product.tokenLogo}
+                alt={product.acceptedToken}
+                className="w-4 h-4"
+              />
+              <div className="flex items-center gap-1">
+                {product.hasDiscount ? (
+                  <>
+                    <p className="text-[#FF1B6B] font-medium text-sm">
+                      ${product.discountedPrice.toFixed(2)}
+                    </p>
+                    <p className="text-gray-400 text-xs line-through">
+                      ${product.price.toFixed(2)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[#FF1B6B] font-medium text-sm">
+                    ${product.price.toFixed(2)}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full">
+              <img 
+                src={product.network === 'polygon' ? '/polygon.png' : '/unichain-logo.png'} 
+                alt={product.network} 
+                className="w-4 h-4"
+              />
+              <span className="text-xs font-medium text-gray-600 capitalize">
+                {product.network}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <div className="flex items-center gap-1">
+              <p className="text-xs text-gray-500">
+                by {product.sellerName}
+              </p>
+              {product.isSellerVerified && (
+                <div className="group relative inline-flex items-center">
+                  <VerificationCheckmark className="!w-[10px] !h-[10px] min-w-[10px] min-h-[10px]" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1 py-0.5 bg-gray-900 text-white text-[8px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-10">
+                    Verified Store
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className={`text-xs font-medium ${
+              product.quantity > 10 
+                ? 'text-green-600' 
+                : product.quantity > 0 
+                  ? 'text-orange-500' 
+                  : 'text-red-500'
+            }`}>
+              {product.quantity > 10 
+                ? 'In Stock' 
+                : product.quantity > 0 
+                  ? `Only ${product.quantity} left` 
+                  : 'Out of Stock'}
+            </p>
+          </div>
+        </div>
+      </Link>
+    </motion.div>
+  );
+};
+
 const Browse = () => {
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState([]);
@@ -592,79 +769,7 @@ const Browse = () => {
           variants={containerVariants}
         >
           {filteredProducts.map((product) => (
-            <motion.div
-              key={product.id}
-              className="bg-white rounded-lg shadow-sm overflow-hidden group"
-              variants={itemVariants}
-              whileHover={{ y: -3 }}
-            >
-              <Link to={`/merch-store/product/${product.id}`}>
-                <div className="aspect-square relative overflow-hidden">
-                  <ProductImages images={product.images} />
-                  {product.rating && (
-                    <div className="absolute top-2 right-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-medium text-gray-800 flex items-center gap-1">
-                      <BiStar className="text-yellow-400" />
-                      {product.rating}
-                    </div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <h3 className="font-medium text-gray-800 mb-1 truncate">
-                    {product.name}
-                  </h3>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={product.tokenLogo}
-                        alt={product.acceptedToken}
-                        className="w-4 h-4"
-                      />
-                      <p className="text-[#FF1B6B] font-medium text-sm">
-                        ${product.price.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full">
-                      <img 
-                        src={product.network === 'polygon' ? '/polygon.png' : '/unichain-logo.png'} 
-                        alt={product.network} 
-                        className="w-4 h-4"
-                      />
-                      <span className="text-xs font-medium text-gray-600 capitalize">
-                        {product.network}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <div className="flex items-center gap-1">
-                      <p className="text-xs text-gray-500">
-                        by {product.sellerName}
-                      </p>
-                      {product.isSellerVerified && (
-                        <div className="group relative inline-flex items-center">
-                          <VerificationCheckmark className="!w-[10px] !h-[10px] min-w-[10px] min-h-[10px]" />
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1 py-0.5 bg-gray-900 text-white text-[8px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-10">
-                            Verified Store
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <p className={`text-xs font-medium ${
-                      product.quantity > 10 
-                        ? 'text-green-600' 
-                        : product.quantity > 0 
-                          ? 'text-orange-500' 
-                          : 'text-red-500'
-                    }`}>
-                      {product.quantity > 10 
-                        ? 'In Stock' 
-                        : product.quantity > 0 
-                          ? `Only ${product.quantity} left` 
-                          : 'Out of Stock'}
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            </motion.div>
+            <ProductCard key={product.id} product={product} />
           ))}
         </motion.div>
       )}
