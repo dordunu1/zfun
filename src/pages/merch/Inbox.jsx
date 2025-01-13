@@ -156,27 +156,29 @@ const Inbox = () => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
+    const messageText = newMessage.trim();
+    setNewMessage(''); // Clear input immediately
+
     try {
       // Add new message
       await addDoc(collection(db, 'messages'), {
         conversationId,
         senderId: user.uid,
-        text: newMessage,
+        text: messageText,
         timestamp: serverTimestamp()
       });
 
       // Update conversation
       await updateDoc(doc(db, 'conversations', conversationId), {
-        lastMessage: newMessage,
+        lastMessage: messageText,
         lastMessageTime: serverTimestamp(),
         [`unreadCount.${currentConversation.sellerId}`]: (currentConversation.unreadCount?.[currentConversation.sellerId] || 0) + 1,
         updatedAt: serverTimestamp()
       });
-
-      setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
+      setNewMessage(messageText); // Restore the message if sending fails
     }
   };
 
