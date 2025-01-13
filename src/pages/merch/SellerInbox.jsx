@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
-import { BiSend, BiArrowBack } from 'react-icons/bi';
+import { BiSend, BiArrowBack, BiMessageDetail } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 
 const LoadingSkeleton = () => (
@@ -213,22 +213,22 @@ const SellerInbox = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/30">
       <div className="max-w-6xl mx-auto p-4">
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden backdrop-blur-xl">
           <div className="grid grid-cols-12">
             {/* Conversations List */}
-            <div className="col-span-4 border-r">
-              <div className="p-4 border-b">
+            <div className="col-span-4 border-r border-gray-100">
+              <div className="p-6 border-b border-gray-100">
                 <h2 className="text-xl font-semibold text-gray-800">Customer Messages</h2>
               </div>
-              <div className="overflow-y-auto h-[calc(100vh-12rem)]">
+              <div className="overflow-y-auto h-[calc(100vh-12rem)] scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-gray-50">
                 {conversations.map((conversation) => (
                   <button
                     key={conversation.id}
                     onClick={() => navigate(`/merch-store/seller/inbox/${conversation.id}`)}
-                    className={`w-full p-4 border-b hover:bg-gray-50 transition-colors ${
-                      conversation.id === conversationId ? 'bg-gray-50' : ''
+                    className={`w-full p-6 border-b border-gray-100 hover:bg-gray-50/80 transition-all ${
+                      conversation.id === conversationId ? 'bg-gray-50/80' : ''
                     }`}
                   >
                     <div className="flex justify-between items-start">
@@ -254,7 +254,7 @@ const SellerInbox = () => {
                         )}
                       </div>
                       {conversation.unreadCount?.[user.sellerId] > 0 && (
-                        <span className="bg-[#FF1B6B] text-white text-xs px-2 py-1 rounded-full ml-3 shrink-0">
+                        <span className="bg-[#FF1B6B] text-white text-xs px-2.5 py-1.5 rounded-full ml-3 shrink-0">
                           {conversation.unreadCount[user.sellerId]}
                         </span>
                       )}
@@ -265,15 +265,15 @@ const SellerInbox = () => {
             </div>
 
             {/* Messages Area */}
-            <div className="col-span-8">
+            <div className="col-span-8 bg-white">
               {currentConversation ? (
                 <>
                   {/* Chat Header */}
-                  <div className="p-4 border-b flex items-center justify-between">
+                  <div className="p-6 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={() => navigate(-1)}
-                        className="md:hidden"
+                        className="md:hidden hover:text-[#FF1B6B] transition-colors"
                       >
                         <BiArrowBack className="text-xl" />
                       </button>
@@ -284,40 +284,46 @@ const SellerInbox = () => {
                   </div>
 
                   {/* Messages */}
-                  <div className="p-4 overflow-y-auto h-[calc(100vh-16rem)]">
+                  <div className="p-6 overflow-y-auto h-[calc(100vh-16rem)] scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`mb-4 ${message.senderId === user.uid ? 'text-right' : ''}`}
+                        className={`mb-6 ${message.senderId === user.uid ? 'text-right' : ''}`}
                       >
-                        <div
-                          className={`inline-block rounded-lg px-4 py-2 max-w-[80%] ${
-                            message.senderId === user.uid
-                              ? 'bg-[#FF1B6B] text-white'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
                         >
-                          {message.text}
-                        </div>
-                        {message.productCard && renderProductCard(message.productCard, message)}
+                          <div
+                            className={`inline-block rounded-2xl px-4 py-2.5 max-w-[80%] ${
+                              message.senderId === user.uid
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {message.text}
+                          </div>
+                          {message.productCard && renderProductCard(message.productCard, message)}
+                        </motion.div>
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
                   </div>
 
                   {/* Message Input */}
-                  <form onSubmit={handleSendMessage} className="p-4 border-t">
+                  <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-100">
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type a message..."
-                        className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:border-[#FF1B6B]"
+                        className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-[#FF1B6B] focus:ring-1 focus:ring-[#FF1B6B] transition-all"
                       />
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
+                        className="px-5 py-3 bg-[#FF1B6B] text-white rounded-xl hover:bg-[#D4145A] transition-colors"
                       >
                         <BiSend className="text-xl" />
                       </button>
@@ -325,8 +331,11 @@ const SellerInbox = () => {
                   </form>
                 </>
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-500">
-                  Select a conversation to start messaging
+                <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                  <div className="w-16 h-16 mb-4 text-gray-300">
+                    <BiMessageDetail className="w-full h-full" />
+                  </div>
+                  <p>Select a conversation to start messaging</p>
                 </div>
               )}
             </div>
