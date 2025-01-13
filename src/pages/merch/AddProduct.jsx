@@ -19,44 +19,22 @@ const styles = `
     color: #1F2937 !important;
   }
 
-  /* Style the calendar popup */
-  ::-webkit-calendar-picker-indicator {
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     filter: none !important;
     color: #1F2937 !important;
     opacity: 0.7;
   }
 
-  /* Style the selected date */
-  input[type="datetime-local"]::-webkit-datetime-selected {
-    background-color: #FF1B6B !important;
-    color: white !important;
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
   }
 
-  /* Style the current date */
-  input[type="datetime-local"]::-webkit-datetime-today {
-    color: #FF1B6B !important;
+  input[type="datetime-local"]::-webkit-datetime-edit {
+    color: #1F2937 !important;
   }
 
-  /* Style the calendar grid */
-  input[type="datetime-local"]::-webkit-calendar-grid {
-    background-color: white !important;
-  }
-
-  /* Style the selected cells */
-  input[type="datetime-local"]::-webkit-calendar-cell-selected {
-    background-color: #FF1B6B !important;
-    color: white !important;
-  }
-
-  /* Style the hover state */
-  input[type="datetime-local"]::-webkit-calendar-cell:hover {
-    background-color: rgba(255, 27, 107, 0.1) !important;
-  }
-
-  /* Style the focused state */
-  input[type="datetime-local"]:focus {
-    border-color: #FF1B6B !important;
-    box-shadow: 0 0 0 1px #FF1B6B !important;
+  input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+    color: #1F2937 !important;
   }
 
   /* Style the checkbox */
@@ -72,25 +50,6 @@ const styles = `
 
   input[type="checkbox"]:focus {
     box-shadow: 0 0 0 2px rgba(255, 27, 107, 0.3) !important;
-  }
-
-  /* Override any blue highlights */
-  ::selection {
-    background-color: rgba(255, 27, 107, 0.2) !important;
-  }
-
-  /* Style the time picker */
-  input[type="datetime-local"]::-webkit-time-picker {
-    background-color: white !important;
-  }
-
-  input[type="datetime-local"]::-webkit-time-picker-selected {
-    background-color: #FF1B6B !important;
-    color: white !important;
-  }
-
-  input[type="datetime-local"]::-webkit-time-picker-indicator:hover {
-    background-color: rgba(255, 27, 107, 0.1) !important;
   }
 `;
 
@@ -248,6 +207,7 @@ const AddProduct = () => {
     hasVariants: false,
     selectedSizes: [],
     selectedColors: [],
+    colorQuantities: {},
     hasDiscount: false,
     discountPercent: 0
   });
@@ -449,81 +409,53 @@ const AddProduct = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (imageFiles.length === 0) {
-      toast.error('Please add at least one product image');
-      return;
-    }
-
-    if (productData.category === 'clothing') {
-      if (!productData.subCategory) {
-        toast.error('Please select a subcategory');
-        return;
-      }
-      if (productData.hasVariants) {
-        if (productData.selectedSizes.length === 0) {
-          toast.error('Please select at least one size');
-          return;
-        }
-        if (productData.selectedColors.length === 0) {
-          toast.error('Please select at least one color');
-          return;
-        }
-      }
-    }
-
-    setSubmitting(true);
+    setUploading(true);
 
     try {
-      // Upload images
-      const imageUrls = await Promise.all(
-        imageFiles.map(async (file) => {
-          const imageRef = ref(storage, `products/${user.uid}/${Date.now()}-${file.name}`);
-          const snapshot = await uploadBytes(imageRef, file);
-          return getDownloadURL(snapshot.ref);
-        })
-      );
+      // Format the discountEndsAt date properly
+      let discountEndsAt = null;
+      if (productData.hasDiscount && productData.discountEndsAt) {
+        discountEndsAt = new Date(productData.discountEndsAt).toISOString();
+      }
 
-      // Get seller info
-      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
-      const sellerData = sellerDoc.data();
-
-      // Create product with new fields
-      const productRef = await addDoc(collection(db, 'products'), {
+      const productDoc = {
         name: productData.name,
         description: productData.description,
         price: Number(productData.price),
-        quantity: Number(productData.quantity),
+        quantity: productData.hasVariants 
+          ? Object.values(productData.colorQuantities).reduce((a, b) => a + b, 0)
+          : Number(productData.quantity),
         category: productData.category,
         subCategory: productData.subCategory,
         network: productData.network,
         acceptedToken: productData.acceptedToken,
-        tokenLogo: `/${productData.acceptedToken.toLowerCase()}.png`,
-        images: imageUrls,
+        tokenLogo: productData.tokenLogo,
         shippingFee: Number(productData.shippingFee),
         shippingInfo: productData.shippingInfo,
-        sellerId: user.sellerId,
-        sellerName: sellerData.storeName,
-        status: 'active',
-        hasVariants: productData.hasVariants,
-        sizes: productData.hasVariants ? productData.selectedSizes : [],
-        colors: productData.hasVariants ? productData.selectedColors : [],
+        images: productData.images,
+        hasVariants: Boolean(productData.hasVariants),
+        sizes: productData.hasVariants ? productData.sizes : [],
+        colors: productData.hasVariants ? productData.colors : [],
+        colorQuantities: productData.hasVariants ? productData.colorQuantities : {},
         hasDiscount: productData.hasDiscount,
         discountPercent: productData.hasDiscount ? Number(productData.discountPercent) : 0,
+        discountEndsAt: discountEndsAt,
         discountedPrice: productData.hasDiscount ? 
           Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
           Number(productData.price),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+        sellerId: user.sellerId,
+        sellerName: user.storeName,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
 
-      toast.success('Product added successfully');
-      navigate('/merch-store/products');
+      // ... rest of the submit logic ...
     } catch (error) {
-      console.error('Error adding product:', error);
-      toast.error('Failed to add product');
+      console.error('Error creating product:', error);
+      toast.error('Failed to create product');
     } finally {
-      setSubmitting(false);
+      setUploading(false);
     }
   };
 
@@ -798,31 +730,85 @@ const AddProduct = () => {
                     </div>
                   </div>
 
-                  {/* Color Selection */}
+                  {/* Color Selection and Quantities */}
                   <div className="bg-white rounded-lg p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Available Colors
+                      Available Colors & Quantities
                     </label>
-                    <div className="flex flex-wrap gap-2">
-                      {COLORS.map(color => (
-                        <button
-                          key={color.name}
-                          type="button"
-                          onClick={() => handleColorToggle(color)}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                            productData.selectedColors.includes(color.name)
-                              ? 'bg-[#FF1B6B] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          <span
-                            className="h-4 w-4 rounded-full border border-gray-300 shadow-inner"
-                            style={{ backgroundColor: color.value }}
-                          />
-                          <span>{color.name}</span>
-                        </button>
-                      ))}
+                    <div className="space-y-4">
+                      {COLORS.map(color => {
+                        const isSelected = productData.selectedColors.includes(color.name);
+                        return (
+                          <div key={color.name} className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newColors = productData.selectedColors.includes(color.name)
+                                  ? productData.selectedColors.filter(c => c !== color.name)
+                                  : [...productData.selectedColors, color.name];
+                                
+                                // Update colorQuantities when removing a color
+                                const newColorQuantities = { ...productData.colorQuantities };
+                                if (!newColors.includes(color.name)) {
+                                  delete newColorQuantities[color.name];
+                                }
+                                
+                                setProductData(prev => ({
+                                  ...prev,
+                                  selectedColors: newColors,
+                                  colorQuantities: newColorQuantities
+                                }));
+                              }}
+                              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                isSelected
+                                  ? 'bg-[#FF1B6B] text-white'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <span
+                                className="h-4 w-4 rounded-full border border-gray-300 shadow-inner"
+                                style={{ backgroundColor: color.value }}
+                              />
+                              <span>{color.name}</span>
+                            </button>
+                            
+                            {isSelected && (
+                              <div className="flex-1 max-w-[150px]">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={productData.colorQuantities[color.name] || ''}
+                                  onChange={(e) => {
+                                    const value = Math.max(0, parseInt(e.target.value) || 0);
+                                    setProductData(prev => ({
+                                      ...prev,
+                                      colorQuantities: {
+                                        ...prev.colorQuantities,
+                                        [color.name]: value
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors text-sm"
+                                  placeholder="Quantity"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+                    
+                    {/* Total Quantity Display */}
+                    {productData.selectedColors.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Total Quantity:</span>
+                          <span className="font-medium text-gray-900">
+                            {Object.values(productData.colorQuantities).reduce((a, b) => a + b, 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -897,7 +883,8 @@ const AddProduct = () => {
                             const value = Math.min(Math.max(0, Number(e.target.value)), 99);
                             setProductData(prev => ({
                               ...prev,
-                              discountPercent: value
+                              discountPercent: value,
+                              discountedPrice: prev.price * (1 - value / 100)
                             }));
                           }}
                           min="0"
@@ -919,12 +906,20 @@ const AddProduct = () => {
                           name="discountEndsAt"
                           value={productData.discountEndsAt || ''}
                           onChange={(e) => {
+                            const selectedDate = new Date(e.target.value);
+                            const now = new Date();
+                            
+                            if (selectedDate <= now) {
+                              toast.error('Please select a future date and time');
+                              return;
+                            }
+                            
                             setProductData(prev => ({
                               ...prev,
                               discountEndsAt: e.target.value
                             }));
                           }}
-                          min={new Date().toISOString().slice(0, 16)}
+                          min={new Date(new Date().getTime() + 60000).toISOString().slice(0, 16)}
                           className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                         />
                       </div>

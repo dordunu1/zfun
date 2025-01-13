@@ -68,6 +68,9 @@ const Checkout = () => {
           
           if (productDoc.exists()) {
             const product = productDoc.data();
+            const isDiscountValid = product.hasDiscount && new Date() < new Date(product.discountEndsAt);
+            const price = isDiscountValid ? product.discountedPrice : product.price;
+            
             items.push({
               id: cartDoc.id,
               ...cartItem,
@@ -77,7 +80,7 @@ const Checkout = () => {
               }
             });
 
-            subtotal += product.price * cartItem.quantity;
+            subtotal += price * cartItem.quantity;
             shippingTotal += (product.shippingFee || 0);
           }
         }
@@ -440,7 +443,14 @@ const Checkout = () => {
       if (currentAllowance < totalAmount) {
         setTransactionStatus('Approving token spending...');
         // Add a small buffer to the approval amount to account for rounding
-        const approvalAmount = totalAmount + ethers.parseUnits('0.01', 6); // Add 0.01 USDT buffer
+        // For discounted prices, we still add the 0.01 buffer to ensure sufficient allowance
+        const approvalBuffer = ethers.parseUnits('0.01', 6); // 0.01 USDT buffer
+        const approvalAmount = totalAmount + approvalBuffer;
+        
+        // Log the amounts for debugging
+        console.log('Total Amount:', ethers.formatUnits(totalAmount, 6));
+        console.log('Approval Amount with buffer:', ethers.formatUnits(approvalAmount, 6));
+        
         const approveTx = await tokenContract.approve(merchPlatform.address, approvalAmount);
         await approveTx.wait();
       }
@@ -477,7 +487,10 @@ const Checkout = () => {
       // Now group items by seller
       cartItems.forEach(item => {
         const sellerId = item.product.sellerId;
-        const itemTotal = (item.product.price * item.quantity) + (item.product.shippingFee || 0);
+        // Check if discount is valid and use discounted price if applicable
+        const isDiscountValid = item.product.hasDiscount && new Date() < new Date(item.product.discountEndsAt);
+        const price = isDiscountValid ? item.product.discountedPrice : item.product.price;
+        const itemTotal = (price * item.quantity) + (item.product.shippingFee || 0);
         sellerOrders[sellerId].amount += itemTotal;
         sellerOrders[sellerId].items.push(item);
       });
@@ -489,7 +502,11 @@ const Checkout = () => {
         setTransactionStatus(`Processing order ${orderCount}/${Object.keys(sellerOrders).length}...`);
         
         // The contract will deduct the platform fee from this amount, so we send the full amount
+        // Add extra buffer to each seller's amount to handle any rounding
         const amount = ethers.parseUnits(orderData.amount.toFixed(6), 6);
+        
+        // Log the order amount for debugging
+        console.log('Seller order amount:', ethers.formatUnits(amount, 6));
         
         const createOrderTx = await merchPlatform.createOrder(
           orderData.seller,
@@ -764,7 +781,18 @@ const Checkout = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</p>
+                      {item.product.hasDiscount && new Date() < new Date(item.product.discountEndsAt) ? (
+                        <>
+                          <p className="text-gray-800">
+                            ${(item.product.discountedPrice * item.quantity).toFixed(2)}
+                            <span className="text-sm text-gray-400 line-through ml-1">
+                              ${(item.product.price * item.quantity).toFixed(2)}
+                            </span>
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</p>
+                      )}
                       {item.product.shippingFee > 0 && (
                         <p className="text-sm text-gray-600">+ ${item.product.shippingFee.toFixed(2)} shipping</p>
                       )}

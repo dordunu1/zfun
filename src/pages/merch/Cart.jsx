@@ -219,9 +219,11 @@ const Cart = () => {
   };
 
   const calculateSubtotal = () => {
-    return cartItems.reduce((total, item) => 
-      total + (item.product.price * item.quantity), 0
-    );
+    return cartItems.reduce((total, item) => {
+      const isDiscountValid = item.product.hasDiscount && new Date() < new Date(item.product.discountEndsAt);
+      const price = isDiscountValid ? item.product.discountedPrice : item.product.price;
+      return total + (price * item.quantity);
+    }, 0);
   };
 
   const calculateFees = () => {
@@ -329,7 +331,16 @@ const Cart = () => {
                       className="w-4 h-4"
                     />
                     <span className="text-[#FF1B6B] font-medium">
-                      ${item.product.price.toFixed(2)}
+                      {item.product.hasDiscount && new Date() < new Date(item.product.discountEndsAt) ? (
+                        <>
+                          ${item.product.discountedPrice.toFixed(2)}
+                          <span className="text-sm text-gray-400 line-through ml-1">
+                            ${item.product.price.toFixed(2)}
+                          </span>
+                        </>
+                      ) : (
+                        `$${item.product.price.toFixed(2)}`
+                      )}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mt-1">

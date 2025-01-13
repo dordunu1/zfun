@@ -156,7 +156,8 @@ const Sales = () => {
     recentOrders: [],
     allOrders: [],
     allTimeRevenue: 0,
-    totalWithdrawn: 0
+    totalWithdrawn: 0,
+    pendingWithdrawals: 0
   });
   const [currentPage, setCurrentPage] = useState(1);
   const ordersPerPage = 50;
@@ -180,8 +181,7 @@ const Sales = () => {
 
       const withdrawalsQuery = query(
         collection(db, 'withdrawals'),
-        where('sellerId', '==', user.sellerId),
-        where('status', '==', 'completed')
+        where('sellerId', '==', user.sellerId)
       );
 
       const [ordersSnapshot, withdrawalsSnapshot] = await Promise.all([
@@ -234,11 +234,16 @@ const Sales = () => {
       const ordersChange = calculatePercentageChange(thisMonthOrders.length, lastMonthOrders.length);
       const customersChange = calculatePercentageChange(thisMonthCustomers, lastMonthCustomers);
 
-      // Calculate total withdrawn amount
-      const totalWithdrawn = withdrawalsSnapshot.docs.reduce((sum, doc) => {
+      // Calculate completed and pending withdrawals
+      const withdrawalsByStatus = withdrawalsSnapshot.docs.reduce((acc, doc) => {
         const withdrawal = doc.data();
-        return sum + (withdrawal.amount || 0);
-      }, 0);
+        if (withdrawal.status === 'completed') {
+          acc.completed += withdrawal.amount || 0;
+        } else if (withdrawal.status === 'pending') {
+          acc.pending += withdrawal.amount || 0;
+        }
+        return acc;
+      }, { completed: 0, pending: 0 });
 
       // Filter out cancelled orders and handle refunds for revenue calculation
       const validOrders = orders.filter(order => order.status !== 'cancelled');
@@ -261,19 +266,23 @@ const Sales = () => {
       // Calculate statistics
       const uniqueCustomers = new Set(validOrders.map(order => order.buyerId)).size;
 
-      // Calculate all time revenue (current revenue + withdrawn amount)
-      const allTimeRevenue = grossRevenue + totalWithdrawn;
+      // Calculate all time revenue (total revenue earned, regardless of withdrawals)
+      const allTimeRevenue = grossRevenue;
+
+      // Net revenue is all time revenue minus completed withdrawals
+      const netRevenue = grossRevenue - withdrawalsByStatus.completed;
 
       setSalesData({
-        totalRevenue: grossRevenue,
+        totalRevenue: netRevenue, // This is now net revenue (after withdrawals)
         grossRevenue: grossRevenue,
         totalRefunds: totalRefunds,
         totalOrders: orders.length,
         totalCustomers: uniqueCustomers,
         recentOrders: orders.slice(0, 5),
         allOrders: orders,
-        allTimeRevenue: allTimeRevenue,
-        totalWithdrawn: totalWithdrawn,
+        allTimeRevenue: allTimeRevenue, // This is the total revenue earned
+        totalWithdrawn: withdrawalsByStatus.completed,
+        pendingWithdrawals: withdrawalsByStatus.pending,
         revenueChange: parseFloat(revenueChange.toFixed(1)),
         ordersChange: parseFloat(ordersChange.toFixed(1)),
         customersChange: parseFloat(customersChange.toFixed(1))
@@ -385,7 +394,42 @@ const Sales = () => {
             title="All Time Revenue"
             value={`$${salesData.allTimeRevenue.toFixed(2)}`}
             icon={BiDollarCircle}
-            subtitle={`Withdrawn: $${salesData.totalWithdrawn.toFixed(2)}`}
+            subtitle={
+              <span className="relative group">
+                <span className="flex items-center gap-1">
+                  <span>Withdrawn: ${salesData.totalWithdrawn.toFixed(2)}</span>
+                  {salesData.pendingWithdrawals > 0 && (
+                    <span className="text-yellow-600">
+                      (-${salesData.pendingWithdrawals.toFixed(2)} pending)
+                    </span>
+                  )}
+                  <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </span>
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-0 mb-2 p-3 bg-white rounded-lg shadow-lg text-xs w-48 z-10">
+                  <span className="block space-y-2">
+                    <span className="flex justify-between items-center border-b pb-2">
+                      <span className="font-medium">Withdrawals</span>
+                    </span>
+                    <span className="block space-y-1">
+                      <span className="flex justify-between">
+                        <span>Completed:</span>
+                        <span>${salesData.totalWithdrawn.toFixed(2)}</span>
+                      </span>
+                      <span className="flex justify-between text-yellow-600">
+                        <span>Pending:</span>
+                        <span>-${salesData.pendingWithdrawals.toFixed(2)}</span>
+                      </span>
+                      <span className="flex justify-between font-medium text-gray-900 border-t pt-1 mt-1">
+                        <span>Total:</span>
+                        <span>${(salesData.totalWithdrawn - salesData.pendingWithdrawals).toFixed(2)}</span>
+                      </span>
+                    </span>
+                  </span>
+                </span>
+              </span>
+            }
           />
           <StatCard
             title="Net Revenue"

@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast';
 import ProductReviews from '../../components/reviews/ProductReviews';
 import ReactCountryFlag from 'react-country-flag';
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
+import CountdownTimer from '../../components/shared/CountdownTimer';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -173,7 +174,9 @@ const ProductDetails = () => {
 
   useEffect(() => {
     if (product) {
-      const subtotal = product.price * quantity;
+      const isDiscountValid = product.hasDiscount && new Date() < new Date(product.discountEndsAt);
+      const currentPrice = isDiscountValid ? product.discountedPrice : product.price;
+      const subtotal = currentPrice * quantity;
       const shippingFee = product.shippingFee || 0;
       const total = subtotal + shippingFee;
       setTotalPrice(total);
@@ -226,7 +229,16 @@ const ProductDetails = () => {
   };
 
   const handleQuantityChange = (value) => {
-    const newQuantity = Math.max(1, Math.min(product.quantity, quantity + value));
+    if (!selectedColor && product.hasVariants) {
+      toast.error('Please select a color first');
+      return;
+    }
+
+    const maxQuantity = product.hasVariants
+      ? product.colorQuantities[selectedColor]
+      : product.quantity;
+
+    const newQuantity = Math.max(1, Math.min(maxQuantity, quantity + value));
     setQuantity(newQuantity);
   };
 
@@ -256,7 +268,12 @@ const ProductDetails = () => {
         return;
       }
 
-      const currentStock = productDoc.data().quantity;
+      const productData = productDoc.data();
+      const currentColorStock = product.hasVariants ? 
+        (productData.colorQuantities?.[selectedColor] || 0) : 
+        productData.quantity;
+
+      // Check existing cart items for the same color
       const cartQuery = query(
         collection(db, 'cart'),
         where('userId', '==', user.uid),
@@ -268,8 +285,8 @@ const ProductDetails = () => {
       const existingCartItem = cartSnapshot.docs[0]?.data();
       const totalRequestedQuantity = (existingCartItem?.quantity || 0) + quantity;
 
-      if (totalRequestedQuantity > currentStock) {
-        toast.error(`Sorry, only ${currentStock} items available in stock`);
+      if (totalRequestedQuantity > currentColorStock) {
+        toast.error(`Sorry, only ${currentColorStock} items available in ${selectedColor || 'stock'}`);
         return;
       }
 
@@ -285,16 +302,7 @@ const ProductDetails = () => {
       );
       const querySnapshot = await getDocs(q);
 
-      if (!querySnapshot.empty) {
-        // Update existing cart item
-        const cartDoc = querySnapshot.docs[0];
-        const currentQuantity = cartDoc.data().quantity;
-        await updateDoc(doc(db, 'cart', cartDoc.id), {
-          quantity: currentQuantity + quantity
-        });
-        toast.dismiss(loadingToast);
-        toast.success(`Updated quantity in cart (+${quantity})`);
-      } else {
+      if (querySnapshot.empty) {
         // Add new cart item
         await addDoc(cartRef, {
           userId: user.uid,
@@ -302,10 +310,33 @@ const ProductDetails = () => {
           quantity: quantity,
           size: selectedSize || null,
           color: selectedColor || null,
-          addedAt: serverTimestamp()
+          addedAt: serverTimestamp(),
+          price: product.hasDiscount && new Date() < new Date(product.discountEndsAt) 
+            ? product.discountedPrice 
+            : product.price,
+          isDiscounted: product.hasDiscount && new Date() < new Date(product.discountEndsAt),
+          originalPrice: product.price,
+          discountedPrice: product.discountedPrice,
+          discountEndsAt: product.discountEndsAt
         });
         toast.dismiss(loadingToast);
         toast.success(`Added ${quantity} item${quantity > 1 ? 's' : ''} to cart`);
+      } else {
+        // Update existing cart item
+        const cartDoc = querySnapshot.docs[0];
+        const currentQuantity = cartDoc.data().quantity;
+        await updateDoc(doc(db, 'cart', cartDoc.id), {
+          quantity: currentQuantity + quantity,
+          price: product.hasDiscount && new Date() < new Date(product.discountEndsAt) 
+            ? product.discountedPrice 
+            : product.price,
+          isDiscounted: product.hasDiscount && new Date() < new Date(product.discountEndsAt),
+          originalPrice: product.price,
+          discountedPrice: product.discountedPrice,
+          discountEndsAt: product.discountEndsAt
+        });
+        toast.dismiss(loadingToast);
+        toast.success(`Updated quantity in cart (+${quantity})`);
       }
 
       // Update cart count
@@ -342,9 +373,13 @@ const ProductDetails = () => {
         return;
       }
 
-      const currentStock = productDoc.data().quantity;
-      if (quantity > currentStock) {
-        toast.error(`Sorry, only ${currentStock} items available in stock`);
+      const productData = productDoc.data();
+      const currentColorStock = product.hasVariants ? 
+        (productData.colorQuantities?.[selectedColor] || 0) : 
+        productData.quantity;
+
+      if (quantity > currentColorStock) {
+        toast.error(`Sorry, only ${currentColorStock} items available in ${selectedColor || 'stock'}`);
         return;
       }
 
@@ -364,7 +399,14 @@ const ProductDetails = () => {
         quantity: quantity,
         size: selectedSize || null,
         color: selectedColor || null,
-        addedAt: serverTimestamp()
+        addedAt: serverTimestamp(),
+        price: product.hasDiscount && new Date() < new Date(product.discountEndsAt) 
+          ? product.discountedPrice 
+          : product.price,
+        isDiscounted: product.hasDiscount && new Date() < new Date(product.discountEndsAt),
+        originalPrice: product.price,
+        discountedPrice: product.discountedPrice,
+        discountEndsAt: product.discountEndsAt
       });
 
       // Update cart count
@@ -373,6 +415,9 @@ const ProductDetails = () => {
       toast.dismiss(loadingToast);
       // Navigate to checkout
       navigate('/merch-store/checkout');
+
+      // Update product quantities after purchase
+      await updateProductQuantities(id, selectedColor, quantity);
     } catch (error) {
       console.error('Error processing buy now:', error);
       toast.error('Failed to process. Please try again.');
@@ -561,6 +606,43 @@ const ProductDetails = () => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
+  // Add this function to update product quantities after purchase
+  const updateProductQuantities = async (productId, color, quantity) => {
+    const productRef = doc(db, 'products', productId);
+    const productDoc = await getDoc(productRef);
+    
+    if (!productDoc.exists()) {
+      throw new Error('Product not found');
+    }
+
+    const productData = productDoc.data();
+    
+    if (productData.hasVariants && color) {
+      // Update color-specific quantity
+      const currentColorQuantity = productData.colorQuantities[color] || 0;
+      const newColorQuantity = Math.max(0, currentColorQuantity - quantity);
+      
+      const newColorQuantities = {
+        ...productData.colorQuantities,
+        [color]: newColorQuantity
+      };
+
+      // Update total quantity as sum of all color quantities
+      const newTotalQuantity = Object.values(newColorQuantities).reduce((a, b) => a + b, 0);
+
+      await updateDoc(productRef, {
+        colorQuantities: newColorQuantities,
+        quantity: newTotalQuantity
+      });
+    } else {
+      // Update regular quantity
+      const newQuantity = Math.max(0, productData.quantity - quantity);
+      await updateDoc(productRef, {
+        quantity: newQuantity
+      });
+    }
+  };
+
   if (loading) {
     return <ProductDetailsSkeleton />;
   }
@@ -594,12 +676,31 @@ const ProductDetails = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Image Gallery */}
           <motion.div variants={itemVariants} className="space-y-4">
-            <div className="aspect-square rounded-lg overflow-hidden bg-white">
+            <div className="aspect-square rounded-lg overflow-hidden relative">
               <img
                 src={product.images[selectedImage]}
                 alt={product.name}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
               />
+              {/* Discount Tag */}
+              {product.hasDiscount && new Date() < new Date(product.discountEndsAt) && (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="absolute bottom-0 left-0 right-0 bg-[#FF1B6B] text-white px-4 py-2.5 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                    <span className="font-bold">{product.discountPercent}% OFF</span>
+                  </div>
+                  <div className="text-sm flex items-center gap-2">
+                    <span>·</span>
+                    <span>Ends in <CountdownTimer endsAt={product.discountEndsAt} /></span>
+                  </div>
+                </motion.div>
+              )}
             </div>
             <div className="grid grid-cols-4 gap-2">
               {product.images.map((image, index) => (
@@ -614,7 +715,7 @@ const ProductDetails = () => {
                 >
                   <img
                     src={image}
-                    alt={`${product.name} - Image ${index + 1}`}
+                    alt={`${product.name} ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
                 </button>
@@ -662,9 +763,27 @@ const ProductDetails = () => {
                   alt={product.acceptedToken}
                   className="w-6 h-6"
                 />
-                <span className="text-2xl font-bold text-[#FF1B6B]">
-                  ${product.price.toFixed(2)}
-                </span>
+                <div className="flex flex-col">
+                  {product.hasDiscount && new Date() < new Date(product.discountEndsAt) ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-[#FF1B6B]">
+                          {product.acceptedToken} {product.discountedPrice.toFixed(2)}
+                        </span>
+                        <span className="text-lg line-through text-gray-400">
+                          {product.acceptedToken} {product.price.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-[#FF1B6B]">
+                        Save {product.acceptedToken} {(product.price - product.discountedPrice).toFixed(2)}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold text-[#FF1B6B]">
+                      {product.acceptedToken} {product.price.toFixed(2)}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className={`px-4 py-2 rounded-lg font-medium ${
                 product.quantity > 10 
@@ -681,61 +800,65 @@ const ProductDetails = () => {
               </div>
             </div>
 
-            {/* Size and Color Selection for Clothing */}
-            {product.category === 'clothing' && product.hasVariants && (
+            {/* Color Selection */}
+            {product.hasVariants && (
               <div className="space-y-4">
                 {/* Size Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Size
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setSelectedSize(size)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          selectedSize === size
-                            ? 'bg-[#FF1B6B] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                {product.sizes.length > 0 && (
+                  <div>
+                    <span className="text-gray-600 block mb-3">Select Size</span>
+                    <div className="flex flex-wrap gap-2">
+                      {product.sizes.map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => setSelectedSize(size)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                            selectedSize === size
+                              ? 'bg-[#FF1B6B] text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Color Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Color
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {product.colors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setSelectedColor(color)}
-                        className={`group relative inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          selectedColor === color
-                            ? 'bg-[#FF1B6B] text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className="w-4 h-4 rounded-full mr-2 border border-gray-300"
-                          style={{ 
-                            backgroundColor: color.toLowerCase(),
-                            borderColor: color.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent'
-                          }}
-                        />
-                        {color}
-                      </button>
-                    ))}
+                {product.colors.length > 0 && (
+                  <div>
+                    <span className="text-gray-600 block mb-3">Select Color</span>
+                    <div className="flex flex-wrap gap-2">
+                      {product.colors.map((color) => {
+                        const isAvailable = product.colorQuantities[color] > 0;
+                        return (
+                          <button
+                            key={color}
+                            onClick={() => setSelectedColor(color)}
+                            disabled={!isAvailable}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                              selectedColor === color
+                                ? 'bg-[#FF1B6B] text-white'
+                                : isAvailable
+                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <span
+                              className="w-4 h-4 rounded-full border border-gray-300"
+                              style={{ backgroundColor: color.toLowerCase() }}
+                            />
+                            <span>{color}</span>
+                            <span className="text-xs">
+                              ({product.colorQuantities[color] || 0})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -766,15 +889,26 @@ const ProductDetails = () => {
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">${(product.price * quantity).toFixed(2)}</span>
+                  <div className="text-right">
+                    {product.hasDiscount && new Date() < new Date(product.discountEndsAt) ? (
+                      <>
+                        <span className="font-medium">{product.acceptedToken} {(product.discountedPrice * quantity).toFixed(2)}</span>
+                        <div className="text-xs text-gray-400 line-through">
+                          {product.acceptedToken} {(product.price * quantity).toFixed(2)}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="font-medium">{product.acceptedToken} {(product.price * quantity).toFixed(2)}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping Fee:</span>
-                  <span className="font-medium">${(product.shippingFee || 0).toFixed(2)}</span>
+                  <span className="font-medium">{product.acceptedToken} {(product.shippingFee || 0).toFixed(2)}</span>
                 </div>
                 <div className="border-t pt-2 flex justify-between font-medium">
                   <span>Total:</span>
-                  <span className="text-[#FF1B6B]">${totalPrice.toFixed(2)}</span>
+                  <span className="text-[#FF1B6B]">{product.acceptedToken} {totalPrice.toFixed(2)}</span>
                 </div>
               </div>
 

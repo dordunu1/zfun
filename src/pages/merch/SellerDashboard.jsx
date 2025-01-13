@@ -311,10 +311,10 @@ const SellerDashboard = () => {
           // Calculate total withdrawn amount for each token from completed withdrawals
           const totalWithdrawn = {
             USDC: withdrawalHistory
-              .filter(w => w.status === 'approved' && w.token === 'USDC')
+              .filter(w => w.status === 'completed' && w.token === 'USDC')
               .reduce((sum, w) => sum + (w.amount || 0), 0),
             USDT: withdrawalHistory
-              .filter(w => w.status === 'approved' && w.token === 'USDT')
+              .filter(w => w.status === 'completed' && w.token === 'USDT')
               .reduce((sum, w) => sum + (w.amount || 0), 0)
           };
 
@@ -1017,41 +1017,56 @@ const SellerDashboard = () => {
           <h2 className="text-xl font-semibold text-gray-800 mb-6">Withdrawal History</h2>
           
           {withdrawals.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="w-full">
+              <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[300px]">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {withdrawals.map((withdrawal) => (
                     <tr key={withdrawal.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900">
                         {withdrawal.timestamp ? new Date(withdrawal.timestamp).toLocaleString() : 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900">
                         {withdrawal.amount} {withdrawal.token || stats.preferredToken}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4">
                         {withdrawal.status === 'pending' ? (
                           <div className="space-y-2">
                             <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
                               Processing
                             </span>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="w-full bg-gray-200 rounded-full h-2 relative group"
+                            >
                               <div 
                                 className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
                                 style={{ 
-                                  width: `${Math.min(100, (Date.now() - withdrawal.timestamp) / (3 * 24 * 60 * 60 * 1000) * 100)}%` 
+                                  width: `${Math.min(100, (Date.now() - withdrawal.timestamp) / (14 * 24 * 60 * 60 * 1000) * 100)}%` 
                                 }}
                               />
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg text-gray-700 text-xs rounded-2xl py-3 px-4 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-[250px] z-10">
+                                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rotate-45 bg-white border-b border-r border-gray-200"></div>
+                                <div className="flex items-start gap-2">
+                                  <svg className="w-4 h-4 text-[#FF1B6B] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <p className="text-xs leading-normal">
+                                    As per the terms & conditions, withdrawals are processed after a 14-day holding period to ensure all orders are successfully delivered and no disputes are pending.
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                             <div className="text-xs text-gray-500">
-                              {Math.max(0, 72 - Math.floor((Date.now() - withdrawal.timestamp) / (60 * 60 * 1000)))} hours remaining
+                              <CountdownTimer 
+                                targetDate={new Date(withdrawal.timestamp.getTime() + (14 * 24 * 60 * 60 * 1000))}
+                              />
                             </div>
                           </div>
                         ) : (
@@ -1064,7 +1079,7 @@ const SellerDashboard = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900">
                         {withdrawal.transactionHash ? (
                           <a 
                             href={`${withdrawal.network === 'unichain' 

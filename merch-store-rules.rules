@@ -99,8 +99,8 @@ service cloud.firestore {
       allow write: if isSeller(request.resource.data.sellerId) || isAdmin();
       allow update: if isAuthenticated() && 
         (isSeller(resource.data.sellerId) || isAdmin() ||
-        // Allow quantity updates during order placement
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity']) &&
+        // Allow quantity and discount updates during order placement
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'colorQuantities', 'hasDiscount', 'discountPercent', 'discountedPrice', 'discountEndsAt']) &&
          request.resource.data.quantity <= resource.data.quantity));
     }
 
@@ -120,16 +120,36 @@ service cloud.firestore {
     // Cart Collection
     match /cart/{cartId} {
       allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.userId &&
+        request.resource.data.keys().hasAll([
+          'userId', 'productId', 'quantity', 'addedAt', 'price'
+        ]) &&
+        request.resource.data.price is number &&
+        request.resource.data.quantity is number;
+      allow update: if isAuthenticated() && 
+        request.auth.uid == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'quantity', 'price', 'isDiscounted', 'originalPrice', 'discountedPrice', 'discountEndsAt'
+        ]);
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
     }
 
     // Checkout Collection
     match /checkout/{checkoutId} {
       allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.userId &&
+        request.resource.data.keys().hasAll([
+          'userId', 'items', 'total', 'status'
+        ]) &&
+        request.resource.data.items is list &&
+        request.resource.data.total is number;
+      allow update: if isAuthenticated() && 
+        request.auth.uid == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'status', 'items', 'total', 'discountedTotal', 'originalTotal'
+        ]);
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
     }
 

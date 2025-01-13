@@ -211,7 +211,7 @@ export default function AdminDashboard() {
       
       const withdrawalsQuery = query(
         collection(db, 'withdrawals'),
-        where('status', 'in', ['pending', 'approved'])
+        where('status', 'in', ['completed', 'pending'])
       );
       const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
       
@@ -277,22 +277,25 @@ export default function AdminDashboard() {
         .filter(doc => doc.data().status === 'approved' && doc.data().type === 'platform_fee')
         .reduce((sum, doc) => sum + doc.data().amount, 0);
 
-      // Calculate current sales (total sales from active orders)
-      const currentSales = activeOrders
-        .filter(order => 
-          order.status === 'shipped' || 
-          order.status === 'processing' || 
-          order.status === 'completed' ||
-          order.status === 'delivered'
-        )
-        .reduce((sum, order) => sum + (Number(order.total) || 0), 0);
-
-      // Calculate total withdrawn amount (for sellers)
-      const totalWithdrawn = withdrawalsSnapshot.docs
-        .filter(doc => doc.data().status === 'approved' && doc.data().type !== 'platform_fee')
-        .reduce((sum, doc) => sum + doc.data().amount, 0);
-      
-      const uniqueCustomers = new Set([...activeOrders, ...refundedOrders].map(order => order.buyerId)).size;
+      // Create a map of seller withdrawals
+      const sellerWithdrawals = {};
+      withdrawalsSnapshot.docs.forEach(doc => {
+        const withdrawal = doc.data();
+        const sellerId = withdrawal.sellerId;
+        
+        if (!sellerWithdrawals[sellerId]) {
+          sellerWithdrawals[sellerId] = {
+            completed: 0,
+            pending: 0
+          };
+        }
+        
+        if (withdrawal.status === 'completed') {
+          sellerWithdrawals[sellerId].completed += withdrawal.amount || 0;
+        } else if (withdrawal.status === 'pending') {
+          sellerWithdrawals[sellerId].pending += withdrawal.amount || 0;
+        }
+      });
 
       // Calculate seller statistics from active orders
       const sellerStats = {};
@@ -306,6 +309,7 @@ export default function AdminDashboard() {
             name: sellerName,
             flag: sellersMap[sellerId]?.flag || null,
             totalSales: 0,
+            netRevenue: 0,
             ordersCount: 0
           };
         }
@@ -313,15 +317,25 @@ export default function AdminDashboard() {
         sellerStats[sellerId].ordersCount += 1;
       });
 
-      // Sort sellers by total sales and get top 5
+      // Calculate net revenue for each seller
+      Object.keys(sellerStats).forEach(sellerId => {
+        const withdrawals = sellerWithdrawals[sellerId] || { completed: 0, pending: 0 };
+        sellerStats[sellerId].netRevenue = sellerStats[sellerId].totalSales - withdrawals.completed;
+      });
+
+      // Calculate current sales (sum of all sellers' available balances)
+      const currentSales = Object.values(sellerStats)
+        .reduce((sum, seller) => sum + Math.max(0, seller.netRevenue), 0);
+
+      // Sort sellers by net revenue and get top 5
       const topSellers = Object.values(sellerStats)
-        .sort((a, b) => b.totalSales - a.totalSales)
+        .sort((a, b) => b.netRevenue - a.netRevenue)
         .slice(0, 5)
         .map(seller => ({
           id: seller.id,
           name: seller.name,
           flag: seller.flag,
-          total: seller.totalSales,
+          total: seller.netRevenue,
           orders: seller.ordersCount
         }));
 
@@ -342,14 +356,14 @@ export default function AdminDashboard() {
 
       setStats({
         totalSales,
-        currentSales: Math.max(0, currentSales),
+        currentSales,
         totalRefunds,
         activeSellers: sellersSnapshot.size,
         pendingWithdrawals: withdrawalsSnapshot.docs.filter(doc => doc.data().status === 'pending').length,
         platformBalance: currentPlatformFees,
         totalOrders: processedOrders.length,
         totalProducts,
-        totalCustomers: uniqueCustomers,
+        totalCustomers: new Set([...activeOrders, ...refundedOrders].map(order => order.buyerId)).size,
         platformFee: currentPlatformFees,
         totalPlatformFees,
         withdrawnFees,

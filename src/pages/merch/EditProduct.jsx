@@ -19,44 +19,22 @@ const styles = `
     color: #1F2937 !important;
   }
 
-  /* Style the calendar popup */
-  ::-webkit-calendar-picker-indicator {
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     filter: none !important;
     color: #1F2937 !important;
     opacity: 0.7;
   }
 
-  /* Style the selected date */
-  input[type="datetime-local"]::-webkit-datetime-selected {
-    background-color: #FF1B6B !important;
-    color: white !important;
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
   }
 
-  /* Style the current date */
-  input[type="datetime-local"]::-webkit-datetime-today {
-    color: #FF1B6B !important;
+  input[type="datetime-local"]::-webkit-datetime-edit {
+    color: #1F2937 !important;
   }
 
-  /* Style the calendar grid */
-  input[type="datetime-local"]::-webkit-calendar-grid {
-    background-color: white !important;
-  }
-
-  /* Style the selected cells */
-  input[type="datetime-local"]::-webkit-calendar-cell-selected {
-    background-color: #FF1B6B !important;
-    color: white !important;
-  }
-
-  /* Style the hover state */
-  input[type="datetime-local"]::-webkit-calendar-cell:hover {
-    background-color: rgba(255, 27, 107, 0.1) !important;
-  }
-
-  /* Style the focused state */
-  input[type="datetime-local"]:focus {
-    border-color: #FF1B6B !important;
-    box-shadow: 0 0 0 1px #FF1B6B !important;
+  input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+    color: #1F2937 !important;
   }
 
   /* Style the checkbox */
@@ -72,25 +50,6 @@ const styles = `
 
   input[type="checkbox"]:focus {
     box-shadow: 0 0 0 2px rgba(255, 27, 107, 0.3) !important;
-  }
-
-  /* Override any blue highlights */
-  ::selection {
-    background-color: rgba(255, 27, 107, 0.2) !important;
-  }
-
-  /* Style the time picker */
-  input[type="datetime-local"]::-webkit-time-picker {
-    background-color: white !important;
-  }
-
-  input[type="datetime-local"]::-webkit-time-picker-selected {
-    background-color: #FF1B6B !important;
-    color: white !important;
-  }
-
-  input[type="datetime-local"]::-webkit-time-picker-indicator:hover {
-    background-color: rgba(255, 27, 107, 0.1) !important;
   }
 `;
 
@@ -154,6 +113,7 @@ const EditProduct = () => {
     hasVariants: false,
     sizes: [],
     colors: [],
+    colorQuantities: {},
     hasDiscount: false,
     discountPercent: 0
   });
@@ -242,7 +202,8 @@ const EditProduct = () => {
           ...data,
           hasVariants: data.hasVariants || false,
           sizes: data.sizes || [],
-          colors: data.colors || []
+          colors: data.colors || [],
+          colorQuantities: data.colorQuantities || {}
         };
 
         setProduct(productData);
@@ -352,16 +313,29 @@ const EditProduct = () => {
             toast.error('Please select at least one color');
             return;
           }
+          // Validate color quantities
+          if (product.colors.some(color => !product.colorQuantities[color])) {
+            toast.error('Please specify quantities for all selected colors');
+            return;
+          }
         }
       }
 
       const productRef = doc(db, 'products', id);
       
+      // Format the discountEndsAt date properly
+      let discountEndsAt = null;
+      if (product.hasDiscount && product.discountEndsAt) {
+        discountEndsAt = new Date(product.discountEndsAt).toISOString();
+      }
+      
       const updateData = {
         name: product.name,
         description: product.description,
         price: Number(product.price),
-        quantity: Number(product.quantity),
+        quantity: product.hasVariants 
+          ? Object.values(product.colorQuantities).reduce((a, b) => a + b, 0)
+          : Number(product.quantity),
         category: product.category,
         subCategory: product.subCategory,
         network: product.network,
@@ -373,12 +347,14 @@ const EditProduct = () => {
         hasVariants: Boolean(product.hasVariants),
         sizes: product.hasVariants ? product.sizes : [],
         colors: product.hasVariants ? product.colors : [],
+        colorQuantities: product.hasVariants ? product.colorQuantities : {},
         hasDiscount: product.hasDiscount,
         discountPercent: product.hasDiscount ? Number(product.discountPercent) : 0,
+        discountEndsAt: discountEndsAt,
         discountedPrice: product.hasDiscount ? 
           Number(product.price) * (1 - Number(product.discountPercent) / 100) : 
           Number(product.price),
-        updatedAt: new Date()
+        updatedAt: new Date().toISOString()
       };
 
       await updateDoc(productRef, updateData);
@@ -650,7 +626,8 @@ const EditProduct = () => {
                             const value = Math.min(Math.max(0, Number(e.target.value)), 99);
                             setProduct(prev => ({
                               ...prev,
-                              discountPercent: value
+                              discountPercent: value,
+                              discountedPrice: prev.price * (1 - value / 100)
                             }));
                           }}
                           min="0"
@@ -672,12 +649,20 @@ const EditProduct = () => {
                           name="discountEndsAt"
                           value={product.discountEndsAt || ''}
                           onChange={(e) => {
+                            const selectedDate = new Date(e.target.value);
+                            const now = new Date();
+                            
+                            if (selectedDate <= now) {
+                              toast.error('Please select a future date and time');
+                              return;
+                            }
+                            
                             setProduct(prev => ({
                               ...prev,
                               discountEndsAt: e.target.value
                             }));
                           }}
-                          min={new Date().toISOString().slice(0, 16)}
+                          min={new Date(new Date().getTime() + 60000).toISOString().slice(0, 16)}
                           className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
                         />
                       </div>
@@ -789,12 +774,12 @@ const EditProduct = () => {
                     </div>
                   </div>
 
-                  {/* Color Options */}
+                  {/* Color Selection and Quantities */}
                   <div className="bg-white rounded-lg p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Available Colors
+                      Available Colors & Quantities
                     </label>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-4">
                       {[
                         { name: 'Black', code: '#000000' },
                         { name: 'White', code: '#FFFFFF' },
@@ -806,32 +791,79 @@ const EditProduct = () => {
                         { name: 'Purple', code: '#800080' },
                         { name: 'Pink', code: '#FFC0CB' },
                         { name: 'Brown', code: '#A52A2A' }
-                      ].map((color) => (
-                        <button
-                          key={color.name}
-                          type="button"
-                          onClick={() => {
-                            setProduct(prev => ({
-                              ...prev,
-                              colors: prev.colors.includes(color.name)
-                                ? prev.colors.filter(c => c !== color.name)
-                                : [...prev.colors, color.name]
-                            }));
-                          }}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                            product.colors.includes(color.name)
-                              ? 'bg-[#FF1B6B] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          <span
-                            className="h-4 w-4 rounded-full border border-gray-300 shadow-inner"
-                            style={{ backgroundColor: color.code }}
-                          />
-                          <span>{color.name}</span>
-                        </button>
-                      ))}
+                      ].map((color) => {
+                        const isSelected = product.colors.includes(color.name);
+                        return (
+                          <div key={color.name} className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newColors = product.colors.includes(color.name)
+                                  ? product.colors.filter(c => c !== color.name)
+                                  : [...product.colors, color.name];
+                                
+                                // Update colorQuantities when removing a color
+                                const newColorQuantities = { ...product.colorQuantities };
+                                if (!newColors.includes(color.name)) {
+                                  delete newColorQuantities[color.name];
+                                }
+                                
+                                setProduct(prev => ({
+                                  ...prev,
+                                  colors: newColors,
+                                  colorQuantities: newColorQuantities
+                                }));
+                              }}
+                              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                isSelected
+                                  ? 'bg-[#FF1B6B] text-white'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              <span
+                                className="h-4 w-4 rounded-full border border-gray-300 shadow-inner"
+                                style={{ backgroundColor: color.code }}
+                              />
+                              <span>{color.name}</span>
+                            </button>
+                            
+                            {isSelected && (
+                              <div className="flex-1 max-w-[150px]">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={product.colorQuantities[color.name] || ''}
+                                  onChange={(e) => {
+                                    const value = Math.max(0, parseInt(e.target.value) || 0);
+                                    setProduct(prev => ({
+                                      ...prev,
+                                      colorQuantities: {
+                                        ...prev.colorQuantities,
+                                        [color.name]: value
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors text-sm"
+                                  placeholder="Quantity"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+                    
+                    {/* Total Quantity Display */}
+                    {product.colors.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Total Quantity:</span>
+                          <span className="font-medium text-gray-900">
+                            {Object.values(product.colorQuantities).reduce((a, b) => a + b, 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
