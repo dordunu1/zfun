@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { BiArrowBack, BiCart, BiStar, BiStore, BiPlus, BiMinus, BiWallet } from 'react-icons/bi';
+import { BiArrowBack, BiCart, BiStar, BiStore, BiPlus, BiMinus, BiWallet, BiMessageDetail } from 'react-icons/bi';
 import { FiCopy } from 'react-icons/fi';
 import { doc, getDoc, collection, query, where, getDocs, limit, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
@@ -140,24 +140,29 @@ const ProductDetails = () => {
   const [copiedAddress, setCopiedAddress] = useState(false);
 
   useEffect(() => {
+    if (!id) return;
+
     const fetchProduct = async () => {
+      setLoading(true);
       try {
         const productDoc = await getDoc(doc(db, 'products', id));
         if (productDoc.exists()) {
-          const productData = productDoc.data();
-          setProduct({ id: productDoc.id, ...productData });
+          const productData = { id: productDoc.id, ...productDoc.data() };
+          setProduct(productData);
           
           // Fetch seller details including shipping fee
-          const sellerDoc = await getDoc(doc(db, 'sellers', productData.sellerId));
-          if (sellerDoc.exists()) {
-            setSeller({ id: sellerDoc.id, ...sellerDoc.data() });
+          if (productData.sellerId) {
+            const sellerDoc = await getDoc(doc(db, 'sellers', productData.sellerId));
+            if (sellerDoc.exists()) {
+              setSeller({ id: sellerDoc.id, ...sellerDoc.data() });
+            }
           }
           
           fetchSimilarProducts();
         }
       } catch (error) {
         console.error('Error fetching product:', error);
-        toast.error('Failed to load product');
+        toast.error('Failed to load product details');
       } finally {
         setLoading(false);
       }
@@ -374,6 +379,107 @@ const ProductDetails = () => {
     }
   };
 
+  const handleContactStore = async () => {
+    if (!user) {
+      toast.error('Please log in to contact the store');
+      return;
+    }
+
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading('Starting conversation...');
+
+      // Check if conversation already exists with this seller
+      const q = query(
+        collection(db, 'conversations'),
+        where('participants', 'array-contains', user.uid),
+        where('sellerId', '==', product.sellerId)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      let conversationId;
+      
+      if (!querySnapshot.empty) {
+        // Use existing conversation
+        conversationId = querySnapshot.docs[0].id;
+        
+        // Add new product card message
+        await addDoc(collection(db, 'messages'), {
+          conversationId,
+          senderId: user.uid,
+          text: "Hi, I'm interested in this product:",
+          timestamp: serverTimestamp(),
+          productCard: {
+            productId: product.id,
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            image: product.images[0]
+          }
+        });
+
+        // Update conversation
+        await updateDoc(doc(db, 'conversations', conversationId), {
+          lastMessage: "Hi, I'm interested in this product:",
+          lastMessageTime: serverTimestamp(),
+          [`unreadCount.${product.sellerId}`]: (querySnapshot.docs[0].data().unreadCount?.[product.sellerId] || 0) + 1,
+          updatedAt: serverTimestamp()
+        });
+
+      } else {
+        // Create new conversation
+        const conversationRef = await addDoc(collection(db, 'conversations'), {
+          participants: [user.uid, product.sellerId],
+          buyerId: user.uid,
+          sellerId: product.sellerId,
+          buyerName: user.displayName || 'Token Factory Shopper',
+          sellerName: product.sellerName,
+          isVerifiedSeller: seller?.verificationStatus === 'approved',
+          unreadCount: {
+            [product.sellerId]: 1,
+            [user.uid]: 0
+          },
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        
+        conversationId = conversationRef.id;
+
+        // Add initial message with product card
+        await addDoc(collection(db, 'messages'), {
+          conversationId: conversationRef.id,
+          senderId: user.uid,
+          text: "Hi, I'm interested in this product:",
+          timestamp: serverTimestamp(),
+          productCard: {
+            productId: product.id,
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            image: product.images[0]
+          }
+        });
+
+        // Update conversation with last message
+        await updateDoc(conversationRef, {
+          lastMessage: "Hi, I'm interested in this product:",
+          lastMessageTime: serverTimestamp()
+        });
+      }
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success('Message sent successfully!');
+
+      // Navigate to conversation
+      navigate(`/merch-store/inbox/${conversationId}`);
+      
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      toast.error('Failed to start conversation');
+    }
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -457,6 +563,14 @@ const ProductDetails = () => {
 
   if (loading) {
     return <ProductDetailsSkeleton />;
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Product not found</div>
+      </div>
+    );
   }
 
   return (
@@ -681,6 +795,15 @@ const ProductDetails = () => {
                   Buy Now
                 </button>
               </div>
+
+              {/* Contact Store Button */}
+              <button
+                onClick={handleContactStore}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-white border-2 border-[#FF1B6B] text-[#FF1B6B] rounded-lg hover:bg-pink-50 transition-colors mt-2"
+              >
+                <BiMessageDetail className="text-xl" />
+                Contact Store
+              </button>
             </div>
 
             {/* Additional Info */}

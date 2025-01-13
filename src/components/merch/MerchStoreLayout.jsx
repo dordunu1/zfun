@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX, BiRefresh, BiShield } from 'react-icons/bi';
+import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX, BiRefresh, BiShield, BiMessageDetail } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast, Toaster } from 'react-hot-toast';
-import { getDoc, doc } from 'firebase/firestore';
+import { getDoc, doc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 
@@ -14,6 +14,7 @@ const MerchStoreLayout = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [seller, setSeller] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     if (user?.sellerId) {
@@ -29,6 +30,27 @@ const MerchStoreLayout = () => {
       };
       fetchSeller();
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen to conversations for unread messages
+    const q = query(
+      collection(db, 'conversations'),
+      where('participants', 'array-contains', user.isSeller ? user.sellerId : user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const totalUnread = snapshot.docs.reduce((total, doc) => {
+        const data = doc.data();
+        const userId = user.isSeller ? user.sellerId : user.uid;
+        return total + (data.unreadCount?.[userId] || 0);
+      }, 0);
+      setUnreadMessages(totalUnread);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   const handleLogout = async () => {
@@ -49,6 +71,7 @@ const MerchStoreLayout = () => {
     { to: '/merch-store/cart', icon: BiCart, label: 'Cart', count: cartCount },
     { to: '/merch-store/orders', icon: BiPackage, label: 'My Orders' },
     { to: '/merch-store/my-refunds', icon: BiRefresh, label: 'My Refunds' },
+    { to: '/merch-store/inbox', icon: BiMessageDetail, label: 'Inbox', count: unreadMessages },
     { to: '/merch-store/settings', icon: BiCog, label: 'Settings' },
   ];
 
@@ -59,6 +82,7 @@ const MerchStoreLayout = () => {
     { to: '/merch-store/sales', icon: BiDollarCircle, label: 'Sales' },
     { to: '/merch-store/orders-received', icon: BiHistory, label: 'Orders' },
     { to: '/merch-store/refunds', icon: BiRefresh, label: 'Buyers Refunds' },
+    { to: '/merch-store/seller/inbox', icon: BiMessageDetail, label: 'Inbox', count: unreadMessages },
     { to: '/merch-store/settings', icon: BiCog, label: 'Settings' },
   ];
 

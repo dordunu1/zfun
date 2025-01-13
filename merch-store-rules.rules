@@ -21,6 +21,46 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
+    // Conversations Collection
+    match /conversations/{conversationId} {
+      function isParticipant() {
+        let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+        return request.auth.uid in resource.data.participants || 
+               (userData.isSeller && userData.sellerId in resource.data.participants);
+      }
+
+      // Allow read if user is a participant
+      allow read: if isAuthenticated() && isParticipant();
+      
+      // Allow create if user is authenticated and is one of the participants
+      allow create: if isAuthenticated();
+      
+      // Allow update if user is a participant
+      allow update: if isAuthenticated() && isParticipant();
+    }
+
+    // Messages Collection
+    match /messages/{messageId} {
+      function isConversationParticipant(conversationId) {
+        let conversation = get(/databases/$(database)/documents/conversations/$(conversationId));
+        let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+        return request.auth.uid in conversation.data.participants || 
+               (userData.isSeller && userData.sellerId in conversation.data.participants);
+      }
+
+      // Allow read if user is a participant in the conversation
+      allow read: if isAuthenticated() && 
+        isConversationParticipant(resource.data.conversationId);
+      
+      // Allow create if user is a participant in the conversation
+      allow create: if isAuthenticated() && 
+        isConversationParticipant(request.resource.data.conversationId);
+      
+      // Allow update/delete of own messages only
+      allow update, delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.senderId;
+    }
+
     // Users Collection
     match /users/{userId} {
       allow read: if isAuthenticated();

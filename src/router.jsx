@@ -37,6 +37,8 @@ import Refunds from './pages/merch/Refunds';
 import TermsAndConditions from './pages/merch/TermsAndConditions';
 import ForgotPassword from './pages/merch/ForgotPassword';
 import ResetPassword from './pages/merch/ResetPassword';
+import Inbox from './pages/merch/Inbox';
+import SellerInbox from './pages/merch/SellerInbox';
 
 const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF"; // We'll replace this with your actual address
 
@@ -54,6 +56,12 @@ function AdminRoute({ children }) {
 
   return children;
 }
+
+// Add this new component for conditional inbox rendering
+const InboxRouter = () => {
+  const { user } = useMerchAuth();
+  return user?.isSeller ? <SellerInbox /> : <Inbox />;
+};
 
 export const router = createBrowserRouter([
   // Main app routes
@@ -233,6 +241,38 @@ export const router = createBrowserRouter([
       {
         path: 'reset-password',
         element: <ResetPassword />,
+      },
+      {
+        path: 'inbox',
+        element: (
+          <ProtectedRoute>
+            <InboxRouter />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'inbox/:conversationId',
+        element: (
+          <ProtectedRoute>
+            <InboxRouter />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'seller/inbox',
+        element: (
+          <ProtectedRoute sellerOnly>
+            <SellerInbox />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'seller/inbox/:conversationId',
+        element: (
+          <ProtectedRoute sellerOnly>
+            <SellerInbox />
+          </ProtectedRoute>
+        ),
       },
     ],
   },
