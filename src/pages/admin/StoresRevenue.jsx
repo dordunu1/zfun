@@ -133,8 +133,8 @@ const StoresRevenue = () => {
 
         // Sort withdrawals by date
         withdrawals.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-          const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+          const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+          const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
           return dateB - dateA;
         });
 
@@ -150,12 +150,12 @@ const StoresRevenue = () => {
 
         // Calculate metrics
         const thisMonthOrders = orders.filter(order => {
-          const orderDate = order.createdAt?.toDate();
+          const orderDate = order.createdAt?.toDate?.() || new Date(order.createdAt || 0);
           return orderDate >= firstDayThisMonth;
         });
 
         const lastMonthOrders = orders.filter(order => {
-          const orderDate = order.createdAt?.toDate();
+          const orderDate = order.createdAt?.toDate?.() || new Date(order.createdAt || 0);
           return orderDate >= firstDayLastMonth && orderDate <= lastDayLastMonth;
         });
 
@@ -209,12 +209,12 @@ const StoresRevenue = () => {
             ).toFixed(1))
           },
           withdrawalHistory: withdrawals.sort((a, b) => 
-            (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0)
+            (b.requestedAt || 0) - (a.requestedAt || 0)
           ).map(withdrawal => ({
             id: withdrawal.id,
             amount: withdrawal.amount || 0,
             status: withdrawal.status,
-            createdAt: withdrawal.createdAt,
+            createdAt: withdrawal.requestedAt ? new Date(withdrawal.requestedAt) : null,
             network: withdrawal.network,
             walletAddress: withdrawal.walletAddress
           }))
@@ -234,12 +234,13 @@ const StoresRevenue = () => {
     try {
       const withdrawalsQuery = query(
         collection(db, 'withdrawals'),
-        orderBy('createdAt', 'desc')
+        orderBy('requestedAt', 'desc')
       );
       const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
       const withdrawals = withdrawalsSnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        createdAt: doc.data().requestedAt ? new Date(doc.data().requestedAt) : null
       }));
       setWithdrawalHistory(withdrawals);
     } catch (error) {
@@ -394,7 +395,7 @@ const StoresRevenue = () => {
                               <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{store.storeName}</td>
                               <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                                 {withdrawal.createdAt ? 
-                                  withdrawal.createdAt.toLocaleString('en-US', {
+                                  (withdrawal.createdAt?.toDate?.() || new Date(withdrawal.createdAt)).toLocaleString('en-US', {
                                     year: 'numeric',
                                     month: 'short',
                                     day: 'numeric',
