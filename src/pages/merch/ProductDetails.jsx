@@ -229,14 +229,14 @@ const ProductDetails = () => {
   };
 
   const handleQuantityChange = (value) => {
-    if (!selectedColor && product?.hasVariants) {
+    if (!selectedColor && product.hasVariants) {
       toast.error('Please select a color first');
       return;
     }
 
-    const maxQuantity = product?.hasVariants && product?.colorQuantities
-      ? (product.colorQuantities[selectedColor] || 0)
-      : (product?.quantity || 0);
+    const maxQuantity = product.hasVariants
+      ? product.colorQuantities[selectedColor]
+      : product.quantity;
 
     const newQuantity = Math.max(1, Math.min(maxQuantity, quantity + value));
     setQuantity(newQuantity);
@@ -831,7 +831,7 @@ const ProductDetails = () => {
                     <span className="text-gray-600 block mb-3">Select Color</span>
                     <div className="flex flex-wrap gap-2">
                       {product.colors.map((color) => {
-                        const isAvailable = product?.colorQuantities ? (product.colorQuantities[color] || 0) > 0 : false;
+                        const isAvailable = product.colorQuantities[color] > 0;
                         return (
                           <button
                             key={color}
@@ -851,7 +851,7 @@ const ProductDetails = () => {
                             />
                             <span>{color}</span>
                             <span className="text-xs">
-                              ({product?.colorQuantities ? (product.colorQuantities[color] || 0) : 0})
+                              ({product.colorQuantities[color] || 0})
                             </span>
                           </button>
                         );
