@@ -492,7 +492,7 @@ const AddProduct = () => {
           Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
           Number(productData.price),
         sellerId: user.sellerId,
-        sellerName: sellerData.storeName || '',  // Use storeName from seller document
+        sellerName: user.name,  // Use user's name as fallback
         status: 'active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
