@@ -409,15 +409,63 @@ const AddProduct = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setUploading(true);
+    setSubmitting(true);
 
     try {
+      // Validate required fields
+      if (!productData.name || !productData.description || !productData.price || !productData.quantity) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // Validate images
+      if (imageFiles.length === 0) {
+        toast.error('Please add at least one product image');
+        return;
+      }
+
+      // Validate category and subcategory for clothing
+      if (productData.category === 'clothing') {
+        if (!productData.subCategory) {
+          toast.error('Please select a subcategory');
+          return;
+        }
+        if (productData.hasVariants) {
+          if (productData.selectedSizes.length === 0) {
+            toast.error('Please select at least one size');
+            return;
+          }
+          if (productData.selectedColors.length === 0) {
+            toast.error('Please select at least one color');
+            return;
+          }
+          // Validate color quantities
+          if (productData.selectedColors.some(color => !productData.colorQuantities[color])) {
+            toast.error('Please specify quantities for all selected colors');
+            return;
+          }
+        }
+      }
+
+      // Upload images first
+      const imageUrls = await uploadImages(imageFiles);
+
       // Format the discountEndsAt date properly
       let discountEndsAt = null;
       if (productData.hasDiscount && productData.discountEndsAt) {
         discountEndsAt = new Date(productData.discountEndsAt).toISOString();
       }
 
+      // Get seller name from sellers collection
+      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
+      if (!sellerDoc.exists()) {
+        toast.error('Seller information not found');
+        return;
+      }
+      const sellerData = sellerDoc.data();
+
+      // Create product document
+      const productsRef = collection(db, 'products');
       const productDoc = {
         name: productData.name,
         description: productData.description,
@@ -432,10 +480,10 @@ const AddProduct = () => {
         tokenLogo: productData.tokenLogo,
         shippingFee: Number(productData.shippingFee),
         shippingInfo: productData.shippingInfo,
-        images: productData.images,
+        images: imageUrls,
         hasVariants: Boolean(productData.hasVariants),
-        sizes: productData.hasVariants ? productData.sizes : [],
-        colors: productData.hasVariants ? productData.colors : [],
+        sizes: productData.hasVariants ? productData.selectedSizes : [],
+        colors: productData.hasVariants ? productData.selectedColors : [],
         colorQuantities: productData.hasVariants ? productData.colorQuantities : {},
         hasDiscount: productData.hasDiscount,
         discountPercent: productData.hasDiscount ? Number(productData.discountPercent) : 0,
@@ -444,18 +492,22 @@ const AddProduct = () => {
           Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
           Number(productData.price),
         sellerId: user.sellerId,
-        sellerName: user.storeName,
+        sellerName: sellerData.storeName || '',  // Use storeName from seller document
         status: 'active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      // ... rest of the submit logic ...
+      // Add the product to Firestore
+      await addDoc(productsRef, productDoc);
+
+      toast.success('Product added successfully');
+      navigate('/merch-store/products');
     } catch (error) {
       console.error('Error creating product:', error);
       toast.error('Failed to create product');
     } finally {
-      setUploading(false);
+      setSubmitting(false);
     }
   };
 
