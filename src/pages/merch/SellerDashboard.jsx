@@ -1048,7 +1048,7 @@ const SellerDashboard = () => {
                               <div 
                                 className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
                                 style={{ 
-                                  width: `${Math.min(100, (Date.now() - withdrawal.timestamp) / (14 * 24 * 60 * 60 * 1000) * 100)}%` 
+                                  width: `${Math.min(100, ((withdrawal.timestamp ? Date.now() - withdrawal.timestamp.getTime() : 0) / (14 * 24 * 60 * 60 * 1000)) * 100)}%` 
                                 }}
                               />
                               <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg text-gray-700 text-xs rounded-2xl py-3 px-4 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-[250px] z-10">
@@ -1065,7 +1065,10 @@ const SellerDashboard = () => {
                             </div>
                             <div className="text-xs text-gray-500">
                               <CountdownTimer 
-                                targetDate={new Date(withdrawal.timestamp.getTime() + (14 * 24 * 60 * 60 * 1000))}
+                                targetDate={withdrawal.timestamp ? 
+                                  new Date(withdrawal.timestamp.getTime() + (14 * 24 * 60 * 60 * 1000)) :
+                                  new Date(Date.now() + (14 * 24 * 60 * 60 * 1000))
+                                }
                               />
                             </div>
                           </div>
