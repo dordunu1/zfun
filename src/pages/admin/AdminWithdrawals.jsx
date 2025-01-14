@@ -905,47 +905,32 @@ export default function AdminWithdrawals() {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Store</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Token</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Network</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Wallet</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Requested</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[15%]">Store</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[10%]">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[10%]">Token</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[12%]">Network</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[18%]">Wallet</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[15%]">Requested</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[20%]">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {withdrawals.map((withdrawal) => (
                 <tr key={withdrawal.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      {withdrawal.storeAvatar ? (
-                        <img 
-                          src={withdrawal.storeAvatar} 
-                          alt={withdrawal.storeName || 'Store'}
-                          className="w-8 h-8 rounded-full mr-3"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-[#FF1B6B] bg-opacity-10 flex items-center justify-center mr-3">
-                          <span className="text-[#FF1B6B] text-sm font-medium">
-                            {(withdrawal.storeName || 'S').charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {withdrawal.storeName || 'Unknown Store'}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {withdrawal.storeId}
-                        </div>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {withdrawal.storeName || 'Unknown Store'}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {withdrawal.storeId}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     ${withdrawal.amount.toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     <div className="flex items-center">
                       <img 
                         src={`/logos/${withdrawal.token.toLowerCase()}.png`}
@@ -955,7 +940,7 @@ export default function AdminWithdrawals() {
                       {withdrawal.token}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     <div className="flex items-center">
                       <img 
                         src={withdrawal.network === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
@@ -965,7 +950,7 @@ export default function AdminWithdrawals() {
                       {withdrawal.network === 'unichain' ? 'Unichain Testnet' : 'Polygon'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     <div className="flex items-center space-x-1">
                       <span className="truncate max-w-[120px]">{withdrawal.walletAddress}</span>
                       <button
@@ -982,10 +967,11 @@ export default function AdminWithdrawals() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {new Date(withdrawal.timestamp?.toDate()).toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                    {/* Rest of the actions column content stays the same */}
                     {processingId === withdrawal.id ? (
                       <button
                         disabled
@@ -995,22 +981,74 @@ export default function AdminWithdrawals() {
                         Processing...
                       </button>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => handleApprove(withdrawal)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-[#FF1B6B] hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
-                        >
-                          <FiCheck className="mr-1" />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(withdrawal.id)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-gray-800"
-                        >
-                          <FiX className="mr-1" />
-                          Reject
-                        </button>
-                      </>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          {/* Progress bar and countdown */}
+                          <div className="flex-grow bg-gray-200 dark:bg-gray-700 rounded-full h-2 relative group">
+                            {/* Production: 14 days = 1209600000 milliseconds */}
+                            {(() => {
+                              const waitingPeriod = 1209600000; // 14 days
+                              const elapsed = Date.now() - withdrawal.requestedAt;
+                              const progress = Math.min(100, (elapsed / waitingPeriod) * 100);
+                              const isReady = elapsed >= waitingPeriod;
+                              
+                              return (
+                                <>
+                                  <div 
+                                    className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${progress}%` }}
+                                  />
+                                  {/* Tooltip */}
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-[80px] left-1/2 transform -translate-x-1/2 z-50">
+                                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg p-3 w-[280px]">
+                                      <div className="flex items-start gap-2">
+                                        <FiAlertTriangle className="text-[#FF1B6B] mt-0.5 flex-shrink-0" />
+                                        <div>
+                                          <p className="text-gray-900 dark:text-white font-medium">Withdrawal Hold Period</p>
+                                          <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
+                                            {isReady 
+                                              ? "Ready for approval! The holding period has passed."
+                                              : "Withdrawals are held for 14 days before they can be approved to ensure all orders are delivered and no disputes are pending."}
+                                          </p>
+                                          {!isReady && (
+                                            <p className="text-[#FF1B6B] text-xs mt-1 font-medium">
+                                              Time remaining: {Math.ceil((waitingPeriod - elapsed) / (1000 * 60 * 60 * 24))} days
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {/* Arrow */}
+                                    <div className="absolute left-1/2 transform -translate-x-1/2 -bottom-2">
+                                      <div className="border-8 border-transparent border-t-white dark:border-t-gray-800"></div>
+                                    </div>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Always visible reject button */}
+                          <button
+                            onClick={() => handleReject(withdrawal.id)}
+                            className="p-1.5 rounded-full text-gray-500 hover:text-white hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 transition-colors"
+                            title="Reject withdrawal"
+                          >
+                            <FiX className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Approve button - only show if waiting period is over */}
+                        {Date.now() - withdrawal.requestedAt >= 1209600000 && (
+                          <button
+                            onClick={() => handleApprove(withdrawal)}
+                            className="w-full inline-flex items-center justify-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-[#FF1B6B] hover:bg-[#D4145A] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF1B6B] dark:focus:ring-offset-gray-800"
+                          >
+                            <FiCheck className="mr-1" />
+                            Approve
+                          </button>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
