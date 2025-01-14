@@ -647,7 +647,7 @@ const EditProduct = () => {
                         <input
                           type="datetime-local"
                           name="discountEndsAt"
-                          value={product.discountEndsAt || ''}
+                          value={product.discountEndsAt ? new Date(product.discountEndsAt).toISOString().slice(0, 16) : ''}
                           onChange={(e) => {
                             const selectedDate = new Date(e.target.value);
                             const now = new Date();
@@ -659,7 +659,7 @@ const EditProduct = () => {
                             
                             setProduct(prev => ({
                               ...prev,
-                              discountEndsAt: e.target.value
+                              discountEndsAt: selectedDate.toISOString()
                             }));
                           }}
                           min={new Date(new Date().getTime() + 60000).toISOString().slice(0, 16)}

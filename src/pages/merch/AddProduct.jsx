@@ -453,6 +453,7 @@ const AddProduct = () => {
       // Format the discountEndsAt date properly
       let discountEndsAt = null;
       if (productData.hasDiscount && productData.discountEndsAt) {
+        // Store the full ISO string in Firestore
         discountEndsAt = new Date(productData.discountEndsAt).toISOString();
       }
 
@@ -487,7 +488,7 @@ const AddProduct = () => {
         colorQuantities: productData.hasVariants ? productData.colorQuantities : {},
         hasDiscount: productData.hasDiscount,
         discountPercent: productData.hasDiscount ? Number(productData.discountPercent) : 0,
-        discountEndsAt: discountEndsAt,
+        discountEndsAt: discountEndsAt,  // Store as ISO string
         discountedPrice: productData.hasDiscount ? 
           Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
           Number(productData.price),
@@ -956,7 +957,7 @@ const AddProduct = () => {
                         <input
                           type="datetime-local"
                           name="discountEndsAt"
-                          value={productData.discountEndsAt || ''}
+                          value={productData.discountEndsAt ? new Date(productData.discountEndsAt).toISOString().substring(0, 16) : ''}
                           onChange={(e) => {
                             const selectedDate = new Date(e.target.value);
                             const now = new Date();
