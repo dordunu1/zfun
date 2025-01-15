@@ -364,20 +364,23 @@ const MaxDiscountBanner = ({ products }) => {
   if (!maxDiscount || !latestEndTime) return null;
 
   return (
-    <div className="bg-pink-50 rounded-lg mb-6 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-4xl sm:text-5xl font-bold tracking-tight">
-              <span className="text-gray-800">Up to </span>
-              <span className="text-[#FF1B6B] animate-pulse">{maxDiscount}% OFF</span>
-            </p>
-            <div className="mt-3 flex items-center justify-center gap-3 text-gray-600">
-              <span className="text-lg sm:text-xl font-medium">Ends:</span>
-              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
-                <CountdownTimer endsAt={latestEndTime} />
-              </div>
-            </div>
+    <div className="bg-gradient-to-r from-pink-500/5 via-pink-500/10 to-purple-500/5 rounded-2xl p-6 mb-6 overflow-hidden">
+      <div className="flex items-center gap-2 justify-center mb-4">
+        <div className="flex items-center gap-2 px-4 py-2 bg-[#FF1B6B] text-white rounded-full">
+          <MdLocalOffer className="text-xl animate-pulse" />
+          <span className="font-bold">Flash Sale · Limited time offer</span>
+        </div>
+      </div>
+      <div className="text-center">
+        <p className="text-4xl sm:text-5xl font-bold tracking-tight">
+          <span className="text-gray-800">Up to </span>
+          <span className="text-[#FF1B6B]">{maxDiscount}% OFF</span>
+        </p>
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <span className="text-lg sm:text-xl font-medium text-gray-700">Ends:</span>
+          <div className="flex items-center gap-2 bg-white/80 px-4 py-2 rounded-lg">
+            <BiTime className="text-xl text-[#FF1B6B] animate-pulse" />
+            <CountdownTimer endsAt={latestEndTime} />
           </div>
         </div>
       </div>
