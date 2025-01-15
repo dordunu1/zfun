@@ -953,18 +953,62 @@ const Checkout = () => {
                 </div>
               </div>
 
-              {!buyerProfile?.shippingAddress && (
-                <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</p>
-                      <p className="text-sm text-gray-600 mt-1">Please add your shipping address in settings to enable order placement.</p>
+              {/* Error Messages */}
+              {!isProcessing && (
+                <>
+                  {!walletConnected && (
+                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-[#FF1B6B]">Wallet Not Connected</p>
+                          <p className="text-sm text-gray-600 mt-1">Please connect your wallet in settings to enable order placement.</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  )}
+                  {walletConnected && !hasValidShippingAddress && (
+                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</p>
+                          <p className="text-sm text-gray-600 mt-1">Please add your shipping address in settings to enable order placement.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {walletConnected && hasValidShippingAddress && parseFloat(tokenBalance) < orderSummary.total && (
+                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-[#FF1B6B]">Insufficient Balance</p>
+                          <p className="text-sm text-gray-600 mt-1">Your {selectedToken} balance is too low to complete this purchase.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {walletConnected && hasValidShippingAddress && cartItems.length === 0 && (
+                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-medium text-[#FF1B6B]">Empty Cart</p>
+                          <p className="text-sm text-gray-600 mt-1">Add items to your cart to proceed with checkout.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <button
@@ -976,9 +1020,12 @@ const Checkout = () => {
                     : 'bg-[#FF1B6B] hover:bg-[#D4145A] disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >
-                {isOrderButtonDisabled ? 'Add Shipping Address Required' : isProcessing ? 'Processing...' :
-                   parseFloat(tokenBalance) < orderSummary.total ? `Insufficient ${selectedToken} Balance` :
-                   'Place Order'}
+                {isProcessing ? 'Processing Order...' :
+                 !walletConnected ? 'Connect Wallet to Continue' :
+                 !hasValidShippingAddress ? 'Add Shipping Address to Continue' :
+                 parseFloat(tokenBalance) < orderSummary.total ? `Insufficient ${selectedToken} Balance` :
+                 cartItems.length === 0 ? 'Cart is Empty' :
+                 'Place Order'}
               </button>
             </div>
           </motion.div>
