@@ -9,7 +9,7 @@ const isDevelopment = window.location.hostname === 'localhost';
 
 const firebaseConfig = {
   apiKey: "AIzaSyADTuh7W2jR3iCVo3nmDXUEVcCoM92szTg",
-  authDomain: isDevelopment ? "merch-store-581c9.firebaseapp.com" : "token-factory.xyz",
+  authDomain: isDevelopment ? "merch-store-581c9.firebaseapp.com" : "auth.token-factory.xyz",
   projectId: "merch-store-581c9",
   storageBucket: "merch-store-581c9.firebasestorage.app",
   messagingSenderId: "946488133747",
