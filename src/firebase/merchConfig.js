@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
@@ -30,12 +30,6 @@ googleProvider.setCustomParameters({
   prompt: 'select_account',
   auth_type: 'reauthenticate'
 });
-
-// Add authorized domains
-const authorizedDomains = [
-  'localhost',
-  'token-factory.xyz'
-];
 
 auth.useDeviceLanguage();
 
