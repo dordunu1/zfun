@@ -4,9 +4,12 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
 
+// Determine if we're running locally
+const isDevelopment = window.location.hostname === 'localhost';
+
 const firebaseConfig = {
   apiKey: "AIzaSyADTuh7W2jR3iCVo3nmDXUEVcCoM92szTg",
-  authDomain: "merch-store-581c9.firebaseapp.com",
+  authDomain: isDevelopment ? "merch-store-581c9.firebaseapp.com" : "token-factory.xyz",
   projectId: "merch-store-581c9",
   storageBucket: "merch-store-581c9.firebasestorage.app",
   messagingSenderId: "946488133747",
@@ -31,7 +34,7 @@ googleProvider.setCustomParameters({
 // Add authorized domains
 const authorizedDomains = [
   'localhost',
-  'merch-store-581c9.firebaseapp.com'
+  'token-factory.xyz'
 ];
 
 auth.useDeviceLanguage();
