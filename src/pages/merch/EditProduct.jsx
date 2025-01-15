@@ -107,10 +107,11 @@ const SHOE_SIZES = [
 ];
 
 const EditProduct = () => {
+  const { user } = useMerchAuth();
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [originalProduct, setOriginalProduct] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -134,9 +135,6 @@ const EditProduct = () => {
     hasDiscount: false,
     discountPercent: 0
   });
-  const [sizes, setSizes] = useState([]);
-  const [selectedSizes, setSelectedSizes] = useState([]);
-  const [quantities, setQuantities] = useState({});
 
   const CLOTHING_SUBCATEGORIES = {
     "Men's Wear": [
@@ -177,7 +175,12 @@ const EditProduct = () => {
       "Laptop Bags",
       "Headphone Cases",
       "Tablet Covers",
-      "Chargers"
+      "Chargers",
+      "Headphones",
+      "Speakers",
+      "MP3 Players",
+      "Sound Systems",
+      "Audio Cables"
     ]
   };
 
@@ -209,7 +212,7 @@ const EditProduct = () => {
           const sellerData = sellerDoc.data();
           if (!sellerData.preferredNetwork) {
             toast.error('Please set your preferred network in settings first');
-            navigate('/merch/settings');
+            navigate('/merch-store/settings');
             return;
           }
           // Set the product's network to seller's preferred network and shipping fee
@@ -319,52 +322,83 @@ const EditProduct = () => {
     setSubmitting(true);
 
     try {
-      const productData = {
-        ...product,
-        sizes: selectedSizes,
-        quantities: quantities,
-        updatedAt: serverTimestamp()
+      // Validate required fields
+      if (!product.name || !product.description || !product.price) {
+        toast.error('Please fill in all required fields');
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate at least one image
+      if (!product.images || product.images.length === 0) {
+        toast.error('Please upload at least one product image');
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate sizes for footwear
+      if (isFootwearProduct() && product.hasVariants) {
+        if (!product.sizes || product.sizes.length === 0) {
+          toast.error('Please select at least one size for footwear');
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Calculate discounted price if discount is applied
+      let discountedPrice = null;
+      if (product.hasDiscount && product.discountPercent) {
+        discountedPrice = product.price * (1 - product.discountPercent / 100);
+      }
+
+      // Prepare update data
+      const updateData = {
+        name: product.name,
+        description: product.description,
+        price: parseFloat(product.price),
+        category: product.category,
+        subCategory: product.subCategory,
+        images: product.images,
+        hasVariants: product.hasVariants,
+        hasDiscount: product.hasDiscount,
+        discountPercent: product.hasDiscount ? parseFloat(product.discountPercent) : null,
+        discountEndsAt: product.hasDiscount ? new Date(product.discountEndsAt).toISOString() : null,
+        discountedPrice: discountedPrice,
+        updatedAt: serverTimestamp(),
       };
 
-      // Remove empty or undefined values
-      Object.keys(productData).forEach(key => {
-        if (productData[key] === undefined || productData[key] === '') {
-          delete productData[key];
+      // Add sizes and colors if product has variants
+      if (product.hasVariants) {
+        updateData.sizes = product.sizes;
+        updateData.colors = product.colors;
+        updateData.colorQuantities = product.colorQuantities;
+      }
+
+      // Remove null or undefined values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === null || updateData[key] === undefined) {
+          delete updateData[key];
         }
       });
 
-      await updateDoc(doc(db, 'products', id), productData);
-      
+      // Update product in Firestore
+      const productRef = doc(db, 'products', id);
+      await updateDoc(productRef, updateData);
+
       toast.success('Product updated successfully');
-      navigate('/merch-store/products');
+      navigate(`/merch-store/product/${id}`);
     } catch (error) {
       console.error('Error updating product:', error);
-      toast.error('Failed to update product');
+      toast.error('Failed to update product. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const isFootwearProduct = () => {
-    return product.category === 'clothing' && 
-           product.subCategory && 
-           product.subCategory.toLowerCase().includes('footwear');
+    return product.subCategory && 
+           product.subCategory.split(' - ')[0] === 'Footwear';
   };
-
-  useEffect(() => {
-    if (isFootwearProduct()) {
-      setSizes(SHOE_SIZES);
-    } else {
-      setSizes(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
-    }
-  }, [product.category, product.subCategory]);
-
-  useEffect(() => {
-    if (product) {
-      setSelectedSizes(product.sizes || []);
-      setQuantities(product.colorQuantities || {});
-    }
-  }, [product]);
 
   if (loading) {
     return (
@@ -434,56 +468,6 @@ const EditProduct = () => {
                   />
                 </motion.label>
               )}
-            </div>
-          </div>
-
-          {/* Sizes and Quantities */}
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Available Sizes & Quantities
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {sizes.map((size) => (
-                <div key={size} className="flex flex-col space-y-2">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={`size-${size}`}
-                      checked={selectedSizes.includes(size)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSizes([...selectedSizes, size]);
-                          setQuantities({ ...quantities, [size]: 0 });
-                        } else {
-                          setSelectedSizes(selectedSizes.filter(s => s !== size));
-                          const newQuantities = { ...quantities };
-                          delete newQuantities[size];
-                          setQuantities(newQuantities);
-                        }
-                      }}
-                      className="rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
-                    />
-                    <label htmlFor={`size-${size}`} className="ml-2 text-sm text-gray-700">
-                      {size}
-                    </label>
-                  </div>
-                  {selectedSizes.includes(size) && (
-                    <input
-                      type="number"
-                      min="0"
-                      value={quantities[size] || ''}
-                      onChange={(e) => {
-                        setQuantities({
-                          ...quantities,
-                          [size]: parseInt(e.target.value) || 0
-                        });
-                      }}
-                      placeholder="Quantity"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#FF1B6B] focus:ring-[#FF1B6B] sm:text-sm"
-                    />
-                  )}
-                </div>
-              ))}
             </div>
           </div>
 
@@ -767,7 +751,7 @@ const EditProduct = () => {
           </div>
 
           {/* Variants Section */}
-          {product.category === 'clothing' && (
+          {(product.category === 'clothing' || product.category === 'accessories') && (
             <div className="bg-gray-50 rounded-xl p-6">
               <div className="flex items-center mb-6">
                 <input
@@ -798,27 +782,53 @@ const EditProduct = () => {
                       Available Sizes
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
-                        <button
-                          key={size}
-                          type="button"
-                          onClick={() => {
-                            setProduct(prev => ({
-                              ...prev,
-                              sizes: prev.sizes.includes(size)
-                                ? prev.sizes.filter(s => s !== size)
-                                : [...prev.sizes, size]
-                            }));
-                          }}
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                            product.sizes.includes(size)
-                              ? 'bg-[#FF1B6B] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {size}
-                        </button>
-                      ))}
+                      {isFootwearProduct() ? (
+                        // Shoe sizes
+                        SHOE_SIZES.map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => {
+                              setProduct(prev => ({
+                                ...prev,
+                                sizes: prev.sizes.includes(size)
+                                  ? prev.sizes.filter(s => s !== size)
+                                  : [...prev.sizes, size]
+                              }));
+                            }}
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                              product.sizes.includes(size)
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))
+                      ) : (
+                        // Regular clothing sizes
+                        ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => {
+                              setProduct(prev => ({
+                                ...prev,
+                                sizes: prev.sizes.includes(size)
+                                  ? prev.sizes.filter(s => s !== size)
+                                  : [...prev.sizes, size]
+                              }));
+                            }}
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                              product.sizes.includes(size)
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -970,14 +980,19 @@ const EditProduct = () => {
             </button>
             <button
               type="submit"
-              disabled={uploading || !hasChanges}
+              disabled={submitting || uploading || !hasChanges}
               className={`px-8 py-3 rounded-lg font-medium text-white ${
-                uploading || !hasChanges 
+                submitting || uploading || !hasChanges 
                   ? 'bg-gray-400 cursor-not-allowed' 
                   : 'bg-[#FF1B6B] hover:bg-[#D4145A]'
               } transition-colors flex items-center gap-2`}
             >
-              {uploading ? (
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                  <span>Updating Product...</span>
+                </>
+              ) : uploading ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
                   <span>Saving Changes...</span>

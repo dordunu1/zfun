@@ -287,7 +287,12 @@ const AddProduct = () => {
       "Laptop Bags",
       "Headphone Cases",
       "Tablet Covers",
-      "Chargers"
+      "Chargers",
+      "Headphones",
+      "Speakers",
+      "MP3 Players",
+      "Sound Systems",
+      "Audio Cables"
     ]
   };
 
@@ -787,19 +792,20 @@ const AddProduct = () => {
           )}
 
           {/* Variants Section */}
-          {productData.category === 'clothing' && (
-            <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
+          {(productData.category === 'clothing' || productData.category === 'accessories') && (
+            <div className="bg-gray-50 rounded-xl p-6">
               <div className="flex items-center mb-6">
                 <input
                   type="checkbox"
                   id="hasVariants"
+                  name="hasVariants"
                   checked={productData.hasVariants}
                   onChange={(e) => {
                     setProductData(prev => ({
                       ...prev,
                       hasVariants: e.target.checked,
-                      selectedSizes: e.target.checked ? prev.selectedSizes : [],
-                      selectedColors: e.target.checked ? prev.selectedColors : []
+                      sizes: e.target.checked ? prev.selectedSizes : [],
+                      colors: e.target.checked ? prev.selectedColors : []
                     }));
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
@@ -919,7 +925,7 @@ const AddProduct = () => {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* Network & Price Section */}
