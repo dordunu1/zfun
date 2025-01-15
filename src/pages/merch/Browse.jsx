@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { BiSearch, BiFilter, BiStar, BiMenu } from 'react-icons/bi';
+import { BiSearch, BiFilter, BiStar, BiMenu, BiTime } from 'react-icons/bi';
 import { 
   MdGrid3X3,
   MdOutlineShoppingBag,
@@ -58,6 +58,8 @@ import { collection, query, getDocs, where, orderBy, limit } from 'firebase/fire
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
+import { MdLocalOffer, MdTimer } from 'react-icons/md';
+import FeaturedDeals from '../../components/merch/FeaturedDeals';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -209,15 +211,19 @@ const CountdownTimer = ({ endsAt }) => {
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
+      let timeString = '';
+      
       if (days > 0) {
-        return `${days}D : ${hours}H`;
+        timeString = `${days}d ${hours}h ${minutes}m`;
       } else if (hours > 0) {
-        return `${hours}H : ${minutes}M`;
+        timeString = `${hours}h ${minutes}m ${seconds}s`;
       } else if (minutes > 0) {
-        return `${minutes}M : ${seconds}S`;
+        timeString = `${minutes}m ${seconds}s`;
       } else {
-        return `${seconds}S`;
+        timeString = `${seconds}s`;
       }
+
+      return timeString;
     };
 
     setTimeLeft(calculateTimeLeft());
@@ -232,23 +238,14 @@ const CountdownTimer = ({ endsAt }) => {
     return () => clearInterval(timer);
   }, [endsAt]);
 
-  return timeLeft;
+  return (
+    <span className="font-mono text-lg sm:text-xl font-bold text-[#FF1B6B]">
+      {timeLeft}
+    </span>
+  );
 };
 
 const ProductCard = ({ product }) => {
-  const [displayState, setDisplayState] = useState(0); // 0: discount, 1: savings, 2: time
-
-  useEffect(() => {
-    if (product.hasDiscount) {
-      const interval = setInterval(() => {
-        setDisplayState((prev) => (prev + 1) % 3);
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [product.hasDiscount]);
-
-  const savings = product.price - product.discountedPrice;
-
   return (
     <motion.div
       className="bg-white rounded-lg shadow-sm overflow-hidden group"
@@ -262,37 +259,6 @@ const ProductCard = ({ product }) => {
               <BiStar className="text-yellow-400" />
               {product.rating}
             </div>
-          )}
-          {product.hasDiscount && (
-            <motion.div
-              className="absolute top-2 left-2 bg-[#FF1B6B] text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              {displayState === 0 ? (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
-                  <span>{product.discountPercent}% OFF</span>
-                </>
-              ) : displayState === 1 ? (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Save {product.acceptedToken} {savings.toFixed(2)}</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Ends in <CountdownTimer endsAt={product.discountEndsAt} /></span>
-                </>
-              )}
-            </motion.div>
           )}
         </div>
         <div className="p-3">
@@ -365,6 +331,57 @@ const ProductCard = ({ product }) => {
         </div>
       </Link>
     </motion.div>
+  );
+};
+
+const MaxDiscountBanner = ({ products }) => {
+  // Find max discount and latest end time
+  const getMaxDiscountAndLatestEnd = () => {
+    let maxDiscount = 0;
+    let latestEndTime = null;
+
+    products.forEach(product => {
+      if (product.hasDiscount && product.discountEndsAt) {
+        // Update max discount
+        const discount = product.discountPercent;
+        if (discount > maxDiscount) {
+          maxDiscount = discount;
+        }
+
+        // Update latest end time
+        const endTime = new Date(product.discountEndsAt);
+        if (!latestEndTime || endTime > latestEndTime) {
+          latestEndTime = endTime;
+        }
+      }
+    });
+
+    return { maxDiscount, latestEndTime };
+  };
+
+  const { maxDiscount, latestEndTime } = getMaxDiscountAndLatestEnd();
+
+  if (!maxDiscount || !latestEndTime) return null;
+
+  return (
+    <div className="bg-pink-50 rounded-lg mb-6 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-4xl sm:text-5xl font-bold tracking-tight">
+              <span className="text-gray-800">Up to </span>
+              <span className="text-[#FF1B6B] animate-pulse">{maxDiscount}% OFF</span>
+            </p>
+            <div className="mt-3 flex items-center justify-center gap-3 text-gray-600">
+              <span className="text-lg sm:text-xl font-medium">Ends:</span>
+              <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                <CountdownTimer endsAt={latestEndTime} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -756,6 +773,16 @@ const Browse = () => {
             )}
           </div>
         </div>
+      </motion.div>
+
+      {/* Max Discount Banner */}
+      <motion.div variants={itemVariants}>
+        <MaxDiscountBanner products={products} />
+      </motion.div>
+
+      {/* Featured Deals Section */}
+      <motion.div variants={itemVariants}>
+        <FeaturedDeals products={products} />
       </motion.div>
 
       {/* Products Grid */}
