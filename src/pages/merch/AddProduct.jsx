@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { storage, db } from '../../firebase/merchConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 const styles = `
   :root {
@@ -183,6 +183,23 @@ const AddProductSkeleton = () => (
   </div>
 );
 
+const SHOE_SIZES = [
+  "US 6 / EU 39",
+  "US 6.5 / EU 39.5",
+  "US 7 / EU 40",
+  "US 7.5 / EU 40.5",
+  "US 8 / EU 41",
+  "US 8.5 / EU 41.5",
+  "US 9 / EU 42",
+  "US 9.5 / EU 42.5",
+  "US 10 / EU 43",
+  "US 10.5 / EU 43.5",
+  "US 11 / EU 44",
+  "US 11.5 / EU 44.5",
+  "US 12 / EU 45",
+  "US 13 / EU 46"
+];
+
 const AddProduct = () => {
   const { user } = useMerchAuth();
   const navigate = useNavigate();
@@ -273,6 +290,28 @@ const AddProduct = () => {
       "Chargers"
     ]
   };
+
+  const [sizes, setSizes] = useState([]);
+  const [selectedSizes, setSelectedSizes] = useState([]);
+  const [quantities, setQuantities] = useState({});
+
+  const isFootwearProduct = () => {
+    return productData.category === 'clothing' && 
+           productData.subCategory && 
+           productData.subCategory.split(' - ')[0] === 'Footwear';
+  };
+
+  useEffect(() => {
+    if (isFootwearProduct()) {
+      setSizes(SHOE_SIZES);
+      setSelectedSizes([]);
+      setQuantities({});
+    } else {
+      setSizes(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+      setSelectedSizes([]);
+      setQuantities({});
+    }
+  }, [productData.category, productData.subCategory]);
 
   useEffect(() => {
     const loadSellerPreferences = async () => {
@@ -412,101 +451,113 @@ const AddProduct = () => {
     setSubmitting(true);
 
     try {
+      // Check if user is a seller
+      if (!user?.sellerId) {
+        toast.error('You must be a registered seller to add products');
+        setSubmitting(false);
+        return;
+      }
+
+      // Get seller info
+      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
+      if (!sellerDoc.exists()) {
+        toast.error('Seller information not found');
+        setSubmitting(false);
+        return;
+      }
+      const sellerData = sellerDoc.data();
+
       // Validate required fields
-      if (!productData.name || !productData.description || !productData.price || !productData.quantity) {
+      if (!productData.name || !productData.description || !productData.price) {
         toast.error('Please fill in all required fields');
+        setSubmitting(false);
         return;
       }
 
       // Validate images
       if (imageFiles.length === 0) {
         toast.error('Please add at least one product image');
+        setSubmitting(false);
         return;
-      }
-
-      // Validate category and subcategory for clothing
-      if (productData.category === 'clothing') {
-        if (!productData.subCategory) {
-          toast.error('Please select a subcategory');
-          return;
-        }
-        if (productData.hasVariants) {
-          if (productData.selectedSizes.length === 0) {
-            toast.error('Please select at least one size');
-            return;
-          }
-          if (productData.selectedColors.length === 0) {
-            toast.error('Please select at least one color');
-            return;
-          }
-          // Validate color quantities
-          if (productData.selectedColors.some(color => !productData.colorQuantities[color])) {
-            toast.error('Please specify quantities for all selected colors');
-            return;
-          }
-        }
       }
 
       // Upload images first
       const imageUrls = await uploadImages(imageFiles);
 
+      // Validate sizes for footwear
+      if (isFootwearProduct() && productData.hasVariants && productData.selectedSizes.length === 0) {
+        toast.error('Please select at least one shoe size');
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate quantities for selected sizes
+      if (productData.hasVariants) {
+        const totalQuantity = Object.values(productData.colorQuantities).reduce((sum, qty) => sum + Number(qty), 0);
+        if (totalQuantity === 0) {
+          toast.error('Please specify quantities for all selected colors');
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // Format the discountEndsAt date properly
       let discountEndsAt = null;
       if (productData.hasDiscount && productData.discountEndsAt) {
-        // Store the full ISO string in Firestore
         discountEndsAt = new Date(productData.discountEndsAt).toISOString();
       }
 
-      // Get seller name from sellers collection
-      const sellerDoc = await getDoc(doc(db, 'sellers', user.sellerId));
-      if (!sellerDoc.exists()) {
-        toast.error('Seller information not found');
-        return;
-      }
-      const sellerData = sellerDoc.data();
+      // Calculate discounted price if discount is applied
+      const discountedPrice = productData.hasDiscount ? 
+        Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
+        Number(productData.price);
 
-      // Create product document
-      const productsRef = collection(db, 'products');
-      const productDoc = {
+      // Prepare product data for Firestore
+      const newProductData = {
         name: productData.name,
         description: productData.description,
         price: Number(productData.price),
-        quantity: productData.hasVariants 
-          ? Object.values(productData.colorQuantities).reduce((a, b) => a + b, 0)
-          : Number(productData.quantity),
         category: productData.category,
         subCategory: productData.subCategory,
+        images: imageUrls,
         network: productData.network,
         acceptedToken: productData.acceptedToken,
         tokenLogo: productData.tokenLogo,
         shippingFee: Number(productData.shippingFee),
         shippingInfo: productData.shippingInfo,
-        images: imageUrls,
-        hasVariants: Boolean(productData.hasVariants),
+        hasVariants: productData.hasVariants,
         sizes: productData.hasVariants ? productData.selectedSizes : [],
         colors: productData.hasVariants ? productData.selectedColors : [],
         colorQuantities: productData.hasVariants ? productData.colorQuantities : {},
+        quantity: productData.hasVariants ? 
+          Object.values(productData.colorQuantities).reduce((a, b) => a + Number(b), 0) : 
+          Number(productData.quantity),
         hasDiscount: productData.hasDiscount,
         discountPercent: productData.hasDiscount ? Number(productData.discountPercent) : 0,
-        discountEndsAt: discountEndsAt,  // Store as ISO string
-        discountedPrice: productData.hasDiscount ? 
-          Number(productData.price) * (1 - Number(productData.discountPercent) / 100) : 
-          Number(productData.price),
-        sellerId: user.sellerId,
-        sellerName: user.name,  // Use user's name as fallback
+        discountEndsAt: discountEndsAt,
+        discountedPrice: discountedPrice,
         status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        sellerId: user.sellerId,
+        sellerName: sellerData.storeName || 'Anonymous',
+        soldCount: 0
       };
 
-      // Add the product to Firestore
-      await addDoc(productsRef, productDoc);
+      // Remove empty or undefined values
+      Object.keys(newProductData).forEach(key => {
+        if (newProductData[key] === undefined || newProductData[key] === '' || newProductData[key] === null) {
+          delete newProductData[key];
+        }
+      });
 
+      const docRef = await addDoc(collection(db, 'products'), newProductData);
+      
       toast.success('Product added successfully');
-      navigate('/merch-store/products');
+      navigate(`/merch-store/product/${docRef.id}`);
     } catch (error) {
-      console.error('Error creating product:', error);
-      toast.error('Failed to create product');
+      console.error('Error adding product:', error);
+      toast.error('Failed to add product');
     } finally {
       setSubmitting(false);
     }
@@ -766,20 +817,39 @@ const AddProduct = () => {
                       Available Sizes
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {SIZES.map(size => (
-                        <button
-                          key={size}
-                          type="button"
-                          onClick={() => handleSizeToggle(size)}
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                            productData.selectedSizes.includes(size)
-                              ? 'bg-[#FF1B6B] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {size}
-                        </button>
-                      ))}
+                      {isFootwearProduct() ? (
+                        // Show shoe sizes for footwear
+                        SHOE_SIZES.map(size => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => handleSizeToggle(size)}
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                              productData.selectedSizes.includes(size)
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))
+                      ) : (
+                        // Show clothing sizes for non-footwear
+                        SIZES.map(size => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => handleSizeToggle(size)}
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                              productData.selectedSizes.includes(size)
+                                ? 'bg-[#FF1B6B] text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -795,23 +865,7 @@ const AddProduct = () => {
                           <div key={color.name} className="flex items-center gap-3">
                             <button
                               type="button"
-                              onClick={() => {
-                                const newColors = productData.selectedColors.includes(color.name)
-                                  ? productData.selectedColors.filter(c => c !== color.name)
-                                  : [...productData.selectedColors, color.name];
-                                
-                                // Update colorQuantities when removing a color
-                                const newColorQuantities = { ...productData.colorQuantities };
-                                if (!newColors.includes(color.name)) {
-                                  delete newColorQuantities[color.name];
-                                }
-                                
-                                setProductData(prev => ({
-                                  ...prev,
-                                  selectedColors: newColors,
-                                  colorQuantities: newColorQuantities
-                                }));
-                              }}
+                              onClick={() => handleColorToggle(color)}
                               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                                 isSelected
                                   ? 'bg-[#FF1B6B] text-white'

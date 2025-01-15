@@ -60,6 +60,7 @@ import { toast } from 'react-hot-toast';
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 import { MdLocalOffer, MdTimer } from 'react-icons/md';
 import FeaturedDeals from '../../components/merch/FeaturedDeals';
+import { AiFillStar } from 'react-icons/ai';
 
 const SkeletonPulse = () => (
   <motion.div
@@ -246,6 +247,32 @@ const CountdownTimer = ({ endsAt }) => {
 };
 
 const ProductCard = ({ product }) => {
+  const [rating, setRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+
+  useEffect(() => {
+    const fetchProductReviews = async () => {
+      try {
+        const reviewsRef = collection(db, 'reviews');
+        const q = query(reviewsRef, where('productId', '==', product.id));
+        const querySnapshot = await getDocs(q);
+        
+        let totalRating = 0;
+        querySnapshot.forEach((doc) => {
+          totalRating += doc.data().rating;
+        });
+
+        const avgRating = querySnapshot.size > 0 ? totalRating / querySnapshot.size : 0;
+        setRating(avgRating);
+        setReviewCount(querySnapshot.size);
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+      }
+    };
+
+    fetchProductReviews();
+  }, [product.id]);
+
   return (
     <motion.div
       className="bg-white rounded-lg shadow-sm overflow-hidden group"
@@ -254,12 +281,6 @@ const ProductCard = ({ product }) => {
       <Link to={`/merch-store/product/${product.id}`}>
         <div className="aspect-square relative overflow-hidden">
           <ProductImages images={product.images} />
-          {product.rating && (
-            <div className="absolute top-2 right-2 bg-white bg-opacity-90 px-2 py-1 rounded-full text-xs font-medium text-gray-800 flex items-center gap-1">
-              <BiStar className="text-yellow-400" />
-              {product.rating}
-            </div>
-          )}
         </div>
         <div className="p-3">
           <h3 className="font-medium text-gray-800 mb-1 truncate">
@@ -327,6 +348,19 @@ const ProductCard = ({ product }) => {
                   ? `Only ${product.quantity} left` 
                   : 'Out of Stock'}
             </p>
+          </div>
+
+          {/* Sales and Rating Section */}
+          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-100">
+            <AiFillStar className="text-[#FF1B6B] text-base" />
+            <span className="text-sm font-medium">
+              {rating ? rating.toFixed(1) : 'New'}
+            </span>
+            {reviewCount > 0 && (
+              <span className="text-xs text-gray-500">
+                ({reviewCount})
+              </span>
+            )}
           </div>
         </div>
       </Link>

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BiUpload, BiTrash } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
@@ -89,6 +89,23 @@ const NETWORK_INFO = {
   }
 };
 
+const SHOE_SIZES = [
+  "US 6 / EU 39",
+  "US 6.5 / EU 39.5",
+  "US 7 / EU 40",
+  "US 7.5 / EU 40.5",
+  "US 8 / EU 41",
+  "US 8.5 / EU 41.5",
+  "US 9 / EU 42",
+  "US 9.5 / EU 42.5",
+  "US 10 / EU 43",
+  "US 10.5 / EU 43.5",
+  "US 11 / EU 44",
+  "US 11.5 / EU 44.5",
+  "US 12 / EU 45",
+  "US 13 / EU 46"
+];
+
 const EditProduct = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -117,6 +134,9 @@ const EditProduct = () => {
     hasDiscount: false,
     discountPercent: 0
   });
+  const [sizes, setSizes] = useState([]);
+  const [selectedSizes, setSelectedSizes] = useState([]);
+  const [quantities, setQuantities] = useState({});
 
   const CLOTHING_SUBCATEGORIES = {
     "Men's Wear": [
@@ -296,78 +316,55 @@ const EditProduct = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setUploading(true);
+    setSubmitting(true);
 
     try {
-      if (product.category === 'clothing') {
-        if (!product.subCategory) {
-          toast.error('Please select a subcategory');
-          return;
-        }
-        if (product.hasVariants) {
-          if (product.sizes.length === 0) {
-            toast.error('Please select at least one size');
-            return;
-          }
-          if (product.colors.length === 0) {
-            toast.error('Please select at least one color');
-            return;
-          }
-          // Validate color quantities
-          if (product.colors.some(color => !product.colorQuantities[color])) {
-            toast.error('Please specify quantities for all selected colors');
-            return;
-          }
-        }
-      }
-
-      const productRef = doc(db, 'products', id);
-      
-      // Format the discountEndsAt date properly
-      let discountEndsAt = null;
-      if (product.hasDiscount && product.discountEndsAt) {
-        discountEndsAt = new Date(product.discountEndsAt).toISOString();
-      }
-      
-      const updateData = {
-        name: product.name,
-        description: product.description,
-        price: Number(product.price),
-        quantity: product.hasVariants 
-          ? Object.values(product.colorQuantities).reduce((a, b) => a + b, 0)
-          : Number(product.quantity),
-        category: product.category,
-        subCategory: product.subCategory,
-        network: product.network,
-        acceptedToken: product.acceptedToken,
-        tokenLogo: product.tokenLogo,
-        shippingFee: Number(product.shippingFee),
-        shippingInfo: product.shippingInfo,
-        images: product.images,
-        hasVariants: Boolean(product.hasVariants),
-        sizes: product.hasVariants ? product.sizes : [],
-        colors: product.hasVariants ? product.colors : [],
-        colorQuantities: product.hasVariants ? product.colorQuantities : {},
-        hasDiscount: product.hasDiscount,
-        discountPercent: product.hasDiscount ? Number(product.discountPercent) : 0,
-        discountEndsAt: discountEndsAt,
-        discountedPrice: product.hasDiscount ? 
-          Number(product.price) * (1 - Number(product.discountPercent) / 100) : 
-          Number(product.price),
-        updatedAt: new Date().toISOString()
+      const productData = {
+        ...product,
+        sizes: selectedSizes,
+        quantities: quantities,
+        updatedAt: serverTimestamp()
       };
 
-      await updateDoc(productRef, updateData);
+      // Remove empty or undefined values
+      Object.keys(productData).forEach(key => {
+        if (productData[key] === undefined || productData[key] === '') {
+          delete productData[key];
+        }
+      });
 
+      await updateDoc(doc(db, 'products', id), productData);
+      
       toast.success('Product updated successfully');
       navigate('/merch-store/products');
     } catch (error) {
       console.error('Error updating product:', error);
       toast.error('Failed to update product');
     } finally {
-      setUploading(false);
+      setSubmitting(false);
     }
   };
+
+  const isFootwearProduct = () => {
+    return product.category === 'clothing' && 
+           product.subCategory && 
+           product.subCategory.toLowerCase().includes('footwear');
+  };
+
+  useEffect(() => {
+    if (isFootwearProduct()) {
+      setSizes(SHOE_SIZES);
+    } else {
+      setSizes(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+    }
+  }, [product.category, product.subCategory]);
+
+  useEffect(() => {
+    if (product) {
+      setSelectedSizes(product.sizes || []);
+      setQuantities(product.colorQuantities || {});
+    }
+  }, [product]);
 
   if (loading) {
     return (
@@ -440,116 +437,167 @@ const EditProduct = () => {
             </div>
           </div>
 
-          {/* Basic Product Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Product Name *
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={product.name}
-                onChange={handleInputChange}
-                required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
-                placeholder="Enter product name"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category *
-              </label>
-              <select
-                name="category"
-                value={product.category}
-                onChange={handleInputChange}
-                required
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white appearance-none"
-              >
-                <option value="">Select Category</option>
-                <option value="clothing">Clothing</option>
-                <option value="accessories">Accessories</option>
-                <option value="electronics">Electronics</option>
-                <option value="home">Home</option>
-                <option value="art">Art</option>
-                <option value="collectibles">Collectibles</option>
-              </select>
+          {/* Sizes and Quantities */}
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-gray-700">
+              Available Sizes & Quantities
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {sizes.map((size) => (
+                <div key={size} className="flex flex-col space-y-2">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={`size-${size}`}
+                      checked={selectedSizes.includes(size)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSizes([...selectedSizes, size]);
+                          setQuantities({ ...quantities, [size]: 0 });
+                        } else {
+                          setSelectedSizes(selectedSizes.filter(s => s !== size));
+                          const newQuantities = { ...quantities };
+                          delete newQuantities[size];
+                          setQuantities(newQuantities);
+                        }
+                      }}
+                      className="rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
+                    />
+                    <label htmlFor={`size-${size}`} className="ml-2 text-sm text-gray-700">
+                      {size}
+                    </label>
+                  </div>
+                  {selectedSizes.includes(size) && (
+                    <input
+                      type="number"
+                      min="0"
+                      value={quantities[size] || ''}
+                      onChange={(e) => {
+                        setQuantities({
+                          ...quantities,
+                          [size]: parseInt(e.target.value) || 0
+                        });
+                      }}
+                      placeholder="Quantity"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#FF1B6B] focus:ring-[#FF1B6B] sm:text-sm"
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Subcategory Section */}
-          {(product.category === 'clothing' || product.category === 'accessories') && (
-            <div className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Product Type *
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Main Categories */}
-                <div className="space-y-4">
-                  {Object.entries(product.category === 'clothing' ? CLOTHING_SUBCATEGORIES : ACCESSORIES_SUBCATEGORIES)
-                    .map(([mainCategory, subItems]) => (
-                    <div key={mainCategory} className="bg-white rounded-lg p-4">
-                      <h3 className="font-medium text-gray-900 mb-3">{mainCategory}</h3>
-                      <div className="grid grid-cols-2 gap-2">
-                        {subItems.map((subItem) => (
-                          <button
-                            key={subItem}
-                            type="button"
-                            onClick={() => handleSubCategorySelect(mainCategory, subItem)}
-                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
-                              product.subCategory === `${mainCategory} - ${subItem}`
-                                ? 'bg-[#FF1B6B] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            {subItem}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          {/* Product Description */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={product.name}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                  placeholder="Enter product name"
+                />
+              </div>
 
-                {/* Selected Category Display */}
-                <div className="bg-white rounded-lg p-4">
-                  <h3 className="font-medium text-gray-900 mb-3">Selected Category</h3>
-                  {product.subCategory ? (
-                    <div className="bg-pink-50 border border-pink-100 rounded-lg p-4">
-                      <p className="text-gray-700">
-                        <span className="font-medium">Main Category:</span>{' '}
-                        {product.subCategory.split(' - ')[0]}
-                      </p>
-                      <p className="text-gray-700 mt-2">
-                        <span className="font-medium">Sub Category:</span>{' '}
-                        {product.subCategory.split(' - ')[1]}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-gray-500">
-                      Please select a category from the left
-                    </div>
-                  )}
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category *
+                </label>
+                <select
+                  name="category"
+                  value={product.category}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white appearance-none"
+                >
+                  <option value="">Select Category</option>
+                  <option value="clothing">Clothing</option>
+                  <option value="accessories">Accessories</option>
+                  <option value="electronics">Electronics</option>
+                  <option value="home">Home</option>
+                  <option value="art">Art</option>
+                  <option value="collectibles">Collectibles</option>
+                </select>
               </div>
             </div>
-          )}
 
-          {/* Description Section */}
-          <div className="bg-gray-50 rounded-xl p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Description *
-            </label>
-            <textarea
-              name="description"
-              value={product.description}
-              onChange={handleInputChange}
-              required
-              rows={4}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
-              placeholder="Describe your product..."
-            />
+            {/* Subcategory Section */}
+            {(product.category === 'clothing' || product.category === 'accessories') && (
+              <div className="bg-gray-50 rounded-xl p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-4">
+                  Product Type *
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Main Categories */}
+                  <div className="space-y-4">
+                    {Object.entries(product.category === 'clothing' ? CLOTHING_SUBCATEGORIES : ACCESSORIES_SUBCATEGORIES)
+                      .map(([mainCategory, subItems]) => (
+                      <div key={mainCategory} className="bg-white rounded-lg p-4">
+                        <h3 className="font-medium text-gray-900 mb-3">{mainCategory}</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                          {subItems.map((subItem) => (
+                            <button
+                              key={subItem}
+                              type="button"
+                              onClick={() => handleSubCategorySelect(mainCategory, subItem)}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                                product.subCategory === `${mainCategory} - ${subItem}`
+                                  ? 'bg-[#FF1B6B] text-white'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              {subItem}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Selected Category Display */}
+                  <div className="bg-white rounded-lg p-4">
+                    <h3 className="font-medium text-gray-900 mb-3">Selected Category</h3>
+                    {product.subCategory ? (
+                      <div className="bg-pink-50 border border-pink-100 rounded-lg p-4">
+                        <p className="text-gray-700">
+                          <span className="font-medium">Main Category:</span>{' '}
+                          {product.subCategory.split(' - ')[0]}
+                        </p>
+                        <p className="text-gray-700 mt-2">
+                          <span className="font-medium">Sub Category:</span>{' '}
+                          {product.subCategory.split(' - ')[1]}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-gray-500">
+                        Please select a category from the left
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gray-50 rounded-xl p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Description *
+              </label>
+              <textarea
+                name="description"
+                value={product.description}
+                onChange={handleInputChange}
+                required
+                rows={4}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                placeholder="Describe your product..."
+              />
+            </div>
           </div>
 
           {/* Network & Price Section */}
