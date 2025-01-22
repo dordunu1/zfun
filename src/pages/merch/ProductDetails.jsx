@@ -6,130 +6,138 @@ import { FiCopy } from 'react-icons/fi';
 import { doc, getDoc, collection, query, where, getDocs, limit, updateDoc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { toast } from 'react-hot-toast';
 import ProductReviews from '../../components/reviews/ProductReviews';
 import ReactCountryFlag from 'react-country-flag';
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 import CountdownTimer from '../../components/shared/CountdownTimer';
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const ProductDetailsSkeleton = () => (
-  <div className="max-w-7xl mx-auto p-4">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      {/* Image Gallery Skeleton */}
-      <div className="space-y-4">
-        <div className="aspect-square rounded-lg overflow-hidden">
+const ProductDetailsSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className={`max-w-7xl mx-auto p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Image Gallery Skeleton */}
+        <div className="space-y-4">
+          <div className="aspect-square rounded-lg overflow-hidden">
+            <SkeletonPulse />
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="aspect-square rounded-lg overflow-hidden">
+                <SkeletonPulse />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Product Info Skeleton */}
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="w-3/4 h-8">
+              <SkeletonPulse />
+            </div>
+            <div className="w-1/2 h-6">
+              <SkeletonPulse />
+            </div>
+            <div className="w-full h-32">
+              <SkeletonPulse />
+            </div>
+          </div>
+
+          {/* Price and Token Skeleton */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8">
+              <SkeletonPulse />
+            </div>
+            <div className="w-24 h-8">
+              <SkeletonPulse />
+            </div>
+          </div>
+
+          {/* Quantity and Add to Cart Skeleton */}
+          <div className="space-y-4">
+            <div className="w-32 h-10">
+              <SkeletonPulse />
+            </div>
+            <div className="w-full h-12">
+              <SkeletonPulse />
+            </div>
+          </div>
+
+          {/* Seller Info Skeleton */}
+          <div className="border-t pt-6 mt-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full overflow-hidden">
+                <SkeletonPulse />
+              </div>
+              <div className="space-y-2">
+                <div className="w-32 h-4">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-24 h-4">
+                  <SkeletonPulse />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Similar Products Skeleton */}
+      <div className="mt-12 space-y-4">
+        <div className="w-48 h-6">
           <SkeletonPulse />
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="aspect-square rounded-lg overflow-hidden">
-              <SkeletonPulse />
+            <div key={i} className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="aspect-square">
+                <SkeletonPulse />
+              </div>
+              <div className="p-3 space-y-2">
+                <div className="w-3/4 h-4">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-1/2 h-4">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-1/3 h-4">
+                  <SkeletonPulse />
+                </div>
+              </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Product Info Skeleton */}
-      <div className="space-y-6">
-        <div className="space-y-4">
-          <div className="w-3/4 h-8">
-            <SkeletonPulse />
-          </div>
-          <div className="w-1/2 h-6">
-            <SkeletonPulse />
-          </div>
-          <div className="w-full h-32">
-            <SkeletonPulse />
-          </div>
-        </div>
-
-        {/* Price and Token Skeleton */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8">
-            <SkeletonPulse />
-          </div>
-          <div className="w-24 h-8">
-            <SkeletonPulse />
-          </div>
-        </div>
-
-        {/* Quantity and Add to Cart Skeleton */}
-        <div className="space-y-4">
-          <div className="w-32 h-10">
-            <SkeletonPulse />
-          </div>
-          <div className="w-full h-12">
-            <SkeletonPulse />
-          </div>
-        </div>
-
-        {/* Seller Info Skeleton */}
-        <div className="border-t pt-6 mt-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full overflow-hidden">
-              <SkeletonPulse />
-            </div>
-            <div className="space-y-2">
-              <div className="w-32 h-4">
-                <SkeletonPulse />
-              </div>
-              <div className="w-24 h-4">
-                <SkeletonPulse />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
-
-    {/* Similar Products Skeleton */}
-    <div className="mt-12 space-y-4">
-      <div className="w-48 h-6">
-        <SkeletonPulse />
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <div className="aspect-square">
-              <SkeletonPulse />
-            </div>
-            <div className="p-3 space-y-2">
-              <div className="w-3/4 h-4">
-                <SkeletonPulse />
-              </div>
-              <div className="w-1/2 h-4">
-                <SkeletonPulse />
-              </div>
-              <div className="w-1/3 h-4">
-                <SkeletonPulse />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, updateCartCount } = useMerchAuth();
   const [product, setProduct] = useState(null);
+  const { isDarkMode } = useTheme();
   const [seller, setSeller] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -649,16 +657,16 @@ const ProductDetails = () => {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Product not found</div>
+      <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} flex items-center justify-center`}>
+        <div className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Product not found</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className={`container mx-auto px-4 py-8 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
       <motion.div
-        className="max-w-6xl mx-auto p-4"
+        className={`max-w-6xl mx-auto p-4`}
         initial="hidden"
         animate="visible"
         variants={containerVariants}
@@ -667,7 +675,7 @@ const ProductDetails = () => {
         <motion.button
           variants={itemVariants}
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-600 hover:text-[#FF1B6B] mb-6"
+          className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-[#FF1B6B]' : 'text-gray-600 hover:text-[#FF1B6B]'} mb-6`}
         >
           <BiArrowBack className="text-xl" />
           <span>Back</span>
@@ -726,12 +734,12 @@ const ProductDetails = () => {
           {/* Product Info */}
           <motion.div variants={itemVariants} className="space-y-6">
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">
+              <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-2`}>
                 {product.name}
               </h1>
               {seller && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200 shrink-0">
-                  <span className="text-sm font-medium text-gray-700">{seller.storeName}</span>
+                <div className={`flex items-center gap-2 px-3 py-1.5 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'} rounded-lg border shrink-0`}>
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{seller.storeName}</span>
                   {seller.verificationStatus === 'approved' && (
                     <div className="group relative inline-flex items-center">
                       <VerificationCheckmark className="!w-[10px] !h-[10px] min-w-[10px] min-h-[10px]" />
@@ -754,7 +762,7 @@ const ProductDetails = () => {
                 </div>
               )}
             </div>
-            <p className="text-gray-600">{product.description}</p>
+            <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{product.description}</p>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -787,10 +795,10 @@ const ProductDetails = () => {
               </div>
               <div className={`px-4 py-2 rounded-lg font-medium ${
                 product.quantity > 10 
-                  ? 'bg-green-100 text-green-700' 
+                  ? isDarkMode ? 'bg-green-900/20 text-green-400' : 'bg-green-100 text-green-700'
                   : product.quantity > 0 
-                    ? 'bg-orange-100 text-orange-700' 
-                    : 'bg-red-100 text-red-700'
+                    ? isDarkMode ? 'bg-orange-900/20 text-orange-400' : 'bg-orange-100 text-orange-700'
+                    : isDarkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-100 text-red-700'
               }`}>
                 {product.quantity > 10 
                   ? 'In Stock' 
@@ -806,7 +814,7 @@ const ProductDetails = () => {
                 {/* Size Selection */}
                 {product.sizes.length > 0 && (
                   <div>
-                    <span className="text-gray-600 block mb-3">Select Size</span>
+                    <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} block mb-3`}>Select Size</span>
                     <div className="flex flex-wrap gap-2">
                       {product.sizes.map((size) => (
                         <button
@@ -815,7 +823,9 @@ const ProductDetails = () => {
                           className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                             selectedSize === size
                               ? 'bg-[#FF1B6B] text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              : isDarkMode 
+                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
                           {size}
@@ -828,7 +838,7 @@ const ProductDetails = () => {
                 {/* Color Selection */}
                 {product.colors.length > 0 && (
                   <div>
-                    <span className="text-gray-600 block mb-3">Select Color</span>
+                    <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} block mb-3`}>Select Color</span>
                     <div className="flex flex-wrap gap-2">
                       {product.colors.map((color) => {
                         const isAvailable = product.colorQuantities[color] > 0;
@@ -841,8 +851,12 @@ const ProductDetails = () => {
                               selectedColor === color
                                 ? 'bg-[#FF1B6B] text-white'
                                 : isAvailable
-                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                ? isDarkMode 
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : isDarkMode
+                                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             }`}
                           >
                             <span
@@ -865,7 +879,7 @@ const ProductDetails = () => {
             {/* Quantity Selector */}
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <span className="text-gray-600">Quantity:</span>
+                <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Quantity:</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleQuantityChange(-1)}
@@ -886,28 +900,34 @@ const ProductDetails = () => {
               </div>
 
               {/* Price Breakdown */}
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} p-4 rounded-lg space-y-2`}>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal:</span>
+                  <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Subtotal:</span>
                   <div className="text-right">
                     {product.hasDiscount && new Date() < new Date(product.discountEndsAt) ? (
                       <>
-                        <span className="font-medium">{product.acceptedToken} {(product.discountedPrice * quantity).toFixed(2)}</span>
+                        <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                          {product.acceptedToken} {(product.discountedPrice * quantity).toFixed(2)}
+                        </span>
                         <div className="text-xs text-gray-400 line-through">
                           {product.acceptedToken} {(product.price * quantity).toFixed(2)}
                         </div>
                       </>
                     ) : (
-                      <span className="font-medium">{product.acceptedToken} {(product.price * quantity).toFixed(2)}</span>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                        {product.acceptedToken} {(product.price * quantity).toFixed(2)}
+                      </span>
                     )}
                   </div>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Shipping Fee:</span>
-                  <span className="font-medium">{product.acceptedToken} {(product.shippingFee || 0).toFixed(2)}</span>
+                  <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Shipping Fee:</span>
+                  <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                    {product.acceptedToken} {(product.shippingFee || 0).toFixed(2)}
+                  </span>
                 </div>
                 <div className="border-t pt-2 flex justify-between font-medium">
-                  <span>Total:</span>
+                  <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>Total:</span>
                   <span className="text-[#FF1B6B]">{product.acceptedToken} {totalPrice.toFixed(2)}</span>
                 </div>
               </div>
@@ -916,7 +936,11 @@ const ProductDetails = () => {
               <div className="flex gap-4">
                 <button
                   onClick={addToCart}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-100 text-gray-800 hover:bg-gray-100 hover:text-[#FF1B6B] rounded-lg transition-colors"
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 ${
+                    isDarkMode 
+                      ? 'bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-[#FF1B6B]'
+                      : 'bg-gray-100 text-gray-800 hover:bg-gray-100 hover:text-[#FF1B6B]'
+                  } rounded-lg transition-colors`}
                 >
                   <BiCart className="text-xl" />
                   Add to Cart
@@ -933,7 +957,11 @@ const ProductDetails = () => {
               {/* Contact Store Button */}
               <button
                 onClick={handleContactStore}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-white border-2 border-[#FF1B6B] text-[#FF1B6B] rounded-lg hover:bg-pink-50 transition-colors mt-2"
+                className={`w-full flex items-center justify-center gap-2 py-3 ${
+                  isDarkMode 
+                    ? 'bg-gray-800 border-2 border-[#FF1B6B] text-[#FF1B6B] hover:bg-gray-700'
+                    : 'bg-white border-2 border-[#FF1B6B] text-[#FF1B6B] hover:bg-pink-50'
+                } rounded-lg transition-colors mt-2`}
               >
                 <BiMessageDetail className="text-xl" />
                 Contact Store
@@ -941,33 +969,35 @@ const ProductDetails = () => {
             </div>
 
             {/* Additional Info */}
-            <div className="border-t pt-6 space-y-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Additional Information</h2>
+            <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pt-6 space-y-6`}>
+              <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4`}>
+                Additional Information
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Category and Payment Token */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-2xl shadow-sm`}>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Category</span>
-                      <span className="text-gray-800 font-medium">
+                      <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Category</span>
+                      <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-800'} font-medium`}>
                         {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Payment Token</span>
+                      <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Payment Token</span>
                       <div className="flex items-center gap-2">
                         <img src={product.tokenLogo} alt={product.acceptedToken} className="w-4 h-4" />
-                        <span className="text-gray-800 font-medium">{product.acceptedToken}</span>
+                        <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-800'} font-medium`}>{product.acceptedToken}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Token Contract Address */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-2xl shadow-sm`}>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Token Contract</span>
+                      <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Token Contract</span>
                       {getTokenContractAddress() && (
                         <div className="flex items-center gap-2">
                           <div className="px-2 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
@@ -977,9 +1007,9 @@ const ProductDetails = () => {
                       )}
                     </div>
                     <div className="relative">
-                      <div className="bg-gray-50 rounded-lg overflow-hidden">
+                      <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg overflow-hidden`}>
                         <div className="flex items-center justify-between">
-                          <div className="px-4 py-2.5 font-mono text-sm text-gray-700">
+                          <div className={`px-4 py-2.5 font-mono text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                             {getTokenContractAddress() ? shortenAddress(getTokenContractAddress()) : 'Network or token not configured'}
                           </div>
                           {getTokenContractAddress() && (
@@ -1018,28 +1048,28 @@ const ProductDetails = () => {
 
                 {/* Variants Information */}
                 {product.category === 'clothing' && product.hasVariants && (
-                  <div className="bg-white p-6 rounded-2xl shadow-sm md:col-span-2">
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-2xl shadow-sm md:col-span-2`}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <span className="text-gray-600 block mb-3">Available Sizes</span>
+                        <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} block mb-3`}>Available Sizes</span>
                         <div className="flex flex-wrap gap-2">
                           {product.sizes.map((size) => (
-                            <span key={size} className="px-3 py-1 rounded-full text-sm font-medium text-gray-700 bg-gray-50">
+                            <span key={size} className={`px-3 py-1 rounded-full text-sm font-medium ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-700 bg-gray-50'}`}>
                               {size}
                             </span>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <span className="text-gray-600 block mb-3">Available Colors</span>
+                        <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} block mb-3`}>Available Colors</span>
                         <div className="flex flex-wrap gap-2">
                           {product.colors.map((color) => (
-                            <div key={color} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50">
+                            <div key={color} className={`flex items-center gap-1.5 px-3 py-1 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                               <span
                                 className="w-3 h-3 rounded-full border border-gray-200"
                                 style={{ backgroundColor: color.toLowerCase() }}
                               />
-                              <span className="text-sm font-medium text-gray-700">{color}</span>
+                              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>{color}</span>
                             </div>
                           ))}
                         </div>
@@ -1051,17 +1081,23 @@ const ProductDetails = () => {
             </div>
 
             {/* Shipping Information */}
-            <div className="border-t pt-6 mt-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Shipping Details</h3>
-              <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+            <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pt-6 mt-6`}>
+              <h3 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4`}>
+                Shipping Details
+              </h3>
+              <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-2xl shadow-sm space-y-4`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Shipping Fee</span>
+                  <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Shipping Fee</span>
                   <span className="font-medium text-[#FF1B6B]">${product.shippingFee?.toFixed(2) || '0.00'}</span>
                 </div>
                 {product.shippingInfo && (
-                  <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Shipping Information</h4>
-                    <p className="text-sm text-gray-600 leading-relaxed">{product.shippingInfo}</p>
+                  <div className={`pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <h4 className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
+                      Shipping Information
+                    </h4>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} leading-relaxed`}>
+                      {product.shippingInfo}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1073,14 +1109,14 @@ const ProductDetails = () => {
         {similarProducts.length > 0 && (
           <motion.div
             variants={itemVariants}
-            className="mt-12 border-t pt-8"
+            className={`mt-12 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pt-8`}
           >
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
+            <h2 className={`text-xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-2`}>
               {similarProducts[0].sellerId === product.sellerId 
                 ? `More from ${product.sellerName}`
                 : 'Similar Products'}
             </h2>
-            <p className="text-gray-500 text-sm mb-6">
+            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mb-6`}>
               {similarProducts[0].sellerId === product.sellerId 
                 ? 'Check out other items from this store'
                 : 'You might also like these products'}
@@ -1089,7 +1125,7 @@ const ProductDetails = () => {
               {similarProducts.map((product) => (
                 <motion.div
                   key={product.id}
-                  className="bg-white rounded-lg shadow-sm overflow-hidden group"
+                  className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm overflow-hidden group`}
                   whileHover={{ y: -3 }}
                 >
                   <button
@@ -1107,7 +1143,7 @@ const ProductDetails = () => {
                       />
                     </div>
                     <div className="p-3">
-                      <h3 className="font-medium text-gray-800 mb-1 truncate">
+                      <h3 className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} mb-1 truncate`}>
                         {product.name}
                       </h3>
                       <div className="flex items-center gap-2">
@@ -1120,7 +1156,7 @@ const ProductDetails = () => {
                           ${product.price.toFixed(2)}
                         </p>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                         by {product.sellerName}
                       </p>
                     </div>
@@ -1134,9 +1170,11 @@ const ProductDetails = () => {
         {/* Reviews Section */}
         <motion.div
           variants={itemVariants}
-          className="mt-12 border-t pt-8"
+          className={`mt-12 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pt-8`}
         >
-          <ProductReviews productId={id} />
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-2xl shadow-sm`}>
+            <ProductReviews productId={id} />
+          </div>
         </motion.div>
       </motion.div>
     </div>

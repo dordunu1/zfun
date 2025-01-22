@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
 import { toast } from 'react-hot-toast';
+import { useTheme } from '../../context/ThemeContext';
 
 const StarRating = ({ rating, setRating, isInteractive = true }) => {
   return (
@@ -279,6 +280,7 @@ const ProductReviews = ({ productId }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 10;
+  const { isDarkMode } = useTheme();
 
   const fetchReviews = async () => {
     try {
@@ -353,11 +355,22 @@ const ProductReviews = ({ productId }) => {
     <div className="mt-8" id="reviews-section">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h3 className="text-lg font-semibold">Customer Reviews</h3>
+          <h2 className={`text-xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+            Customer Reviews
+          </h2>
           {reviews.length > 0 && (
             <div className="flex items-center gap-2 mt-1">
-              <StarRating rating={Math.round(averageRating)} isInteractive={false} />
-              <span className="text-sm text-gray-500">
+              <div className="flex items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <svg key={star} className="w-5 h-5 text-[#FF1B6B]" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'} font-medium`}>
+                {averageRating.toFixed(1)}
+              </span>
+              <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
               </span>
             </div>
@@ -374,24 +387,39 @@ const ProductReviews = ({ productId }) => {
       </div>
 
       {reviews.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No reviews yet</p>
+        <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          No reviews yet
+        </div>
       ) : (
         <>
           <div className="space-y-6">
             {currentReviews.map((review) => (
-              <div key={review.id} className="border-b pb-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{review.userName}</p>
-                      <StarRating rating={review.rating} isInteractive={false} />
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {review.createdAt.toLocaleDateString()}
-                    </p>
+              <div key={review.id} className={`${isDarkMode ? 'border-gray-700' : 'border-gray-200'} border-b pb-6 last:border-b-0 last:pb-0`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                      {review.userName}
+                    </span>
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      · {review.createdAt.toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <svg 
+                        key={star} 
+                        className={`w-4 h-4 ${star <= review.rating ? 'text-[#FF1B6B]' : isDarkMode ? 'text-gray-600' : 'text-gray-300'}`}
+                        fill="currentColor" 
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
                   </div>
                 </div>
-                <p className="mt-2 text-gray-700">{review.review}</p>
+                <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {review.review}
+                </p>
                 {review.image && (
                   <button
                     onClick={() => setSelectedImage(review.image)}
