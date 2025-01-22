@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BiStore, BiArrowBack, BiLogOut, BiHomeAlt, BiPackage, BiCart, BiCog, BiDollarCircle, BiListPlus, BiHistory, BiUser, BiMenu, BiX, BiRefresh, BiShield, BiMessageDetail } from 'react-icons/bi';
+import { FiSun, FiMoon } from 'react-icons/fi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { toast, Toaster } from 'react-hot-toast';
 import { getDoc, doc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
@@ -10,6 +12,7 @@ import VerificationCheckmark from '../../components/shared/VerificationCheckmark
 
 const MerchStoreLayout = () => {
   const { logout, user, cartCount } = useMerchAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -94,13 +97,13 @@ const MerchStoreLayout = () => {
   const navItems = [...(user?.isSeller ? sellerNavItems : buyerNavItems), ...commonNavItems];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
       <Toaster
         position="top-right"
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#333',
+            background: isDarkMode ? '#1F2937' : '#333',
             color: '#fff',
           },
           success: {
@@ -113,7 +116,7 @@ const MerchStoreLayout = () => {
       />
 
       {/* Top Navigation */}
-      <nav className="fixed top-0 right-0 left-0 bg-white shadow-sm z-50">
+      <nav className={`fixed top-0 right-0 left-0 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-sm z-50 border-b`}>
         <div className="w-full px-0">
           <div className="flex items-center justify-between h-16">
             {/* Left side */}
@@ -121,7 +124,7 @@ const MerchStoreLayout = () => {
               {user && (
                 <button
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="lg:hidden p-2 text-gray-600 hover:text-[#FF1B6B] mr-2"
+                  className={`lg:hidden p-2 ${isDarkMode ? 'text-gray-400 hover:text-[#FF1B6B]' : 'text-gray-600 hover:text-[#FF1B6B]'} mr-2`}
                 >
                   {isMobileMenuOpen ? (
                     <BiX className="w-6 h-6" />
@@ -148,6 +151,19 @@ const MerchStoreLayout = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
             >
+              {/* Theme Toggle Button */}
+              <button
+                onClick={toggleTheme}
+                className={`p-2 rounded-lg transition-colors ${
+                  isDarkMode
+                    ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                aria-label="Toggle theme"
+              >
+                {isDarkMode ? <FiSun className="w-5 h-5" /> : <FiMoon className="w-5 h-5" />}
+              </button>
+
               {user ? (
                 <>
                   {!user.isSeller && (
@@ -163,7 +179,7 @@ const MerchStoreLayout = () => {
                 <div className="flex items-center gap-2 sm:gap-4">
                   <Link
                     to="/merch-store/login"
-                    className="px-3 sm:px-4 py-2 text-[#FF1B6B] hover:text-[#D4145A] transition-colors text-sm sm:text-base"
+                    className={`px-3 sm:px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-[#FF1B6B]' : 'text-[#FF1B6B] hover:text-[#D4145A]'} transition-colors text-sm sm:text-base`}
                   >
                     Login
                   </Link>
@@ -200,21 +216,21 @@ const MerchStoreLayout = () => {
               onClick={() => setIsMobileMenuOpen(false)}
             />
             <motion.aside 
-              className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 bg-white shadow-lg z-50 lg:hidden overflow-y-auto"
+              className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-72 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg z-50 lg:hidden overflow-y-auto`}
               initial={{ x: -288 }}
               animate={{ x: 0 }}
               exit={{ x: -288 }}
               transition={{ type: "spring", stiffness: 100 }}
             >
               <div className="h-full flex flex-col">
-                <div className="p-6 border-b border-gray-100">
+                <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                   <div>
-                    <p className="text-sm text-gray-500">Welcome,</p>
-                    <p className="font-medium text-gray-900 text-lg">{user.name}</p>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Welcome,</p>
+                    <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'} text-lg`}>{user.name}</p>
                     <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs ${
                       user.isSeller 
                         ? 'bg-pink-50 text-[#FF1B6B]' 
-                        : 'bg-gray-100 text-gray-600'
+                        : isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
                     }`}>
                       <BiUser className="w-4 h-4" />
                       <span>{user.isSeller ? 'Seller Account' : 'Buyer Account'}</span>
@@ -237,7 +253,9 @@ const MerchStoreLayout = () => {
                             `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                               isActive
                                 ? 'bg-[#FF1B6B] text-white'
-                                : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
+                                : isDarkMode
+                                  ? 'text-gray-300 hover:bg-gray-700 hover:text-[#FF1B6B]'
+                                  : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
                             }`
                           }
                         >
@@ -258,13 +276,17 @@ const MerchStoreLayout = () => {
                   </ul>
                 </nav>
 
-                <div className="p-4 border-t border-gray-100">
+                <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
                       handleLogout();
                     }}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B] rounded-lg transition-colors"
+                    className={`flex items-center gap-3 w-full px-4 py-3 ${
+                      isDarkMode
+                        ? 'text-gray-300 hover:bg-gray-700 hover:text-[#FF1B6B]'
+                        : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
+                    } rounded-lg transition-colors`}
                   >
                     <BiLogOut className="text-xl" />
                     <span>Logout</span>
@@ -279,7 +301,7 @@ const MerchStoreLayout = () => {
       {/* Desktop Sidebar */}
       {user && (
         <motion.aside 
-          className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white shadow-lg z-50 hidden lg:block"
+          className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg z-50 hidden lg:block`}
           initial={{ x: -64 }}
           animate={{ x: 0 }}
           transition={{ type: "spring", stiffness: 100 }}
@@ -287,12 +309,12 @@ const MerchStoreLayout = () => {
           <div className="h-full flex flex-col">
             <div className="p-6">
               <div className="mt-2">
-                <p className="text-sm text-gray-500">Welcome,</p>
-                <p className="font-medium text-gray-900">{user.name}</p>
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Welcome,</p>
+                <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{user.name}</p>
                 <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs ${
                   user.isSeller 
                     ? 'bg-pink-50 text-[#FF1B6B]' 
-                    : 'bg-gray-100 text-gray-600'
+                    : isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
                 }`}>
                   <BiUser className="w-4 h-4" />
                   <span>{user.isSeller ? 'Seller Account' : 'Buyer Account'}</span>
@@ -314,7 +336,9 @@ const MerchStoreLayout = () => {
                         `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                           isActive
                             ? 'bg-[#FF1B6B] text-white'
-                            : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
+                            : isDarkMode
+                              ? 'text-gray-300 hover:bg-gray-700 hover:text-[#FF1B6B]'
+                              : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
                         }`
                       }
                     >
@@ -335,10 +359,14 @@ const MerchStoreLayout = () => {
               </ul>
             </nav>
 
-            <div className="p-4 border-t">
+            <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-3 w-full px-4 py-3 text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B] rounded-lg transition-colors"
+                className={`flex items-center gap-3 w-full px-4 py-3 ${
+                  isDarkMode
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-[#FF1B6B]'
+                    : 'text-gray-600 hover:bg-pink-50 hover:text-[#FF1B6B]'
+                } rounded-lg transition-colors`}
               >
                 <BiLogOut className="text-xl" />
                 <span>Logout</span>
@@ -349,29 +377,29 @@ const MerchStoreLayout = () => {
       )}
 
       {/* Main Content */}
-      <main className={`min-h-screen pt-16 ${user ? 'lg:pl-64' : ''}`}>
+      <main className={`min-h-screen pt-16 ${user ? 'lg:pl-64' : ''} ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="h-full">
           <Outlet />
         </div>
       </main>
 
       {/* Footer */}
-      <footer className={`bg-white border-t border-gray-100 py-6 ${user ? 'lg:pl-64' : ''}`}>
+      <footer className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} border-t py-6 ${user ? 'lg:pl-64' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <BiStore className="w-6 h-6 text-[#FF1B6B]" />
-            <span className="text-gray-600 font-medium">MerchStore</span>
+            <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} font-medium`}>MerchStore</span>
           </div>
           <div className="flex items-center gap-6">
             <Link 
               to="/merch-store/terms" 
-              className="text-gray-600 hover:text-[#FF1B6B] transition-colors text-sm flex items-center gap-2"
+              className={`${isDarkMode ? 'text-gray-300 hover:text-[#FF1B6B]' : 'text-gray-600 hover:text-[#FF1B6B]'} transition-colors text-sm flex items-center gap-2`}
             >
               <BiShield className="w-4 h-4" />
               Terms & Conditions
             </Link>
           </div>
-          <div className="text-sm text-gray-500">
+          <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
             © {new Date().getFullYear()} MerchStore. All rights reserved.
           </div>
         </div>
