@@ -1,7 +1,10 @@
 import React from 'react';
 import { FiShield, FiDollarSign, FiTruck, FiRefreshCw, FiUserCheck, FiUsers, FiSettings, FiBook, FiLock, FiGlobe } from 'react-icons/fi';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function TermsAndConditions() {
+  const { isDarkMode } = useTheme();
+  
   const sections = [
     {
       title: "Platform Overview",
@@ -108,10 +111,10 @@ export default function TermsAndConditions() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className={`max-w-5xl mx-auto px-4 py-8 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Terms and Conditions</h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
+        <h1 className={`text-3xl font-bold mb-4 ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Terms and Conditions</h1>
+        <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} max-w-2xl mx-auto`}>
           Please read these terms and conditions carefully before using the MerchStore platform. 
           These terms outline the rules and regulations for the use of our services.
         </p>
@@ -121,20 +124,22 @@ export default function TermsAndConditions() {
         {sections.map((section, index) => (
           <div 
             key={section.title}
-            className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300"
+            className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300`}
           >
             <div className="p-6">
               <div className="flex items-center gap-4 mb-4">
                 <div className="p-3 bg-[#FF1B6B]/10 rounded-lg text-[#FF1B6B]">
                   {section.icon}
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">{section.title}</h2>
+                <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                  {section.title}
+                </h2>
               </div>
-              <ul className="space-y-3 text-gray-600">
+              <ul className="space-y-3">
                 {section.items.map((item, itemIndex) => (
                   <li key={itemIndex} className="flex items-start gap-2">
                     <span className="text-[#FF1B6B] mt-1.5">•</span>
-                    <span>{item}</span>
+                    <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{item}</span>
                   </li>
                 ))}
               </ul>
@@ -143,9 +148,9 @@ export default function TermsAndConditions() {
         ))}
       </div>
 
-      <div className="mt-12 text-center text-sm text-gray-500">
-        <p>Last updated: {new Date().toLocaleDateString()}</p>
-        <p className="mt-2">
+      <div className="mt-12 text-center text-sm">
+        <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last updated: {new Date().toLocaleDateString()}</p>
+        <p className={`mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
           By using the MerchStore platform, you agree to these terms and conditions. 
           We reserve the right to modify these terms at any time.
         </p>

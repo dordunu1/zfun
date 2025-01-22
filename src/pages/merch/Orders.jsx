@@ -6,6 +6,7 @@ import { FaPlaneDeparture, FaBox, FaCheckCircle, FaStar } from 'react-icons/fa';
 import { collection, query, where, getDocs, orderBy, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { toast } from 'react-hot-toast';
 import { FiAlertCircle } from 'react-icons/fi';
 import { getMerchPlatformContract, parseTokenAmount } from '../../contracts/MerchPlatform';
@@ -15,106 +16,113 @@ import TrackingModal from '../../components/TrackingModal';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../firebase/merchConfig';
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const OrdersSkeleton = () => (
-  <div className="max-w-7xl mx-auto p-4">
-    {/* Header Skeleton */}
-    <div className="mb-8">
-      <div className="w-32 h-8">
-        <SkeletonPulse />
+const OrdersSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className="max-w-7xl mx-auto p-4">
+      {/* Header Skeleton */}
+      <div className="mb-8">
+        <div className="w-32 h-8">
+          <SkeletonPulse />
+        </div>
       </div>
-    </div>
 
-    {/* Orders List Skeleton */}
-    <div className="space-y-6">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="bg-white rounded-lg shadow-sm p-6">
-          {/* Order Header */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="space-y-2">
-              <div className="w-48 h-5">
-                <SkeletonPulse />
-              </div>
-              <div className="w-32 h-4">
-                <SkeletonPulse />
-              </div>
-            </div>
-            <div className="w-24 h-8">
-              <SkeletonPulse />
-            </div>
-          </div>
-
-          {/* Order Items */}
-          <div className="border-t pt-4 space-y-4">
-            {[1, 2].map((j) => (
-              <div key={j} className="flex gap-4">
-                <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+      {/* Orders List Skeleton */}
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-6`}>
+            {/* Order Header */}
+            <div className="flex justify-between items-center mb-4">
+              <div className="space-y-2">
+                <div className="w-48 h-5">
                   <SkeletonPulse />
                 </div>
-                <div className="flex-1 space-y-2">
-                  <div className="w-3/4 h-5">
-                    <SkeletonPulse />
-                  </div>
-                  <div className="w-1/2 h-4">
-                    <SkeletonPulse />
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-4">
-                      <SkeletonPulse />
-                    </div>
-                    <div className="w-24 h-4">
-                      <SkeletonPulse />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Order Summary */}
-          <div className="border-t mt-4 pt-4">
-            <div className="flex justify-between items-center">
-              <div className="space-y-2">
                 <div className="w-32 h-4">
                   <SkeletonPulse />
                 </div>
-                <div className="w-48 h-4">
-                  <SkeletonPulse />
-                </div>
               </div>
-              <div className="text-right space-y-2">
-                <div className="w-32 h-6">
-                  <SkeletonPulse />
+              <div className="w-24 h-8">
+                <SkeletonPulse />
+              </div>
+            </div>
+
+            {/* Order Items */}
+            <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pt-4 space-y-4`}>
+              {[1, 2].map((j) => (
+                <div key={j} className="flex gap-4">
+                  <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                    <SkeletonPulse />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <div className="w-3/4 h-5">
+                      <SkeletonPulse />
+                    </div>
+                    <div className="w-1/2 h-4">
+                      <SkeletonPulse />
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-4">
+                        <SkeletonPulse />
+                      </div>
+                      <div className="w-24 h-4">
+                        <SkeletonPulse />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="w-24 h-4">
-                  <SkeletonPulse />
+              ))}
+            </div>
+
+            {/* Order Summary */}
+            <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} mt-4 pt-4`}>
+              <div className="flex justify-between items-center">
+                <div className="space-y-2">
+                  <div className="w-32 h-4">
+                    <SkeletonPulse />
+                  </div>
+                  <div className="w-48 h-4">
+                    <SkeletonPulse />
+                  </div>
+                </div>
+                <div className="text-right space-y-2">
+                  <div className="w-32 h-6">
+                    <SkeletonPulse />
+                  </div>
+                  <div className="w-24 h-4">
+                    <SkeletonPulse />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const RefundRequestModal = ({ isOpen, onClose, order }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
+  const { isDarkMode } = useTheme();
 
   useEffect(() => {
     checkWalletConnection();
@@ -202,8 +210,8 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Request Refund</h2>
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-md w-full mx-4`}>
+        <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Request Refund</h2>
         
         {order.status !== 'cancelled' ? (
           <div className="mb-4 p-4 bg-yellow-50 rounded-lg">
@@ -246,32 +254,32 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
 
         <div className="space-y-4 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
               Order ID
             </label>
             <input
               type="text"
               value={`#${order.id.slice(-6)}`}
               disabled
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700"
+              className={`w-full px-3 py-2 ${isDarkMode ? 'bg-gray-700 text-gray-200 border-gray-600' : 'bg-gray-50 text-gray-700 border-gray-300'} border rounded-lg`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
               Payment Address
             </label>
             <input
               type="text"
               value={order.paymentMethod.buyerWallet}
               disabled
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700"
+              className={`w-full px-3 py-2 ${isDarkMode ? 'bg-gray-700 text-gray-200 border-gray-600' : 'bg-gray-50 text-gray-700 border-gray-300'} border rounded-lg`}
             />
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                 Original Amount
               </label>
               <div className="flex items-center gap-2">
@@ -284,7 +292,7 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
                   type="text"
                   value={`$${order.total.toFixed(2)}`}
                   disabled
-                  className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-700 line-through"
+                  className={`flex-1 px-3 py-2 ${isDarkMode ? 'bg-gray-700 text-gray-200 border-gray-600' : 'bg-gray-50 text-gray-700 border-gray-300'} border rounded-lg line-through`}
                 />
               </div>
             </div>
@@ -303,7 +311,7 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
                   type="text"
                   value={`$${refundAmount.toFixed(2)}`}
                   disabled
-                  className="flex-1 px-3 py-2 bg-[#FF1B6B]/5 border border-[#FF1B6B]/20 rounded-lg text-gray-700 font-medium"
+                  className={`flex-1 px-3 py-2 bg-[#FF1B6B]/5 border border-[#FF1B6B]/20 rounded-lg ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} font-medium`}
                 />
               </div>
             </div>
@@ -313,7 +321,7 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900"
+            className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-700 hover:text-gray-900'}`}
           >
             Cancel
           </button>
@@ -338,6 +346,7 @@ const RefundRequestModal = ({ isOpen, onClose, order }) => {
 
 const DeliveryConfirmationModal = ({ isOpen, onClose, onConfirm, orderId }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isDarkMode } = useTheme();
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
@@ -350,9 +359,9 @@ const DeliveryConfirmationModal = ({ isOpen, onClose, onConfirm, orderId }) => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
-      <div className="fixed inset-0 bg-white bg-opacity-90" onClick={onClose} />
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 relative z-50">
-        <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Delivery</h3>
+      <div className={`fixed inset-0 ${isDarkMode ? 'bg-gray-900' : 'bg-white'} bg-opacity-90`} onClick={onClose} />
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full mx-4 p-6 relative z-50`}>
+        <h3 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Confirm Delivery</h3>
         
         <div className="mb-4 p-4 bg-blue-50 rounded-lg">
           <div className="flex items-start gap-2">
@@ -382,7 +391,7 @@ const DeliveryConfirmationModal = ({ isOpen, onClose, onConfirm, orderId }) => {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900"
+            className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-700 hover:text-gray-900'}`}
           >
             Cancel
           </button>
@@ -406,6 +415,7 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
   const [imagePreview, setImagePreview] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useMerchAuth();
+  const { isDarkMode } = useTheme();
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -473,26 +483,26 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-6`}
         >
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Write a Review</h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Write a Review</h3>
+            <button onClick={onClose} className={`${isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`}>
               <BiX className="w-6 h-6" />
             </button>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+          <div className={`flex items-center gap-3 p-3 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg mb-4`}>
             <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover" />
             <div>
-              <h4 className="font-medium text-gray-900">{item.name}</h4>
-              <p className="text-sm text-gray-500">Order #{order.id.slice(-6)}</p>
+              <h4 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{item.name}</h4>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Order #{order.id.slice(-6)}</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Rating</label>
               <div className="flex items-center gap-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -503,7 +513,7 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
                   >
                     <FaStar
                       className={`w-6 h-6 ${
-                        star <= rating ? 'text-[#FF1B6B]' : 'text-gray-300'
+                        star <= rating ? 'text-[#FF1B6B]' : isDarkMode ? 'text-gray-600' : 'text-gray-300'
                       }`}
                     />
                   </button>
@@ -512,18 +522,22 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Review</label>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>Review</label>
               <textarea
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#FF1B6B] focus:border-[#FF1B6B]"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-[#FF1B6B] focus:border-[#FF1B6B] ${
+                  isDarkMode 
+                    ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                    : 'border-gray-300 text-gray-900 placeholder-gray-400'
+                }`}
                 rows="4"
                 placeholder="Share your experience with this product..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                 Add Image (optional)
               </label>
               <div className="flex items-center gap-4">
@@ -534,9 +548,13 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
                     onChange={handleImageChange}
                     className="hidden"
                   />
-                  <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                    <BiImage className="w-5 h-5 text-gray-500" />
-                    <span className="text-sm text-gray-700">Choose Image</span>
+                  <div className={`flex items-center gap-2 px-4 py-2 border rounded-lg ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:bg-gray-700' 
+                      : 'border-gray-300 hover:bg-gray-50'
+                  }`}>
+                    <BiImage className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Choose Image</span>
                   </div>
                 </label>
                 {imagePreview && (
@@ -577,6 +595,7 @@ const ReviewModal = ({ isOpen, onClose, order, item }) => {
 
 const Orders = () => {
   const { user } = useMerchAuth();
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -698,14 +717,14 @@ const Orders = () => {
 
   return (
     <motion.div
-      className="max-w-4xl mx-auto p-4 space-y-6"
+      className={`max-w-4xl mx-auto p-4 space-y-6 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
       <motion.h1
         variants={itemVariants}
-        className="text-2xl font-bold text-gray-800"
+        className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}
       >
         My Orders
       </motion.h1>
@@ -713,12 +732,12 @@ const Orders = () => {
       {orders.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="text-center py-12 bg-white rounded-lg"
+          className={`text-center py-12 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg`}
         >
           <div className="flex justify-center mb-4">
-            <BiPackage className="text-4xl text-gray-400" />
+            <BiPackage className={`text-4xl ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
           </div>
-          <p className="text-gray-500 mb-4">You haven't placed any orders yet</p>
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-4`}>You haven't placed any orders yet</p>
           <Link
             to="/merch-store"
             className="text-[#FF1B6B] hover:text-[#D4145A] font-medium"
@@ -732,15 +751,15 @@ const Orders = () => {
             <motion.div
               key={order.id}
               variants={itemVariants}
-              className="bg-white rounded-lg p-4"
+              className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}
             >
               {/* Order Header */}
               <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-gray-800">
+                  <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                     Order #{order.id.slice(-6)}
                   </h3>
-                  <span className="text-sm text-gray-500">
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     {new Date(order.createdAt?.seconds * 1000).toLocaleDateString()}
                   </span>
                 </div>
@@ -754,7 +773,7 @@ const Orders = () => {
               </div>
 
               {/* Order Items */}
-              <div className="border-t border-gray-100">
+              <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                 {order.items.map((item) => (
                   <div key={item.productId} className="flex items-center gap-3 py-3">
                     <Link
@@ -770,7 +789,7 @@ const Orders = () => {
                     <div className="flex-1 min-w-0">
                       <Link
                         to={`/merch-store/product/${item.productId}`}
-                        className="font-medium text-gray-800 hover:text-[#FF1B6B] block truncate"
+                        className={`font-medium ${isDarkMode ? 'text-gray-100 hover:text-[#FF1B6B]' : 'text-gray-800 hover:text-[#FF1B6B]'} block truncate`}
                       >
                         {item.name}
                       </Link>
@@ -783,7 +802,7 @@ const Orders = () => {
                         <span className="text-[#FF1B6B] font-medium">
                           ${item.price.toFixed(2)}
                         </span>
-                        <span className="text-sm text-gray-500">
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           × {item.quantity}
                         </span>
                       </div>
@@ -802,30 +821,30 @@ const Orders = () => {
                           Write a Review
                         </button>
                       )}
-                      <BiChevronRight className="text-gray-400 text-xl" />
+                      <BiChevronRight className={`text-xl ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
                     </div>
                   </div>
                 ))}
               </div>
 
               {/* Order Summary and Tracking */}
-              <div className="border-t border-gray-100 pt-3">
+              <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'} pt-3`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-500">Total Amount</span>
+                    <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Amount</span>
                     <div className="flex items-center gap-1">
                       <img
                         src={`/${order.paymentMethod?.token?.toLowerCase() || 'usdt'}.png`}
                         alt={order.paymentMethod?.token || 'USDT'}
                         className="w-4 h-4"
                       />
-                      <span className="font-medium text-gray-800">
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                         ${order.total.toFixed(2)}
                       </span>
                     </div>
                   </div>
                   {order.status === 'shipped' && (
-                    <span className="text-sm text-gray-600">
+                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                       Estimated Delivery: {new Date(order.createdAt?.seconds * 1000 + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}
                     </span>
                   )}
@@ -833,7 +852,7 @@ const Orders = () => {
 
                 {order.trackingNumber && (
                   <div className="flex justify-between items-center mt-2">
-                    <div className="text-sm text-gray-700">
+                    <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       <span className="font-medium">{order.carrier || 'other'}</span> Tracking: 
                       <span className="ml-1 font-medium">{order.trackingNumber}</span>
                     </div>
@@ -877,7 +896,7 @@ const Orders = () => {
               </div>
 
               {/* Add Refund Button */}
-              <div className="flex justify-end mt-3 pt-3 border-t border-gray-100">
+              <div className={`flex justify-end mt-3 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                 <button
                   onClick={() => {
                     setSelectedOrder(order);
@@ -893,7 +912,7 @@ const Orders = () => {
         </motion.div>
       )}
 
-      {/* Add RefundRequestModal */}
+      {/* Add Modals */}
       {selectedOrder && (
         <RefundRequestModal
           isOpen={isRefundModalOpen}
@@ -905,7 +924,6 @@ const Orders = () => {
         />
       )}
 
-      {/* Add DeliveryConfirmationModal */}
       <DeliveryConfirmationModal
         isOpen={isDeliveryModalOpen}
         onClose={() => setIsDeliveryModalOpen(false)}
@@ -913,7 +931,6 @@ const Orders = () => {
         orderId={selectedOrderForDelivery}
       />
 
-      {/* Add TrackingModal */}
       {selectedTracking && (
         <TrackingModal
           isOpen={isTrackingModalOpen}
@@ -926,7 +943,6 @@ const Orders = () => {
         />
       )}
 
-      {/* Review Modal */}
       {selectedItemForReview && (
         <ReviewModal
           isOpen={isReviewModalOpen}

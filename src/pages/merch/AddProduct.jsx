@@ -4,6 +4,7 @@ import { BiImageAdd, BiTrash, BiInfoCircle } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { storage, db } from '../../firebase/merchConfig';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -13,6 +14,29 @@ const styles = `
     color-scheme: light;
   }
   
+  .dark input[type="datetime-local"] {
+    color-scheme: dark;
+    background-color: #1a1b1f !important;
+    color: #fff !important;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) !important;
+    opacity: 0.7;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-datetime-edit {
+    color: #fff !important;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+    color: #fff !important;
+  }
+
   input[type="datetime-local"] {
     color-scheme: light !important;
     background-color: white !important;
@@ -84,74 +108,50 @@ const NETWORK_INFO = {
   }
 };
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const AddProductSkeleton = () => (
-  <div className="max-w-2xl mx-auto p-6">
-    {/* Title Skeleton */}
-    <div className="w-48 h-8 mb-6">
-      <SkeletonPulse />
-    </div>
-
-    <div className="space-y-6 bg-white rounded-lg shadow-sm p-6">
-      {/* Image Upload Skeleton */}
-      <div className="space-y-3">
-        <div className="w-64 h-5">
-          <SkeletonPulse />
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="aspect-square">
-              <SkeletonPulse />
-            </div>
-          ))}
-        </div>
+const AddProductSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className="max-w-2xl mx-auto p-6">
+      {/* Title Skeleton */}
+      <div className="w-48 h-8 mb-6">
+        <SkeletonPulse />
       </div>
 
-      {/* Form Fields Skeleton */}
-      <div className="grid grid-cols-1 gap-4">
-        {/* Product Name */}
-        <div className="space-y-2">
-          <div className="w-32 h-5">
+      <div className={`space-y-6 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-6`}>
+        {/* Image Upload Skeleton */}
+        <div className="space-y-3">
+          <div className="w-64 h-5">
             <SkeletonPulse />
           </div>
-          <div className="w-full h-10">
-            <SkeletonPulse />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="aspect-square">
+                <SkeletonPulse />
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Category */}
-        <div className="space-y-2">
-          <div className="w-24 h-5">
-            <SkeletonPulse />
-          </div>
-          <div className="w-full h-10">
-            <SkeletonPulse />
-          </div>
-        </div>
-
-        {/* Price and Quantity */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <div className="w-16 h-5">
-              <SkeletonPulse />
-            </div>
-            <div className="w-full h-10">
-              <SkeletonPulse />
-            </div>
-          </div>
+        {/* Form Fields Skeleton */}
+        <div className="grid grid-cols-1 gap-4">
+          {/* Product Name */}
           <div className="space-y-2">
             <div className="w-32 h-5">
               <SkeletonPulse />
@@ -160,28 +160,58 @@ const AddProductSkeleton = () => (
               <SkeletonPulse />
             </div>
           </div>
-        </div>
 
-        {/* Description */}
-        <div className="space-y-2">
-          <div className="w-28 h-5">
-            <SkeletonPulse />
+          {/* Category */}
+          <div className="space-y-2">
+            <div className="w-24 h-5">
+              <SkeletonPulse />
+            </div>
+            <div className="w-full h-10">
+              <SkeletonPulse />
+            </div>
           </div>
-          <div className="w-full h-32">
-            <SkeletonPulse />
-          </div>
-        </div>
 
-        {/* Submit Button */}
-        <div className="flex justify-end pt-4">
-          <div className="w-32 h-10">
-            <SkeletonPulse />
+          {/* Price and Quantity */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <div className="w-16 h-5">
+                <SkeletonPulse />
+              </div>
+              <div className="w-full h-10">
+                <SkeletonPulse />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="w-32 h-5">
+                <SkeletonPulse />
+              </div>
+              <div className="w-full h-10">
+                <SkeletonPulse />
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <div className="w-28 h-5">
+              <SkeletonPulse />
+            </div>
+            <div className="w-full h-32">
+              <SkeletonPulse />
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end pt-4">
+            <div className="w-32 h-10">
+              <SkeletonPulse />
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const SHOE_SIZES = [
   "US 6 / EU 39",
@@ -203,6 +233,7 @@ const SHOE_SIZES = [
 const AddProduct = () => {
   const { user } = useMerchAuth();
   const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -629,22 +660,22 @@ const AddProduct = () => {
 
   return (
     <motion.div
-      className="max-w-4xl mx-auto p-6"
+      className={`max-w-4xl mx-auto p-6 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
       <style>{styles}</style>
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-sm p-6`}>
         <motion.div variants={itemVariants}>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Add New Product</h1>
-          <p className="text-gray-500 text-sm mb-6">Fill in the details for your new product listing</p>
+          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-2`}>Add New Product</h1>
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mb-6`}>Fill in the details for your new product listing</p>
         </motion.div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Image Upload Section */}
-          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-4">
+          <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+            <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-4`}>
               Product Images (Max 5 images, 2MB each)
             </label>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -677,12 +708,18 @@ const AddProduct = () => {
               {/* Upload Button */}
               {imagePreview.length < 5 && (
                 <motion.label
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-[#FF1B6B] transition-colors bg-white"
+                  className={`aspect-square rounded-lg border-2 border-dashed ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:border-[#FF1B6B]' 
+                      : 'border-gray-300 hover:border-[#FF1B6B]'
+                  } flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                    isDarkMode ? 'bg-gray-800' : 'bg-white'
+                  }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <BiImageAdd className="w-8 h-8 text-gray-400" />
-                  <span className="text-sm text-gray-500 mt-2">Add Image</span>
+                  <BiImageAdd className={`w-8 h-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`} />
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-2`}>Add Image</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -698,7 +735,7 @@ const AddProduct = () => {
           {/* Basic Product Details */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-1`}>
                 Product Name *
               </label>
               <input
@@ -707,13 +744,17 @@ const AddProduct = () => {
                 value={productData.name}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                className={`w-full px-4 py-2 border ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-700 text-white focus:border-[#FF1B6B]' 
+                    : 'border-gray-300 bg-white text-gray-900 focus:border-[#FF1B6B]'
+                } rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors`}
                 placeholder="Enter product name"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-1`}>
                 Category *
               </label>
               <select
@@ -721,7 +762,11 @@ const AddProduct = () => {
                 value={productData.category}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors appearance-none bg-white"
+                className={`w-full px-4 py-2 border ${
+                  isDarkMode 
+                    ? 'border-gray-600 bg-gray-700 text-white' 
+                    : 'border-gray-300 bg-white text-gray-900'
+                } rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors appearance-none`}
               >
                 <option value="">Select Category</option>
                 <option value="clothing">Clothing</option>
@@ -736,8 +781,8 @@ const AddProduct = () => {
 
           {/* Subcategory Section */}
           {(productData.category === 'clothing' || productData.category === 'accessories') && (
-            <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
+            <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-4`}>
                 Product Type *
               </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -745,8 +790,8 @@ const AddProduct = () => {
                 <div className="space-y-4">
                   {Object.entries(productData.category === 'clothing' ? CLOTHING_SUBCATEGORIES : ACCESSORIES_SUBCATEGORIES)
                     .map(([mainCategory, subItems]) => (
-                    <div key={mainCategory} className="bg-white rounded-lg p-4">
-                      <h3 className="font-medium text-gray-900 mb-3">{mainCategory}</h3>
+                    <div key={mainCategory} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                      <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-3`}>{mainCategory}</h3>
                       <div className="grid grid-cols-2 gap-2">
                         {subItems.map((subItem) => (
                           <button
@@ -756,7 +801,9 @@ const AddProduct = () => {
                             className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                               productData.subCategory === `${mainCategory} - ${subItem}`
                                 ? 'bg-[#FF1B6B] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : isDarkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
                             {subItem}
@@ -768,21 +815,21 @@ const AddProduct = () => {
                 </div>
 
                 {/* Selected Category Display */}
-                <div className="bg-white rounded-lg p-4">
-                  <h3 className="font-medium text-gray-900 mb-3">Selected Category</h3>
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                  <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-3`}>Selected Category</h3>
                   {productData.subCategory ? (
-                    <div className="bg-pink-50 border border-pink-100 rounded-lg p-4">
-                      <p className="text-gray-700">
+                    <div className={`${isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'} border ${isDarkMode ? 'border-pink-900/20' : 'border-pink-100'} rounded-lg p-4`}>
+                      <p className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>
                         <span className="font-medium">Main Category:</span>{' '}
                         {productData.subCategory.split(' - ')[0]}
                       </p>
-                      <p className="text-gray-700 mt-2">
+                      <p className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mt-2`}>
                         <span className="font-medium">Sub Category:</span>{' '}
                         {productData.subCategory.split(' - ')[1]}
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-gray-500">
+                    <div className={`${isDarkMode ? 'bg-gray-700/50 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-100 text-gray-500'} border rounded-lg p-4`}>
                       Please select a category from the left
                     </div>
                   )}
@@ -793,7 +840,7 @@ const AddProduct = () => {
 
           {/* Variants Section */}
           {(productData.category === 'clothing' || productData.category === 'accessories') && (
-            <div className="bg-gray-50 rounded-xl p-6">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
               <div className="flex items-center mb-6">
                 <input
                   type="checkbox"
@@ -810,7 +857,7 @@ const AddProduct = () => {
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
                 />
-                <label htmlFor="hasVariants" className="ml-2 text-sm font-medium text-gray-700">
+                <label htmlFor="hasVariants" className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                   This product has size and color variants
                 </label>
               </div>
@@ -818,8 +865,8 @@ const AddProduct = () => {
               {productData.hasVariants && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Size Selection */}
-                  <div className="bg-white rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                       Available Sizes
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -833,7 +880,9 @@ const AddProduct = () => {
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                               productData.selectedSizes.includes(size)
                                 ? 'bg-[#FF1B6B] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : isDarkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
                             {size}
@@ -849,7 +898,9 @@ const AddProduct = () => {
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                               productData.selectedSizes.includes(size)
                                 ? 'bg-[#FF1B6B] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : isDarkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
                             {size}
@@ -860,8 +911,8 @@ const AddProduct = () => {
                   </div>
 
                   {/* Color Selection and Quantities */}
-                  <div className="bg-white rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                       Available Colors & Quantities
                     </label>
                     <div className="space-y-4">
@@ -875,7 +926,9 @@ const AddProduct = () => {
                               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                                 isSelected
                                   ? 'bg-[#FF1B6B] text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : isDarkMode
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                             >
                               <span
@@ -901,7 +954,11 @@ const AddProduct = () => {
                                       }
                                     }));
                                   }}
-                                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors text-sm"
+                                  className={`w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors text-sm ${
+                                    isDarkMode
+                                      ? 'border-gray-600 bg-gray-700 text-white'
+                                      : 'border-gray-300 bg-white text-gray-900'
+                                  }`}
                                   placeholder="Quantity"
                                 />
                               </div>
@@ -913,10 +970,10 @@ const AddProduct = () => {
                     
                     {/* Total Quantity Display */}
                     {productData.selectedColors.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Total Quantity:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Total Quantity:</span>
+                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                             {Object.values(productData.colorQuantities).reduce((a, b) => a + b, 0)}
                           </span>
                         </div>
@@ -930,8 +987,8 @@ const AddProduct = () => {
 
           {/* Network & Price Section */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                 Network & Price
               </label>
               <div className="space-y-4">
@@ -939,10 +996,12 @@ const AddProduct = () => {
                   {NETWORKS.filter(network => network.id === productData.network).map(network => (
                     <div
                       key={network.id}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#FF1B6B] bg-pink-50 flex-1 justify-center"
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#FF1B6B] ${
+                        isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'
+                      } flex-1 justify-center`}
                     >
                       <img src={network.logo} alt={network.name} className="w-5 h-5" />
-                      <span className="font-medium">{network.name}</span>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>{network.name}</span>
                     </div>
                   ))}
                 </div>
@@ -956,10 +1015,18 @@ const AddProduct = () => {
                     required
                     min="0"
                     step="0.01"
-                    className="w-full pl-4 pr-24 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                    className={`w-full pl-4 pr-24 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-600 bg-gray-700 text-white'
+                        : 'border-gray-300 bg-white text-gray-900'
+                    }`}
                     placeholder="0.00"
                   />
-                  <div className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                  <div className={`absolute right-0 top-0 bottom-0 w-20 border-l ${
+                    isDarkMode
+                      ? 'border-gray-600 bg-gray-600 text-gray-200'
+                      : 'border-gray-300 bg-gray-50 text-gray-700'
+                  } text-sm rounded-r-lg flex items-center justify-center`}>
                     {productData.acceptedToken}
                   </div>
                 </div>
@@ -980,7 +1047,7 @@ const AddProduct = () => {
                       }}
                       className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
                     />
-                    <label htmlFor="hasDiscount" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="hasDiscount" className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                       Apply Discount
                     </label>
                   </div>
@@ -1002,16 +1069,24 @@ const AddProduct = () => {
                           }}
                           min="0"
                           max="99"
-                          className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                          className={`w-full pl-4 pr-12 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                            isDarkMode
+                              ? 'border-gray-600 bg-gray-700 text-white'
+                              : 'border-gray-300 bg-white text-gray-900'
+                          }`}
                           placeholder="Enter discount percentage"
                         />
-                        <div className="absolute right-0 top-0 bottom-0 w-12 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                        <div className={`absolute right-0 top-0 bottom-0 w-12 border-l ${
+                          isDarkMode
+                            ? 'border-gray-600 bg-gray-600 text-gray-200'
+                            : 'border-gray-300 bg-gray-50 text-gray-700'
+                        } text-sm rounded-r-lg flex items-center justify-center`}>
                           %
                         </div>
                       </div>
 
                       <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
                           Discount Ends At
                         </label>
                         <input
@@ -1033,21 +1108,27 @@ const AddProduct = () => {
                             }));
                           }}
                           min={new Date(new Date().getTime() + 60000).toISOString().slice(0, 16)}
-                          className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                          className={`w-full pl-4 pr-12 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                            isDarkMode
+                              ? 'border-gray-600 bg-gray-700 text-white'
+                              : 'border-gray-300 bg-white text-gray-900'
+                          }`}
                         />
                       </div>
 
                       {productData.discountPercent > 0 && productData.price > 0 && (
-                        <div className="bg-pink-50 border border-pink-100 rounded-lg p-3">
-                          <p className="text-sm text-gray-700">
+                        <div className={`${
+                          isDarkMode ? 'bg-pink-900/20 border-pink-900/20' : 'bg-pink-50 border-pink-100'
+                        } border rounded-lg p-3`}>
+                          <p className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
                             <span className="font-medium">Original Price:</span>{' '}
                             {productData.price} {productData.acceptedToken}
                           </p>
-                          <p className="text-sm text-[#FF1B6B] mt-1">
+                          <p className="text-[#FF1B6B] mt-1">
                             <span className="font-medium">Discounted Price:</span>{' '}
                             {(productData.price * (1 - productData.discountPercent / 100)).toFixed(2)} {productData.acceptedToken}
                           </p>
-                          <p className="text-sm text-gray-500 mt-1">
+                          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                             <span className="font-medium">Savings:</span>{' '}
                             {(productData.price * (productData.discountPercent / 100)).toFixed(2)} {productData.acceptedToken}
                           </p>
@@ -1058,13 +1139,15 @@ const AddProduct = () => {
                 </div>
 
                 {/* Payment Information Display */}
-                <div className="flex items-center gap-2 px-4 py-3 bg-pink-50 rounded-lg border border-pink-100 mt-2">
+                <div className={`flex items-center gap-2 px-4 py-3 ${
+                  isDarkMode ? 'bg-pink-900/20 border-pink-900/20' : 'bg-pink-50 border-pink-100'
+                } rounded-lg border mt-2`}>
                   <img 
                     src={`/${productData.acceptedToken.toLowerCase()}.png`}
                     alt={productData.acceptedToken}
                     className="w-5 h-5 object-contain"
                   />
-                  <p className="text-sm text-gray-700">
+                  <p className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
                     Buyers will pay in <span className="font-medium">{productData.acceptedToken}</span> on <span className="font-medium">{
                       NETWORKS.find(n => n.id === productData.network)?.name || 'selected'
                     }</span>
@@ -1073,8 +1156,8 @@ const AddProduct = () => {
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                 Quantity Available
               </label>
               <input
@@ -1084,15 +1167,19 @@ const AddProduct = () => {
                 onChange={handleInputChange}
                 required
                 min="1"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                  isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white'
+                    : 'border-gray-300 bg-white text-gray-900'
+                }`}
                 placeholder="Enter available quantity"
               />
             </div>
           </motion.div>
 
           {/* Description Section */}
-          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+          <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+            <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
               Description *
             </label>
             <textarea
@@ -1101,21 +1188,25 @@ const AddProduct = () => {
               onChange={handleInputChange}
               required
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white'
+                  : 'border-gray-300 bg-white text-gray-900'
+              }`}
               placeholder="Describe your product..."
             />
           </motion.div>
 
           {/* Shipping Section */}
-          <motion.div variants={itemVariants} className="bg-gray-50 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Details</h3>
+          <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Shipping Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
                   Shipping Fee (USD)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>$</span>
                   <input
                     type="number"
                     name="shippingFee"
@@ -1123,17 +1214,21 @@ const AddProduct = () => {
                     step="0.01"
                     value={productData.shippingFee}
                     disabled
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-gray-50"
+                    className={`w-full pl-8 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-600 bg-gray-700/50 text-gray-400'
+                        : 'border-gray-300 bg-gray-50 text-gray-500'
+                    }`}
                     placeholder="0.00"
                   />
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   Shipping fee is set in your store settings
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
                   Shipping Information
                 </label>
                 <input
@@ -1141,7 +1236,11 @@ const AddProduct = () => {
                   name="shippingInfo"
                   value={productData.shippingInfo}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                    isDarkMode
+                      ? 'border-gray-600 bg-gray-700 text-white'
+                      : 'border-gray-300 bg-white text-gray-900'
+                  }`}
                   placeholder="e.g., Worldwide shipping available"
                 />
               </div>

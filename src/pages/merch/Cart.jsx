@@ -5,114 +5,122 @@ import { BiTrash, BiPlus, BiMinus } from 'react-icons/bi';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { toast } from 'react-hot-toast';
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const CartSkeleton = () => (
-  <div className="max-w-7xl mx-auto p-4">
-    {/* Header Skeleton */}
-    <div className="mb-8">
-      <div className="w-32 h-8">
-        <SkeletonPulse />
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Cart Items Skeleton */}
-      <div className="lg:col-span-2 space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex gap-4">
-              <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
-                <SkeletonPulse />
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="w-3/4 h-5">
-                  <SkeletonPulse />
-                </div>
-                <div className="w-1/2 h-4">
-                  <SkeletonPulse />
-                </div>
-                <div className="flex items-center justify-between mt-4">
-                  <div className="w-32 h-8">
-                    <SkeletonPulse />
-                  </div>
-                  <div className="w-24 h-8">
-                    <SkeletonPulse />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+const CartSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className={`max-w-7xl mx-auto p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Header Skeleton */}
+      <div className="mb-8">
+        <div className="w-32 h-8">
+          <SkeletonPulse />
+        </div>
       </div>
 
-      {/* Order Summary Skeleton */}
-      <div className="lg:col-span-1">
-        <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-          <div className="w-40 h-6">
-            <SkeletonPulse />
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <div className="w-24 h-4">
-                <SkeletonPulse />
-              </div>
-              <div className="w-20 h-4">
-                <SkeletonPulse />
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <div className="w-24 h-4">
-                <SkeletonPulse />
-              </div>
-              <div className="w-20 h-4">
-                <SkeletonPulse />
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <div className="w-24 h-4">
-                <SkeletonPulse />
-              </div>
-              <div className="w-20 h-4">
-                <SkeletonPulse />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Cart Items Skeleton */}
+        <div className="lg:col-span-2 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-4`}>
+              <div className="flex gap-4">
+                <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
+                  <SkeletonPulse />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="w-3/4 h-5">
+                    <SkeletonPulse />
+                  </div>
+                  <div className="w-1/2 h-4">
+                    <SkeletonPulse />
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="w-32 h-8">
+                      <SkeletonPulse />
+                    </div>
+                    <div className="w-24 h-8">
+                      <SkeletonPulse />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="border-t pt-4 mt-4">
-            <div className="flex justify-between items-center">
-              <div className="w-32 h-6">
-                <SkeletonPulse />
+          ))}
+        </div>
+
+        {/* Order Summary Skeleton */}
+        <div className="lg:col-span-1">
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-6 space-y-4`}>
+            <div className="w-40 h-6">
+              <SkeletonPulse />
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <div className="w-24 h-4">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-20 h-4">
+                  <SkeletonPulse />
+                </div>
               </div>
-              <div className="w-28 h-6">
-                <SkeletonPulse />
+              <div className="flex justify-between">
+                <div className="w-24 h-4">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-20 h-4">
+                  <SkeletonPulse />
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <div className="w-24 h-4">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-20 h-4">
+                  <SkeletonPulse />
+                </div>
               </div>
             </div>
-          </div>
-          <div className="w-full h-12 mt-6">
-            <SkeletonPulse />
+            <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pt-4 mt-4`}>
+              <div className="flex justify-between items-center">
+                <div className="w-32 h-6">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-28 h-6">
+                  <SkeletonPulse />
+                </div>
+              </div>
+            </div>
+            <div className="w-full h-12 mt-6">
+              <SkeletonPulse />
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const Cart = () => {
   const { user, updateCartCount } = useMerchAuth();
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [cartItems, setCartItems] = useState([]);
   const [platformFee, setPlatformFee] = useState(2.5); // Default fee percentage
@@ -272,14 +280,14 @@ const Cart = () => {
 
   return (
     <motion.div
-      className="max-w-4xl mx-auto p-4 space-y-6"
+      className={`max-w-4xl mx-auto p-4 space-y-6 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
       <motion.h1
         variants={itemVariants}
-        className="text-2xl font-bold text-gray-800"
+        className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}
       >
         Shopping Cart
       </motion.h1>
@@ -287,9 +295,9 @@ const Cart = () => {
       {cartItems.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="text-center py-12 bg-white rounded-lg"
+          className={`text-center py-12 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg`}
         >
-          <p className="text-gray-500 mb-4">Your cart is empty</p>
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-4`}>Your cart is empty</p>
           <Link
             to="/merch-store"
             className="text-[#FF1B6B] hover:text-[#D4145A] font-medium"
@@ -305,7 +313,7 @@ const Cart = () => {
               <motion.div
                 key={item.id}
                 variants={itemVariants}
-                className="bg-white rounded-lg p-4 flex gap-4 items-center"
+                className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4 flex gap-4 items-center`}
               >
                 <Link
                   to={`/merch-store/product/${item.product.id}`}
@@ -320,7 +328,7 @@ const Cart = () => {
                 <div className="flex-1">
                   <Link
                     to={`/merch-store/product/${item.product.id}`}
-                    className="font-medium text-gray-800 hover:text-[#FF1B6B]"
+                    className={`font-medium ${isDarkMode ? 'text-gray-100 hover:text-[#FF1B6B]' : 'text-gray-800 hover:text-[#FF1B6B]'}`}
                   >
                     {item.product.name}
                   </Link>
@@ -334,7 +342,7 @@ const Cart = () => {
                       {item.product.hasDiscount && new Date() < new Date(item.product.discountEndsAt) ? (
                         <>
                           ${item.product.discountedPrice.toFixed(2)}
-                          <span className="text-sm text-gray-400 line-through ml-1">
+                          <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'} line-through ml-1`}>
                             ${item.product.price.toFixed(2)}
                           </span>
                         </>
@@ -343,7 +351,7 @@ const Cart = () => {
                       )}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                     Sold by {item.product.sellerName}
                   </p>
                 </div>
@@ -351,15 +359,15 @@ const Cart = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      className="p-1 rounded-full hover:bg-gray-100"
+                      className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
                       disabled={item.quantity <= 1}
                     >
                       <BiMinus className="text-lg" />
                     </button>
-                    <span className="w-8 text-center">{item.quantity}</span>
+                    <span className={`w-8 text-center ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="p-1 rounded-full hover:bg-gray-100"
+                      className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
                       disabled={item.quantity >= item.product.quantity}
                     >
                       <BiPlus className="text-lg" />
@@ -367,7 +375,7 @@ const Cart = () => {
                   </div>
                   <button
                     onClick={() => removeItem(item.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    className={`p-2 ${isDarkMode ? 'text-gray-500 hover:text-red-400' : 'text-gray-400 hover:text-red-500'} transition-colors`}
                   >
                     <BiTrash className="text-xl" />
                   </button>
@@ -379,15 +387,15 @@ const Cart = () => {
           {/* Order Summary */}
           <motion.div
             variants={itemVariants}
-            className="bg-white rounded-lg p-6 space-y-4"
+            className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 space-y-4`}
           >
-            <h2 className="font-bold text-gray-800">Order Summary</h2>
+            <h2 className={`font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>Order Summary</h2>
             <div className="space-y-2">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>${calculateSubtotal().toFixed(2)}</span>
+              <div className="flex justify-between">
+                <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Subtotal</span>
+                <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>${calculateSubtotal().toFixed(2)}</span>
               </div>
-              <div className="flex justify-between font-bold text-gray-800 pt-2 border-t">
+              <div className={`flex justify-between font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} pt-2 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                 <span>Total</span>
                 <span>${calculateSubtotal().toFixed(2)}</span>
               </div>

@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { BiWallet, BiCreditCard, BiNetworkChart, BiX } from 'react-icons/bi';
 import { FaEthereum } from 'react-icons/fa';
 import { SiTether } from 'react-icons/si';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, deleteDoc, serverTimestamp, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { toast } from 'react-hot-toast';
 import { ethers } from 'ethers';
 import detectEthereumProvider from '@metamask/detect-provider';
@@ -33,6 +34,7 @@ const itemVariants = {
 const Checkout = () => {
   const navigate = useNavigate();
   const { user } = useMerchAuth();
+  const { isDarkMode } = useTheme();
   const [cartItems, setCartItems] = useState([]);
   const [buyerProfile, setBuyerProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -595,8 +597,8 @@ const Checkout = () => {
           shippingConfirmedAt: null,
           fundsAvailable: false,
           fundsAvailableAt: null,
-          shippingDeadline: new Date(Date.now() + 72 * 60 * 60 * 1000), // 72 hours (3 days)
-          fundsReleaseDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000) // 15 days
+          shippingDeadline: Timestamp.fromMillis(Date.now() + (72 * 60 * 60 * 1000)), // 72 hours (3 days)
+          fundsReleaseDate: Timestamp.fromMillis(Date.now() + (15 * 24 * 60 * 60 * 1000)), // 15 days
         });
       }
 
@@ -631,78 +633,60 @@ const Checkout = () => {
 
   // Update the shipping address section render
   const renderShippingAddress = () => {
-    if (hasValidShippingAddress) {
-      // Get the country code for the flag
-      const getCountryCode = () => {
-        const country = buyerProfile.shippingAddress.country;
-        if (typeof country === 'object' && country.code) {
-          return country.code.toLowerCase();
-        }
-        return null;
-      };
-
-      const countryCode = getCountryCode();
-      const flagUrl = countryCode ? `https://flagcdn.com/${countryCode}.svg` : null;
-
+    if (!buyerProfile?.shippingAddress) {
       return (
-        <div className="space-y-2">
-          <p className="text-gray-600">
-            {buyerProfile.shippingAddress.street}
-          </p>
-          <p className="text-gray-600">
-            {buyerProfile.shippingAddress.city}, {buyerProfile.shippingAddress.state} {buyerProfile.shippingAddress.postalCode}
-          </p>
-          <div className="flex items-center gap-2">
-            <p className="text-gray-600">
-              {typeof buyerProfile.shippingAddress.country === 'object' 
-                ? buyerProfile.shippingAddress.country.name 
-                : buyerProfile.shippingAddress.country}
-            </p>
-            {flagUrl && (
-              <img 
-                src={flagUrl}
-                alt={typeof buyerProfile.shippingAddress.country === 'object' 
-                  ? buyerProfile.shippingAddress.country.name 
-                  : buyerProfile.shippingAddress.country}
-                className="w-5 h-4 object-cover rounded-sm shadow-sm"
-              />
-            )}
+        <div className="space-y-4">
+          <div className={`${isDarkMode ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200'} border rounded-lg p-4`}>
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-[#FF1B6B]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</h3>
+                <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Please add your shipping address to continue with the checkout process.
+                </p>
+              </div>
+            </div>
           </div>
           <button
             onClick={() => navigate('/merch-store/settings')}
-            className="mt-4 text-sm text-[#FF1B6B] hover:text-[#D4145A] transition-colors"
+            className="w-full px-4 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors flex items-center justify-center gap-2"
           >
-            Edit Address
+            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+            </svg>
+            Add Shipping Address
           </button>
         </div>
       );
     }
 
     return (
-      <div className="space-y-4">
-        <div className="bg-pink-50 border border-pink-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-[#FF1B6B]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</h3>
-              <p className="mt-1 text-sm text-gray-600">
-                Please add your shipping address to continue with the checkout process.
-              </p>
-            </div>
-          </div>
+      <div className="space-y-2">
+        <p className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{buyerProfile.shippingAddress.street}</p>
+        <p className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{buyerProfile.shippingAddress.city}, {buyerProfile.shippingAddress.postalCode}</p>
+        <div className="flex items-center gap-2">
+          <p className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+            {typeof buyerProfile.shippingAddress.country === 'object' 
+              ? buyerProfile.shippingAddress.country.name 
+              : buyerProfile.shippingAddress.country}
+          </p>
+          {typeof buyerProfile.shippingAddress.country === 'object' && buyerProfile.shippingAddress.country.code && (
+            <img 
+              src={`https://flagcdn.com/w20/${buyerProfile.shippingAddress.country.code.toLowerCase()}.png`}
+              alt={buyerProfile.shippingAddress.country.name}
+              className="w-5 h-auto"
+            />
+          )}
         </div>
         <button
           onClick={() => navigate('/merch-store/settings')}
-          className="w-full px-4 py-3 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors flex items-center justify-center gap-2"
+          className="text-[#FF1B6B] hover:text-[#D4145A] transition-colors mt-2"
         >
-          <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-          </svg>
-          Add Shipping Address
+          Edit Address
         </button>
       </div>
     );
@@ -710,7 +694,7 @@ const Checkout = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FFF5F7] flex items-center justify-center">
+      <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-[#FFF5F7]'} flex items-center justify-center`}>
         <motion.div
           animate={{
             scale: [1, 1.2, 1],
@@ -732,12 +716,12 @@ const Checkout = () => {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="min-h-screen bg-[#FFF5F7] p-4 md:p-8"
+      className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-[#FFF5F7]'} p-4 md:p-8`}
     >
       <div className="max-w-6xl mx-auto">
         <motion.h1
           variants={itemVariants}
-          className="text-3xl font-bold text-gray-900 mb-8"
+          className={`text-3xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-8`}
         >
           Checkout
         </motion.h1>
@@ -748,10 +732,10 @@ const Checkout = () => {
             variants={itemVariants}
             className="lg:col-span-2 space-y-6"
           >
-            <motion.div variants={itemVariants} className="bg-white rounded-lg p-6">
-              <h2 className="font-bold text-gray-800 mb-4">Order Summary</h2>
+            <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6`}>
+              <h2 className={`font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-4`}>Order Summary</h2>
               {cartItems.map((item) => (
-                <div key={item.id} className="flex items-start space-x-4 mb-4 pb-4 border-b last:border-b-0">
+                <div key={item.id} className={`flex items-start space-x-4 mb-4 pb-4 ${isDarkMode ? 'border-gray-700' : 'border-b'} last:border-b-0`}>
                   <img
                     src={item.product.images[0]}
                     alt={item.product.name}
@@ -759,8 +743,8 @@ const Checkout = () => {
                   />
                   <div className="flex-1 flex justify-between">
                     <div>
-                      <h3 className="font-medium text-gray-800">{item.product.name}</h3>
-                      <div className="text-sm text-gray-600 mt-1">
+                      <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>{item.product.name}</h3>
+                      <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
                         <p>Quantity: {item.quantity}</p>
                         {item.size && <p>Size: {item.size}</p>}
                         {item.color && (
@@ -783,33 +767,33 @@ const Checkout = () => {
                     <div className="text-right">
                       {item.product.hasDiscount && new Date() < new Date(item.product.discountEndsAt) ? (
                         <>
-                          <p className="text-gray-800">
+                          <p className={`${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                             ${(item.product.discountedPrice * item.quantity).toFixed(2)}
-                            <span className="text-sm text-gray-400 line-through ml-1">
+                            <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-400'} line-through ml-1`}>
                               ${(item.product.price * item.quantity).toFixed(2)}
                             </span>
                           </p>
                         </>
                       ) : (
-                        <p className="text-gray-800">${(item.product.price * item.quantity).toFixed(2)}</p>
+                        <p className={`${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>${(item.product.price * item.quantity).toFixed(2)}</p>
                       )}
                       {item.product.shippingFee > 0 && (
-                        <p className="text-sm text-gray-600">+ ${item.product.shippingFee.toFixed(2)} shipping</p>
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>+ ${item.product.shippingFee.toFixed(2)} shipping</p>
                       )}
                     </div>
                   </div>
                 </div>
               ))}
-              <div className="border-t pt-4 mt-4 space-y-2">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal</span>
-                  <span>${orderSummary.subtotal.toFixed(2)}</span>
+              <div className={`${isDarkMode ? 'border-gray-700' : 'border-t'} pt-4 mt-4 space-y-2`}>
+                <div className="flex justify-between">
+                  <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Subtotal</span>
+                  <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-600'}`}>${orderSummary.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Shipping</span>
-                  <span>${orderSummary.shippingTotal.toFixed(2)}</span>
+                <div className="flex justify-between">
+                  <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Shipping</span>
+                  <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-600'}`}>${orderSummary.shippingTotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-gray-800 pt-2 border-t">
+                <div className={`flex justify-between font-bold ${isDarkMode ? 'text-gray-100 border-gray-700' : 'text-gray-800 border-t'} pt-2`}>
                   <span>Total</span>
                   <span>${orderSummary.total.toFixed(2)}</span>
                 </div>
@@ -817,8 +801,8 @@ const Checkout = () => {
             </motion.div>
 
             {/* Shipping Address */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-6`}>
+              <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>
                 Shipping Address
               </h2>
               {renderShippingAddress()}
@@ -831,13 +815,13 @@ const Checkout = () => {
             className="lg:col-span-1 space-y-4"
           >
             {/* Connect Wallet */}
-            <div className="bg-white rounded-lg shadow-sm p-4 max-w-sm mx-auto">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-4 max-w-sm mx-auto`}>
+              <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>
                 Payment Method
               </h2>
               {!walletConnected ? (
                 <div className="space-y-4">
-                  <p className="text-gray-600">Please connect your wallet in your profile settings first.</p>
+                  <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Please connect your wallet in your profile settings first.</p>
                   <button
                     onClick={() => navigate('/merch-store/settings')}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#FF1B6B] text-white hover:bg-[#D4145A] transition-colors"
@@ -848,10 +832,10 @@ const Checkout = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className={`flex items-center justify-between p-3 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg`}>
                     <div className="flex items-center gap-2">
-                      <BiWallet className="w-5 h-5 text-gray-600" />
-                      <span className="text-sm text-gray-600">
+                      <BiWallet className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                      <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                         {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                       </span>
                     </div>
@@ -864,13 +848,13 @@ const Checkout = () => {
                   </div>
 
                   {/* Network Information */}
-                  <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className={`p-3 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <BiNetworkChart className="w-5 h-5 text-gray-600" />
-                        <span className="text-sm text-gray-600">Network Required:</span>
+                        <BiNetworkChart className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Network Required:</span>
                       </div>
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
                         {NETWORK_NAMES[chainId]}
                       </span>
                     </div>
@@ -878,10 +862,10 @@ const Checkout = () => {
 
                   {/* Token Balance */}
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Payment Token
                     </p>
-                    <div className="p-3 rounded-lg border-2 border-[#FF1B6B] bg-pink-50">
+                    <div className={`p-3 rounded-lg border-2 border-[#FF1B6B] ${isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <img 
@@ -889,9 +873,9 @@ const Checkout = () => {
                             alt={selectedToken}
                             className="w-5 h-5"
                           />
-                          <span>{selectedToken}</span>
+                          <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{selectedToken}</span>
                         </div>
-                        <span className="text-sm text-gray-600">
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                           Balance: {parseFloat(tokenBalance).toFixed(2)} {selectedToken}
                         </span>
                       </div>
@@ -900,10 +884,10 @@ const Checkout = () => {
 
                   {/* Transaction Status */}
                   {transactionStatus && (
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <div className={`mt-4 p-3 ${isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50'} rounded-lg`}>
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
-                        <span className="text-sm text-blue-600">{transactionStatus}</span>
+                        <span className={`text-sm ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>{transactionStatus}</span>
                       </div>
                     </div>
                   )}
@@ -912,43 +896,43 @@ const Checkout = () => {
             </div>
 
             {/* Order Total */}
-            <div className="bg-white rounded-lg shadow-sm p-4 max-w-sm mx-auto">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm p-4 max-w-sm mx-auto`}>
+              <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>
                 Order Summary
               </h2>
               <div className="space-y-2">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal</span>
+                <div className="flex justify-between">
+                  <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Subtotal</span>
                   <div className="flex items-center gap-1">
-                    <img 
+                    <img
                       src={cartItems[0]?.product?.tokenLogo} 
                       alt={selectedToken}
                       className="w-4 h-4"
                     />
-                    <span>${orderSummary.subtotal.toFixed(2)}</span>
+                    <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-600'}`}>${orderSummary.subtotal.toFixed(2)}</span>
                   </div>
                 </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Shipping</span>
+                <div className="flex justify-between">
+                  <span className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Shipping</span>
                   <div className="flex items-center gap-1">
-                    <img 
+                    <img
                       src={cartItems[0]?.product?.tokenLogo} 
                       alt={selectedToken}
                       className="w-4 h-4"
                     />
-                    <span>${orderSummary.shippingTotal.toFixed(2)}</span>
+                    <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-600'}`}>${orderSummary.shippingTotal.toFixed(2)}</span>
                   </div>
                 </div>
-                <div className="h-px bg-gray-200 my-2" />
-                <div className="flex justify-between font-medium text-gray-900">
-                  <span>Total</span>
+                <div className={`h-px ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+                <div className="flex justify-between font-medium">
+                  <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Total</span>
                   <div className="flex items-center gap-1">
                     <img 
                       src={cartItems[0]?.product?.tokenLogo} 
                       alt={selectedToken}
                       className="w-4 h-4"
                     />
-                    <span>${orderSummary.total.toFixed(2)}</span>
+                    <span className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>${orderSummary.total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -957,53 +941,53 @@ const Checkout = () => {
               {!isProcessing && (
                 <>
                   {!walletConnected && (
-                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                    <div className={`mt-4 p-3 ${isDarkMode ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200'} border rounded-lg`}>
                       <div className="flex items-start gap-2">
                         <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                         <div>
                           <p className="text-sm font-medium text-[#FF1B6B]">Wallet Not Connected</p>
-                          <p className="text-sm text-gray-600 mt-1">Please connect your wallet in settings to enable order placement.</p>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>Please connect your wallet in settings to enable order placement.</p>
                         </div>
                       </div>
                     </div>
                   )}
                   {walletConnected && !hasValidShippingAddress && (
-                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                    <div className={`mt-4 p-3 ${isDarkMode ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200'} border rounded-lg`}>
                       <div className="flex items-start gap-2">
                         <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                         <div>
                           <p className="text-sm font-medium text-[#FF1B6B]">Shipping Address Required</p>
-                          <p className="text-sm text-gray-600 mt-1">Please add your shipping address in settings to enable order placement.</p>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>Please add your shipping address in settings to enable order placement.</p>
                         </div>
                       </div>
                     </div>
                   )}
                   {walletConnected && hasValidShippingAddress && parseFloat(tokenBalance) < orderSummary.total && (
-                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                    <div className={`mt-4 p-3 ${isDarkMode ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200'} border rounded-lg`}>
                       <div className="flex items-start gap-2">
                         <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                         <div>
                           <p className="text-sm font-medium text-[#FF1B6B]">Insufficient Balance</p>
-                          <p className="text-sm text-gray-600 mt-1">Your {selectedToken} balance is too low to complete this purchase.</p>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>Your {selectedToken} balance is too low to complete this purchase.</p>
                         </div>
                       </div>
                     </div>
                   )}
                   {walletConnected && hasValidShippingAddress && cartItems.length === 0 && (
-                    <div className="mt-4 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                    <div className={`mt-4 p-3 ${isDarkMode ? 'bg-pink-900/20 border-pink-800/30' : 'bg-pink-50 border-pink-200'} border rounded-lg`}>
                       <div className="flex items-start gap-2">
                         <svg className="h-5 w-5 text-[#FF1B6B] mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                         <div>
                           <p className="text-sm font-medium text-[#FF1B6B]">Empty Cart</p>
-                          <p className="text-sm text-gray-600 mt-1">Add items to your cart to proceed with checkout.</p>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>Add items to your cart to proceed with checkout.</p>
                         </div>
                       </div>
                     </div>
@@ -1016,7 +1000,7 @@ const Checkout = () => {
                 disabled={isOrderButtonDisabled}
                 className={`w-full mt-6 px-4 py-3 rounded-lg text-white transition-colors ${
                   isOrderButtonDisabled
-                    ? 'bg-gray-300 cursor-not-allowed'
+                    ? `${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} cursor-not-allowed`
                     : 'bg-[#FF1B6B] hover:bg-[#D4145A] disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >

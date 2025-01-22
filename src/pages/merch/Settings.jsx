@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BiStore, BiUser, BiDollar, BiShield, BiCreditCard, BiPackage } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/merchConfig';
 import { toast } from 'react-hot-toast';
@@ -10,115 +11,122 @@ import ReactCountryFlag from 'react-country-flag';
 import countryList from 'react-select-country-list';
 import Select from 'react-select';
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const SettingsSkeleton = () => (
-  <div className="max-w-4xl mx-auto space-y-6">
-    {/* Header Skeleton */}
-    <div className="space-y-2">
-      <div className="w-32 h-8">
-        <SkeletonPulse />
-      </div>
-      <div className="w-64 h-5">
-        <SkeletonPulse />
-      </div>
-    </div>
-
-    {/* Navigation Skeleton */}
-    <div className="bg-white rounded-xl p-2 shadow-sm">
-      <div className="flex gap-2">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="w-32 h-10">
-            <SkeletonPulse />
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* Content Skeleton */}
-    <div className="bg-white rounded-2xl p-6 shadow-sm space-y-6">
-      {/* Form Fields */}
-      <div className="grid grid-cols-2 gap-6">
-        {[1, 2].map((i) => (
-          <div key={i} className="space-y-2">
-            <div className="w-32 h-5">
-              <SkeletonPulse />
-            </div>
-            <div className="w-full h-10">
-              <SkeletonPulse />
-            </div>
-          </div>
-        ))}
-      </div>
-
+const SettingsSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header Skeleton */}
       <div className="space-y-2">
-        <div className="w-40 h-5">
+        <div className="w-32 h-8">
           <SkeletonPulse />
         </div>
-        <div className="w-full h-32">
+        <div className="w-64 h-5">
           <SkeletonPulse />
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="space-y-2">
-            <div className="w-24 h-5">
+      {/* Navigation Skeleton */}
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-2 shadow-sm`}>
+        <div className="flex gap-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="w-32 h-10">
               <SkeletonPulse />
             </div>
-            <div className="w-full h-10">
-              <SkeletonPulse />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Wallet Section */}
-      <div className="space-y-4">
-        <div className="w-48 h-6">
-          <SkeletonPulse />
-        </div>
-        <div className="bg-gray-50 rounded-xl p-6">
-          <div className="flex justify-between items-center">
-            <div className="space-y-2">
+      {/* Content Skeleton */}
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 shadow-sm space-y-6`}>
+        {/* Form Fields */}
+        <div className="grid grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <div key={i} className="space-y-2">
               <div className="w-32 h-5">
                 <SkeletonPulse />
               </div>
-              <div className="w-48 h-4">
+              <div className="w-full h-10">
                 <SkeletonPulse />
               </div>
             </div>
-            <div className="w-32 h-10">
-              <SkeletonPulse />
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <div className="w-40 h-5">
+            <SkeletonPulse />
+          </div>
+          <div className="w-full h-32">
+            <SkeletonPulse />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="w-24 h-5">
+                <SkeletonPulse />
+              </div>
+              <div className="w-full h-10">
+                <SkeletonPulse />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Wallet Section */}
+        <div className="space-y-4">
+          <div className="w-48 h-6">
+            <SkeletonPulse />
+          </div>
+          <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+            <div className="flex justify-between items-center">
+              <div className="space-y-2">
+                <div className="w-32 h-5">
+                  <SkeletonPulse />
+                </div>
+                <div className="w-48 h-4">
+                  <SkeletonPulse />
+                </div>
+              </div>
+              <div className="w-32 h-10">
+                <SkeletonPulse />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Submit Button */}
-      <div className="pt-4">
-        <div className="w-full h-10">
-          <SkeletonPulse />
+        {/* Submit Button */}
+        <div className="pt-4">
+          <div className="w-full h-10">
+            <SkeletonPulse />
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const Settings = () => {
   const { user } = useMerchAuth();
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
   const [showNetworkConfirm, setShowNetworkConfirm] = useState(false);
@@ -187,24 +195,43 @@ const Settings = () => {
     [countries]
   );
 
-  const customStyles = {
-    control: (provided) => ({
+  const customStyles = useMemo(() => ({
+    control: (provided, state) => ({
       ...provided,
       padding: '2px',
-      borderColor: '#E5E7EB',
+      borderColor: isDarkMode ? '#4B5563' : '#E5E7EB',
+      backgroundColor: isDarkMode ? '#374151' : 'white',
       '&:hover': {
         borderColor: '#FF1B6B'
       }
     }),
     option: (provided, state) => ({
       ...provided,
-      backgroundColor: state.isSelected ? '#FF1B6B' : state.isFocused ? '#FFE4E4' : 'white',
-      color: state.isSelected ? 'white' : '#374151',
+      backgroundColor: state.isSelected 
+        ? '#FF1B6B' 
+        : state.isFocused 
+          ? isDarkMode ? '#4B5563' : '#FFE4E4'
+          : isDarkMode ? '#374151' : 'white',
+      color: state.isSelected 
+        ? 'white' 
+        : isDarkMode ? '#E5E7EB' : '#374151',
       '&:hover': {
-        backgroundColor: state.isSelected ? '#FF1B6B' : '#FFE4E4',
+        backgroundColor: state.isSelected ? '#FF1B6B' : isDarkMode ? '#4B5563' : '#FFE4E4',
       }
+    }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: isDarkMode ? '#374151' : 'white',
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: isDarkMode ? '#E5E7EB' : '#374151',
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: isDarkMode ? '#E5E7EB' : '#374151',
     })
-  };
+  }), [isDarkMode]);
 
   const handleCountryChange = (selectedOption) => {
     const newProfile = {
@@ -601,15 +628,17 @@ const Settings = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-4xl mx-auto p-6"
+      className={`max-w-4xl mx-auto p-6 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
     >
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 mb-6">Manage your {user?.isSeller ? 'store settings' : 'profile'} and preferences</p>
+        <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Settings</h1>
+        <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mb-6`}>
+          Manage your {user?.isSeller ? 'store settings' : 'profile'} and preferences
+        </p>
       </div>
 
       {/* Settings Navigation */}
-      <div className="bg-white rounded-xl p-2 shadow-sm mb-6">
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl p-2 shadow-sm mb-6`}>
         <nav className="flex gap-2">
           {user?.isSeller ? (
             // Seller Tabs
@@ -624,7 +653,9 @@ const Settings = () => {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-[#FF1B6B] text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    : isDarkMode 
+                      ? 'text-gray-300 hover:bg-gray-700'
+                      : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <tab.icon className="w-5 h-5" />
@@ -644,7 +675,9 @@ const Settings = () => {
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-[#FF1B6B] text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    : isDarkMode 
+                      ? 'text-gray-300 hover:bg-gray-700'
+                      : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <tab.icon className="w-5 h-5" />
@@ -662,11 +695,11 @@ const Settings = () => {
             {activeTab === 'store' && (
               <form onSubmit={handleStoreSubmit} className="space-y-6">
                 {/* Store Details */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Store Details</h3>
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-6`}>
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Store Details</h3>
                   <div className="grid grid-cols-2 gap-6 mb-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Store Name
                       </label>
                       <input
@@ -674,11 +707,15 @@ const Settings = () => {
                         name="storeName"
                         value={storeSettings.storeName}
                         onChange={handleStoreInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Contact Email
                       </label>
                       <input
@@ -686,13 +723,17 @@ const Settings = () => {
                         name="contactEmail"
                         value={storeSettings.contactEmail}
                         onChange={handleStoreInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                       />
                     </div>
                   </div>
 
                   <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Store Description
                     </label>
                     <textarea
@@ -700,16 +741,24 @@ const Settings = () => {
                       value={storeSettings.description}
                       onChange={handleStoreInputChange}
                       rows={3}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
                     />
                   </div>
 
                   <div className="grid grid-cols-3 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Country
                       </label>
-                      <div className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center gap-2">
+                      <div className="w-full px-4 py-2 border rounded-lg flex items-center gap-2 ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                          : 'bg-gray-50 border-gray-200 text-gray-700'
+                      }">
                         {storeSettings.country?.code && (
                           <ReactCountryFlag
                             countryCode={storeSettings.country.code}
@@ -720,13 +769,13 @@ const Settings = () => {
                             }}
                           />
                         )}
-                        <span className="text-gray-700">
+                        <span className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                           {storeSettings.country?.name || 'Country not set'}
                         </span>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         City
                       </label>
                       <input
@@ -734,11 +783,15 @@ const Settings = () => {
                         name="city"
                         value={storeSettings.city}
                         onChange={handleStoreInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Postal Code
                       </label>
                       <input
@@ -746,17 +799,21 @@ const Settings = () => {
                         name="postalCode"
                         value={storeSettings.postalCode}
                         onChange={handleStoreInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Shipping Settings */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Settings</h3>
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-6`}>
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Shipping Settings</h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Shipping Fee (USD)
                     </label>
                     <div className="relative max-w-xs">
@@ -768,7 +825,11 @@ const Settings = () => {
                         step="0.01"
                         value={storeSettings.shippingFee}
                         onChange={handleStoreInputChange}
-                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                        className={`w-full pl-8 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         placeholder="0.00"
                       />
                     </div>
@@ -785,7 +846,7 @@ const Settings = () => {
                     className={`px-6 py-2 rounded-lg transition-colors ${
                       hasChanges 
                         ? 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]' 
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-500'} cursor-not-allowed`
                     }`}
                   >
                     Save Store Settings
@@ -797,13 +858,13 @@ const Settings = () => {
             {activeTab === 'account' && (
               <div className="space-y-6">
                 {/* Wallet Settings */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Wallet Settings</h3>
-                  <div className="bg-white rounded-lg p-4">
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-6`}>
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Wallet Settings</h3>
+                  <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-white'} rounded-lg p-4`}>
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-medium text-gray-900">Connected Wallet</h4>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <h4 className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>Connected Wallet</h4>
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                           {walletSettings.walletAddress 
                             ? `${walletSettings.walletAddress.slice(0, 6)}...${walletSettings.walletAddress.slice(-4)}`
                             : 'No wallet connected'}
@@ -815,7 +876,11 @@ const Settings = () => {
                             <button
                               type="button"
                               onClick={handleDisconnectWallet}
-                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                              className={`px-4 py-2 ${
+                                isDarkMode 
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              } rounded-lg transition-colors text-sm`}
                             >
                               Disconnect
                             </button>
@@ -842,10 +907,10 @@ const Settings = () => {
                 </div>
 
                 {/* Network Selection */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Network Settings</h3>
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-6`}>
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Network Settings</h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                       Preferred Network
                     </label>
                     <div className="grid grid-cols-2 gap-4">
@@ -865,10 +930,10 @@ const Settings = () => {
                           }}
                           className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
                             storeSettings.preferredNetwork === network.id 
-                              ? 'border-[#FF1B6B] bg-pink-50' 
+                              ? `border-[#FF1B6B] ${isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'}` 
                               : (storeSettings.preferredNetwork === 'polygon' || storeSettings.preferredNetwork === 'unichain')
-                                ? 'border-gray-200 opacity-50 cursor-not-allowed'
-                                : 'border-gray-200 hover:border-[#FF1B6B]'
+                                ? `border-gray-200 opacity-50 cursor-not-allowed ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`
+                                : `border-gray-200 hover:border-[#FF1B6B] ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`
                           }`}
                         >
                           <img 
@@ -876,19 +941,19 @@ const Settings = () => {
                             alt={`${network.name} logo`}
                             className="w-6 h-6"
                           />
-                          <span className="font-medium">{network.name}</span>
+                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>{network.name}</span>
                         </button>
                       ))}
                     </div>
                     {showNetworkConfirm && selectedNetwork && (
-                      <div className="mt-4 border border-[#FF1B6B] rounded-lg p-4 bg-pink-50">
+                      <div className={`mt-4 border border-[#FF1B6B] rounded-lg p-4 ${isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'}`}>
                         <div className="flex items-start gap-3">
                           <div className="text-[#FF1B6B] mt-1">⚠️</div>
                           <div className="flex-1">
-                            <h4 className="font-medium text-gray-900 mb-2">
+                            <h4 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-2`}>
                               Confirm Network Selection
                             </h4>
-                            <p className="text-sm text-gray-600 mb-4">
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} mb-4`}>
                               Are you sure you want to build your store on {selectedNetwork.name}? This is a one-time choice and all your products and transactions will only operate on this network.
                             </p>
                             <div className="flex justify-end gap-3">
@@ -897,7 +962,7 @@ const Settings = () => {
                                   setShowNetworkConfirm(false);
                                   setSelectedNetwork(null);
                                 }}
-                                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                                className={`px-4 py-2 text-sm ${isDarkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-900'} transition-colors`}
                               >
                                 Cancel
                               </button>
@@ -934,7 +999,7 @@ const Settings = () => {
                       </div>
                     )}
                     <div className="mt-4">
-                      <p className="text-sm text-gray-500">
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-200' : 'text-gray-500'}`}>
                         {storeSettings.preferredNetwork 
                           ? `Your store operates on ${storeSettings.preferredNetwork === 'polygon' ? 'Polygon' : 'Unichain Testnet'} network.`
                           : "Select the network you want to build your store on. This is a one-time choice and cannot be changed later."}
@@ -952,8 +1017,8 @@ const Settings = () => {
 
             {activeTab === 'security' && (
               <div className="text-center py-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">Security Settings</h2>
-                <p className="text-gray-500">Security settings coming soon</p>
+                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-2`}>Security Settings</h2>
+                <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Security settings coming soon</p>
               </div>
             )}
           </>
@@ -965,11 +1030,11 @@ const Settings = () => {
                 {/* Wallet Section */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900">Payment Wallet</h3>
-                  <div className="bg-gray-50 rounded-xl p-6">
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-6`}>
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-medium text-gray-900">Connected Wallet</h4>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <h4 className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>Connected Wallet</h4>
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                           {buyerProfile.walletAddress 
                             ? `${buyerProfile.walletAddress.slice(0, 6)}...${buyerProfile.walletAddress.slice(-4)}`
                             : 'No wallet connected'}
@@ -981,7 +1046,11 @@ const Settings = () => {
                             <button
                               type="button"
                               onClick={handleDisconnectWallet}
-                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                              className={`px-4 py-2 ${
+                                isDarkMode 
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              } rounded-lg transition-colors text-sm`}
                             >
                               Disconnect
                             </button>
@@ -1012,7 +1081,7 @@ const Settings = () => {
                   <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Full Name
                       </label>
                       <input
@@ -1020,12 +1089,16 @@ const Settings = () => {
                         name="fullName"
                         value={buyerProfile.fullName}
                         onChange={handleBuyerInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         placeholder="Your full name"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Email
                       </label>
                       <input
@@ -1033,12 +1106,16 @@ const Settings = () => {
                         name="email"
                         value={buyerProfile.email}
                         onChange={handleBuyerInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         placeholder="Your email"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                         Phone Number
                       </label>
                       <input
@@ -1046,7 +1123,11 @@ const Settings = () => {
                         name="phoneNumber"
                         value={buyerProfile.phoneNumber}
                         onChange={handleBuyerInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                          isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         placeholder="Your phone number"
                       />
                     </div>
@@ -1060,7 +1141,7 @@ const Settings = () => {
                     className={`w-full px-4 py-2 rounded-lg transition-colors ${
                       buyerProfileHasChanges 
                         ? 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]' 
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-500'} cursor-not-allowed`
                     }`}
                   >
                     Save Profile
@@ -1072,7 +1153,7 @@ const Settings = () => {
             {activeTab === 'shipping' && (
               <form onSubmit={handleBuyerProfileSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                     Street Address
                   </label>
                   <input
@@ -1080,13 +1161,17 @@ const Settings = () => {
                     name="shippingAddress.street"
                     value={buyerProfile.shippingAddress.street}
                     onChange={handleBuyerInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       City
                     </label>
                     <input
@@ -1094,11 +1179,15 @@ const Settings = () => {
                       name="shippingAddress.city"
                       value={buyerProfile.shippingAddress.city}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       State/Province
                     </label>
                     <input
@@ -1106,14 +1195,18 @@ const Settings = () => {
                       name="shippingAddress.state"
                       value={buyerProfile.shippingAddress.state}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Country
                     </label>
                     <Select
@@ -1129,7 +1222,7 @@ const Settings = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                       Postal Code
                     </label>
                     <input
@@ -1137,7 +1230,11 @@ const Settings = () => {
                       name="shippingAddress.postalCode"
                       value={buyerProfile.shippingAddress.postalCode}
                       onChange={handleBuyerInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
                     />
                   </div>
                 </div>
@@ -1149,7 +1246,7 @@ const Settings = () => {
                     className={`w-full px-4 py-2 rounded-lg transition-colors ${
                       buyerProfileHasChanges 
                         ? 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]' 
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-500'} cursor-not-allowed`
                     }`}
                   >
                     Save Shipping Address
@@ -1160,8 +1257,8 @@ const Settings = () => {
 
             {activeTab === 'security' && (
               <div className="text-center py-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">Security Settings</h2>
-                <p className="text-gray-500">Security settings coming soon</p>
+                <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-2`}>Security Settings</h2>
+                <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Security settings coming soon</p>
               </div>
             )}
           </>

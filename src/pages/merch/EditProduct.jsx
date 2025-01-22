@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BiUpload, BiTrash } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../firebase/merchConfig';
@@ -13,6 +14,29 @@ const styles = `
     color-scheme: light;
   }
   
+  .dark input[type="datetime-local"] {
+    color-scheme: dark;
+    background-color: #1a1b1f !important;
+    color: #fff !important;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) !important;
+    opacity: 0.7;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-datetime-edit {
+    color: #fff !important;
+  }
+
+  .dark input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+    color: #fff !important;
+  }
+
   input[type="datetime-local"] {
     color-scheme: light !important;
     background-color: white !important;
@@ -110,11 +134,36 @@ const EditProduct = () => {
   const { user } = useMerchAuth();
   const navigate = useNavigate();
   const { id } = useParams();
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [originalProduct, setOriginalProduct] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
+    }
+  };
+
   const [product, setProduct] = useState({
     name: '',
     description: '',
@@ -416,19 +465,19 @@ const EditProduct = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-4xl mx-auto p-6"
+      className={`max-w-4xl mx-auto p-6 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
     >
       <style>{styles}</style>
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-sm p-6`}>
         <motion.div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Edit Product</h1>
-          <p className="text-gray-500 text-sm mb-6">Update your product details and listing information</p>
+          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-2`}>Edit Product</h1>
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mb-6`}>Update your product details and listing information</p>
         </motion.div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Product Images */}
-          <div className="bg-gray-50 rounded-xl p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-4">
+          <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+            <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-4`}>
               Product Images ({product.images.length}/5)
             </label>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -452,12 +501,18 @@ const EditProduct = () => {
               ))}
               {product.images.length < 5 && (
                 <motion.label
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-[#FF1B6B] transition-colors bg-white"
+                  className={`aspect-square rounded-lg border-2 border-dashed ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:border-[#FF1B6B]' 
+                      : 'border-gray-300 hover:border-[#FF1B6B]'
+                  } flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                    isDarkMode ? 'bg-gray-800' : 'bg-white'
+                  }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <BiUpload className="w-8 h-8 text-gray-400" />
-                  <span className="text-sm text-gray-500 mt-2">Add Image</span>
+                  <BiUpload className={`w-8 h-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`} />
+                  <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-2`}>Add Image</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -475,7 +530,7 @@ const EditProduct = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-1`}>
                   Product Name *
                 </label>
                 <input
@@ -484,13 +539,17 @@ const EditProduct = () => {
                   value={product.name}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                  className={`w-full px-4 py-2.5 border ${
+                    isDarkMode 
+                      ? 'border-gray-600 bg-gray-700 text-white focus:border-[#FF1B6B]' 
+                      : 'border-gray-300 bg-white text-gray-900 focus:border-[#FF1B6B]'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors`}
                   placeholder="Enter product name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-1`}>
                   Category *
                 </label>
                 <select
@@ -498,7 +557,11 @@ const EditProduct = () => {
                   value={product.category}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white appearance-none"
+                  className={`w-full px-4 py-2.5 border ${
+                    isDarkMode 
+                      ? 'border-gray-600 bg-gray-700 text-white' 
+                      : 'border-gray-300 bg-white text-gray-900'
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors appearance-none`}
                 >
                   <option value="">Select Category</option>
                   <option value="clothing">Clothing</option>
@@ -513,8 +576,8 @@ const EditProduct = () => {
 
             {/* Subcategory Section */}
             {(product.category === 'clothing' || product.category === 'accessories') && (
-              <div className="bg-gray-50 rounded-xl p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
+              <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-4`}>
                   Product Type *
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -522,8 +585,8 @@ const EditProduct = () => {
                   <div className="space-y-4">
                     {Object.entries(product.category === 'clothing' ? CLOTHING_SUBCATEGORIES : ACCESSORIES_SUBCATEGORIES)
                       .map(([mainCategory, subItems]) => (
-                      <div key={mainCategory} className="bg-white rounded-lg p-4">
-                        <h3 className="font-medium text-gray-900 mb-3">{mainCategory}</h3>
+                      <div key={mainCategory} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                        <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-3`}>{mainCategory}</h3>
                         <div className="grid grid-cols-2 gap-2">
                           {subItems.map((subItem) => (
                             <button
@@ -533,7 +596,9 @@ const EditProduct = () => {
                               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                                 product.subCategory === `${mainCategory} - ${subItem}`
                                   ? 'bg-[#FF1B6B] text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : isDarkMode
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                             >
                               {subItem}
@@ -545,31 +610,31 @@ const EditProduct = () => {
                   </div>
 
                   {/* Selected Category Display */}
-                  <div className="bg-white rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-3">Selected Category</h3>
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                    <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-3`}>Selected Category</h3>
                     {product.subCategory ? (
-                      <div className="bg-pink-50 border border-pink-100 rounded-lg p-4">
-                        <p className="text-gray-700">
+                      <div className={`${isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'} border ${isDarkMode ? 'border-pink-900/20' : 'border-pink-100'} rounded-lg p-4`}>
+                        <p className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>
                           <span className="font-medium">Main Category:</span>{' '}
                           {product.subCategory.split(' - ')[0]}
                         </p>
-                        <p className="text-gray-700 mt-2">
+                        <p className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mt-2`}>
                           <span className="font-medium">Sub Category:</span>{' '}
                           {product.subCategory.split(' - ')[1]}
                         </p>
                       </div>
                     ) : (
-                      <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-gray-500">
+                      <div className={`${isDarkMode ? 'bg-gray-700/50 border-gray-600 text-gray-400' : 'bg-gray-50 border-gray-100 text-gray-500'} border rounded-lg p-4`}>
                         Please select a category from the left
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
 
-            <div className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                 Description *
               </label>
               <textarea
@@ -578,16 +643,20 @@ const EditProduct = () => {
                 onChange={handleInputChange}
                 required
                 rows={4}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                  isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white'
+                    : 'border-gray-300 bg-white text-gray-900'
+                }`}
                 placeholder="Describe your product..."
               />
             </div>
           </div>
 
           {/* Network & Price Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                 Network & Price
               </label>
               <div className="space-y-4">
@@ -597,14 +666,16 @@ const EditProduct = () => {
                     .map(([network, info]) => (
                       <div
                         key={network}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#FF1B6B] bg-pink-50 flex-1 justify-center"
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#FF1B6B] ${
+                          isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'
+                        } flex-1 justify-center`}
                       >
                         <img 
                           src={info.logo} 
                           alt={info.name} 
                           className="w-5 h-5"
                         />
-                        <span className="font-medium">{info.name}</span>
+                        <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>{info.name}</span>
                       </div>
                   ))}
                 </div>
@@ -618,10 +689,18 @@ const EditProduct = () => {
                     required
                     min="0"
                     step="0.01"
-                    className="w-full pl-4 pr-24 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                    className={`w-full pl-4 pr-24 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-600 bg-gray-700 text-white'
+                        : 'border-gray-300 bg-white text-gray-900'
+                    }`}
                     placeholder="0.00"
                   />
-                  <div className="absolute right-0 top-0 bottom-0 w-20 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                  <div className={`absolute right-0 top-0 bottom-0 w-20 border-l ${
+                    isDarkMode
+                      ? 'border-gray-600 bg-gray-600 text-gray-200'
+                      : 'border-gray-300 bg-gray-50 text-gray-700'
+                  } text-sm rounded-r-lg flex items-center justify-center`}>
                     {product.acceptedToken}
                   </div>
                 </div>
@@ -642,7 +721,7 @@ const EditProduct = () => {
                       }}
                       className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
                     />
-                    <label htmlFor="hasDiscount" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="hasDiscount" className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                       Apply Discount
                     </label>
                   </div>
@@ -664,16 +743,24 @@ const EditProduct = () => {
                           }}
                           min="0"
                           max="99"
-                          className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                          className={`w-full pl-4 pr-12 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                            isDarkMode
+                              ? 'border-gray-600 bg-gray-700 text-white'
+                              : 'border-gray-300 bg-white text-gray-900'
+                          }`}
                           placeholder="Enter discount percentage"
                         />
-                        <div className="absolute right-0 top-0 bottom-0 w-12 border-l border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-r-lg flex items-center justify-center">
+                        <div className={`absolute right-0 top-0 bottom-0 w-12 border-l ${
+                          isDarkMode
+                            ? 'border-gray-600 bg-gray-600 text-gray-200'
+                            : 'border-gray-300 bg-gray-50 text-gray-700'
+                        } text-sm rounded-r-lg flex items-center justify-center`}>
                           %
                         </div>
                       </div>
 
                       <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
                           Discount Ends At
                         </label>
                         <input
@@ -695,21 +782,27 @@ const EditProduct = () => {
                             }));
                           }}
                           min={new Date(new Date().getTime() + 60000).toISOString().slice(0, 16)}
-                          className="w-full pl-4 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                          className={`w-full pl-4 pr-12 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                            isDarkMode
+                              ? 'border-gray-600 bg-gray-700 text-white'
+                              : 'border-gray-300 bg-white text-gray-900'
+                          }`}
                         />
                       </div>
 
                       {product.discountPercent > 0 && product.price > 0 && (
-                        <div className="bg-pink-50 border border-pink-100 rounded-lg p-3">
-                          <p className="text-sm text-gray-700">
+                        <div className={`${
+                          isDarkMode ? 'bg-pink-900/20 border-pink-900/20' : 'bg-pink-50 border-pink-100'
+                        } border rounded-lg p-3`}>
+                          <p className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
                             <span className="font-medium">Original Price:</span>{' '}
                             {product.price} {product.acceptedToken}
                           </p>
-                          <p className="text-sm text-[#FF1B6B] mt-1">
+                          <p className="text-[#FF1B6B] mt-1">
                             <span className="font-medium">Discounted Price:</span>{' '}
                             {(product.price * (1 - product.discountPercent / 100)).toFixed(2)} {product.acceptedToken}
                           </p>
-                          <p className="text-sm text-gray-500 mt-1">
+                          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                             <span className="font-medium">Savings:</span>{' '}
                             {(product.price * (product.discountPercent / 100)).toFixed(2)} {product.acceptedToken}
                           </p>
@@ -720,21 +813,25 @@ const EditProduct = () => {
                 </div>
 
                 {/* Payment Information Display */}
-                <div className="flex items-center gap-2 px-4 py-3 bg-pink-50 rounded-lg border border-pink-100 mt-2">
+                <div className={`flex items-center gap-2 px-4 py-3 ${
+                  isDarkMode ? 'bg-pink-900/20 border-pink-900/20' : 'bg-pink-50 border-pink-100'
+                } rounded-lg border mt-2`}>
                   <img 
                     src={`/${product.acceptedToken.toLowerCase()}.png`}
                     alt={product.acceptedToken}
                     className="w-5 h-5 object-contain"
                   />
-                  <p className="text-sm text-gray-700">
-                    Buyers will pay in <span className="font-medium">{product.acceptedToken}</span> on <span className="font-medium">{NETWORK_INFO[product.network]?.name}</span>
+                  <p className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    Buyers will pay in <span className="font-medium">{product.acceptedToken}</span> on <span className="font-medium">{
+                      NETWORK_INFO[product.network]?.name || 'selected'
+                    }</span>
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                 Quantity Available
               </label>
               <input
@@ -743,16 +840,20 @@ const EditProduct = () => {
                 value={product.quantity}
                 onChange={handleInputChange}
                 required
-                min="0"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                min="1"
+                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                  isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white'
+                    : 'border-gray-300 bg-white text-gray-900'
+                }`}
                 placeholder="Enter available quantity"
               />
             </div>
-          </div>
+          </motion.div>
 
           {/* Variants Section */}
           {(product.category === 'clothing' || product.category === 'accessories') && (
-            <div className="bg-gray-50 rounded-xl p-6">
+            <div className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
               <div className="flex items-center mb-6">
                 <input
                   type="checkbox"
@@ -769,22 +870,22 @@ const EditProduct = () => {
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-[#FF1B6B] focus:ring-[#FF1B6B]"
                 />
-                <label htmlFor="hasVariants" className="ml-2 text-sm font-medium text-gray-700">
+                <label htmlFor="hasVariants" className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
                   This product has size and color variants
                 </label>
               </div>
 
               {product.hasVariants && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Size Options */}
-                  <div className="bg-white rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                  {/* Size Selection */}
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                       Available Sizes
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {isFootwearProduct() ? (
-                        // Shoe sizes
-                        SHOE_SIZES.map((size) => (
+                        // Show shoe sizes for footwear
+                        SHOE_SIZES.map(size => (
                           <button
                             key={size}
                             type="button"
@@ -799,15 +900,17 @@ const EditProduct = () => {
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                               product.sizes.includes(size)
                                 ? 'bg-[#FF1B6B] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : isDarkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
                             {size}
                           </button>
                         ))
                       ) : (
-                        // Regular clothing sizes
-                        ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                        // Show clothing sizes for non-footwear
+                        ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map(size => (
                           <button
                             key={size}
                             type="button"
@@ -822,7 +925,9 @@ const EditProduct = () => {
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                               product.sizes.includes(size)
                                 ? 'bg-[#FF1B6B] text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : isDarkMode
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
                             {size}
@@ -833,8 +938,8 @@ const EditProduct = () => {
                   </div>
 
                   {/* Color Selection and Quantities */}
-                  <div className="bg-white rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                  <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-4`}>
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3`}>
                       Available Colors & Quantities
                     </label>
                     <div className="space-y-4">
@@ -875,7 +980,9 @@ const EditProduct = () => {
                               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                                 isSelected
                                   ? 'bg-[#FF1B6B] text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : isDarkMode
+                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                             >
                               <span
@@ -901,7 +1008,11 @@ const EditProduct = () => {
                                       }
                                     }));
                                   }}
-                                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors text-sm"
+                                  className={`w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors text-sm ${
+                                    isDarkMode
+                                      ? 'border-gray-600 bg-gray-700 text-white'
+                                      : 'border-gray-300 bg-white text-gray-900'
+                                  }`}
                                   placeholder="Quantity"
                                 />
                               </div>
@@ -913,10 +1024,10 @@ const EditProduct = () => {
                     
                     {/* Total Quantity Display */}
                     {product.colors.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-gray-100">
+                      <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Total Quantity:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Total Quantity:</span>
+                          <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                             {Object.values(product.colorQuantities).reduce((a, b) => a + b, 0)}
                           </span>
                         </div>
@@ -929,15 +1040,15 @@ const EditProduct = () => {
           )}
 
           {/* Shipping Section */}
-          <div className="bg-gray-50 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Shipping Details</h3>
+          <motion.div variants={itemVariants} className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'} rounded-xl p-6`}>
+            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>Shipping Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
                   Shipping Fee (USD)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>$</span>
                   <input
                     type="number"
                     name="shippingFee"
@@ -945,36 +1056,49 @@ const EditProduct = () => {
                     step="0.01"
                     value={product.shippingFee}
                     disabled
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-gray-50"
+                    className={`w-full pl-8 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                      isDarkMode
+                        ? 'border-gray-600 bg-gray-700/50 text-gray-400'
+                        : 'border-gray-300 bg-gray-50 text-gray-500'
+                    }`}
                     placeholder="0.00"
                   />
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   Shipping fee is set in your store settings
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>
                   Shipping Information
                 </label>
-                <textarea
+                <input
+                  type="text"
                   name="shippingInfo"
                   value={product.shippingInfo}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors bg-white"
+                  className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] transition-colors ${
+                    isDarkMode
+                      ? 'border-gray-600 bg-gray-700 text-white'
+                      : 'border-gray-300 bg-white text-gray-900'
+                  }`}
                   placeholder="e.g., Worldwide shipping available"
                 />
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Submit Buttons */}
           <div className="flex justify-end gap-4">
             <button
               type="button"
               onClick={() => navigate('/merch-store/products')}
-              className="px-8 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className={`px-8 py-3 border-2 ${
+                isDarkMode 
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              } rounded-lg transition-colors`}
             >
               Cancel
             </button>
@@ -1008,4 +1132,4 @@ const EditProduct = () => {
   );
 };
 
-export default EditProduct; 
+export default EditProduct;
