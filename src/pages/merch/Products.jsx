@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { BiEdit, BiTrash, BiPlus, BiX } from 'react-icons/bi';
 import { useMerchAuth } from '../../context/MerchAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { collection, query, where, getDocs, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../firebase/merchConfig';
@@ -22,55 +23,61 @@ const TOKEN_INFO = {
   }
 };
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const ProductsSkeleton = () => (
-  <div className="max-w-5xl mx-auto p-4 space-y-6">
-    {/* Header Skeleton */}
-    <div className="flex justify-between items-center">
-      <div className="w-32 h-8">
-        <SkeletonPulse />
-      </div>
-      <div className="w-40 h-10">
-        <SkeletonPulse />
-      </div>
-    </div>
-
-    {/* Products Grid Skeleton */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <div key={i} className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="aspect-square">
-            <SkeletonPulse />
-          </div>
-          <div className="p-3 space-y-2">
-            <div className="w-3/4 h-5">
-              <SkeletonPulse />
-            </div>
-            <div className="w-1/2 h-4">
-              <SkeletonPulse />
-            </div>
-            <div className="w-1/3 h-4">
-              <SkeletonPulse />
-            </div>
-          </div>
+const ProductsSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className="max-w-5xl mx-auto p-4 space-y-6">
+      {/* Header Skeleton */}
+      <div className="flex justify-between items-center">
+        <div className="w-32 h-8">
+          <SkeletonPulse />
         </div>
-      ))}
+        <div className="w-40 h-10">
+          <SkeletonPulse />
+        </div>
+      </div>
+
+      {/* Products Grid Skeleton */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm overflow-hidden`}>
+            <div className="aspect-square">
+              <SkeletonPulse />
+            </div>
+            <div className="p-3 space-y-2">
+              <div className="w-3/4 h-5">
+                <SkeletonPulse />
+              </div>
+              <div className="w-1/2 h-4">
+                <SkeletonPulse />
+              </div>
+              <div className="w-1/3 h-4">
+                <SkeletonPulse />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ProductImages = ({ images }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -116,6 +123,7 @@ const ProductImages = ({ images }) => {
 };
 
 const DeleteConfirmationModal = ({ product, onConfirm, onCancel }) => {
+  const { isDarkMode } = useTheme();
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -127,13 +135,13 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel }) => {
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-white rounded-lg p-6 max-w-md w-full"
+        className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 max-w-md w-full`}
       >
         <div className="flex justify-between items-start mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Delete Product</h3>
+          <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Delete Product</h3>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-500"
+            className={`${isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-500'}`}
           >
             <BiX className="w-5 h-5" />
           </button>
@@ -149,11 +157,11 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel }) => {
               />
             </div>
             <div>
-              <h4 className="font-medium text-gray-900">{product.name}</h4>
-              <p className="text-sm text-gray-500">Price: ${product.price}</p>
+              <h4 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>{product.name}</h4>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Price: ${product.price}</p>
             </div>
           </div>
-          <p className="text-gray-600">
+          <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             Are you sure you want to delete this product? This action cannot be undone.
           </p>
         </div>
@@ -161,7 +169,11 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel }) => {
         <div className="flex justify-end space-x-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className={`px-4 py-2 ${
+              isDarkMode 
+                ? 'text-gray-300 bg-gray-700 hover:bg-gray-600' 
+                : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+            } rounded-lg transition-colors`}
           >
             Cancel
           </button>
@@ -180,6 +192,7 @@ const DeleteConfirmationModal = ({ product, onConfirm, onCancel }) => {
 const Products = () => {
   const navigate = useNavigate();
   const { user } = useMerchAuth();
+  const { isDarkMode } = useTheme();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [productToDelete, setProductToDelete] = useState(null);
@@ -286,14 +299,14 @@ const Products = () => {
   return (
     <>
       <motion.div
-        className="max-w-5xl mx-auto p-4"
+        className={`max-w-5xl mx-auto p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
         initial="hidden"
         animate="visible"
         variants={containerVariants}
       >
         <div className="flex justify-between items-center mb-4">
           <motion.h1 
-            className="text-xl font-bold text-gray-800"
+            className={`text-xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}
             variants={itemVariants}
           >
             My Products
@@ -311,10 +324,10 @@ const Products = () => {
 
         {products.length === 0 ? (
           <motion.div
-            className="text-center py-8"
+            className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
             variants={itemVariants}
           >
-            <p className="text-gray-500 mb-4">You haven't added any products yet.</p>
+            <p className="mb-4">You haven't added any products yet.</p>
             <Link
               to="/merch-store/add-product"
               className="text-[#FF1B6B] hover:text-[#D4145A] font-medium"
@@ -330,7 +343,7 @@ const Products = () => {
             {products.map((product) => (
               <motion.div
                 key={product.id}
-                className="bg-white rounded-lg shadow-sm overflow-hidden"
+                className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm overflow-hidden`}
                 variants={itemVariants}
                 whileHover={{ y: -3 }}
               >
@@ -356,7 +369,7 @@ const Products = () => {
                   </div>
                 </div>
                 <div className="p-3">
-                  <h3 className="font-medium text-gray-800 text-sm mb-0.5 truncate">{product.name}</h3>
+                  <h3 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} text-sm mb-0.5 truncate`}>{product.name}</h3>
                   <div className="flex items-center gap-2">
                     <img 
                       src={product.tokenLogo || TOKEN_INFO[product.acceptedToken]?.logo} 
@@ -367,7 +380,7 @@ const Products = () => {
                       ${product.price.toFixed(2)}
                     </p>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     Stock: {product.quantity}
                   </p>
                 </div>

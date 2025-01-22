@@ -13,6 +13,7 @@ import { getMerchPlatformContract, parseTokenAmount } from '../../contracts/Merc
 import VerificationCheckmark from '../../components/shared/VerificationCheckmark';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 
 // Token logos
 const TOKEN_INFO = {
@@ -28,111 +29,117 @@ const TOKEN_INFO = {
   }
 };
 
-const SkeletonPulse = () => (
-  <motion.div
-    className="w-full h-full bg-gray-200 rounded-lg"
-    animate={{
-      opacity: [0.4, 0.7, 0.4]
-    }}
-    transition={{
-      duration: 1.5,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-);
+const SkeletonPulse = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <motion.div
+      className={`w-full h-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg`}
+      animate={{
+        opacity: [0.4, 0.7, 0.4]
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }}
+    />
+  );
+};
 
-const DashboardSkeleton = () => (
-  <div className="p-6 max-w-7xl mx-auto space-y-8">
-    {/* Welcome Section Skeleton */}
-    <div className="space-y-2">
-      <div className="w-64 h-8">
-        <SkeletonPulse />
-      </div>
-      <div className="w-96 h-5">
-        <SkeletonPulse />
-      </div>
-    </div>
-
-    {/* Balance Widget Skeleton */}
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div className="space-y-2">
-          <div className="w-48 h-6">
-            <SkeletonPulse />
-          </div>
-          <div className="w-64 h-4">
-            <SkeletonPulse />
-          </div>
-        </div>
-        <div className="w-10 h-10 rounded-full">
+const DashboardSkeleton = () => {
+  const { isDarkMode } = useTheme();
+  return (
+    <div className={`p-6 max-w-7xl mx-auto space-y-8 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      {/* Welcome Section Skeleton */}
+      <div className="space-y-2">
+        <div className="w-64 h-8">
           <SkeletonPulse />
         </div>
-      </div>
-      
-      <div className="flex justify-between items-end mb-6">
-        <div className="space-y-2">
-          <div className="w-56 h-10">
-            <SkeletonPulse />
-          </div>
-          <div className="w-32 h-4">
-            <SkeletonPulse />
-          </div>
-          <div className="w-48 h-4">
-            <SkeletonPulse />
-          </div>
-          <div className="w-40 h-4">
-            <SkeletonPulse />
-          </div>
-        </div>
-        <div className="w-40 h-10">
+        <div className="w-96 h-5">
           <SkeletonPulse />
         </div>
       </div>
 
-      <div className="space-y-1">
-        <div className="w-full h-3">
-          <SkeletonPulse />
+      {/* Balance Widget Skeleton */}
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg p-6`}>
+        <div className="flex justify-between items-start mb-4">
+          <div className="space-y-2">
+            <div className="w-48 h-6">
+              <SkeletonPulse />
+            </div>
+            <div className="w-64 h-4">
+              <SkeletonPulse />
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-full">
+            <SkeletonPulse />
+          </div>
         </div>
-        <div className="w-full h-3">
-          <SkeletonPulse />
+        
+        <div className="flex justify-between items-end mb-6">
+          <div className="space-y-2">
+            <div className="w-56 h-10">
+              <SkeletonPulse />
+            </div>
+            <div className="w-32 h-4">
+              <SkeletonPulse />
+            </div>
+            <div className="w-48 h-4">
+              <SkeletonPulse />
+            </div>
+            <div className="w-40 h-4">
+              <SkeletonPulse />
+            </div>
+          </div>
+          <div className="w-40 h-10">
+            <SkeletonPulse />
+          </div>
         </div>
-        <div className="w-full h-3">
-          <SkeletonPulse />
+
+        <div className="space-y-1">
+          <div className="w-full h-3">
+            <SkeletonPulse />
+          </div>
+          <div className="w-full h-3">
+            <SkeletonPulse />
+          </div>
+          <div className="w-full h-3">
+            <SkeletonPulse />
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* Stats Grid Skeleton */}
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="p-6 rounded-lg shadow-lg h-32">
-          <SkeletonPulse />
-        </div>
-      ))}
-    </div>
-
-    {/* Recent Activity Skeleton */}
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="w-48 h-6">
-          <SkeletonPulse />
-        </div>
-        <div className="w-32 h-10">
-          <SkeletonPulse />
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 rounded-lg">
+      {/* Stats Grid Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className={`p-6 rounded-lg shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <SkeletonPulse />
           </div>
         ))}
       </div>
+
+      {/* Recent Activity Skeleton */}
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="w-48 h-6">
+            <SkeletonPulse />
+          </div>
+          <div className="w-32 h-10">
+            <SkeletonPulse />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 rounded-lg">
+              <SkeletonPulse />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Add CountdownTimer component
 const CountdownTimer = ({ targetDate }) => {
@@ -181,12 +188,15 @@ const getProgressBarColor = (order) => {
   return 'bg-gray-200';
 };
 
+// Add safety buffer constant at the top with other constants
+const SAFETY_BUFFER = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+
 const SellerDashboard = () => {
   const { user } = useMerchAuth();
   const [loading, setLoading] = useState(true);
   const [platformFee, setPlatformFee] = useState(2.5);
   const [minWithdrawal, setMinWithdrawal] = useState(15);
-  const theme = localStorage.getItem('admin-theme') || 'light';
+  const { isDarkMode } = useTheme();
   const [seller, setSeller] = useState(null);
   const [stats, setStats] = useState({
     totalProducts: 0,
@@ -318,7 +328,7 @@ const SellerDashboard = () => {
               .reduce((sum, w) => sum + (w.amount || 0), 0)
           };
 
-          // Calculate revenue and balance for each token
+          // Calculate revenue and balance for each token with enhanced checks
           let totalGrossRevenue = 0;
           let totalNetRevenue = 0;
           const tokenRevenue = {
@@ -333,37 +343,46 @@ const SellerDashboard = () => {
             }
 
             if (order.paymentStatus === 'completed') {
+              const orderDate = order.createdAt.toDate();
+              const now = new Date();
+              const shippingWindowEnd = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
               const orderTotal = order.total || 0;
               const orderToken = order.paymentMethod?.token || 'USDT';
-              
-              // Check if order has passed the 3-day shipping window
-              const orderDate = order.createdAt.toDate();
-              const shippingWindowEnd = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000)); // 3 days window
-              const now = new Date();
-              
-              // Only add to revenue if shipping window has passed
+
+              // Always check if 3-day period has passed
               if (now >= shippingWindowEnd) {
-                // Add to gross revenue
-                totalGrossRevenue += orderTotal;
-                
-                // Calculate net revenue (95% of gross)
-                const netAmount = orderTotal * 0.95;
-                totalNetRevenue += netAmount;
-                
-                // Add to token-specific revenue
-                if (!tokenRevenue[orderToken]) {
-                  tokenRevenue[orderToken] = { gross: 0, net: 0 };
+                // For unshipped orders, apply buffer
+                if (!order.shippingConfirmed) {
+                  const adjustedNow = new Date(now.getTime() - SAFETY_BUFFER);
+                  if (adjustedNow < shippingWindowEnd) {
+                    return; // Skip if within buffer period
+                  }
                 }
-                tokenRevenue[orderToken].gross += orderTotal;
-                tokenRevenue[orderToken].net += netAmount;
+
+                // Only include if not cancelled or refunded
+                if (order.status !== 'cancelled' && order.status !== 'refunded') {
+                  // Add to gross revenue
+                  totalGrossRevenue += orderTotal;
+                  
+                  // Calculate net revenue (95% of gross)
+                  const netAmount = orderTotal * 0.95;
+                  totalNetRevenue += netAmount;
+                  
+                  // Add to token-specific revenue
+                  if (!tokenRevenue[orderToken]) {
+                    tokenRevenue[orderToken] = { gross: 0, net: 0 };
+                  }
+                  tokenRevenue[orderToken].gross += orderTotal;
+                  tokenRevenue[orderToken].net += netAmount;
+                }
               }
             }
           });
 
-          // Calculate available balance for each token (net revenue minus withdrawals and pending refunds)
+          // Calculate available balance with enhanced checks
           const balances = {
-            USDC: parseFloat((Math.max(0, tokenRevenue.USDC.net - totalWithdrawn.USDC - (sellerData?.pendingRefunds?.USDC || 0))).toFixed(2)),
-            USDT: parseFloat((Math.max(0, tokenRevenue.USDT.net - totalWithdrawn.USDT - (sellerData?.pendingRefunds?.USDT || 0))).toFixed(2))
+            USDC: parseFloat(Math.max(0, tokenRevenue.USDC.net - totalWithdrawn.USDC - (sellerData?.pendingRefunds?.USDC || 0)).toFixed(2)),
+            USDT: parseFloat(Math.max(0, tokenRevenue.USDT.net - totalWithdrawn.USDT - (sellerData?.pendingRefunds?.USDT || 0)).toFixed(2))
           };
 
           // Also account for pending withdrawals
@@ -380,7 +399,7 @@ const SellerDashboard = () => {
           balances.USDC = parseFloat((Math.max(0, balances.USDC - pendingWithdrawals.USDC)).toFixed(2));
           balances.USDT = parseFloat((Math.max(0, balances.USDT - pendingWithdrawals.USDT)).toFixed(2));
 
-          // Add pending refunds to the stats
+          // Update stats with new calculations
           setStats({
             totalProducts: productsSnapshot.size,
             totalSales: orders.filter(o => o.paymentStatus === 'completed').length,
@@ -675,7 +694,7 @@ const SellerDashboard = () => {
     <>
       <VerificationModal />
       <motion.div 
-        className="p-6 max-w-7xl mx-auto"
+        className={`p-6 max-w-7xl mx-auto ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
         initial="hidden"
         animate="visible"
         variants={containerVariants}
@@ -687,8 +706,12 @@ const SellerDashboard = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Welcome back, {user?.displayName || 'Seller'}!</h1>
-              <p className="text-gray-600 mt-2">Here's what's happening with your store today.</p>
+              <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+                Welcome back, {user?.displayName || 'Seller'}!
+              </h1>
+              <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
+                Here's what's happening with your store today.
+              </p>
             </div>
             <div className="flex justify-end mb-6">
               <VerificationButton />
@@ -701,20 +724,24 @@ const SellerDashboard = () => {
           className="mb-8"
           variants={itemVariants}
         >
-          <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-lg p-6`}>
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Available Balance</h3>
-                <p className="text-sm text-gray-500 mt-1">Withdraw anytime to your wallet</p>
+                <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                  Available Balance
+                </h3>
+                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
+                  Withdraw anytime to your wallet
+                </p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg">
+                <div className={`flex items-center gap-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} px-3 py-1.5 rounded-lg`}>
                   <img 
                     src={sellerData?.preferredNetwork === 'unichain' ? '/unichain-logo.png' : '/polygon.png'}
                     alt={sellerData?.preferredNetwork === 'unichain' ? 'Unichain' : 'Polygon'}
                     className="w-6 h-6 object-contain"
                   />
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                     {sellerData?.preferredNetwork === 'unichain' ? 'Unichain' : 'Polygon'} Network
                   </span>
                 </div>
@@ -726,7 +753,7 @@ const SellerDashboard = () => {
             
             <div className="flex flex-col lg:flex-row gap-6 mb-6">
               {/* Balance Section */}
-              <div className="flex-grow bg-gray-50 rounded-lg p-4">
+              <div className={`flex-grow ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4`}>
                 <div className="flex items-center gap-2 mb-2">
                   <img 
                     src={TOKEN_INFO[sellerData?.preferredToken]?.logo}
@@ -737,13 +764,13 @@ const SellerDashboard = () => {
                     {stats.balances[sellerData?.preferredToken]?.toFixed(2)} {sellerData?.preferredToken}
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   ≈ ${stats.balances[sellerData?.preferredToken]?.toFixed(2)}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                   Available to withdraw
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div className={`w-full ${isDarkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-full h-2 mt-2`}>
                   <div 
                     className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
                     style={{ 
@@ -751,7 +778,7 @@ const SellerDashboard = () => {
                     }}
                   />
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                   Min. 15 {sellerData?.preferredToken} Required
                 </div>
                 <button
@@ -763,7 +790,9 @@ const SellerDashboard = () => {
                   disabled={!stats.balances[sellerData?.preferredToken] || stats.balances[sellerData?.preferredToken] < minWithdrawal}
                   className={`w-full mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     !stats.balances[sellerData?.preferredToken] || stats.balances[sellerData?.preferredToken] < minWithdrawal
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? isDarkMode 
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-[#FF1B6B] text-white hover:bg-[#D4145A]'
                   }`}
                 >
@@ -774,23 +803,23 @@ const SellerDashboard = () => {
               </div>
 
               {/* Notes Section */}
-              <div className="lg:w-1/3 bg-gray-50 rounded-lg p-4">
+              <div className={`lg:w-1/3 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4`}>
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <FiCreditCard className="text-[#FF1B6B] w-5 h-5" />
-                    <p className="text-sm text-gray-600">
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                       Gas fees paid from your wallet
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <FiDollarSign className="text-[#FF1B6B] w-5 h-5" />
-                    <p className="text-sm text-gray-600">
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                       5% platform fee per sale
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <FiTrendingUp className="text-[#FF1B6B] w-5 h-5" />
-                    <p className="text-sm text-gray-600">
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                       Min. withdrawal: 15 {sellerData?.preferredToken}
                     </p>
                   </div>
@@ -828,20 +857,20 @@ const SellerDashboard = () => {
 
         {/* Incoming Payments Section */}
         <motion.div 
-          className="bg-white rounded-lg shadow-lg p-6 mb-8"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}
           variants={itemVariants}
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Incoming Payments</h3>
-              <p className="text-sm text-gray-500">Payments pending 3-day shipping confirmation</p>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Incoming Payments</h3>
+              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Payments pending 3-day shipping confirmation</p>
             </div>
             <button
               onClick={() => setIsIncomingPaymentsExpanded(!isIncomingPaymentsExpanded)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className={`p-2 ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-full transition-colors`}
             >
               <svg
-                className={`w-6 h-6 text-gray-500 transform transition-transform ${isIncomingPaymentsExpanded ? 'rotate-180' : ''}`}
+                className={`w-6 h-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} transform transition-transform ${isIncomingPaymentsExpanded ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -851,44 +880,50 @@ const SellerDashboard = () => {
             </button>
           </div>
 
-          <div className="mb-4 p-4 bg-[#FF1B6B] bg-opacity-10 border border-[#FF1B6B] rounded-lg flex items-start space-x-3">
+          <div className={`mb-4 p-4 ${isDarkMode ? 'bg-pink-900/20 border-pink-800' : 'bg-[#FF1B6B] bg-opacity-10 border-[#FF1B6B]'} border rounded-lg flex items-start space-x-3`}>
             <svg className="w-5 h-5 text-[#FF1B6B] mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div>
               <h4 className="font-medium text-[#FF1B6B] mb-1">⚠️ Shipping Time Requirement</h4>
-              <p className="text-sm text-gray-700">All orders must be shipped within 3 days of payment. Orders not shipped within this timeframe may be cancelled and refunded to protect buyers.</p>
+              <div className={`space-y-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                <p>All orders must be shipped within 3 days of payment. Orders not shipped within this timeframe may be cancelled and refunded to protect buyers.</p>
+                <p><strong>Buffer Period:</strong> For orders awaiting shipping, there is a 2-hour buffer period after the 3-day window before funds become available. This buffer ensures the auto-cancellation system can protect buyers from unshipped orders.</p>
+                <p><strong>Shipped Orders:</strong> Orders marked as shipped (with tracking number) will not be subject to the buffer period, but funds will still be held for the full 3-day window.</p>
+                <p className={`${isDarkMode ? 'text-red-400' : 'text-red-600'}`}><strong>Warning:</strong> Falsely marking orders as shipped without actual shipping confirmation may result in penalties if buyers report issues. Please only confirm shipping when you have a valid tracking number.</p>
+              </div>
             </div>
           </div>
 
           {isIncomingPaymentsExpanded && (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className={`min-w-full divide-y ${isDarkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                <thead className={`${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available In</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Order ID</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Date</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Amount</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Token</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Status</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>Available In</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className={`${isDarkMode ? 'divide-y divide-gray-700' : 'bg-white divide-y divide-gray-200'}`}>
                   {incomingPayments.map((payment) => {
                     const orderDate = payment.createdAt.toDate();
                     const availableDate = new Date(orderDate.getTime() + (3 * 24 * 60 * 60 * 1000));
+                    const now = new Date();
                     const hoursRemaining = Math.max(0, Math.ceil((availableDate - Date.now()) / (60 * 60 * 1000)));
                     
                     return (
-                      <tr key={payment.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <tr key={payment.id} className={isDarkMode ? 'bg-gray-800' : 'bg-white'}>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
                           #{payment.id.slice(-6)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           {orderDate.toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
                           ${payment.total.toFixed(2)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -898,25 +933,27 @@ const SellerDashboard = () => {
                               alt={payment.paymentMethod.token}
                               className="w-5 h-5 mr-2"
                             />
-                            <span className="text-sm text-gray-900">{payment.paymentMethod.token}</span>
+                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>{payment.paymentMethod.token}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {payment.status === 'cancelled' ? (
-                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              isDarkMode ? 'bg-red-900/50 text-red-300' : 'bg-red-100 text-red-800'
+                            }`}>
                               Canceled
                             </span>
                           ) : payment.shippingConfirmed ? (
                             <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-green-600">
+                              <span className={`text-xs font-medium ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
                                 Shipping Confirmed
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {payment.carrier}: {payment.trackingNumber}
                               </span>
                               <div className="flex items-center gap-2">
-                                <span>{payment.status === 'delivered' ? 'Delivered' : 'Processing'}</span>
-                                <div className="relative w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <span className={isDarkMode ? 'text-gray-300' : ''}>{payment.status === 'delivered' ? 'Delivered' : 'Processing'}</span>
+                                <div className={`relative w-full h-2 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-full overflow-hidden`}>
                                   <div
                                     className={`absolute left-0 top-0 h-full transition-all duration-300 ${getProgressBarColor(payment)}`}
                                     style={{ width: getProgressBarWidth(payment) }}
@@ -925,22 +962,49 @@ const SellerDashboard = () => {
                               </div>
                             </div>
                           ) : (
-                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              isDarkMode ? 'bg-yellow-900/50 text-yellow-300' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
                               Awaiting Shipping
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                           <div className="flex flex-col gap-1">
-                            <CountdownTimer 
-                              targetDate={availableDate}
-                            />
-                            <div className="w-full bg-gray-200 rounded-full h-1.5">
-                              <div 
-                                className="bg-[#FF1B6B] h-1.5 rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min(100, ((72 - hoursRemaining) / 72) * 100)}%` }}
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>3-day period:</span>
+                              <CountdownTimer 
+                                targetDate={availableDate}
                               />
                             </div>
+                            
+                            {now >= availableDate && !payment.shippingConfirmed && (
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>Buffer period:</span>
+                                <CountdownTimer 
+                                  targetDate={new Date(availableDate.getTime() + SAFETY_BUFFER)}
+                                />
+                              </div>
+                            )}
+
+                            <div className={`w-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-full h-1.5`}>
+                              <div 
+                                className="bg-[#FF1B6B] h-1.5 rounded-full transition-all duration-500"
+                                style={{ 
+                                  width: payment.shippingConfirmed
+                                    ? `${Math.min(100, ((72 - hoursRemaining) / 72) * 100)}%`
+                                    : `${Math.min(100, ((72 - hoursRemaining - 2) / 72) * 100)}%`
+                                }}
+                              />
+                            </div>
+                            
+                            {payment.shippingConfirmed ? (
+                              <span className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>No buffer (shipping confirmed)</span>
+                            ) : now >= availableDate ? (
+                              <span className={`text-xs ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>In 2-hour buffer period</span>
+                            ) : (
+                              <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Awaiting 3-day period</span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -949,7 +1013,7 @@ const SellerDashboard = () => {
                 </tbody>
               </table>
               {incomingPayments.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                   No incoming payments at the moment
                 </div>
               )}
@@ -959,11 +1023,13 @@ const SellerDashboard = () => {
 
         {/* Recent Activity */}
         <motion.div 
-          className="bg-white rounded-lg shadow-lg p-6 mb-8"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}
           variants={itemVariants}
         >
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-800">Recent Activity</h2>
+            <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+              Recent Activity
+            </h2>
             <Link
               to="/merch-store/orders-received"
               className="px-4 py-2 bg-[#FF1B6B] text-white rounded-lg hover:bg-[#D4145A] transition-colors"
@@ -980,7 +1046,7 @@ const SellerDashboard = () => {
             {recentOrders.length === 0 ? (
               <motion.div
                 variants={itemVariants}
-                className="text-center py-8 text-gray-500"
+                className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
               >
                 No orders yet
               </motion.div>
@@ -988,7 +1054,9 @@ const SellerDashboard = () => {
               recentOrders.map((order) => (
                 <motion.div
                   key={order.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  className={`flex items-center justify-between p-4 ${
+                    isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
+                  } rounded-lg`}
                   variants={itemVariants}
                 >
                   <div className="flex items-center space-x-4">
@@ -996,13 +1064,17 @@ const SellerDashboard = () => {
                       <FiTrendingUp className="text-[#FF1B6B] text-xl" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-800">New order received</p>
-                      <p className="text-sm text-gray-500">
+                      <p className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                        New order received
+                      </p>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                         {new Date(order.createdAt?.toDate()).toLocaleString()}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[#FF1B6B] font-medium">${order.total.toFixed(2)}</span>
+                  <span className="text-[#FF1B6B] font-medium">
+                    ${order.total.toFixed(2)}
+                  </span>
                 </motion.div>
               ))
             )}
@@ -1011,91 +1083,85 @@ const SellerDashboard = () => {
 
         {/* Withdrawal History */}
         <motion.div 
-          className="bg-white rounded-lg shadow-lg p-6 mb-8"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}
           variants={itemVariants}
         >
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Withdrawal History</h2>
+          <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-800'} mb-6`}>
+            Withdrawal History
+          </h2>
           
           {withdrawals.length > 0 ? (
             <div className="w-full">
               <table className="w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[300px]">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                    } uppercase tracking-wider`}>Date</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                    } uppercase tracking-wider`}>Amount</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                    } uppercase tracking-wider w-[300px]`}>Status</th>
+                    <th className={`px-6 py-3 text-left text-xs font-medium ${
+                      isDarkMode ? 'text-gray-300' : 'text-gray-500'
+                    } uppercase tracking-wider`}>Transaction</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className={`${isDarkMode ? 'divide-gray-700' : 'bg-white divide-y divide-gray-200'}`}>
                   {withdrawals.map((withdrawal) => (
-                    <tr key={withdrawal.id}>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                    <tr key={withdrawal.id} className={isDarkMode ? 'bg-gray-800' : 'bg-white'}>
+                      <td className={`px-6 py-4 text-sm ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-900'
+                      }`}>
                         {withdrawal.timestamp ? new Date(withdrawal.timestamp).toLocaleString() : 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {withdrawal.amount} {withdrawal.token || stats.preferredToken}
+                      <td className={`px-6 py-4 text-sm ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-900'
+                      }`}>
+                        ${withdrawal.amount.toFixed(2)}
                       </td>
                       <td className="px-6 py-4">
-                        {withdrawal.status === 'pending' ? (
-                          <div className="space-y-2">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
-                              Processing
-                            </span>
-                            <div 
-                              className="w-full bg-gray-200 rounded-full h-2 relative group"
-                            >
-                              <div 
-                                className="bg-[#FF1B6B] h-2 rounded-full transition-all duration-500"
-                                style={{ 
-                                  width: `${Math.min(100, ((withdrawal.timestamp ? Date.now() - withdrawal.timestamp.getTime() : 0) / (14 * 24 * 60 * 60 * 1000)) * 100)}%` 
-                                }}
-                              />
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg text-gray-700 text-xs rounded-2xl py-3 px-4 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-[250px] z-10">
-                                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rotate-45 bg-white border-b border-r border-gray-200"></div>
-                                <div className="flex items-start gap-2">
-                                  <svg className="w-4 h-4 text-[#FF1B6B] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  <p className="text-xs leading-normal">
-                                    As per the terms & conditions, withdrawals are processed after a 14-day holding period to ensure all orders are successfully delivered and no disputes are pending.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              <CountdownTimer 
-                                targetDate={withdrawal.timestamp ? 
-                                  new Date(withdrawal.timestamp.getTime() + (14 * 24 * 60 * 60 * 1000)) :
-                                  new Date(Date.now() + (14 * 24 * 60 * 60 * 1000))
-                                }
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            withdrawal.status === 'completed' 
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          withdrawal.completed
+                            ? isDarkMode 
+                              ? 'bg-green-900 text-green-200' 
+                              : 'bg-green-100 text-green-800'
+                            : isDarkMode
+                              ? 'bg-yellow-900 text-yellow-200'
+                              : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {withdrawal.completed ? 'Completed' : 'Processing'}
+                        </span>
+                        {withdrawal.isRefund && (
+                          <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                            isDarkMode 
+                              ? 'bg-blue-900 text-blue-200' 
+                              : 'bg-blue-100 text-blue-800'
                           }`}>
-                            {withdrawal.status}
+                            Refund
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className={`px-6 py-4 text-sm ${
+                        isDarkMode ? 'text-gray-300' : 'text-gray-900'
+                      }`}>
                         {withdrawal.transactionHash ? (
-                          <a 
+                          <a
                             href={`${withdrawal.network === 'unichain' 
                               ? 'https://unichain-sepolia.blockscout.com/tx/'
                               : 'https://polygonscan.com/tx/'
                             }${withdrawal.transactionHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[#FF1B6B] hover:text-[#D4145A]"
+                            className="text-[#FF1B6B] hover:underline"
                           >
-                            View
+                            View Transaction
                           </a>
-                        ) : 'N/A'}
+                        ) : (
+                          'Pending'
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1103,7 +1169,7 @@ const SellerDashboard = () => {
               </table>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
+            <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               No withdrawals yet
             </div>
           )}
@@ -1251,26 +1317,40 @@ const SellerDashboard = () => {
           token={selectedToken}
         />
 
-        {/* Add this after the balances display */}
+        {/* Pending Refunds Alert */}
         {stats.pendingRefunds && (stats.pendingRefunds.USDC > 0 || stats.pendingRefunds.USDT > 0) && (
-          <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 mt-4">
+          <div className={`${
+            isDarkMode 
+              ? 'bg-yellow-900/20 border-yellow-800' 
+              : 'bg-yellow-50 border-yellow-100'
+          } border rounded-lg p-4 mt-4`}>
             <div className="flex items-start gap-2">
-              <FiAlertCircle className="text-yellow-500 text-lg mt-0.5" />
+              <FiAlertCircle className={`${
+                isDarkMode ? 'text-yellow-500' : 'text-yellow-500'
+              } text-lg mt-0.5`} />
               <div>
-                <p className="text-sm font-medium text-yellow-800">Pending Refunds</p>
+                <p className={`text-sm font-medium ${
+                  isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
+                }`}>Pending Refunds</p>
                 <div className="mt-2 space-y-1">
                   {stats.pendingRefunds.USDC > 0 && (
-                    <p className="text-sm text-yellow-700">
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                    }`}>
                       USDC: ${stats.pendingRefunds.USDC.toFixed(2)}
                     </p>
                   )}
                   {stats.pendingRefunds.USDT > 0 && (
-                    <p className="text-sm text-yellow-700">
+                    <p className={`text-sm ${
+                      isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+                    }`}>
                       USDT: ${stats.pendingRefunds.USDT.toFixed(2)}
                     </p>
                   )}
                 </div>
-                <p className="text-xs text-yellow-600 mt-2">
+                <p className={`text-xs ${
+                  isDarkMode ? 'text-yellow-400/80' : 'text-yellow-600'
+                } mt-2`}>
                   These amounts are reserved for potential refunds and have been deducted from your available balance.
                 </p>
               </div>

@@ -320,12 +320,12 @@ export default function AdminDashboard() {
       // Calculate net revenue for each seller
       Object.keys(sellerStats).forEach(sellerId => {
         const withdrawals = sellerWithdrawals[sellerId] || { completed: 0, pending: 0 };
-        sellerStats[sellerId].netRevenue = sellerStats[sellerId].totalSales - withdrawals.completed;
+        sellerStats[sellerId].netRevenue = Math.max(0, sellerStats[sellerId].totalSales - withdrawals.completed);
       });
 
       // Calculate current sales (sum of all sellers' available balances)
       const currentSales = Object.values(sellerStats)
-        .reduce((sum, seller) => sum + Math.max(0, seller.netRevenue), 0);
+        .reduce((sum, seller) => sum + seller.netRevenue, 0);
 
       // Sort sellers by net revenue and get top 5
       const topSellers = Object.values(sellerStats)
@@ -335,7 +335,7 @@ export default function AdminDashboard() {
           id: seller.id,
           name: seller.name,
           flag: seller.flag,
-          total: seller.netRevenue,
+          total: Math.max(0, seller.netRevenue),
           orders: seller.ordersCount
         }));
 

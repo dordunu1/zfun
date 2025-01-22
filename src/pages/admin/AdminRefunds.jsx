@@ -795,7 +795,7 @@ export default function AdminRefunds() {
                           {refund.transactionHash ? (
                             <a
                               href={`${refund.order?.paymentMethod?.network === 1301 
-                                ? 'https://explorer.unichain.network'
+                                ? 'https://unichain-sepolia.blockscout.com/'
                                 : 'https://polygonscan.com'}/tx/${refund.transactionHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
