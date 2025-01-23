@@ -9,6 +9,7 @@ import { db } from '../../firebase/merchConfig';
 import countryList from 'react-select-country-list';
 import Select, { components } from 'react-select';
 import ReactCountryFlag from 'react-country-flag';
+import { useTheme } from '../../context/ThemeContext';
 
 // Add country calling codes data
 const countryCallingCodes = {
@@ -249,6 +250,7 @@ const countryCallingCodes = {
 export default function BecomeSeller() {
   const navigate = useNavigate();
   const { user } = useMerchAuth();
+  const { isDarkMode } = useTheme();
   const [step, setStep] = useState(1);
   const listingFee = 750.00;
   const [isProcessing, setIsProcessing] = useState(false);
@@ -280,18 +282,37 @@ export default function BecomeSeller() {
     control: (provided) => ({
       ...provided,
       padding: '2px',
-      borderColor: '#E5E7EB',
+      borderColor: isDarkMode ? '#4B5563' : '#E5E7EB',
+      backgroundColor: isDarkMode ? '#374151' : 'white',
       '&:hover': {
         borderColor: '#FF1B6B'
       }
     }),
     option: (provided, state) => ({
       ...provided,
-      backgroundColor: state.isSelected ? '#FF1B6B' : state.isFocused ? '#FFE4E4' : 'white',
-      color: state.isSelected ? 'white' : '#374151',
+      backgroundColor: state.isSelected 
+        ? '#FF1B6B' 
+        : state.isFocused 
+          ? isDarkMode ? '#4B5563' : '#FFE4E4' 
+          : isDarkMode ? '#374151' : 'white',
+      color: state.isSelected 
+        ? 'white' 
+        : isDarkMode ? '#E5E7EB' : '#374151',
       '&:hover': {
-        backgroundColor: state.isSelected ? '#FF1B6B' : '#FFE4E4',
+        backgroundColor: state.isSelected ? '#FF1B6B' : isDarkMode ? '#4B5563' : '#FFE4E4',
       }
+    }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: isDarkMode ? '#374151' : 'white',
+    }),
+    singleValue: (provided) => ({
+      ...provided,
+      color: isDarkMode ? '#E5E7EB' : '#374151',
+    }),
+    input: (provided) => ({
+      ...provided,
+      color: isDarkMode ? '#E5E7EB' : '#374151',
     })
   };
 
@@ -428,37 +449,49 @@ export default function BecomeSeller() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-2xl mx-auto"
+      className={`max-w-2xl mx-auto ${isDarkMode ? 'bg-gray-900' : ''}`}
     >
       {/* Progress Steps */}
       <div className="mb-8">
         <div className="flex items-center justify-center space-x-4">
-          <div className={`flex items-center ${step >= 1 ? 'text-[#FF1B6B]' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full border-2 ${step >= 1 ? 'border-[#FF1B6B] bg-pink-50' : 'border-gray-300'} flex items-center justify-center font-semibold transition-colors duration-300`}>
+          <div className={`flex items-center ${step >= 1 ? 'text-[#FF1B6B]' : isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full border-2 ${
+              step >= 1 
+                ? 'border-[#FF1B6B] bg-pink-900/20' 
+                : isDarkMode ? 'border-gray-600' : 'border-gray-300'
+            } flex items-center justify-center font-semibold transition-colors duration-300`}>
               1
             </div>
             <span className="ml-2">Information</span>
           </div>
-          <div className="w-16 h-0.5 bg-gray-200">
+          <div className={`w-16 h-0.5 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
             <div 
               className="h-full bg-[#FF1B6B] transition-all duration-300"
               style={{ width: step > 1 ? '100%' : '0%' }}
             />
           </div>
-          <div className={`flex items-center ${step >= 2 ? 'text-[#FF1B6B]' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full border-2 ${step >= 2 ? 'border-[#FF1B6B] bg-pink-50' : 'border-gray-300'} flex items-center justify-center font-semibold transition-colors duration-300`}>
+          <div className={`flex items-center ${step >= 2 ? 'text-[#FF1B6B]' : isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full border-2 ${
+              step >= 2 
+                ? 'border-[#FF1B6B] bg-pink-900/20' 
+                : isDarkMode ? 'border-gray-600' : 'border-gray-300'
+            } flex items-center justify-center font-semibold transition-colors duration-300`}>
               2
             </div>
             <span className="ml-2">Store Info</span>
           </div>
-          <div className="w-16 h-0.5 bg-gray-200">
+          <div className={`w-16 h-0.5 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
             <div 
               className="h-full bg-[#FF1B6B] transition-all duration-300"
               style={{ width: step > 2 ? '100%' : '0%' }}
             />
           </div>
-          <div className={`flex items-center ${step >= 3 ? 'text-[#FF1B6B]' : 'text-gray-400'}`}>
-            <div className={`w-8 h-8 rounded-full border-2 ${step >= 3 ? 'border-[#FF1B6B] bg-pink-50' : 'border-gray-300'} flex items-center justify-center font-semibold transition-colors duration-300`}>
+          <div className={`flex items-center ${step >= 3 ? 'text-[#FF1B6B]' : isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            <div className={`w-8 h-8 rounded-full border-2 ${
+              step >= 3 
+                ? 'border-[#FF1B6B] bg-pink-900/20' 
+                : isDarkMode ? 'border-gray-600' : 'border-gray-300'
+            } flex items-center justify-center font-semibold transition-colors duration-300`}>
               3
             </div>
             <span className="ml-2">Payment</span>
@@ -471,20 +504,20 @@ export default function BecomeSeller() {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-2xl p-8 shadow-lg"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-8 shadow-lg`}
         >
           <div className="text-center mb-8">
             <BiStore className="w-16 h-16 text-[#FF1B6B] mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-2`}>
               Become a Seller
             </h1>
-            <p className="text-gray-600">
+            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               Start selling your merchandise with a one-time listing fee
             </p>
           </div>
 
-          <div className="bg-pink-50 rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <div className={`${isDarkMode ? 'bg-pink-900/20' : 'bg-pink-50'} rounded-lg p-6 mb-8`}>
+            <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-4`}>
               What's Included:
             </h2>
             <ul className="space-y-3">
@@ -495,7 +528,7 @@ export default function BecomeSeller() {
                 'Direct customer communication',
                 'Flexible withdrawal options'
               ].map((benefit, index) => (
-                <li key={index} className="flex items-center text-gray-700">
+                <li key={index} className={`flex items-center ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   <BiCheckCircle className="w-5 h-5 text-[#FF1B6B] mr-2" />
                   {benefit}
                 </li>
@@ -504,9 +537,9 @@ export default function BecomeSeller() {
           </div>
 
           <div className="text-center mb-8">
-            <div className="text-3xl font-bold text-gray-900 mb-1">
+            <div className={`text-3xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-1`}>
               GHS {listingFee.toFixed(2)}
-              <span className="text-sm font-normal text-gray-500 ml-1">
+              <span className={`text-sm font-normal ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} ml-1`}>
                 one-time fee
               </span>
             </div>
@@ -520,7 +553,7 @@ export default function BecomeSeller() {
           </button>
 
           <div className="text-center mt-4">
-            <div className="flex items-center justify-center text-sm text-gray-500">
+            <div className={`flex items-center justify-center text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               <span>Secure payment powered by</span>
               <img 
                 src="/paystack.png" 
@@ -537,28 +570,32 @@ export default function BecomeSeller() {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-2xl p-8 shadow-lg"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-8 shadow-lg`}
         >
           <button
             onClick={() => setStep(1)}
-            className="flex items-center text-gray-600 hover:text-[#FF1B6B] mb-6 transition-colors"
+            className={`flex items-center ${
+              isDarkMode 
+                ? 'text-gray-400 hover:text-[#FF1B6B]' 
+                : 'text-gray-600 hover:text-[#FF1B6B]'
+            } mb-6 transition-colors`}
           >
             <BiArrowBack className="w-5 h-5 mr-2" />
             Back
           </button>
 
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Store Information</h2>
-            <p className="text-gray-600">Tell us about your business</p>
+            <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Store Information</h2>
+            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tell us about your business</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Store Details */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Store Details</h3>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Store Details</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                   Store Name *
                 </label>
                 <input
@@ -567,13 +604,17 @@ export default function BecomeSeller() {
                   value={storeInfo.storeName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                      : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                  }`}
                   placeholder="Your store name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                   Description
                 </label>
                 <textarea
@@ -581,7 +622,11 @@ export default function BecomeSeller() {
                   value={storeInfo.description}
                   onChange={handleInputChange}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                      : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                  }`}
                   placeholder="Tell customers about your store"
                 />
               </div>
@@ -589,11 +634,11 @@ export default function BecomeSeller() {
 
             {/* Contact Information */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Contact Information</h3>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Contact Information</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                     Email *
                   </label>
                   <input
@@ -602,13 +647,17 @@ export default function BecomeSeller() {
                     value={storeInfo.contactEmail}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder="contact@yourstore.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                     Phone Number *
                   </label>
                   <input
@@ -617,7 +666,11 @@ export default function BecomeSeller() {
                     value={storeInfo.phoneNumber}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder={phonePlaceholder}
                   />
                 </div>
@@ -626,11 +679,11 @@ export default function BecomeSeller() {
 
             {/* Location */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Location</h3>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Location</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                     Country *
                   </label>
                   <Select
@@ -652,7 +705,7 @@ export default function BecomeSeller() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                     City *
                   </label>
                   <input
@@ -661,13 +714,17 @@ export default function BecomeSeller() {
                     value={storeInfo.city}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder="Your city"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                     Postal Code *
                   </label>
                   <input
@@ -676,7 +733,11 @@ export default function BecomeSeller() {
                     value={storeInfo.postalCode}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-200 placeholder-gray-400' 
+                        : 'border-gray-300 text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder="Postal code"
                   />
                 </div>
@@ -684,10 +745,10 @@ export default function BecomeSeller() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Payment Settings</h3>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Payment Settings</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                   Preferred Network *
                 </label>
                 <div className="grid grid-cols-2 gap-4 mb-2">
@@ -701,8 +762,12 @@ export default function BecomeSeller() {
                       onClick={() => handleInputChange({ target: { name: 'preferredNetwork', value: network.id } })}
                       className={`p-4 border rounded-lg transition-colors flex items-center justify-center gap-2 ${
                         storeInfo.preferredNetwork === network.id 
-                          ? 'border-[#FF1B6B] bg-pink-50' 
-                          : 'border-gray-200 hover:border-[#FF1B6B]'
+                          ? isDarkMode 
+                            ? 'border-[#FF1B6B] bg-pink-900/20' 
+                            : 'border-[#FF1B6B] bg-pink-50'
+                          : isDarkMode
+                            ? 'border-gray-600 hover:border-[#FF1B6B] bg-gray-700'
+                            : 'border-gray-200 hover:border-[#FF1B6B]'
                       }`}
                     >
                       <img 
@@ -710,12 +775,12 @@ export default function BecomeSeller() {
                         alt={`${network.name} logo`}
                         className="w-6 h-6"
                       />
-                      <span className="font-medium">{network.name}</span>
+                      <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>{network.name}</span>
                     </button>
                   ))}
                 </div>
                 <div className="mt-1 text-sm">
-                  <p className="text-gray-500">Network you want to operate your store on</p>
+                  <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Network you want to operate your store on</p>
                   <p className="text-amber-600 font-medium mt-1">
                     ⚠️ This selection cannot be changed after store creation
                   </p>
@@ -723,7 +788,7 @@ export default function BecomeSeller() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                   Preferred Payment Token *
                 </label>
                 <div className="relative">
@@ -732,7 +797,11 @@ export default function BecomeSeller() {
                     value={storeInfo.preferredToken}
                     onChange={handleInputChange}
                     required
-                    className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors appearance-none"
+                    className={`w-full pl-12 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF1B6B] focus:border-[#FF1B6B] transition-colors appearance-none ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                        : 'border-gray-300 text-gray-900'
+                    }`}
                   >
                     <option value="USDC">USDC (USD Coin)</option>
                     <option value="USDT">USDT (Tether)</option>
@@ -746,7 +815,7 @@ export default function BecomeSeller() {
                   </div>
                 </div>
                 <div className="mt-1 text-sm">
-                  <p className="text-gray-500">Token you want to receive payments in</p>
+                  <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Token you want to receive payments in</p>
                   <p className="text-amber-600 font-medium mt-1">
                     ⚠️ This selection cannot be changed after store creation
                   </p>
@@ -757,9 +826,12 @@ export default function BecomeSeller() {
             <div className="pt-6">
               <button
                 type="submit"
-                className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300"
+                className={`w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isDarkMode ? 'disabled:bg-gray-700 disabled:text-gray-500' : 'disabled:bg-gray-200 disabled:text-gray-500'
+                }`}
+                disabled={isProcessing}
               >
-                Next: Proceed to Payment
+                {isProcessing ? 'Processing...' : 'Next: Proceed to Payment'}
               </button>
             </div>
           </form>
@@ -771,45 +843,51 @@ export default function BecomeSeller() {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-2xl p-8 shadow-lg"
+          className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-8 shadow-lg`}
         >
           <button
             onClick={() => setStep(2)}
-            className="flex items-center text-gray-600 hover:text-[#FF1B6B] mb-6 transition-colors"
+            className={`flex items-center ${
+              isDarkMode 
+                ? 'text-gray-400 hover:text-[#FF1B6B]' 
+                : 'text-gray-600 hover:text-[#FF1B6B]'
+            } mb-6 transition-colors`}
           >
             <BiArrowBack className="w-5 h-5 mr-2" />
             Back to Store Info
           </button>
 
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Complete Payment</h2>
-            <p className="text-gray-600">Pay the one-time listing fee to activate your store</p>
+            <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>Complete Payment</h2>
+            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Pay the one-time listing fee to activate your store</p>
           </div>
 
           <div className="space-y-6">
-            <div className="bg-gray-50 rounded-lg p-6">
+            <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-6`}>
               <div className="flex justify-between items-center mb-4">
-                <span className="text-gray-600">Listing Fee</span>
-                <span className="font-semibold">GHS {listingFee}</span>
+                <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Listing Fee</span>
+                <span className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>GHS {listingFee}</span>
               </div>
-              <div className="border-t border-gray-200 pt-4">
+              <div className={`border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'} pt-4`}>
                 <div className="flex justify-between items-center">
-                  <span className="font-medium">Total</span>
-                  <span className="font-bold text-xl">GHS {listingFee}</span>
+                  <span className={`font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</span>
+                  <span className={`font-bold text-xl ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>GHS {listingFee}</span>
                 </div>
               </div>
             </div>
 
             <button
               onClick={initializePayment}
-              className="w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`w-full bg-[#FF1B6B] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#D4145A] transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isDarkMode ? 'disabled:bg-gray-700 disabled:text-gray-500' : 'disabled:bg-gray-200 disabled:text-gray-500'
+              }`}
               disabled={isProcessing}
             >
               {isProcessing ? 'Processing...' : 'Pay Now'}
             </button>
 
             <div className="text-center mt-4">
-              <div className="flex items-center justify-center text-sm text-gray-500">
+              <div className={`flex items-center justify-center text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 <span>Secure payment powered by</span>
                 <img 
                   src="/paystack.png" 
