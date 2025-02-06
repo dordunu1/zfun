@@ -9,12 +9,12 @@ const isDevelopment = window.location.hostname === 'localhost';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_MERCH_FIREBASE_API_KEY,
-  authDomain: isDevelopment ? "merch-store-581c9.firebaseapp.com" : "auth.token-factory.xyz",
-  projectId: "merch-store-581c9",
-  storageBucket: "merch-store-581c9.firebasestorage.app",
-  messagingSenderId: "946488133747",
-  appId: "1:946488133747:web:1cefa3eab5250023218206",
-  measurementId: "G-JKNYX3PJWD"
+  authDomain: isDevelopment ? import.meta.env.VITE_MERCH_FIREBASE_AUTH_DOMAIN : "auth.token-factory.xyz",
+  projectId: import.meta.env.VITE_MERCH_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_MERCH_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MERCH_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_MERCH_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_MERCH_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase services
