@@ -173,7 +173,7 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deploye
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-[99999]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -183,10 +183,10 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deploye
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-sm z-[99999]" />
         </Transition.Child>
 
-        <div className="fixed inset-0 overflow-y-auto">
+        <div className="fixed inset-0 overflow-y-auto z-[99999]">
           <div className="flex min-h-full items-center justify-center p-4">
             <Transition.Child
               as={Fragment}
