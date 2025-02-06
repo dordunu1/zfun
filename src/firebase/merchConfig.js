@@ -8,7 +8,7 @@ import { getAnalytics } from 'firebase/analytics';
 const isDevelopment = window.location.hostname === 'localhost';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyADTuh7W2jR3iCVo3nmDXUEVcCoM92szTg",
+  apiKey: import.meta.env.VITE_MERCH_FIREBASE_API_KEY,
   authDomain: isDevelopment ? "merch-store-581c9.firebaseapp.com" : "auth.token-factory.xyz",
   projectId: "merch-store-581c9",
   storageBucket: "merch-store-581c9.firebasestorage.app",
