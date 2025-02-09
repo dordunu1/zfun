@@ -994,18 +994,18 @@ export default function MemeFactory() {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-[#1a1b1f] rounded-xl p-8 text-center"
+                  className="bg-white dark:bg-[#1a1b1f] rounded-xl p-8 text-center border border-gray-200 dark:border-gray-800 transition-colors duration-200"
                 >
                   <div className="mb-6">
-                    <BiWallet className="w-16 h-16 mx-auto text-gray-400" />
+                    <BiWallet className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500" />
                   </div>
-                  <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>
-                  <p className="text-gray-400 mb-6">
+                  <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white transition-colors duration-200">Connect Your Wallet</h2>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6 transition-colors duration-200">
                     Connect your wallet to start creating your meme token
                   </p>
                   <button
                     onClick={openConnectModal}
-                    className="px-8 py-3 bg-[#00ffbd] text-black rounded-xl font-bold hover:bg-[#00e6a9] transition-colors"
+                    className="px-8 py-3 bg-[#00ffbd] text-black rounded-xl font-bold hover:bg-[#00e6a9] transition-all duration-200 hover:scale-105"
                   >
                     Connect Wallet
                   </button>
@@ -1323,20 +1323,20 @@ export default function MemeFactory() {
             JOIN THE MEME REVOLUTION! 🚀
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-[#1a1b1f] p-6 rounded-xl">
-              <div className="text-4xl mb-4">🌟</div>
-              <h3 className="text-xl font-bold mb-2">Community First</h3>
-              <p className="text-gray-400">Build a strong meme community</p>
+            <div className="bg-white dark:bg-[#1a1b1f] p-6 rounded-xl border border-gray-200 dark:border-gray-800 transition-all duration-200 hover:border-[#00ffbd] group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">🌟</div>
+              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white transition-colors duration-200">Community First</h3>
+              <p className="text-gray-600 dark:text-gray-400 transition-colors duration-200">Build a strong meme community</p>
             </div>
-            <div className="bg-[#1a1b1f] p-6 rounded-xl">
-              <div className="text-4xl mb-4">💎</div>
-              <h3 className="text-xl font-bold mb-2">HODL Together</h3>
-              <p className="text-gray-400">Create diamond hands community</p>
+            <div className="bg-white dark:bg-[#1a1b1f] p-6 rounded-xl border border-gray-200 dark:border-gray-800 transition-all duration-200 hover:border-[#00ffbd] group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">💎</div>
+              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white transition-colors duration-200">HODL Together</h3>
+              <p className="text-gray-600 dark:text-gray-400 transition-colors duration-200">Create diamond hands community</p>
             </div>
-            <div className="bg-[#1a1b1f] p-6 rounded-xl">
-              <div className="text-4xl mb-4">🚀</div>
-              <h3 className="text-xl font-bold mb-2">To The Moon</h3>
-              <p className="text-gray-400">Sky is not the limit</p>
+            <div className="bg-white dark:bg-[#1a1b1f] p-6 rounded-xl border border-gray-200 dark:border-gray-800 transition-all duration-200 hover:border-[#00ffbd] group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200">🚀</div>
+              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white transition-colors duration-200">To The Moon</h3>
+              <p className="text-gray-600 dark:text-gray-400 transition-colors duration-200">Sky is not the limit</p>
             </div>
           </div>
         </motion.div>
