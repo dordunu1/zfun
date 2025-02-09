@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaEthereum, FaDiscord, FaTwitter, FaGlobe, FaTelegram, FaPaintBrush, FaGamepad, FaCamera, FaMusic, FaStar, FaCrown } from 'react-icons/fa';
@@ -64,6 +64,7 @@ export default function CollectionsList() {
   });
   const [tokenLogos, setTokenLogos] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
+  const closeTimeoutRef = useRef(null);
 
   // Add this useEffect to load collections
   useEffect(() => {
@@ -76,7 +77,6 @@ export default function CollectionsList() {
         });
         setCollections(fetchedCollections);
       } catch (error) {
-        console.error('Error loading collections:', error);
         toast.error('Failed to load collections');
       } finally {
         setLoading(false);
@@ -97,6 +97,8 @@ export default function CollectionsList() {
             return collection.network === 'unichain' || collection.chainId === 1301;
           } else if (filters.network === 'sepolia') {
             return collection.network === 'sepolia' || collection.chainId === 11155111;
+          } else if (filters.network === 'moonwalker') {
+            return collection.network === 'moonwalker' || collection.chainId === 1828369849;
           }
           return false;
         }
@@ -134,7 +136,7 @@ export default function CollectionsList() {
               }));
             }
           } catch (error) {
-            console.error('Error fetching token logo:', error);
+            // Silently fail - if logo can't be fetched, default will be used
           }
         }
       }
@@ -144,39 +146,179 @@ export default function CollectionsList() {
   }, [filteredCollections]);
 
   // Filter controls UI
-  const FilterControls = () => (
-    <div className="flex gap-4 mb-6">
-      <select
-        value={filters.network}
-        onChange={(e) => setFilters(f => ({ ...f, network: e.target.value }))}
-        className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-      >
-        <option value="all">All Networks</option>
-        <option value="sepolia">Sepolia</option>
-        <option value="unichain">Unichain</option>
-      </select>
+  const FilterControls = () => {
+    const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
+    const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
+    const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
-      <select
-        value={filters.type}
-        onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
-        className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-      >
-        <option value="all">All Types</option>
-        <option value="ERC721">ERC721</option>
-        <option value="ERC1155">ERC1155</option>
-      </select>
+    const handleMouseEnter = (setDropdown) => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      setDropdown(true);
+    };
 
-      <select
-        value={filters.sortBy}
-        onChange={(e) => setFilters(f => ({ ...f, sortBy: e.target.value }))}
-        className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-      >
-        <option value="newest">Newest First</option>
-        <option value="oldest">Oldest First</option>
-        <option value="name">Name A-Z</option>
-      </select>
+    const handleMouseLeave = (setDropdown) => {
+      closeTimeoutRef.current = setTimeout(() => {
+        setDropdown(false);
+      }, 300); // 300ms delay before closing
+    };
+
+    const networks = [
+      { value: 'all', label: 'All Networks' },
+      { value: 'sepolia', label: 'Sepolia' },
+      { value: 'unichain', label: 'Unichain' },
+      { value: 'moonwalker', label: 'Moonwalker' }
+    ];
+
+    const types = [
+      { value: 'all', label: 'All Types' },
+      { value: 'ERC721', label: 'ERC721' },
+      { value: 'ERC1155', label: 'ERC1155' }
+    ];
+
+    const sortOptions = [
+      { value: 'newest', label: 'Newest First' },
+      { value: 'oldest', label: 'Oldest First' },
+      { value: 'name', label: 'Name A-Z' }
+    ];
+
+    return (
+      <div className="flex gap-4 mb-6 relative z-[100]">
+        {/* Network Dropdown */}
+        <div 
+          className="relative"
+          onMouseEnter={() => handleMouseEnter(setNetworkDropdownOpen)}
+          onMouseLeave={() => handleMouseLeave(setNetworkDropdownOpen)}
+        >
+          <button
+            type="button"
+            className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between"
+          >
+            <span>{networks.find(n => n.value === filters.network)?.label}</span>
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform ${networkDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {networkDropdownOpen && (
+            <div 
+              className="absolute z-[110] w-full mt-1 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+              onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
+              onMouseLeave={() => handleMouseLeave(setNetworkDropdownOpen)}
+            >
+              {networks.map(network => (
+                <button
+                  key={network.value}
+                  onClick={() => {
+                    setFilters(f => ({ ...f, network: network.value }));
+                    setNetworkDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 ${
+                    filters.network === network.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {network.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Type Dropdown */}
+        <div 
+          className="relative"
+          onMouseEnter={() => handleMouseEnter(setTypeDropdownOpen)}
+          onMouseLeave={() => handleMouseLeave(setTypeDropdownOpen)}
+        >
+          <button
+            type="button"
+            className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between"
+          >
+            <span>{types.find(t => t.value === filters.type)?.label}</span>
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform ${typeDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {typeDropdownOpen && (
+            <div 
+              className="absolute z-[110] w-full mt-1 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+              onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
+              onMouseLeave={() => handleMouseLeave(setTypeDropdownOpen)}
+            >
+              {types.map(type => (
+                <button
+                  key={type.value}
+                  onClick={() => {
+                    setFilters(f => ({ ...f, type: type.value }));
+                    setTypeDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 ${
+                    filters.type === type.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Sort Dropdown */}
+        <div 
+          className="relative"
+          onMouseEnter={() => handleMouseEnter(setSortDropdownOpen)}
+          onMouseLeave={() => handleMouseLeave(setSortDropdownOpen)}
+        >
+          <button
+            type="button"
+            className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between"
+          >
+            <span>{sortOptions.find(s => s.value === filters.sortBy)?.label}</span>
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform ${sortDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {sortDropdownOpen && (
+            <div 
+              className="absolute z-[110] w-full mt-1 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+              onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
+              onMouseLeave={() => handleMouseLeave(setSortDropdownOpen)}
+            >
+              {sortOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setFilters(f => ({ ...f, sortBy: option.value }));
+                    setSortDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 ${
+                    filters.sortBy === option.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
     </div>
   );
+  };
 
   const getMintStatus = (collection) => {
     const now = Date.now();
@@ -219,15 +361,8 @@ export default function CollectionsList() {
   };
 
   const getCategoryIcon = (category) => {
-    // Debug log to see what category value we're receiving
-    console.log('Category received:', category);
-    
-    // Convert category to lowercase and handle null/undefined
     const categoryKey = (category || 'other').toLowerCase();
-    console.log('Category key:', categoryKey);
-    
     const iconData = CATEGORY_ICONS[categoryKey] || CATEGORY_ICONS.other;
-    console.log('Icon data:', iconData);
     
     return (
       <div className="group relative">
@@ -244,12 +379,28 @@ export default function CollectionsList() {
 
   // Add this function to render currency logo
   const renderCurrencyLogo = (collection) => {
-    // First check if there's a custom token
     const tokenAddress = collection?.mintToken?.address?.toLowerCase();
-    const logoUrl = tokenLogos[tokenAddress];
+    const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
 
-    // If it's a custom token with a logo, show that
-    if (tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000' && logoUrl) {
+    // Handle native tokens based on network
+    if (isNativeToken) {
+      if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) {
+        return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
+      }
+      if (collection?.network === 'polygon') {
+        return <img src="/matic.png" alt="MATIC" className="w-5 h-5" />;
+      }
+      return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
+    }
+
+    // Handle ZERO token by address
+    if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+      return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
+    }
+
+    // For other custom tokens with logo
+    const logoUrl = tokenLogos[tokenAddress];
+    if (logoUrl) {
       return (
         <img 
           src={logoUrl} 
@@ -263,13 +414,8 @@ export default function CollectionsList() {
       );
     }
     
-    // Otherwise show the native currency logo based on network
-    if (collection?.network === 'polygon') {
-      return <img src="/matic.png" alt="MATIC" className="w-5 h-5" />;
-    }
-    
-    // For both Sepolia and Unichain, show ETH logo when it's the native currency
-    return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
+    // Default fallback
+    return <img src="/token-default.png" alt="Token" className="w-5 h-5 rounded-full" />;
   };
 
   // Add skeleton card component
@@ -420,14 +566,14 @@ export default function CollectionsList() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex flex-col gap-2 py-2 bg-gray-50 dark:bg-[#0a0b0f] sticky top-16 z-10"
+          className="flex flex-col gap-2 py-2 bg-gray-50 dark:bg-[#0a0b0f] sticky top-16 z-[100]"
         >
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Collections</h1>
           <FilterControls />
         </motion.div>
       </div>
         
-      <div className="flex-1 overflow-y-auto px-8 custom-scrollbar bg-white dark:bg-[#0a0b0f]">
+      <div className="flex-1 overflow-y-auto px-8 custom-scrollbar bg-white dark:bg-[#0a0b0f] relative z-0">
         <div className="max-w-7xl mx-auto">
           <motion.div 
             variants={containerVariants}

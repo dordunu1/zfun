@@ -126,7 +126,7 @@ export class UnichainUniswapService {
         }
       }
     } catch (error) {
-      console.warn('Error loading cache from storage:', error);
+      // Remove console.warn and handle silently
     }
   }
 
@@ -139,7 +139,7 @@ export class UnichainUniswapService {
       };
       localStorage.setItem('unichainPoolCache', JSON.stringify(cacheData));
     } catch (error) {
-      console.warn('Error saving cache to storage:', error);
+      // Remove console.warn and handle silently
     }
   }
 
@@ -177,15 +177,10 @@ export class UnichainUniswapService {
       const allowance = await token.allowance(account, UNISWAP_ADDRESSES.router);
       
       if (allowance < amount) {
-        console.log('Approving token:', tokenAddress);
         const tx = await token.approve(UNISWAP_ADDRESSES.router, ethers.MaxUint256);
-        const receipt = await tx.wait();
-        console.log('Token approved, receipt:', receipt);
-      } else {
-        console.log('Token already approved:', tokenAddress);
+        await tx.wait();
       }
     } catch (error) {
-      console.error('Error in approveToken:', error);
       throw error;
     }
   }
@@ -265,75 +260,35 @@ export class UnichainUniswapService {
   async createPool(token0Address, token1Address, amount0, amount1) {
     try {
       if (!this.router) await this.init();
-
-      console.log('Router address:', UNISWAP_ADDRESSES.router);
       
       const account = await this.signer.getAddress();
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
 
-      // Check if one of the tokens is ETH/WETH
       const isToken0WETH = token0Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
       const isToken1WETH = token1Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
       const isETHPair = isToken0WETH || isToken1WETH;
 
-      // Get factory address from router
       const factoryAddress = await this.router.factory();
-      console.log('\nContract Addresses:');
-      console.log('==================');
-      console.log('Router:', UNISWAP_ADDRESSES.router);
-      console.log('Factory:', factoryAddress);
-      console.log('Token0:', token0Address);
-      console.log('Token1:', token1Address);
-      console.log('==================\n');
+      const factory = new ethers.Contract(factoryAddress, FACTORY_ABI, this.signer);
 
-      // Create factory contract instance
-      const factory = new ethers.Contract(
-        factoryAddress,
-        FACTORY_ABI,
-        this.signer
-      );
-
-      // Check if pair exists
       const existingPair = await factory.getPair(token0Address, token1Address);
-      console.log('Checking pair status:');
-      console.log('==================');
-      console.log('Existing pair address:', existingPair);
       const isNewPair = existingPair === '0x0000000000000000000000000000000000000000';
-      console.log('Is new pair needed:', isNewPair);
-      console.log('==================\n');
 
       if (isETHPair) {
-        // For ETH pairs, we need to handle the token order correctly
         const tokenAddress = isToken0WETH ? token1Address : token0Address;
         const ethAmount = isToken0WETH ? amount0 : amount1;
         const tokenAmount = isToken0WETH ? amount1 : amount0;
 
-        // Create pair first if it doesn't exist
         if (isNewPair) {
-          console.log('Creating new ETH pair...');
           const createPairTx = await factory.createPair(UNISWAP_ADDRESSES.WETH, tokenAddress);
           await createPairTx.wait();
-          console.log('ETH pair created');
         }
 
-        // Approve the token first (no need to approve ETH)
         await this.approveToken(tokenAddress, tokenAmount);
 
-        // Calculate minimum amounts (e.g., 99% of desired amounts to allow for some slippage)
         const tokenAmountMin = (tokenAmount * 990n) / 1000n;
         const ethAmountMin = (ethAmount * 990n) / 1000n;
 
-        console.log('Adding ETH liquidity with params:', {
-          tokenAddress,
-          tokenAmount: tokenAmount.toString(),
-          ethAmount: ethAmount.toString(),
-          tokenAmountMin: tokenAmountMin.toString(),
-          ethAmountMin: ethAmountMin.toString(),
-          account,
-          deadline
-        });
-
-        // Call addLiquidityETH
         const tx = await this.router.addLiquidityETH(
           tokenAddress,
           tokenAmount,
@@ -347,9 +302,7 @@ export class UnichainUniswapService {
           }
         );
 
-        console.log('Transaction sent:', tx.hash);
         const receipt = await tx.wait();
-        console.log('Transaction confirmed:', receipt);
 
         return {
           receipt,
@@ -359,125 +312,74 @@ export class UnichainUniswapService {
           }
         };
       } else {
-        // Handle regular token-token pair (existing code)
         let finalAmount0Big = BigInt(amount0);
         let finalAmount1Big = BigInt(amount1);
 
-        // If pair exists, we need to check the current ratio
         if (!isNewPair) {
-          console.log('Pair exists, checking current pool ratio...');
           const pairContract = new ethers.Contract(existingPair, PAIR_ABI, this.provider);
           const [reserve0, reserve1] = await pairContract.getReserves();
-          console.log('Current reserves:', { reserve0: reserve0.toString(), reserve1: reserve1.toString() });
-
-          // Get actual token order in the pair
           const token0InPair = await pairContract.token0();
           
-          // Adjust amounts if token order is different
           if (token0Address.toLowerCase() !== token0InPair.toLowerCase()) {
-            console.log('Token order swapped to match pair');
             [finalAmount0Big, finalAmount1Big] = [finalAmount1Big, finalAmount0Big];
             [token0Address, token1Address] = [token1Address, token0Address];
           }
 
-          // Calculate the optimal ratio based on reserves
           if (reserve0 > 0n && reserve1 > 0n) {
             try {
-              // Use the router's quote function to get the exact amount needed
-              const quote = await this.router.quote(
-                finalAmount0Big,
-                reserve0,
-                reserve1
-              );
-              
-              // Update amount1 based on the quote
+              const quote = await this.router.quote(finalAmount0Big, reserve0, reserve1);
               finalAmount1Big = quote;
-              
-              console.log('Amounts after quote calculation:', {
-                amount0: finalAmount0Big.toString(),
-                amount1: finalAmount1Big.toString()
-              });
             } catch (error) {
-              console.error('Error getting quote:', error);
               throw new Error('Failed to calculate optimal amounts for the pool ratio');
             }
           }
         } else {
-        console.log('Creating new pair...');
-        const createPairTx = await factory.createPair(token0Address, token1Address);
-        await createPairTx.wait();
-        console.log('Pair created');
-      }
+          const createPairTx = await factory.createPair(token0Address, token1Address);
+          await createPairTx.wait();
+        }
 
-      // Get token decimals for price calculation
-      const [token0Contract, token1Contract] = await Promise.all([
-        new ethers.Contract(token0Address, ERC20_ABI, this.provider),
-        new ethers.Contract(token1Address, ERC20_ABI, this.provider)
-      ]);
+        const [token0Contract, token1Contract] = await Promise.all([
+          new ethers.Contract(token0Address, ERC20_ABI, this.provider),
+          new ethers.Contract(token1Address, ERC20_ABI, this.provider)
+        ]);
 
-      const [decimals0, decimals1] = await Promise.all([
-        token0Contract.decimals(),
-        token1Contract.decimals()
-      ]);
+        const [decimals0, decimals1] = await Promise.all([
+          token0Contract.decimals(),
+          token1Contract.decimals()
+        ]);
 
-      console.log('Token decimals:', { decimals0, decimals1 });
-
-        console.log('Final amounts:', {
-          amount0: finalAmount0Big.toString(),
-          amount1: finalAmount1Big.toString()
-      });
-
-      // Calculate and log initial price
         const priceInfo = this.calculateInitialPoolPrice(finalAmount0Big, finalAmount1Big, decimals0, decimals1);
-        console.log('Pool prices:', priceInfo);
 
-      // Approve both tokens first
-      await Promise.all([
+        await Promise.all([
           this.approveToken(token0Address, finalAmount0Big),
           this.approveToken(token1Address, finalAmount1Big)
         ]);
 
-        // Calculate minimum amounts (e.g., 99% of desired amounts to allow for some slippage)
         const amountAMin = (finalAmount0Big * 990n) / 1000n;
         const amountBMin = (finalAmount1Big * 990n) / 1000n;
 
-        console.log('Adding liquidity with params:', {
+        const tx = await this.router.addLiquidity(
           token0Address,
           token1Address,
-          amount0: finalAmount0Big.toString(),
-          amount1: finalAmount1Big.toString(),
-        amountAMin: amountAMin.toString(),
-        amountBMin: amountBMin.toString(),
-        account,
-        deadline
-        });
-
-        // Call addLiquidity with higher gas limit for safety
-      const tx = await this.router.addLiquidity(
-        token0Address,
-        token1Address,
           finalAmount0Big,
           finalAmount1Big,
-        amountAMin,
-        amountBMin,
-        account,
-        deadline,
-        {
+          amountAMin,
+          amountBMin,
+          account,
+          deadline,
+          {
             gasLimit: ethers.getBigInt(1000000)
-        }
-      );
+          }
+        );
 
-      console.log('Transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
+        const receipt = await tx.wait();
 
-      return {
-        receipt,
-        priceInfo
-      };
+        return {
+          receipt,
+          priceInfo
+        };
       }
     } catch (error) {
-      console.error('Error in createPool:', error);
       throw error;
     }
   }
@@ -495,16 +397,6 @@ export class UnichainUniswapService {
       // Calculate minimum amounts (1% slippage)
       const amountTokenMin = (amountToken * 990n) / 1000n;
       const amountETHMin = (amountETH * 990n) / 1000n;
-
-      console.log('Adding ETH liquidity with params:', {
-        tokenAddress,
-        amountToken: amountToken.toString(),
-        amountETH: amountETH.toString(),
-        amountTokenMin: amountTokenMin.toString(),
-        amountETHMin: amountETHMin.toString(),
-        target,
-        deadline: deadline.toString()
-      });
 
       // Replace WETH with actual token address if it's WETH
       const actualTokenAddress = tokenAddress.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
@@ -524,12 +416,8 @@ export class UnichainUniswapService {
         }
       );
 
-      console.log('Transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
-      return receipt;
+      return tx;
     } catch (error) {
-      console.error('Error in addLiquidityETH:', error);
       throw error;
     }
   }
@@ -551,17 +439,6 @@ export class UnichainUniswapService {
       const amount0Min = (amount0 * 990n) / 1000n; // 1% slippage
       const amount1Min = (amount1 * 990n) / 1000n; // 1% slippage
 
-      console.log('Adding liquidity with params:', {
-        token0Address,
-        token1Address,
-        amount0: amount0.toString(),
-        amount1: amount1.toString(),
-        amount0Min: amount0Min.toString(),
-        amount1Min: amount1Min.toString(),
-        account,
-        deadline: deadline.toString()
-      });
-
       // Get the signer's address if account is not provided
       const target = account || await this.signer.getAddress();
 
@@ -579,12 +456,8 @@ export class UnichainUniswapService {
         }
       );
 
-      console.log('Transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
-      return receipt;
+      return tx;
     } catch (error) {
-      console.error('Error in addLiquidity:', error);
       throw error;
     }
   }
@@ -607,7 +480,6 @@ export class UnichainUniswapService {
       const pairAddress = await factory.getPair(tokenA, tokenB);
       return pairAddress !== '0x0000000000000000000000000000000000000000';
     } catch (error) {
-      console.error('Error checking pool existence:', error);
       throw error;
     }
   }
@@ -640,36 +512,11 @@ export class UnichainUniswapService {
         await this.approveToken(fromToken.address, amountIn);
       }
 
-      // Remove minimum amount check and allow any amount
       const minOutWithSlippage = 0n;
-
-      console.log('\n=== Swap Details ===');
-      console.log('From:', isFromETH ? 'ETH (will be wrapped to WETH)' : fromToken.symbol);
-      console.log('To:', isToETH ? 'ETH (will receive from WETH)' : toToken.symbol);
-      console.log('Path:', path.map((addr, i) => {
-        if (addr.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
-          return i === 0 && isFromETH ? 'ETH→WETH' : 'WETH';
-        }
-        return addr;
-      }).join(' → '));
-      console.log('Amount In:', ethers.formatUnits(amountIn, fromToken.decimals), fromToken.symbol);
-      console.log('Minimum Out:', ethers.formatUnits(minOutWithSlippage, toToken.decimals), toToken.symbol);
-      console.log('==================\n');
 
       let tx;
 
       if (isFromETH) {
-        console.log('Calling swapExactETHForTokens:');
-        console.log('- Router will automatically wrap your ETH to WETH');
-        console.log('- Then swap WETH for desired tokens');
-        console.log('Transaction params:', {
-          minOutWithSlippage: minOutWithSlippage.toString(),
-          path,
-          to: account,
-          deadline: deadline.toString(),
-          value: amountIn.toString()
-        });
-
         tx = await this.router.swapExactETHForTokens(
           minOutWithSlippage,
           path,
@@ -681,10 +528,6 @@ export class UnichainUniswapService {
           }
         );
       } else if (isToETH) {
-        console.log('Calling swapExactTokensForETH:');
-        console.log('- First swap your tokens for WETH');
-        console.log('- Router will automatically unwrap WETH to ETH');
-        
         tx = await this.router.swapExactTokensForETH(
           amountIn,
           minOutWithSlippage,
@@ -708,13 +551,10 @@ export class UnichainUniswapService {
         );
       }
 
-      console.log('\nSwap transaction sent:', tx.hash);
-      console.log('Waiting for confirmation...\n');
       return tx;
     } catch (error) {
-      console.error('Error in swap:', error);
       if (error.data) {
-        console.error('Transaction error data:', error.data);
+        throw new Error('Transaction failed: ' + error.data);
       }
       throw error;
     }
@@ -732,8 +572,7 @@ export class UnichainUniswapService {
       const amounts = await this.router.getAmountsOut(amountIn, path);
       return amounts[amounts.length - 1];
     } catch (error) {
-      console.error('Error in getAmountOut:', error);
-      return '0';
+      throw error;
     }
   }
 
@@ -758,18 +597,12 @@ export class UnichainUniswapService {
         amount, 
         fromToken.symbol === 'ETH' ? 18 : fromToken.decimals
       );
-      console.log('Original amount in:', amountIn.toString());
 
       // Try routing through USDT first
       try {
         const pathThroughUSDT = [fromAddress, UNISWAP_ADDRESSES.USDT, toAddress];
         const hasFirstPair = await this.checkPoolExists(fromAddress, UNISWAP_ADDRESSES.USDT);
         const hasSecondPair = await this.checkPoolExists(UNISWAP_ADDRESSES.USDT, toAddress);
-        
-        console.log('USDT route pairs:', {
-          'First pair (Token-USDT)': hasFirstPair,
-          'Second pair (USDT-Token)': hasSecondPair
-        });
         
         if (hasFirstPair && hasSecondPair) {
           try {
@@ -779,33 +612,23 @@ export class UnichainUniswapService {
               toToken.symbol === 'ETH' ? 18 : toToken.decimals
             );
             
-            console.log('USDT Route Amounts:', {
-              input: ethers.formatUnits(amounts[0], fromToken.symbol === 'ETH' ? 18 : fromToken.decimals),
-              usdtAmount: ethers.formatUnits(amounts[1], 6), // USDT has 6 decimals
-              output: ethers.formatUnits(amounts[2], toToken.symbol === 'ETH' ? 18 : toToken.decimals),
-              formatted: toAmount
-            });
-
             return {
               route: `${fromToken.symbol} → USDT → ${toToken.symbol}`,
               toAmount,
               path: pathThroughUSDT
             };
           } catch (amountError) {
-            console.log('USDT route amount calculation failed:', amountError);
             // Continue to try direct path
           }
         }
       } catch (error) {
-        console.log('USDT route failed:', error);
+        // USDT route failed
       }
 
       // Try direct path as fallback
       try {
         const directPath = [fromAddress, toAddress];
         const hasDirectPair = await this.checkPoolExists(fromAddress, toAddress);
-        
-        console.log('Direct pair exists:', hasDirectPair);
         
         if (hasDirectPair) {
           try {
@@ -815,19 +638,12 @@ export class UnichainUniswapService {
               toToken.symbol === 'ETH' ? 18 : toToken.decimals
             );
 
-            console.log('Direct Route Amounts:', {
-              input: ethers.formatUnits(amounts[0], fromToken.symbol === 'ETH' ? 18 : fromToken.decimals),
-              output: ethers.formatUnits(amounts[1], toToken.symbol === 'ETH' ? 18 : toToken.decimals),
-              formatted: toAmount
-            });
-
             return {
               route: `${fromToken.symbol} → ${toToken.symbol}`,
               toAmount,
               path: directPath
             };
           } catch (amountError) {
-            console.log('Direct route amount calculation failed:', amountError);
             // Return with calculated amounts even if they're very small
             return {
               route: `${fromToken.symbol} → ${toToken.symbol}`,
@@ -837,7 +653,7 @@ export class UnichainUniswapService {
           }
         }
       } catch (error) {
-        console.log('Direct route failed:', error);
+        // Direct route failed
       }
 
       return {
@@ -846,12 +662,7 @@ export class UnichainUniswapService {
         error: 'No valid route found'
       };
     } catch (error) {
-      console.error('Error in updateRoute:', error);
-      return {
-        route: null,
-        toAmount: '0',
-        error: error.message
-      };
+      throw error;
     }
   }
 
@@ -880,8 +691,7 @@ export class UnichainUniswapService {
 
       return ethers.formatUnits(balance, decimals);
     } catch (error) {
-      console.error('Error getting token balance:', error);
-      return '0';
+      throw error;
     }
   }
 
@@ -897,24 +707,14 @@ export class UnichainUniswapService {
         this.signer
       );
 
-      console.log('Wrapping ETH:', {
-        amount: amount.toString(),
-        wethAddress: UNISWAP_ADDRESSES.WETH
-      });
-
       // Call deposit with the ETH amount
       const tx = await weth.deposit({
         value: amount,
         gasLimit: ethers.getBigInt(100000)
       });
 
-      console.log('Wrap transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('ETH wrapped successfully');
-      
-      return receipt;
+      return tx;
     } catch (error) {
-      console.error('Error wrapping ETH:', error);
       throw error;
     }
   }
@@ -931,20 +731,11 @@ export class UnichainUniswapService {
         this.signer
       );
 
-      console.log('Unwrapping WETH:', {
-        amount: amount.toString(),
-        wethAddress: UNISWAP_ADDRESSES.WETH
-      });
-
       // Call withdraw with the WETH amount
       const tx = await weth.withdraw(amount);
-      console.log('Unwrap transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('WETH unwrapped successfully');
-      
-      return receipt;
+
+      return tx;
     } catch (error) {
-      console.error('Error unwrapping WETH:', error);
       throw error;
     }
   }
@@ -963,8 +754,7 @@ export class UnichainUniswapService {
       const balance = await weth.balanceOf(address);
       return balance;
     } catch (error) {
-      console.error('Error getting WETH balance:', error);
-      return ethers.getBigInt(0);
+      throw error;
     }
   }
 
@@ -972,7 +762,6 @@ export class UnichainUniswapService {
   async getUserPools(userAddress) {
     try {
       if (!this.provider) await this.init();
-      console.log('Getting pools for user:', userAddress);
 
       // Get factory contract
       const factory = new ethers.Contract(
@@ -983,14 +772,11 @@ export class UnichainUniswapService {
 
       // Get total number of pairs
       const pairCount = await factory.allPairsLength();
-      console.log('Total pairs:', pairCount.toString());
 
       // Get all pair addresses
       const pairAddresses = await Promise.all(
         Array.from({ length: Number(pairCount) }, (_, i) => factory.allPairs(i))
       );
-
-      console.log('Got all pair addresses:', pairAddresses.length);
 
       // Check each pair for user's LP tokens
       const userPools = await Promise.all(
@@ -1025,7 +811,6 @@ export class UnichainUniswapService {
             }
             return null;
           } catch (err) {
-            console.error('Error checking pair:', pairAddress, err);
             return null;
           }
         })
@@ -1033,11 +818,9 @@ export class UnichainUniswapService {
 
       // Filter out null values (pairs where user has no balance)
       const validPools = userPools.filter(pool => pool !== null);
-      console.log('Found user pools:', validPools.length);
-      
+
       return validPools.map(pool => pool.pairAddress);
     } catch (error) {
-      console.error('Error getting user pools:', error);
       throw error;
     }
   }
@@ -1095,8 +878,7 @@ export class UnichainUniswapService {
 
       return poolInfo;
     } catch (error) {
-      console.error('Error in getPoolInfo:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -1125,21 +907,11 @@ export class UnichainUniswapService {
         pair.getReserves()
       ]);
 
-      console.log('Pool addresses:', {
-        token0: token0Address,
-        token1: token1Address
-      });
-
       // Get token metadata
       const [token0Info, token1Info] = await Promise.all([
         this.getTokenInfo(token0Address),
         this.getTokenInfo(token1Address)
       ]);
-
-      console.log('Pool token info:', {
-        token0: token0Info,
-        token1: token1Info
-      });
 
       return {
         token0: { ...token0Info, address: token0Address },
@@ -1152,8 +924,7 @@ export class UnichainUniswapService {
         pairAddress
       };
     } catch (error) {
-      console.error('Error in getPoolInfoByAddress:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -1182,8 +953,7 @@ export class UnichainUniswapService {
 
       return Number(ethers.formatUnits(price, decimals));
     } catch (error) {
-      console.error('Error getting Chainlink price:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -1240,25 +1010,21 @@ export class UnichainUniswapService {
                Number(ethers.formatUnits(reserve1, tokenDecimals));
       }
     } catch (error) {
-      console.error('Error getting pool price:', error);
-      return null;
+      throw error;
     }
   }
 
   // Update getPools method to load more pools faster
   async getPools(tokenAddress) {
     if (!tokenAddress) {
-      console.error('tokenAddress is required for getPools');
       throw new Error('tokenAddress is required');
     }
 
     try {
-      // Check cache first
       if (this.isCacheValid() && this.poolCache.has(tokenAddress)) {
         return this.poolCache.get(tokenAddress);
       }
 
-      console.log('Getting pools for token:', tokenAddress);
       if (!this.provider) await this.init();
       
       const factory = new ethers.Contract(
@@ -1268,31 +1034,22 @@ export class UnichainUniswapService {
       );
 
       const pairCount = await factory.allPairsLength();
-      console.log('Total pairs:', pairCount.toString());
-      
-      // Get user address for checking owned pools
       const userAddress = await this.signer.getAddress();
       
-      // Create a Set to track unique pair addresses
       const uniquePairs = new Set();
       const pairs = [];
       
-      // Load pools in larger batches
-      const batchSize = 40; // Process 40 pairs at a time
-      const maxPairsToCheck = Math.min(Number(pairCount), 200); // Check up to 200 pairs
+      const batchSize = 40;
+      const maxPairsToCheck = Math.min(Number(pairCount), 200);
       
       for (let i = 0; i < maxPairsToCheck; i += batchSize) {
         const currentBatchSize = Math.min(batchSize, maxPairsToCheck - i);
         const batch = Array.from({ length: currentBatchSize }, (_, j) => i + j);
         
-        console.log(`Processing batch ${i} to ${i + currentBatchSize}`);
-        
-        // Get all pair addresses in this batch first
         const pairAddresses = await Promise.all(
           batch.map(index => factory.allPairs(index))
         );
         
-        // Create contract instances for all pairs in batch
         const pairContracts = pairAddresses.map(addr => 
           new ethers.Contract(
             addr,
@@ -1301,7 +1058,6 @@ export class UnichainUniswapService {
           )
         );
         
-        // Get all pair data in parallel
         const pairDataPromises = pairContracts.map(async (pair, idx) => {
           try {
             const pairAddress = pairAddresses[idx];
@@ -1317,7 +1073,6 @@ export class UnichainUniswapService {
             if (token0Address.toLowerCase() === tokenAddress.toLowerCase() || 
                 token1Address.toLowerCase() === tokenAddress.toLowerCase()) {
               
-              // Get token metadata immediately
               const [token0Info, token1Info] = await Promise.all([
                 this.getTokenInfo(token0Address),
                 this.getTokenInfo(token1Address)
@@ -1333,7 +1088,6 @@ export class UnichainUniswapService {
             }
             return null;
           } catch (error) {
-            console.error(`Error processing pair ${pairAddresses[idx]}:`, error);
             return null;
           }
         });
@@ -1348,28 +1102,20 @@ export class UnichainUniswapService {
           }
         }
         
-        // Break if we have enough pairs
-        if (pairs.length >= 40) {
-          console.log('Found 40 pairs, stopping search');
-          break;
-        }
+        if (pairs.length >= 40) break;
       }
 
-      // Sort pairs to show owned pools first
       pairs.sort((a, b) => {
         if (a.owned === b.owned) return 0;
         return a.owned ? -1 : 1;
       });
 
-      // Update cache
       this.poolCache.set(tokenAddress, pairs);
       this.lastCacheUpdate = Date.now();
       this.saveCacheToStorage();
 
-      console.log('Found pairs:', pairs.length);
       return pairs;
     } catch (error) {
-      console.error('Error getting pools:', error);
       throw error;
     }
   }
@@ -1399,8 +1145,7 @@ export class UnichainUniswapService {
 
       return ethers.formatUnits(balance, decimals);
     } catch (error) {
-      console.error('Error getting token balance:', error);
-      return '0';
+      throw error;
     }
   }
 
@@ -1457,8 +1202,7 @@ export class UnichainUniswapService {
 
       return poolInfo;
     } catch (error) {
-      console.error('Error in getPoolInfo:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -1472,17 +1216,6 @@ export class UnichainUniswapService {
       // Check if one of the tokens is WETH
       const isTokenAWETH = tokenA.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
       const isTokenBWETH = tokenB.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-
-      console.log('Removing liquidity with params:', {
-        tokenA,
-        tokenB,
-        liquidity: liquidity.toString(),
-        amountAMin: amountAMin.toString(),
-        amountBMin: amountBMin.toString(),
-        to,
-        deadline: deadline.toString(),
-        isETHPair: isTokenAWETH || isTokenBWETH
-      });
 
       let tx;
       if (isTokenAWETH || isTokenBWETH) {
@@ -1518,12 +1251,8 @@ export class UnichainUniswapService {
         );
       }
 
-      console.log('Transaction sent:', tx.hash);
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
-      return receipt;
+      return tx;
     } catch (error) {
-      console.error('Error in removeLiquidity:', error);
       throw error;
     }
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAccount, useNetwork } from 'wagmi';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
@@ -17,7 +17,7 @@ import {
 import { getTokenTransfersForAddress, trackTokenTransfers, getNFTTransfersForAddress, trackNFTTransfers } from '../services/tokenTransfers';
 import { ipfsToHttp } from '../utils/ipfs';
 import { ethers } from 'ethers';
-import { useWeb3Modal } from '@web3modal/react';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 // Memory cache for activities
 const CACHE_DURATION = 30000; // 30 seconds
@@ -31,10 +31,8 @@ const getCachedActivities = (address, chainId) => {
   if (cachedData) {
     const { timestamp, data } = cachedData;
     if (Date.now() - timestamp < CACHE_DURATION) {
-      console.log('Using cached activities');
       return data;
     }
-    // Cache expired, remove it
     activityCache.delete(cacheKey);
   }
   
@@ -44,13 +42,11 @@ const getCachedActivities = (address, chainId) => {
     try {
       const { timestamp, data } = JSON.parse(localCache);
       if (Date.now() - timestamp < CACHE_DURATION) {
-        console.log('Using localStorage cached activities');
         return data;
       }
-      // Cache expired, remove it
       localStorage.removeItem(cacheKey);
     } catch (error) {
-      console.error('Error parsing localStorage cache:', error);
+      localStorage.removeItem(cacheKey);
     }
   }
   
@@ -103,12 +99,99 @@ const itemVariants = {
 };
 
 export default function HistoryPage() {
-  const [activities, setActivities] = useState([]);
+  const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { address: account } = useAccount();
+  const { address: account, isConnected } = useAccount();
   const { chain } = useNetwork();
-  const { open: openConnectModal } = useWeb3Modal();
-  const navigate = useNavigate();
+  const [activities, setActivities] = useState([]);
+  const [selectedNetwork, setSelectedNetwork] = useState('all');
+  const closeTimeoutRef = useRef(null);
+  const { openConnectModal } = useConnectModal();
+
+  // Add NetworkFilter component
+  const NetworkFilter = () => {
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    const handleMouseEnter = () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      setDropdownOpen(true);
+    };
+
+    const handleMouseLeave = () => {
+      closeTimeoutRef.current = setTimeout(() => {
+        setDropdownOpen(false);
+      }, 300);
+    };
+
+    // Count activities by network
+    const networkCount = {
+      all: activities.length,
+      sepolia: activities.filter(a => a.network === 'sepolia').length,
+      unichain: activities.filter(a => a.network === 'unichain').length,
+      moonwalker: activities.filter(a => a.network === 'moonwalker').length
+    };
+
+    const networks = [
+      { value: 'all', label: `All Networks (${networkCount.all})` },
+      { value: 'sepolia', label: `Sepolia (${networkCount.sepolia})` },
+      { value: 'unichain', label: `Unichain (${networkCount.unichain})` },
+      { value: 'moonwalker', label: `Moonwalker (${networkCount.moonwalker})` }
+    ];
+
+    return (
+      <div 
+        className="relative"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <button
+          type="button"
+          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between text-xs"
+        >
+          <span>{networks.find(n => n.value === selectedNetwork)?.label}</span>
+          <svg
+            className={`w-4 h-4 text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {dropdownOpen && (
+          <div 
+            className="absolute z-[110] w-full mt-2 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+            style={{ top: '100%' }}
+            onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
+            onMouseLeave={handleMouseLeave}
+          >
+            {networks.map(network => (
+              <button
+                key={network.value}
+                onClick={() => {
+                  setSelectedNetwork(network.value);
+                  setDropdownOpen(false);
+                }}
+                className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 text-xs ${
+                  selectedNetwork === network.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                }`}
+              >
+                {network.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Filter activities based on selected network
+  const filteredActivities = useMemo(() => {
+    if (selectedNetwork === 'all') return activities;
+    return activities.filter(activity => activity.network === selectedNetwork);
+  }, [activities, selectedNetwork]);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -119,8 +202,6 @@ export default function HistoryPage() {
       }
 
       try {
-        console.log('Loading history for address:', account);
-
         // Check cache first
         const cachedActivities = getCachedActivities(account, chain?.id);
         if (cachedActivities) {
@@ -134,8 +215,8 @@ export default function HistoryPage() {
 
         await loadFreshData();
       } catch (error) {
-        console.error('Error loading history:', error);
         setLoading(false);
+        toast.error('Error loading history');
       }
     };
 
@@ -156,10 +237,6 @@ export default function HistoryPage() {
           getAllCollections()
         ]);
 
-        console.log('Token deployments loaded:', deployments);
-        console.log('Token transfers loaded:', transfers);
-        console.log('NFT transfers loaded:', transferEvents);
-        
         // Create token details map first
         const tokenDetailsMap = deployments.reduce((acc, token) => {
           acc[token.address.toLowerCase()] = {
@@ -239,7 +316,9 @@ export default function HistoryPage() {
           title: `Created ${token.name}`,
           subtitle: 'Token Creation',
           address: token.address,
-          network: token.chainId === 1301 ? 'unichain' : token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia',
+          network: token.chainId === 1301 ? 'unichain' : 
+                  token.chainId === 1828369849 ? 'moonwalker' :
+                  token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia',
           chainId: token.chainId
         }));
 
@@ -269,7 +348,9 @@ export default function HistoryPage() {
               ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
               : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
             address: tx.contractAddress,
-            network: collection?.network || (chain?.id === 1301 ? 'unichain' : 'sepolia'),
+            network: collection?.network || 
+                    (chain?.id === 1301 ? 'unichain' : 
+                     chain?.id === 1828369849 ? 'moonwalker' : 'sepolia'),
             symbol: collection?.symbol,
             artworkType: collection?.artworkType,
             tokenId: tx.tokenId,
@@ -340,7 +421,6 @@ export default function HistoryPage() {
         )).flat();
 
         // Filter and sort activities
-        const currentNetwork = chain?.id === 1301 ? 'unichain' : chain?.id === 11155111 ? 'sepolia' : null;
         const uniqueTransactions = new Set();
         
         const filteredActivities = [
@@ -350,15 +430,7 @@ export default function HistoryPage() {
           ...formattedNFTCreations,
           ...allMints,
         ]
-        .filter(activity => {
-          // If activity has chainId, use that for filtering
-          if (activity.chainId) {
-            return activity.chainId === chain?.id;
-          }
-          // Fallback to network name matching
-          return activity.network === currentNetwork;
-        })
-        // Filter out duplicate transactions, but keep multiple mints from same transaction
+        // Only filter out duplicates, don't filter by network
         .filter(activity => {
           if (!activity.transactionHash) return true; // Keep activities without transactionHash
           
@@ -368,7 +440,6 @@ export default function HistoryPage() {
             : `${activity.transactionHash}-${activity.activityType}`;
           
           if (uniqueTransactions.has(txKey)) {
-            console.log('Duplicate transaction found, skipping:', txKey);
             return false;
           }
           
@@ -399,8 +470,8 @@ export default function HistoryPage() {
         setActivities(filteredActivities);
         setLoading(false);
       } catch (error) {
-        console.error('Error loading fresh data:', error);
         setLoading(false);
+        toast.error('Error loading activity data');
       }
     };
 
@@ -446,6 +517,8 @@ export default function HistoryPage() {
         return 'https://unichain-sepolia.blockscout.com';
       case 'polygon':
         return 'https://polygonscan.com';
+      case 'moonwalker':
+        return 'https://moonwalker-sepolia.blockscout.com';
       default:
         return 'https://sepolia.etherscan.io';
     }
@@ -554,7 +627,9 @@ export default function HistoryPage() {
               
               {activity.network && (
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  on {activity.network === 'polygon' ? 'Polygon' : activity.network === 'unichain' ? 'Unichain' : 'Sepolia'}
+                  on {activity.network === 'polygon' ? 'Polygon' : 
+                      activity.network === 'unichain' ? 'Unichain' : 
+                      activity.network === 'moonwalker' ? 'Moonwalker' : 'Sepolia'}
                 </span>
               )}
 
@@ -585,88 +660,31 @@ export default function HistoryPage() {
     );
   };
 
-  if (!account) {
+  if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
-        <div className="max-w-7xl mx-auto">
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-xl font-bold text-gray-900 dark:text-white mb-6"
+      <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+            <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+            Connect Your Wallet
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
+            Please connect your wallet to view your activity history. You'll be able to see all your transactions, token transfers, and NFT activities.
+          </p>
+          <button
+            onClick={openConnectModal}
+            className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
           >
-            Activity History
-          </motion.h1>
-
-          {/* Connect wallet prompt with animation */}
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="relative"
-          >
-            {/* L-shaped corners */}
-            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
-              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
-              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
-              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-            </div>
-
-            {/* Glowing dots in corners */}
-            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-            <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-
-            {/* Three dots in top right */}
-            <div className="absolute top-3 right-3 flex gap-1 z-20">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
-                  style={{ animationDelay: `${i * 0.2}s` }}
-                />
-              ))}
-            </div>
-
-            {/* Main Content */}
-            <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
-              <div className="flex flex-col items-center justify-center py-16 px-4">
-                <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
-                  <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                  Connect Your Wallet
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
-                  Please connect your wallet to view your activity history. You'll be able to see all your transactions, token transfers, and NFT activities.
-                </p>
-                <button
-                  onClick={openConnectModal}
-                  className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Connect Wallet
-                </button>
-              </div>
-            </div>
-          </motion.div>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Connect Wallet
+          </button>
         </div>
       </div>
     );
@@ -696,23 +714,26 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0b0f] p-8">
-      <div className="max-w-7xl mx-auto">
-        <motion.h1 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-xl font-bold text-gray-900 dark:text-white mb-6"
-        >
-          Activity History
-        </motion.h1>
-
+    <div className="h-screen bg-gray-50 dark:bg-[#0a0b0f] pt-20 px-8 pb-8 overflow-hidden">
+      <div className="max-w-7xl mx-auto h-full overflow-hidden">
+        <div className="flex items-center justify-between mb-12 sticky top-4 z-[120]">
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-xl font-bold text-gray-900 dark:text-white"
+          >
+            Activity History
+          </motion.h1>
+          <NetworkFilter />
+        </div>
+        
         {/* Main Container with animation */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative"
+          className="relative mt-8 h-[calc(100%-6rem)] overflow-hidden"
         >
           {/* L-shaped corners */}
           <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
@@ -750,16 +771,16 @@ export default function HistoryPage() {
           </div>
 
           {/* Main Content */}
-          <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
-            <div className="h-[calc(100vh-180px)] overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl h-full overflow-hidden">
+            <div className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
               <motion.div 
                 variants={containerVariants}
                 initial="hidden"
                 animate="show"
                 className="space-y-3"
               >
-                {activities.length > 0 ? (
-                  activities.map(activity => renderActivityCard(activity))
+                {filteredActivities.length > 0 ? (
+                  filteredActivities.map(activity => renderActivityCard(activity))
                 ) : (
                   <motion.div 
                     initial={{ opacity: 0 }}

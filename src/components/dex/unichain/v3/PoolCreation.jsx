@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { BiWallet } from 'react-icons/bi';
-import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import TokenSelectionModal from '../shared/TokenSelectionModal';
 import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
@@ -129,7 +128,6 @@ const getDisplaySymbol = (token) => {
 
 export default function PoolCreation() {
   const { address } = useAccount();
-  const { open } = useWeb3Modal();
   const [token0, setToken0] = useState(null);
   const [token1, setToken1] = useState(null);
   const [amount0, setAmount0] = useState('');

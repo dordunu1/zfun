@@ -7,7 +7,6 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
 import { FaExchangeAlt, FaStar, FaGasPump } from 'react-icons/fa';
-import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import TokenSelectionModal from '../shared/TokenSelectionModal';
 import { getTokenLogo } from '../../../../utils/tokens';

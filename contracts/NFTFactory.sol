@@ -73,6 +73,8 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
     
     uint256 public sepoliaFee = 0.015 ether;
     uint256 public polygonFee = 20 ether;
+    uint256 public unichainFee = 0.015 ether;
+    uint256 public moonwalkerFee = 369 ether;
 
     mapping(address => address[]) public creatorCollections;
     mapping(address => string) public collectionMetadata;
@@ -169,6 +171,10 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
             require(msg.value >= sepoliaFee, "Insufficient fee");
         } else if (block.chainid == 137) {
             require(msg.value >= polygonFee, "Insufficient fee");
+        } else if (block.chainid == 1301) {
+            require(msg.value >= unichainFee, "Insufficient fee");
+        } else if (block.chainid == 1828369849) {
+            require(msg.value >= moonwalkerFee, "Insufficient fee");
         } else {
             revert("Unsupported network");
         }
@@ -313,9 +319,16 @@ contract NFTFactory is Ownable, ReentrancyGuard, ICollectionTypes {
         }));
     }
 
-    function updateFees(uint256 _sepoliaFee, uint256 _polygonFee) external onlyOwner {
+    function updateFees(
+        uint256 _sepoliaFee, 
+        uint256 _polygonFee,
+        uint256 _unichainFee,
+        uint256 _moonwalkerFee
+    ) external onlyOwner {
         sepoliaFee = _sepoliaFee;
         polygonFee = _polygonFee;
+        unichainFee = _unichainFee;
+        moonwalkerFee = _moonwalkerFee;
     }
 
     function withdrawFees() external onlyOwner {

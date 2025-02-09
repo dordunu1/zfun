@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { saveTokenDeployment, getTokenDeploymentsByWallet, getCollectionsByWallet } from '../services/firebase';
+import { saveTokenDeployment, getAllTokenDeployments, getCollectionsByWallet } from '../services/firebase';
 
 const DeploymentsContext = createContext();
 
@@ -12,17 +12,14 @@ export function DeploymentsProvider({ children }) {
   // Load deployments from Firebase when wallet connects/changes
   useEffect(() => {
     const loadDeployments = async () => {
-      if (address) {
-        try {
-          console.log('Loading deployments for address:', address);
-          // Load token deployments
-          const walletDeployments = await getTokenDeploymentsByWallet(address);
-          console.log('Token deployments:', walletDeployments);
-          setDeployments(walletDeployments);
+      try {
+        // Load all token deployments regardless of creator
+        const allDeployments = await getAllTokenDeployments();
+        setDeployments(allDeployments);
 
-          // Load NFT deployments
+        // Load NFT deployments only for connected wallet
+        if (address) {
           const nftCollections = await getCollectionsByWallet(address);
-          console.log('NFT collections:', nftCollections);
           const formattedNftDeployments = nftCollections.map(nft => ({
             ...nft,
             type: 'nft',
@@ -32,13 +29,12 @@ export function DeploymentsProvider({ children }) {
             timestamp: nft.createdAt,
             chainName: nft.network === 'polygon' ? 'Polygon' : 'Sepolia'
           }));
-          console.log('Formatted NFT deployments:', formattedNftDeployments);
           setNftDeployments(formattedNftDeployments);
-
-        } catch (error) {
-          console.error('Error loading deployments:', error);
+        } else {
+          setNftDeployments([]);
         }
-      } else {
+      } catch (error) {
+        console.error('Error loading deployments:', error);
         setDeployments([]);
         setNftDeployments([]);
       }
@@ -52,10 +48,10 @@ export function DeploymentsProvider({ children }) {
     
     try {
       await saveTokenDeployment(deployment, address);
-      const walletDeployments = await getTokenDeploymentsByWallet(address);
-      setDeployments(walletDeployments);
+      // Refresh all deployments after adding a new one
+      const allDeployments = await getAllTokenDeployments();
+      setDeployments(allDeployments);
     } catch (error) {
-      console.error('Error adding deployment:', error);
       throw error;
     }
   };

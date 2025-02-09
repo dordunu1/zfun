@@ -14,6 +14,16 @@ module.exports = {
   },
   networks: {
     hardhat: {},
+    moonwalker: {
+      url: "https://moonwalker-rpc.eu-north-2.gateway.fm",
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 1828369849,
+      verify: {
+        etherscan: {
+          apiUrl: 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+        }
+      }
+    },
     unichain: {
       url: `https://unichain-sepolia.infura.io/v3/34c3a5f3ecf943498710543fe38b50f4`,
       accounts: [`0x${process.env.PRIVATE_KEY}`],
@@ -22,13 +32,24 @@ module.exports = {
     }
   },
   etherscan: {
-    apiKey: "34c3a5f3ecf943498710543fe38b50f4",
+    apiKey: {
+      moonwalker: "any-string-works-here", // Blockscout doesn't require an API key
+      unichain: "34c3a5f3ecf943498710543fe38b50f4"
+    },
     customChains: [
+      {
+        network: "moonwalker",
+        chainId: 1828369849,
+        urls: {
+          apiURL: "https://moonwalker-blockscout.eu-north-2.gateway.fm/api",
+          browserURL: "https://moonwalker-blockscout.eu-north-2.gateway.fm"
+        }
+      },
       {
         network: "unichain",
         chainId: 1301,
         urls: {
-          apiURL: "https://sepolia.uniscan.xyz/api",
+          apiURL: "https://api-sepolia.uniscan.xyz/api",
           browserURL: "https://sepolia.uniscan.xyz"
         }
       }

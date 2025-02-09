@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
 import { FaExchangeAlt, FaStar, FaGasPump } from 'react-icons/fa';
-import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import TokenSelector from '../shared/TokenSelector';
 import { getTokenLogo } from '../../../../utils/tokens';
@@ -685,7 +684,6 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
 
 export default function TokenSwap() {
   const { address, isConnected } = useAccount();
-  const { open: openConnectModal } = useWeb3Modal();
   const uniswap = useUnichain();
   const [fromToken, setFromToken] = useState(null);
   const [toToken, setToToken] = useState(null);

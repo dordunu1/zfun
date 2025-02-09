@@ -6,7 +6,6 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
 import { FaStar } from 'react-icons/fa';
-import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import { getTokenLogo } from '../../../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
@@ -302,7 +301,6 @@ const ProgressModal = ({ isOpen, onClose, currentStep, position, error }) => {
 
 export default function RemoveLiquidity() {
   const { address } = useAccount();
-  const { open } = useWeb3Modal();
   const [position, setPosition] = useState(null);
   const [lpTokenAmount, setLpTokenAmount] = useState('0.0');
   const [loading, setLoading] = useState(false);

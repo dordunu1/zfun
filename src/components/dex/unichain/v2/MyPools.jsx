@@ -156,6 +156,38 @@ const tokenMetadataCache = {
 tokenMetadataCache.load();
 myPoolsCache.load();
 
+// Add PoolSkeleton component
+const PoolSkeleton = () => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="bg-white/5 dark:bg-[#1a1b1f] rounded-xl p-6 border border-gray-200 dark:border-gray-800 w-full"
+  >
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <div className="flex -space-x-2">
+          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
+          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
+        </div>
+        <div className="w-24 h-6 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+      </div>
+    </div>
+    <div className="space-y-3">
+      <div className="flex justify-between text-sm">
+        <div className="w-20 h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+        <div className="w-32 h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+      </div>
+      <div className="flex justify-between text-sm">
+        <div className="w-20 h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+        <div className="w-32 h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+      </div>
+    </div>
+    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
+      <div className="w-full h-4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+    </div>
+  </motion.div>
+);
+
 /**
  * MyPools Component
  * Displays user's liquidity pools and their details
@@ -207,18 +239,13 @@ export default function MyPools() {
   useEffect(() => {
     const loadPools = async () => {
       if (!address || !uniswap) {
-        console.log('No wallet address or uniswap instance found');
         return;
       }
       
       setLoading(true);
       try {
-        console.log('Connected wallet address:', address);
-        console.log('Starting to load pools...');
-
         // Check cache first
         if (myPoolsCache.isValid() && myPoolsCache.data) {
-          console.log('Returning pools from cache');
           setPools(myPoolsCache.data);
           setLoading(false);
           return;
@@ -240,10 +267,7 @@ export default function MyPools() {
           (item.token.symbol === 'UNI-V2' || item.token.name?.includes('Uniswap V2'))
         ).map(item => item.token.address);
 
-        console.log('Found LP tokens from Blockscout:', lpTokens);
-
         if (!lpTokens || lpTokens.length === 0) {
-          console.log('No LP tokens found');
           setPools([]);
           return;
         }
@@ -255,7 +279,6 @@ export default function MyPools() {
               // Get pool info
               const poolInfo = await uniswap.getPoolInfoByAddress(poolAddress);
               if (!poolInfo) {
-                console.log('No pool info found for:', poolAddress);
                 return null;
               }
 
@@ -284,12 +307,6 @@ export default function MyPools() {
                 logoIpfs: token1Firebase?.logoIpfs
               });
 
-              console.log('Pool info found:', {
-                token0: token0Metadata?.symbol,
-                token1: token1Metadata?.symbol,
-                reserves: poolInfo.reserves
-              });
-
               return {
                 pairAddress: poolAddress,
                 token0: token0Metadata,
@@ -306,7 +323,6 @@ export default function MyPools() {
                 }
               };
             } catch (error) {
-              console.error('Error getting pool info:', error);
               return null;
             }
           })
@@ -317,13 +333,11 @@ export default function MyPools() {
           .filter(pool => pool !== null)
           .sort((a, b) => (b.tvl || 0) - (a.tvl || 0));
           
-        console.log('Setting pools:', validPools);
         setPools(validPools);
         
         // Cache the valid pools
         myPoolsCache.set(validPools);
       } catch (error) {
-        console.error('Error loading pools:', error);
         toast.error('Failed to load pools: ' + error.message);
       } finally {
         setLoading(false);
@@ -374,9 +388,16 @@ export default function MyPools() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00ffbd]"></div>
-      </div>
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-full"
+      >
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <PoolSkeleton key={i} />
+        ))}
+      </motion.div>
     );
   }
 

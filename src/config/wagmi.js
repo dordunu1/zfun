@@ -1,26 +1,41 @@
 import { createConfig, configureChains } from 'wagmi'
-import { mainnet, sepolia } from 'wagmi/chains'
-import { EthereumClient, w3mConnectors, w3mProvider } from '@web3modal/ethereum'
+import { sepolia, polygon } from 'wagmi/chains'
 import { publicProvider } from 'wagmi/providers/public'
+import { getDefaultWallets, connectorsForWallets, darkTheme } from '@rainbow-me/rainbowkit'
+import {
+  metaMaskWallet,
+  subWallet,
+  phantomWallet,
+  rainbowWallet,
+  coinbaseWallet,
+  walletConnectWallet,
+  okxWallet,
+} from '@rainbow-me/rainbowkit/wallets'
 
-const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID
+if (!import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID) {
+  throw new Error('You need to provide VITE_WALLET_CONNECT_PROJECT_ID env variable')
+}
 
-// Check if we're on mobile
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator?.userAgent || '');
+const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
 
 // Define Unichain Testnet
 const unichainTestnet = {
   id: 1301,
   name: 'Unichain Sepolia Testnet',
   network: 'unichain-testnet',
+  iconUrl: '/unichain-logo.png',
   nativeCurrency: {
     name: 'ETH',
     symbol: 'ETH',
     decimals: 18,
   },
   rpcUrls: {
-    default: { http: ['https://sepolia.unichain.org'] },
-    public: { http: ['https://sepolia.unichain.org'] },
+    default: {
+      http: ['https://sepolia.unichain.org'],
+    },
+    public: {
+      http: ['https://sepolia.unichain.org'],
+    },
   },
   blockExplorers: {
     default: {
@@ -31,36 +46,109 @@ const unichainTestnet = {
   testnet: true,
 }
 
-const { chains, publicClient } = configureChains(
-  [mainnet, sepolia, unichainTestnet],
+// Define Moonwalker Chain
+const moonwalkerChain = {
+  id: 1828369849,
+  name: 'Moonwalker',
+  network: 'moonwalker',
+  iconUrl: '/moonwalker.png',
+  nativeCurrency: {
+    name: 'ZERO',
+    symbol: 'ZERO',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://moonwalker-rpc.eu-north-2.gateway.fm'],
+    },
+    public: {
+      http: ['https://moonwalker-rpc.eu-north-2.gateway.fm'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Moonwalker Explorer',
+      url: 'https://moonwalker-blockscout.eu-north-2.gateway.fm',
+    },
+  },
+}
+
+// Define available chains
+const chains = [
+  {
+    ...sepolia,
+    iconUrl: '/sepolia.png'
+  },
+  {
+    ...polygon,
+    iconUrl: '/polygon.png'
+  },
+  unichainTestnet, 
+  moonwalkerChain
+];
+
+// Configure chains with optimized settings
+const { publicClient } = configureChains(
+  chains,  // Use the chains array directly
   [
-    w3mProvider({ 
-      projectId,
-      // Only try to use injected provider if it's actually available
-      disableInjected: !window.ethereum || isMobile
-    }),
-    publicProvider()
-  ]
-)
+    publicProvider({
+      stallTimeout: 5000,
+      timeout: 8000,
+      pollingInterval: 8000,
+      batch: {
+        multicall: {
+          batchSize: 1024 * 200,
+          wait: 16,
+        },
+      },
+    })
+  ],
+  {
+    pollingInterval: 8000,
+    stallTimeout: 5000,
+    retryCount: 3,
+    retryDelay: 3000,
+  }
+);
 
+// Get Rainbow Kit's wallets
+const connectors = connectorsForWallets([
+  {
+    groupName: 'Recommended',
+    wallets: [
+      metaMaskWallet({ projectId, chains }),
+      subWallet({ projectId, chains }),
+      phantomWallet({ projectId, chains }),
+    ],
+  },
+  {
+    groupName: 'Popular',
+    wallets: [
+      rainbowWallet({ projectId, chains }),
+      coinbaseWallet({ appName: 'Token Factory', chains }),
+      walletConnectWallet({ projectId, chains }),
+      okxWallet({ projectId, chains }),
+    ],
+  },
+]);
+
+// Create wagmi config with optimized settings
 const wagmiConfig = createConfig({
-  autoConnect: false,
-  connectors: w3mConnectors({
-    projectId,
-    chains,
-    version: '2',
-    options: {
-      // Skip injected wallet check if no provider
-      skipInjectedWalletCheck: !window.ethereum || isMobile,
-      // Show QR code immediately if no injected provider
-      showQrModal: !window.ethereum || isMobile
-    }
-  }),
-  publicClient
-})
+  autoConnect: true,
+  connectors,
+  publicClient,
+  logger: {
+    warn: null,
+  },
+  syncConnectedChain: true,
+  batch: {
+    multicall: {
+      batchSize: 1024 * 200,
+      wait: 16,
+    },
+  },
+});
 
-export const ethereumClient = new EthereumClient(wagmiConfig, chains)
-export const config = wagmiConfig
-
-// Export the chain for use in other files
-export { unichainTestnet }
+// Export everything needed
+export { chains, wagmiConfig }
+export { unichainTestnet, moonwalkerChain }

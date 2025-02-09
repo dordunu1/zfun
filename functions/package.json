@@ -13,9 +13,11 @@
   },
   "main": "src/index.js",
   "dependencies": {
+    "chart.js": "^4.4.7",
     "firebase-admin": "^11.8.0",
     "firebase-functions": "^4.3.1",
-    "node-mailjet": "^6.0.4"
+    "node-mailjet": "^6.0.4",
+    "react-chartjs-2": "^5.3.0"
   },
   "private": true
 }

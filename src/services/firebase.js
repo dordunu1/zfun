@@ -43,7 +43,6 @@ export const saveCollection = async (collectionData) => {
     const docRef = await addDoc(collectionsRef, dataToSave);
     return docRef.id;
   } catch (error) {
-    console.error('Error saving collection:', error);
     throw error;
   }
 };
@@ -62,7 +61,6 @@ export const getCollection = async (symbol) => {
     }
     return null;
   } catch (error) {
-    console.error('Error getting collection:', error);
     throw error;
   }
 };
@@ -99,7 +97,6 @@ export const getAllCollections = async (filters = {}) => {
       ...doc.data()
     }));
   } catch (error) {
-    console.error('Error getting collections:', error);
     throw error;
   }
 };
@@ -116,14 +113,12 @@ export const updateCollectionMinted = async (symbol, newTotalMinted) => {
         updatedAt: serverTimestamp()
       });
       
-      // Return the updated data
       return {
         ...querySnapshot.docs[0].data(),
         totalMinted: newTotalMinted
       };
     }
   } catch (error) {
-    console.error('Error updating collection:', error);
     throw error;
   }
 };
@@ -139,7 +134,6 @@ export const subscribeToCollection = (symbol, callback) => {
 
 export const saveTokenDeployment = async (deployment, walletAddress) => {
   try {
-    // Ensure chainId and chainName are included
     if (!deployment.chainId || !deployment.chainName) {
       throw new Error('chainId and chainName are required for token deployment');
     }
@@ -153,7 +147,6 @@ export const saveTokenDeployment = async (deployment, walletAddress) => {
       chainName: deployment.chainName
     });
   } catch (error) {
-    console.error('Error saving token deployment:', error);
     throw error;
   }
 };
@@ -172,7 +165,6 @@ export const getTokenDeploymentsByWallet = async (walletAddress) => {
     }));
     return deployments.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
-    console.error('Error getting token deployments:', error);
     throw error;
   }
 };
@@ -189,11 +181,8 @@ export const getCollectionsByWallet = async (walletAddress) => {
       id: doc.id,
       ...doc.data()
     }));
-    const sortedCollections = collections.sort((a, b) => b.createdAt - a.createdAt);
-    console.log('Found collections:', sortedCollections);
-    return sortedCollections;
+    return collections.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
-    console.error('Error getting collections:', error);
     throw error;
   }
 };
@@ -212,10 +201,9 @@ export const getRecentMints = async (collectionAddress) => {
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate() // Convert Firestore timestamp to JS Date
+      timestamp: doc.data().timestamp?.toDate()
     }));
   } catch (error) {
-    console.error('Error getting recent mints:', error);
     return [];
   }
 };
@@ -223,11 +211,8 @@ export const getRecentMints = async (collectionAddress) => {
 // Save mint data when NFT is minted
 export const saveMintData = async (mintData) => {
   try {
-    console.log('Saving mint data:', mintData);
-    // Extract metadataUrl from mintData and remove it from the object
     const { metadataUrl, ...sanitizedData } = mintData;
 
-    // Ensure all fields are strings or have default values
     const cleanData = {
       collectionAddress: sanitizedData.collectionAddress || '',
       minterAddress: sanitizedData.minterAddress ? sanitizedData.minterAddress.toLowerCase() : '',
@@ -246,16 +231,12 @@ export const saveMintData = async (mintData) => {
       timestamp: serverTimestamp()
     };
 
-    // Validate required fields
     if (!cleanData.collectionAddress || !cleanData.minterAddress) {
       throw new Error('Missing required fields in mint data');
     }
 
-    // Save mint data
     const docRef = await addDoc(mintsRef, cleanData);
-    console.log('Mint data saved with ID:', docRef.id);
 
-    // Update holders data
     const holderRef = query(
       holdersRef,
       where('collectionAddress', '==', cleanData.collectionAddress),
@@ -266,7 +247,6 @@ export const saveMintData = async (mintData) => {
     const quantity = Number(cleanData.quantity);
 
     if (holderSnapshot.empty) {
-      // Create new holder entry
       await addDoc(holdersRef, {
         collectionAddress: cleanData.collectionAddress,
         holderAddress: cleanData.minterAddress,
@@ -274,7 +254,6 @@ export const saveMintData = async (mintData) => {
         lastUpdated: serverTimestamp()
       });
     } else {
-      // Update existing holder entry
       const holderDoc = holderSnapshot.docs[0];
       const currentQuantity = Number(holderDoc.data().quantity) || 0;
       await updateDoc(holderDoc.ref, {
@@ -285,7 +264,6 @@ export const saveMintData = async (mintData) => {
 
     return docRef.id;
   } catch (error) {
-    console.error('Error saving mint data:', error);
     throw error;
   }
 };
@@ -293,12 +271,10 @@ export const saveMintData = async (mintData) => {
 // Subscribe to real-time mints
 export const subscribeToMints = (collectionAddress, callback) => {
   if (!collectionAddress) {
-    console.error('Collection address is required');
     return () => {};
   }
 
   try {
-    console.log('Setting up mints subscription for:', collectionAddress);
     const q = query(
       mintsRef,
       where('collectionAddress', '==', collectionAddress),
@@ -310,17 +286,14 @@ export const subscribeToMints = (collectionAddress, callback) => {
       const mints = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() // Convert Firestore timestamp to JS Date
+        timestamp: doc.data().timestamp?.toDate()
       }));
       
-      console.log('Real-time mints update:', mints.length);
       callback(mints);
     }, (error) => {
-      console.error('Error in mints subscription:', error);
       callback([]);
     });
   } catch (error) {
-    console.error('Error setting up mints subscription:', error);
     callback([]);
     return () => {};
   }
@@ -328,22 +301,17 @@ export const subscribeToMints = (collectionAddress, callback) => {
 
 export const getTokenDeploymentByAddress = async (address) => {
   try {
-    console.log('Searching for token with address:', address);
-    
     const q = query(
       tokenDeploymentsRef, 
-      where('address', '==', address)  // Use exact address, no toLowerCase()
+      where('address', '==', address)
     );
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
-      const data = querySnapshot.docs[0].data();
-      console.log('Found token deployment:', data);
-      return data;
+      return querySnapshot.docs[0].data();
     }
     return null;
   } catch (error) {
-    console.error('Error getting token deployment:', error);
     return null;
   }
 };
@@ -367,7 +335,6 @@ export const saveTokenTransaction = async (transactionData) => {
     const docRef = await addDoc(tokenTransactionsRef, sanitizedData);
     return docRef.id;
   } catch (error) {
-    console.error('Error saving token transaction:', error);
     throw error;
   }
 };
@@ -406,17 +373,14 @@ export const getTokenTransactions = async (address) => {
 
     return [...sentTransactions, ...receivedTransactions];
   } catch (error) {
-    console.error('Error getting token transactions:', error);
     return [];
   }
 };
 
 export const getTokenDetails = async (tokenAddress) => {
   try {
-    console.log('Getting token details for:', tokenAddress);
     return await getTokenDeploymentByAddress(tokenAddress);
   } catch (error) {
-    console.error('Error getting token details:', error);
     return null;
   }
 };
@@ -434,16 +398,14 @@ const getNFTBalanceFromContract = async (contractAddress, address) => {
     const collectionData = collectionSnapshot.docs[0]?.data();
     
     if (collectionData?.type === 'ERC1155') {
-      // For ERC1155, check balance of token ID 1
       const contract = new ethers.Contract(
         contractAddress,
         ['function balanceOf(address account, uint256 id) view returns (uint256)'],
         provider
       );
-      const balance = await contract.balanceOf(address, 1); // Just check token ID 1
+      const balance = await contract.balanceOf(address, 1);
       return Number(balance);
     } else {
-      // For ERC721, use standard balanceOf
       const contract = new ethers.Contract(
         contractAddress,
         ['function balanceOf(address) view returns (uint256)'],
@@ -453,7 +415,6 @@ const getNFTBalanceFromContract = async (contractAddress, address) => {
       return Number(balance);
     }
   } catch (error) {
-    console.error('Error getting NFT balance from contract:', error);
     return 0;
   }
 };
@@ -469,16 +430,12 @@ const getNFTBalanceFromEtherscan = async (contractAddress, address) => {
     }
     return 0;
   } catch (error) {
-    console.error('Error getting NFT balance from Etherscan:', error);
     return 0;
   }
 };
 
 export const getOwnedNFTs = async (address) => {
   try {
-    console.log('Getting owned NFTs for address:', address);
-    
-    // Get all mints where the minter address matches
     const mintsQuery = query(
       collection(db, 'mints'),
       where('minterAddress', '==', address.toLowerCase())
@@ -491,39 +448,21 @@ export const getOwnedNFTs = async (address) => {
       mintedAt: doc.data().timestamp?.toDate() || new Date(),
     }));
 
-    console.log('Found mints:', mints.length);
-
-    // Get all collections first
     const collectionsSnapshot = await getDocs(collection(db, 'collections'));
     const collections = new Map();
     
     collectionsSnapshot.docs.forEach(doc => {
       const data = doc.data();
       if (data.contractAddress) {
-        console.log('Collection data from Firebase:', {
-          name: data.name,
-          address: data.contractAddress,
-          mintPrice: data.mintPrice,
-          type: data.type
-        });
         collections.set(data.contractAddress.toLowerCase(), data);
       }
     });
 
-    // Create NFT entries
     const ownedNFTs = [];
-    const processedTokens = new Set(); // Track processed tokens to avoid duplicates
+    const processedTokens = new Set();
     
     for (const mint of mints) {
       const collection = collections.get(mint.collectionAddress?.toLowerCase());
-      console.log('Processing mint for NFT entry:', {
-        name: mint.name,
-        collection: collection?.name,
-        mintPrice: mint.value || collection?.mintPrice,
-        type: mint.type,
-        balance: mint.balance,
-        tokenId: mint.tokenId
-      });
       
       if (collection || mint.type === 'ERC1155') {
         const baseEntry = {
@@ -536,7 +475,7 @@ export const getOwnedNFTs = async (address) => {
           symbol: collection?.symbol || mint.symbol,
           artworkType: collection?.artworkType || mint.artworkType || 'image',
           network: collection?.network || mint.network || 'sepolia',
-          value: mint.value || collection?.mintPrice || '0', // Use mint.value first
+          value: mint.value || collection?.mintPrice || '0',
           paymentToken: mint.paymentToken || collection?.paymentToken || null
         };
 
@@ -545,7 +484,6 @@ export const getOwnedNFTs = async (address) => {
         if (!processedTokens.has(tokenKey)) {
           processedTokens.add(tokenKey);
           if (mint.type === 'ERC1155' && mint.balance > 1) {
-            // For ERC1155 with balance > 1, create multiple entries
             for (let i = 0; i < mint.balance; i++) {
               ownedNFTs.push({
                 ...baseEntry,
@@ -554,7 +492,6 @@ export const getOwnedNFTs = async (address) => {
               });
             }
           } else {
-            // Single entry for ERC721 or ERC1155 with balance 1
             ownedNFTs.push({
               ...baseEntry,
               balance: mint.balance || 1,
@@ -565,11 +502,8 @@ export const getOwnedNFTs = async (address) => {
       }
     }
 
-    console.log('Final owned NFTs:', ownedNFTs);
     return ownedNFTs;
-    
   } catch (error) {
-    console.error('Error getting owned NFTs:', error);
     return [];
   }
 };
@@ -577,7 +511,6 @@ export const getOwnedNFTs = async (address) => {
 // Pool Management Functions
 export const savePool = async (poolData) => {
   try {
-    console.log('Saving pool data:', poolData);
     const { poolAddress } = poolData;
     
     if (!poolAddress) {
@@ -588,12 +521,10 @@ export const savePool = async (poolData) => {
       throw new Error('Creator address is required');
     }
 
-    // Validate token data before saving
     if (!poolData.token0?.address || !poolData.token1?.address) {
       throw new Error('Token addresses are required');
     }
 
-    // Ensure all required fields are present
     const poolDataToSave = {
       poolAddress: poolAddress,
       creatorAddress: poolData.creatorAddress.toLowerCase(),
@@ -622,12 +553,9 @@ export const savePool = async (poolData) => {
       lastUpdated: serverTimestamp()
     };
 
-    console.log('Saving pool data to Firestore:', poolDataToSave);
     const poolRef = doc(poolsRef, poolAddress);
     await setDoc(poolRef, poolDataToSave);
-    console.log('Pool data saved successfully');
 
-    // Create user pool entry
     const userPoolId = `${poolData.creatorAddress.toLowerCase()}_${poolAddress}`;
     const userPoolData = {
       userAddress: poolData.creatorAddress.toLowerCase(),
@@ -638,18 +566,10 @@ export const savePool = async (poolData) => {
       lastUpdated: serverTimestamp()
     };
 
-    console.log('Saving user pool data:', userPoolData);
     await setDoc(doc(userPoolsRef, userPoolId), userPoolData);
-    console.log('User pool data saved successfully');
 
     return poolAddress;
   } catch (error) {
-    console.error('Error saving pool:', error);
-    console.error('Error details:', {
-      code: error.code,
-      message: error.message,
-      stack: error.stack
-    });
     throw error;
   }
 };
@@ -665,31 +585,22 @@ export const getPool = async (poolAddress) => {
     }
     return null;
   } catch (error) {
-    console.error('Error getting pool:', error);
     throw error;
   }
 };
 
 export const getUserPools = async (userAddress) => {
   try {
-    console.log('Getting pools for user address:', userAddress.toLowerCase());
-    
-    // First check the pools collection directly for pools created by this user
-    console.log('Checking pools collection for pools created by user...');
     const creatorQuery = query(
       poolsRef,
       where('creatorAddress', '==', userAddress.toLowerCase())
     );
     
     const creatorPoolsSnapshot = await getDocs(creatorQuery);
-    console.log('Found creator pools:', creatorPoolsSnapshot.size);
-    
     const pools = [];
     
-    // Add pools where user is creator
     for (const doc of creatorPoolsSnapshot.docs) {
       const poolData = doc.data();
-      console.log('Found creator pool:', poolData);
       pools.push({
         ...poolData,
         pairAddress: doc.id,
@@ -697,31 +608,23 @@ export const getUserPools = async (userAddress) => {
       });
     }
 
-    // Then get user pool entries for additional pools where user has liquidity
     const userPoolsQuery = query(
       userPoolsRef,
       where('userAddress', '==', userAddress.toLowerCase())
     );
     
-    console.log('Fetching user pools from userPools collection...');
     const userPoolsSnapshot = await getDocs(userPoolsQuery);
-    console.log('Found user pool entries:', userPoolsSnapshot.size);
     
-    // Add pools where user has liquidity
     for (const userPoolDoc of userPoolsSnapshot.docs) {
       const userPool = userPoolDoc.data();
-      console.log('Processing user pool:', userPool);
       
-      // Only add if not already in the list
       if (!pools.some(p => p.pairAddress.toLowerCase() === userPool.poolAddress.toLowerCase())) {
         try {
-          console.log('Fetching pool data for address:', userPool.poolAddress);
           const poolDocRef = doc(poolsRef, userPool.poolAddress);
           const poolDoc = await getDoc(poolDocRef);
           
           if (poolDoc.exists()) {
             const poolData = poolDoc.data();
-            console.log('Found pool data:', poolData);
             
             pools.push({
               ...poolData,
@@ -733,20 +636,15 @@ export const getUserPools = async (userAddress) => {
               },
               source: 'firebase'
             });
-          } else {
-            console.log('No pool data found for address:', userPool.poolAddress);
           }
         } catch (poolError) {
-          console.error('Error fetching pool data:', poolError);
+          // Silent fail for individual pool errors
         }
       }
     }
     
-    console.log('Total pools found:', pools.length);
-    console.log('Returning pools:', pools);
     return pools;
   } catch (error) {
-    console.error('Error getting user pools:', error);
     throw error;
   }
 };
@@ -759,7 +657,6 @@ export const updatePoolReserves = async (poolAddress, reserves) => {
       lastUpdated: serverTimestamp()
     });
   } catch (error) {
-    console.error('Error updating pool reserves:', error);
     throw error;
   }
 };
@@ -774,7 +671,6 @@ export const updateUserPoolPosition = async (userAddress, poolAddress, position)
       lastUpdated: serverTimestamp()
     }, { merge: true });
   } catch (error) {
-    console.error('Error updating user pool position:', error);
     throw error;
   }
 };
@@ -788,15 +684,11 @@ export const getAllTokenDeployments = async () => {
     );
     
     const querySnapshot = await getDocs(q);
-    const deployments = querySnapshot.docs.map(doc => ({
+    return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-
-    console.log('Found token deployments:', deployments);
-    return deployments;
   } catch (error) {
-    console.error('Error getting all token deployments:', error);
     return [];
   }
 };

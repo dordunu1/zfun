@@ -8,9 +8,7 @@ const ALCHEMY_URLS = {
   'ethereum': 'https://eth-mainnet.g.alchemy.com/v2/',
   'sepolia': 'https://eth-sepolia.g.alchemy.com/v2/',
   'polygon': 'https://polygon-mainnet.g.alchemy.com/v2/',
-  'mumbai': 'https://polygon-mumbai.g.alchemy.com/v2/',
-  'arbitrum': 'https://arb-mainnet.g.alchemy.com/v2/',
-  'optimism': 'https://opt-mainnet.g.alchemy.com/v2/',
+  'unichain': 'https://eth-sepolia.g.alchemy.com/v2/',
 };
 
 // Get ETH price (mock for Sepolia testnet)
@@ -38,7 +36,6 @@ export const getRecentMints = async (collectionAddress, maxResults = 50) => {
       };
     });
   } catch (error) {
-    console.error('Error getting recent mints:', error);
     return [];
   }
 };
@@ -119,13 +116,12 @@ const updateHoldersCache = async (collectionAddress, holders) => {
       }
     }
   } catch (error) {
-    console.error('Error updating holders cache:', error);
+    // Handle error silently
   }
 };
 
 // Helper function for Firebase fallback
 const fallbackToFirebase = async (collectionAddress, maxResults) => {
-  console.log('Falling back to Firebase holders data');
   const q = query(
     holdersRef,
     where('collectionAddress', '==', collectionAddress),
@@ -156,7 +152,6 @@ export const getChadMinters = async (collectionAddress, maxResults = 10) => {
       ...doc.data()
     }));
   } catch (error) {
-    console.error('Error getting chad minters:', error);
     return [];
   }
 };
@@ -188,7 +183,6 @@ export const getVolumeMetrics = async (collectionAddress, timeRange = '7d') => {
       ...doc.data()
     }));
   } catch (error) {
-    console.error('Error getting volume metrics:', error);
     return [];
   }
 };
@@ -213,11 +207,9 @@ export const subscribeToMints = (collectionAddress, callback) => {
         };
       });
       
-      console.log('Real-time mints update:', mints.length);
       callback(mints);
     });
   } catch (error) {
-    console.error('Error in mints subscription:', error);
     callback([]);
     return () => {};
   }
@@ -233,7 +225,6 @@ export const saveMintData = async (mintData) => {
     
     return docRef;
   } catch (error) {
-    console.error('Error saving mint data:', error);
     throw error;
   }
 };

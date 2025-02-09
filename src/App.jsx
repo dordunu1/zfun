@@ -6,21 +6,28 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminSales from './pages/admin/AdminSales';
 import StoreVerification from './pages/admin/StoreVerification';
 import { Outlet } from 'react-router-dom';
-import { Web3Modal } from '@web3modal/react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CreateTokenModal from './components/CreateTokenModal';
 import CreateNFTModal from './components/CreateNFTModal';
 import FAQ from './components/FAQ';
 import { useTheme } from './context/ThemeContext';
-import { config as wagmiConfig, ethereumClient } from './config/wagmi';
+import { wagmiConfig, chains } from './config/wagmi';
 import { DeploymentsProvider } from './context/DeploymentsContext';
 import { UniswapVersionProvider } from './context/UniswapVersionContext';
 import { WagmiConfig } from 'wagmi';
 import { MerchAuthProvider } from './context/MerchAuthContext';
-import Login from './pages/merch/Login';
-import Signup from './pages/merch/Signup';
-import ProtectedRoute from './components/merch/ProtectedRoute';
+import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit';
+import '@rainbow-me/rainbowkit/styles.css';
+import Dashboard from './components/Dashboard';
+import CollectionsList from './components/CollectionsList';
+import CollectionPage from './components/CollectionPage';
+import HistoryPage from './pages/HistoryPage';
+import AccountPage from './pages/AccountPage';
+import ActivityPage from './pages/ActivityPage';
+import BridgePage from './pages/bridge';
+import FeesTracker from './pages/FeesTracker';
+import MemeFactory from './pages/MemeFactory';
 
 function App() {
   const { isDarkMode } = useTheme();
@@ -31,49 +38,72 @@ function App() {
   return (
     <DeploymentsProvider>
       <WagmiConfig config={wagmiConfig}>
-        <UniswapVersionProvider>
-          <Web3Modal 
-            projectId={import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID}
-            ethereumClient={ethereumClient}
-            themeMode={isDarkMode ? 'dark' : 'light'}
-          />
-          
-          <div className="min-h-screen bg-white dark:bg-[#0a0b0f]">
-            <Toaster position="top-right" />
-            <Routes>
-              {/* Admin Routes */}
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<AdminDashboard />} />
-                <Route path="sales" element={<AdminSales />} />
-                <Route path="store-verification" element={<StoreVerification />} />
-                {/* ... other admin routes ... */}
-              </Route>
+        <RainbowKitProvider
+          chains={chains}
+          theme={isDarkMode ? darkTheme({
+            accentColor: '#00ffbd',
+            accentColorForeground: 'black',
+            borderRadius: 'large',
+            fontStack: 'system',
+            overlayBlur: 'small',
+          }) : lightTheme({
+            accentColor: '#00ffbd',
+            accentColorForeground: 'black',
+            borderRadius: 'large',
+            fontStack: 'system',
+            overlayBlur: 'small',
+          })}
+          modalSize="wide"
+          showRecentTransactions={true}
+          appInfo={{
+            appName: 'Token Factory',
+          }}
+        >
+          <UniswapVersionProvider>
+            <div className="min-h-screen bg-white dark:bg-[#0a0b0f]">
+              <Toaster position="top-right" />
+              <div className="flex">
+                <Sidebar 
+                  onOpenModal={() => setIsModalOpen(true)}
+                  onOpenNFTModal={() => setIsNFTModalOpen(true)}
+                />
+                <div className="flex-1 bg-white dark:bg-[#0a0b0f]">
+                  <Header />
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/collections" element={<CollectionsList />} />
+                    <Route path="/collection/:symbol" element={<CollectionPage />} />
+                    <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/account" element={<AccountPage />} />
+                    <Route path="/trading" element={<ActivityPage />} />
+                    <Route path="/bridge" element={<BridgePage />} />
+                    <Route path="/feestracker" element={<FeesTracker />} />
+                    <Route path="/memefactory" element={<MemeFactory />} />
+                    {/* Admin Routes */}
+                    <Route path="/admin" element={<AdminLayout />}>
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="sales" element={<AdminSales />} />
+                      <Route path="store-verification" element={<StoreVerification />} />
+                    </Route>
+                  </Routes>
+                </div>
+              </div>
 
-              {/* ... other routes ... */}
-            </Routes>
-            <Sidebar 
-              onOpenModal={() => setIsModalOpen(true)}
-              onOpenNFTModal={() => setIsNFTModalOpen(true)}
-            />
-            <div className="flex-1 bg-white dark:bg-[#0a0b0f]">
-              <Header />
-              <Outlet />
+              <CreateTokenModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+              />
+              <CreateNFTModal 
+                isOpen={isNFTModalOpen}
+                onClose={() => setIsNFTModalOpen(false)}
+              />
+              <FAQ 
+                isOpen={isFAQOpen}
+                onClose={() => setIsFAQOpen(false)}
+              />
             </div>
-
-            <CreateTokenModal 
-              isOpen={isModalOpen} 
-              onClose={() => setIsModalOpen(false)} 
-            />
-            <CreateNFTModal 
-              isOpen={isNFTModalOpen}
-              onClose={() => setIsNFTModalOpen(false)}
-            />
-            <FAQ 
-              isOpen={isFAQOpen}
-              onClose={() => setIsFAQOpen(false)}
-            />
-          </div>
-        </UniswapVersionProvider>
+          </UniswapVersionProvider>
+        </RainbowKitProvider>
       </WagmiConfig>
     </DeploymentsProvider>
   );

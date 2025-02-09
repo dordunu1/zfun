@@ -5,7 +5,6 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet, BiDotsHorizontalRounded } from 'react-icons/bi';
 import { FaExchangeAlt, FaStar, FaGasPump, FaChartLine } from 'react-icons/fa';
-import { useWeb3Modal } from '@web3modal/react';
 import { Menu, Transition, Dialog } from '@headlessui/react';
 import { getTokenLogo } from '../../../../utils/tokens';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -298,25 +297,47 @@ function PositionCard({ position, onAction }) {
           provider
         );
 
-        // Fetch token URI
-        const tokenURI = await nftContract.tokenURI(position.tokenId);
+        // Fetch token URI with error handling
+        const tokenURI = await nftContract.tokenURI(position.tokenId).catch(() => null);
         
-        // The tokenURI is already base64 encoded, decode it to get metadata
-        const metadata = JSON.parse(
-          Buffer.from(tokenURI.split(',')[1], 'base64').toString()
-        );
-        
-        // Set the image from metadata
-        setNftImage(metadata.image);
-      } catch (error) {
-        console.error('Error fetching NFT metadata:', error);
+        if (!tokenURI) return;
+
+        // Handle both base64 and IPFS URIs
+        let metadata;
+        if (tokenURI.startsWith('data:application/json;base64,')) {
+          // Base64 encoded metadata
+          const base64Data = tokenURI.split(',')[1];
+          if (!base64Data) return;
+          
+          try {
+            const jsonString = atob(base64Data);
+            metadata = JSON.parse(jsonString);
+          } catch {
+            return;
+          }
+        } else {
+          // IPFS or HTTP URI
+          try {
+            const response = await fetch(tokenURI);
+            if (!response.ok) return;
+            metadata = await response.json();
+          } catch {
+            return;
+          }
+        }
+
+        if (metadata?.image) {
+          setNftImage(metadata.image);
+        }
+      } catch {
+        // Silent fail - NFT image will show loading state
       }
     };
 
-    if (position.tokenId && walletClient) {
+    if (position?.tokenId && walletClient) {
       fetchNFTMetadata();
     }
-  }, [position.tokenId, walletClient]);
+  }, [position?.tokenId, walletClient]);
 
   useEffect(() => {
     const fetchPoolData = async () => {
@@ -337,8 +358,8 @@ function PositionCard({ position, onAction }) {
         const poolContract = new ethers.Contract(poolAddress, POOL_ABI, provider);
         const slot0 = await poolContract.slot0();
         setCurrentTick(slot0.tick);
-      } catch (error) {
-        console.error('Error fetching pool data:', error);
+      } catch {
+        // Silent fail - UI will handle undefined currentTick gracefully
       }
     };
 
@@ -1732,11 +1753,46 @@ const itemVariants = {
   }
 };
 
+// Add this near the top with other imports
+const SkeletonCard = () => (
+  <motion.div 
+    className="p-3 rounded-xl bg-white/5 dark:bg-[#2d2f36] border border-gray-200 dark:border-gray-800 max-w-2xl mx-auto"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+  >
+    <div className="flex items-start gap-4">
+      {/* NFT Preview Skeleton */}
+      <div className="relative w-[140px] h-[140px] rounded-lg overflow-hidden flex-shrink-0 bg-gray-200 dark:bg-gray-800 animate-pulse" />
+
+      <div className="flex-1 space-y-3">
+        {/* Title Skeleton */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-6 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+        </div>
+
+        {/* Details Skeleton */}
+        <div className="space-y-2">
+          <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-4 w-2/3 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-4 w-1/2 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+        </div>
+
+        {/* Actions Skeleton */}
+        <div className="flex gap-2 mt-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-8 w-20 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    </div>
+  </motion.div>
+);
+
 export default function MyPools() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-  const { open } = useWeb3Modal();
   const [positions, setPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddLiquidityModal, setShowAddLiquidityModal] = useState(false);
@@ -1753,7 +1809,6 @@ export default function MyPools() {
   const fetchPositions = async () => {
     try {
       setIsLoading(true);
-      console.log('Fetching positions for address:', address);
       
       if (!address || !walletClient) {
         throw new Error('Wallet not connected');
@@ -1774,7 +1829,6 @@ export default function MyPools() {
 
       // Get number of positions
       const balance = await positionManagerContract.balanceOf(address);
-      console.log('Number of positions:', Number(balance));
 
       if (Number(balance) === 0) {
         setPositions([]);
@@ -1791,7 +1845,6 @@ export default function MyPools() {
       const positionPromises = Array.from({ length: Number(balance) }, async (_, i) => {
         try {
           const tokenId = await positionManagerContract.tokenOfOwnerByIndex(address, i);
-          console.log('Token ID:', tokenId.toString());
           
           const position = await positionManagerContract.positions(tokenId);
           
@@ -1871,7 +1924,6 @@ export default function MyPools() {
       const results = await Promise.all(positionPromises);
       const validPositions = results.filter(position => position !== null);
 
-      console.log('All positions:', validPositions);
       setPositions(validPositions);
 
     } catch (error) {
@@ -1945,22 +1997,13 @@ export default function MyPools() {
   if (isLoading) {
     return (
       <motion.div 
+        className="space-y-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex items-center justify-center h-[calc(100vh-200px)]"
       >
-        <motion.div 
-          className="flex flex-col items-center gap-4"
-          initial={{ scale: 0.9 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="relative">
-            <div className="w-12 h-12 border-4 border-[#00ffbd] rounded-full animate-spin border-t-transparent"></div>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-[#00ffbd] rounded-full opacity-30"></div>
-          </div>
-          <span className="text-gray-500 dark:text-gray-400">Loading positions...</span>
-        </motion.div>
+        {[1, 2, 3].map((i) => (
+          <SkeletonCard key={i} />
+        ))}
       </motion.div>
     );
   }
@@ -1972,9 +2015,9 @@ export default function MyPools() {
       initial="hidden"
       animate="visible"
     >
-      <AnimatePresence mode="wait">
-        {positions.length > 0 ? (
-          positions.map((position) => (
+      {positions.length > 0 ? (
+        <AnimatePresence>
+          {positions.map((position) => (
             <motion.div
               key={position.id}
               variants={itemVariants}
@@ -1989,32 +2032,35 @@ export default function MyPools() {
                 onAction={handlePositionAction}
               />
             </motion.div>
-          ))
-        ) : (
-          <motion.div 
-            className="text-center py-12"
-            variants={itemVariants}
+          ))}
+        </AnimatePresence>
+      ) : (
+        <motion.div 
+          className="text-center py-12"
+          variants={itemVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+        >
+          <FaChartLine className="mx-auto h-12 w-12 text-gray-400" />
+          <motion.h3 
+            className="mt-2 text-sm font-medium text-gray-900 dark:text-white"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
           >
-            <FaChartLine className="mx-auto h-12 w-12 text-gray-400" />
-            <motion.h3 
-              className="mt-2 text-sm font-medium text-gray-900 dark:text-white"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-            >
-              No positions found
-            </motion.h3>
-            <motion.p 
-              className="mt-1 text-sm text-gray-500 dark:text-gray-400"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              Create a position to provide liquidity and earn fees
-            </motion.p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            No positions found
+          </motion.h3>
+          <motion.p 
+            className="mt-1 text-sm text-gray-500 dark:text-gray-400"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
+            Create a position to provide liquidity and earn fees
+          </motion.p>
+        </motion.div>
+      )}
 
       <AddLiquidityModal
         isOpen={showAddLiquidityModal}

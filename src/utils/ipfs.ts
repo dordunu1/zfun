@@ -23,8 +23,6 @@ export async function uploadFileToIPFS(file: File): Promise<string> {
 
 export async function uploadMetadataToIPFS(metadata: NFTMetadata): Promise<string> {
   const metadataCopy = { ...metadata };
-  
-  console.log('Uploading metadata to IPFS:', metadataCopy);
 
   const response = await axios.post(
     `${PINATA_API}/pinJSONToIPFS`,
@@ -37,7 +35,6 @@ export async function uploadMetadataToIPFS(metadata: NFTMetadata): Promise<strin
     }
   );
 
-  console.log('IPFS upload response:', response.data);
   return `ipfs://${response.data.IpfsHash}`;
 }
 

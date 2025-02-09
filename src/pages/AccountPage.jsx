@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAccount, useNetwork } from 'wagmi';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { ethers } from 'ethers';
@@ -10,7 +10,7 @@ import { FaEthereum } from 'react-icons/fa';
 import { query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import axios from 'axios';
-import { useWeb3Modal } from '@web3modal/react';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 // Memory cache for NFTs
 const CACHE_DURATION = 30000; // 30 seconds
@@ -25,7 +25,14 @@ const getCachedNFTs = (address, chainId) => {
     const { timestamp, data } = cachedData;
     if (Date.now() - timestamp < CACHE_DURATION) {
       console.log('Using cached NFTs');
-      return data;
+      // Process cached NFTs to ensure network information
+      return data.map(nft => ({
+        ...nft,
+        network: nft.network || 
+          (nft.chainId === 11155111 ? 'sepolia' :
+           nft.chainId === 1301 ? 'unichain' :
+           nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
+      }));
     }
     // Cache expired, remove it
     nftCache.delete(cacheKey);
@@ -38,7 +45,14 @@ const getCachedNFTs = (address, chainId) => {
       const { timestamp, data } = JSON.parse(localCache);
       if (Date.now() - timestamp < CACHE_DURATION) {
         console.log('Using localStorage cached NFTs');
-        return data;
+        // Process cached NFTs to ensure network information
+        return data.map(nft => ({
+          ...nft,
+          network: nft.network || 
+            (nft.chainId === 11155111 ? 'sepolia' :
+             nft.chainId === 1301 ? 'unichain' :
+             nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
+        }));
       }
       // Cache expired, remove it
       localStorage.removeItem(`nfts-${cacheKey}`);
@@ -201,14 +215,35 @@ const SkeletonCard = () => (
 export default function AccountPage() {
   const [nfts, setNfts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { address: account } = useAccount();
+  const { address: account, isConnected } = useAccount();
   const { chain } = useNetwork();
+  const { openConnectModal } = useConnectModal();
   const [tokenLogos, setTokenLogos] = useState({});
   const [filters, setFilters] = useState({
     type: 'all',       // 'all', 'ERC721', 'ERC1155'
-    network: 'all'     // 'all', 'sepolia', 'unichain', 'unichain-mainnet'
+    network: 'all'     // 'all', 'sepolia', 'unichain', 'moonwalker'
   });
-  const { open: openConnectModal } = useWeb3Modal();
+  const closeTimeoutRef = useRef(null);
+
+  // Add filteredNFTs memo
+  const filteredNFTs = useMemo(() => {
+    return nfts.filter(nft => {
+      // Filter by type
+      if (filters.type !== 'all' && nft.type !== filters.type) return false;
+
+      // Filter by network
+      if (filters.network !== 'all') {
+        const nftNetwork = nft.network || 
+          (nft.chainId === 11155111 ? 'sepolia' : 
+           nft.chainId === 1301 ? 'unichain' :
+           nft.chainId === 1828369849 ? 'moonwalker' : null);
+        
+        if (nftNetwork !== filters.network) return false;
+      }
+
+      return true;
+    });
+  }, [nfts, filters]);
 
   // Function to get token details from Firebase
   const getTokenDetails = async (tokenAddress) => {
@@ -262,12 +297,10 @@ export default function AccountPage() {
       try {
         // Load owned NFTs from Firebase
         const ownedNFTs = await getOwnedNFTs(account);
-        console.log('Raw owned NFTs:', ownedNFTs);
         
         // Fetch Blockscout NFTs for accurate balances based on chain
         const chainId = chain?.id;
         const blockscoutNFTs = await fetchBlockscoutNFTs(account, chainId);
-        console.log('Blockscout NFTs:', blockscoutNFTs);
         
         // Create a map of NFT balances from Blockscout
         const balanceMap = new Map();
@@ -315,27 +348,23 @@ export default function AccountPage() {
           }];
         });
         
-        console.log('Processed NFTs:', processedNFTs);
-
         // Filter NFTs based on current chain - improved chain detection
         const filteredNFTs = processedNFTs.filter(nft => {
-          if (!chain?.id) return true; // Show all if no chain selected
-          
-          // Check all possible chain identifiers
-          const nftChainId = nft.chainId || 
-            (nft.network === 'sepolia' ? 11155111 : 
-             nft.network === 'unichain' ? 1301 : null);
-          
-          // Match against current chain
-          return chain.id === nftChainId || 
-            (chain.id === 11155111 && nft.network === 'sepolia') ||
-            (chain.id === 1301 && nft.network === 'unichain');
+          // Don't filter by chain - show all NFTs
+          return true;
         });
-        
-        console.log('Filtered NFTs:', filteredNFTs);
+
+        // Process NFTs to ensure network information is preserved
+        const processedWithNetwork = filteredNFTs.map(nft => ({
+          ...nft,
+          network: nft.network || 
+            (nft.chainId === 11155111 ? 'sepolia' :
+             nft.chainId === 1301 ? 'unichain' :
+             nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
+        }));
 
         // Sort NFTs by mint date (newest first)
-        const sortedNFTs = filteredNFTs.sort((a, b) => {
+        const sortedNFTs = processedWithNetwork.sort((a, b) => {
           const dateA = new Date(a.mintedAt || 0);
           const dateB = new Date(b.mintedAt || 0);
           return dateB - dateA;
@@ -364,9 +393,9 @@ export default function AccountPage() {
         );
 
         // Cache and set the results
-        cacheNFTs(account, chain?.id, processedNFTs);
+        cacheNFTs(account, chain?.id, processedWithNetwork);
         setTokenLogos(logos);
-        setNfts(processedNFTs);
+        setNfts(processedWithNetwork);
         setLoading(false);
       } catch (error) {
         console.error('Error loading fresh NFT data:', error);
@@ -377,9 +406,36 @@ export default function AccountPage() {
     loadNFTs();
   }, [account, chain]);
 
+  // Update the useEffect to fetch logos for all payment tokens
+  useEffect(() => {
+    const fetchTokenLogos = async () => {
+      for (const nft of nfts) {
+        if (nft?.mintToken?.address && !tokenLogos[nft.mintToken.address.toLowerCase()]) {
+          try {
+            const tokenDeployment = await getTokenDeploymentByAddress(nft.mintToken.address);
+            if (tokenDeployment?.logo) {
+              setTokenLogos(prev => ({
+                ...prev,
+                [nft.mintToken.address.toLowerCase()]: tokenDeployment.logo
+              }));
+            }
+          } catch (error) {
+            console.error('Error fetching token logo:', error);
+          }
+        }
+      }
+    };
+
+    fetchTokenLogos();
+  }, [nfts]);
+
   const formatMintPrice = (price, nft) => {
     if (!price) return '0';
     try {
+      // Check if it's ZERO token
+      const tokenAddress = nft?.mintToken?.address?.toLowerCase();
+      const isZeroToken = tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e' || nft.network === 'moonwalker';
+      
       // Get the individual NFT price by dividing total value by quantity
       const quantity = parseInt(nft.quantity || '1');
       let individualPrice = price;
@@ -402,8 +458,9 @@ export default function AccountPage() {
         }
       }
 
-      // For custom tokens, we don't need to convert from Wei
-      if (nft?.mintToken?.type === 'custom' || 
+      // For ZERO tokens, custom tokens, USDC, or USDT, we don't need to convert from Wei
+      if (isZeroToken ||
+          nft?.mintToken?.type === 'custom' || 
           nft?.mintToken?.type === 'usdc' || 
           nft?.mintToken?.type === 'usdt') {
         return parseFloat(individualPrice).toLocaleString('en-US', {
@@ -440,28 +497,24 @@ export default function AccountPage() {
     }
   };
 
-  // Filter NFTs based on type
-  const filteredNFTs = useMemo(() => {
-    return nfts.filter(nft => {
-      // Filter by type
-      if (filters.type !== 'all' && nft.type !== filters.type) return false;
-
-      // Filter by network
-      if (filters.network !== 'all') {
-        const nftNetwork = nft.network || 
-          (nft.chainId === 11155111 ? 'sepolia' : 
-           nft.chainId === 1301 ? 'unichain' :
-           nft.chainId === 1 ? 'unichain-mainnet' : null);
-        
-        if (nftNetwork !== filters.network) return false;
-      }
-
-      return true;
-    });
-  }, [nfts, filters]);
-
   // Filter controls UI
   const FilterControls = () => {
+    const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
+    const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
+
+    const handleMouseEnter = (setDropdown) => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      setDropdown(true);
+    };
+
+    const handleMouseLeave = (setDropdown) => {
+      closeTimeoutRef.current = setTimeout(() => {
+        setDropdown(false);
+      }, 300);
+    };
+
     const typeCount = {
       all: nfts.length,
       ERC721: nfts.filter(nft => nft.type === 'ERC721').length,
@@ -472,31 +525,111 @@ export default function AccountPage() {
       all: nfts.length,
       sepolia: nfts.filter(nft => nft.network === 'sepolia' || nft.chainId === 11155111).length,
       unichain: nfts.filter(nft => nft.network === 'unichain' || nft.chainId === 1301).length,
-      'unichain-mainnet': nfts.filter(nft => nft.network === 'unichain-mainnet' || nft.chainId === 1).length
+      moonwalker: nfts.filter(nft => nft.network === 'moonwalker' || nft.chainId === 1828369849).length
     };
+
+    const types = [
+      { value: 'all', label: `All Types (${typeCount.all})` },
+      { value: 'ERC721', label: `ERC721 (${typeCount.ERC721})` },
+      { value: 'ERC1155', label: `ERC1155 (${typeCount.ERC1155})` }
+    ];
+
+    const networks = [
+      { value: 'all', label: `All Networks (${networkCount.all})` },
+      { value: 'sepolia', label: `Sepolia (${networkCount.sepolia})` },
+      { value: 'unichain', label: `Unichain (${networkCount.unichain})` },
+      { value: 'moonwalker', label: `Moonwalker (${networkCount.moonwalker})` }
+    ];
 
     return (
       <div className="flex gap-2">
-        <select
-          value={filters.type}
-          onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
-          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd]/20 focus:outline-none"
+        {/* Type Dropdown */}
+        <div 
+          className="relative"
+          onMouseEnter={() => handleMouseEnter(setTypeDropdownOpen)}
+          onMouseLeave={() => handleMouseLeave(setTypeDropdownOpen)}
         >
-          <option value="all">All Types ({typeCount.all})</option>
-          <option value="ERC721">ERC721 ({typeCount.ERC721})</option>
-          <option value="ERC1155">ERC1155 ({typeCount.ERC1155})</option>
-        </select>
+          <button
+            type="button"
+            className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between text-xs"
+          >
+            <span>{types.find(t => t.value === filters.type)?.label}</span>
+            <svg
+              className={`w-4 h-4 text-gray-500 transition-transform ${typeDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {typeDropdownOpen && (
+            <div 
+              className="absolute z-[110] w-full mt-1 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+              onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
+              onMouseLeave={() => handleMouseLeave(setTypeDropdownOpen)}
+            >
+              {types.map(type => (
+                <button
+                  key={type.value}
+                  onClick={() => {
+                    setFilters(f => ({ ...f, type: type.value }));
+                    setTypeDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 text-xs ${
+                    filters.type === type.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-        <select
-          value={filters.network}
-          onChange={(e) => setFilters(f => ({ ...f, network: e.target.value }))}
-          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-1 focus:ring-[#00ffbd]/20 focus:outline-none"
+        {/* Network Dropdown */}
+        <div 
+          className="relative"
+          onMouseEnter={() => handleMouseEnter(setNetworkDropdownOpen)}
+          onMouseLeave={() => handleMouseLeave(setNetworkDropdownOpen)}
         >
-          <option value="all">All Networks ({networkCount.all})</option>
-          <option value="sepolia">Sepolia ({networkCount.sepolia})</option>
-          <option value="unichain">Unichain Testnet ({networkCount.unichain})</option>
-          <option value="unichain-mainnet">Unichain Mainnet ({networkCount['unichain-mainnet']})</option>
-        </select>
+          <button
+            type="button"
+            className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between text-xs"
+          >
+            <span>{networks.find(n => n.value === filters.network)?.label}</span>
+            <svg
+              className={`w-4 h-4 text-gray-500 transition-transform ${networkDropdownOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {networkDropdownOpen && (
+            <div 
+              className="absolute z-[110] w-full mt-1 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+              onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
+              onMouseLeave={() => handleMouseLeave(setNetworkDropdownOpen)}
+            >
+              {networks.map(network => (
+                <button
+                  key={network.value}
+                  onClick={() => {
+                    setFilters(f => ({ ...f, network: network.value }));
+                    setNetworkDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 text-xs ${
+                    filters.network === network.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                  }`}
+                >
+                  {network.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -504,13 +637,30 @@ export default function AccountPage() {
   // Add renderCurrencyLogo function
   const renderCurrencyLogo = (nft) => {
     const tokenAddress = nft?.mintToken?.address?.toLowerCase();
-    const logoUrl = tokenLogos[tokenAddress];
-    
-    if (tokenAddress && logoUrl) {
+    const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+
+    // Handle native tokens based on network
+    if (isNativeToken) {
+      if (nft.network === 'moonwalker') {
+        return <img src="/Zero.png" alt="ZERO" className="w-4 h-4" />;
+      }
+      if (nft.network === 'polygon') {
+        return <img src="/matic.png" alt="MATIC" className="w-4 h-4" />;
+      }
+      return <FaEthereum className="w-4 h-4 text-[#00ffbd]" />;
+    }
+
+    // Handle ZERO token by address
+    if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+      return <img src="/Zero.png" alt="ZERO" className="w-4 h-4" />;
+    }
+
+    // For custom tokens with logo
+    if (tokenAddress && tokenLogos[tokenAddress]) {
       return (
         <img 
-          src={logoUrl} 
-          alt="Token"
+          src={tokenLogos[tokenAddress]}
+          alt={nft.mintToken.symbol || 'Token'}
           className="w-4 h-4 rounded-full"
           onError={(e) => {
             e.target.onerror = null;
@@ -518,6 +668,11 @@ export default function AccountPage() {
           }}
         />
       );
+    }
+    
+    // Default to token-default.png for custom tokens without logo
+    if (nft.mintToken?.type === 'custom') {
+      return <img src="/token-default.png" alt="Token" className="w-4 h-4 rounded-full" />;
     }
     
     return <FaEthereum className="w-4 h-4 text-[#00ffbd]" />;
@@ -635,7 +790,21 @@ export default function AccountPage() {
                     <span>Mint Price:</span>
                     <div className="flex items-center gap-1 text-[#00ffbd]">
                       {renderCurrencyLogo(nft)}
-                      <span className="font-medium">{formatMintPrice(nft.value, nft)} {nft.mintToken?.symbol}</span>
+                      <span className="font-medium">
+                        {formatMintPrice(nft.value, nft)} {(() => {
+                          const tokenAddress = nft?.mintToken?.address?.toLowerCase();
+                          if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') return 'ZERO';
+                          
+                          const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+                          if (isNativeToken) {
+                            if (nft.network === 'moonwalker' || nft.chainId === 1828369849) return 'ZERO';
+                            if (nft.network === 'polygon') return 'MATIC';
+                            return 'ETH';
+                          }
+                          
+                          return nft?.mintToken?.type === 'custom' ? nft.mintToken.symbol : 'ETH';
+                        })()}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -665,92 +834,32 @@ export default function AccountPage() {
     );
   };
 
-  if (!account) {
+  // Early return for wallet connection
+  if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-[#0d0e12] p-8">
-        <div className="max-w-7xl mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="relative inline-block mb-12"
+      <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+            <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+            Connect Your Wallet
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
+            Please connect your wallet to view your NFTs. You'll be able to see all your NFT collections and manage them.
+          </p>
+          <button
+            onClick={openConnectModal}
+            className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
           >
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My NFTs</h1>
-            <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-[#00ffbd]"></div>
-          </motion.div>
-
-          {/* Connect wallet prompt with animation */}
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="relative"
-          >
-            {/* Main Container with L-shape corners and glowing dots */}
-            <div className="relative">
-              {/* L-shaped corners */}
-              <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
-                <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-              <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
-                <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-              <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
-                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-              <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
-                <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-
-              {/* Glowing dots in corners */}
-              <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-              <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-              <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-              <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
-
-              {/* Three dots in top right */}
-              <div className="absolute top-3 right-3 flex gap-1 z-20">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
-                    style={{ animationDelay: `${i * 0.2}s` }}
-                  />
-                ))}
-              </div>
-
-              {/* Main Content */}
-              <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
-                <div className="flex flex-col items-center justify-center py-16 px-4">
-                  <div className="w-20 h-20 mb-6 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
-                    <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                    Connect Your Wallet
-                  </h2>
-                  <p className="text-gray-500 dark:text-gray-400 text-center mb-6 max-w-md">
-                    Please connect your wallet to view your NFTs. You'll be able to see all your NFT collections and manage them.
-                  </p>
-                  <button
-                    onClick={openConnectModal}
-                    className="px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Connect Wallet
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Connect Wallet
+          </button>
         </div>
       </div>
     );

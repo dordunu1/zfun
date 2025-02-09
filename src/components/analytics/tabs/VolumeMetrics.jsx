@@ -9,6 +9,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Web3Provider } from '@ethersproject/providers';
 import { Contract } from '@ethersproject/contracts';
+import { ethers } from 'ethers';
 
 const TIME_RANGES = [
   { label: '24h', value: '24h' },
@@ -26,11 +27,21 @@ const ERC1155_ABI = [
 // Helper function to fetch NFT data from blockchain
 const fetchTransferEvents = async (address, network) => {
   try {
-    // Create a custom provider
-    const provider = new Web3Provider(window.ethereum);
+    // Create a custom provider based on network
+    let provider;
+    switch (network) {
+      case 'moonwalker':
+        provider = new ethers.JsonRpcProvider('https://moonwalker-rpc.eu-north-2.gateway.fm');
+        break;
+      case 'unichain':
+        provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
+        break;
+      default:
+        provider = new ethers.Web3Provider(window.ethereum);
+    }
     
     // Create contract instance
-    const contract = new Contract(address, ERC1155_ABI, provider);
+    const contract = new ethers.Contract(address, ERC1155_ABI, provider);
     
     // Get the current block
     const currentBlock = await provider.getBlockNumber();
@@ -96,9 +107,20 @@ const fetchTransferEvents = async (address, network) => {
 // Helper function to fetch NFT data from Blockscout
 const fetchBlockscoutData = async (address, network) => {
   try {
-    const baseUrl = network === 'sepolia' 
-      ? 'https://eth-sepolia.blockscout.com'
-      : 'https://unichain-sepolia.blockscout.com';
+    let baseUrl;
+    switch (network) {
+      case 'sepolia':
+        baseUrl = 'https://eth-sepolia.blockscout.com';
+        break;
+      case 'unichain':
+        baseUrl = 'https://unichain-sepolia.blockscout.com';
+        break;
+      case 'moonwalker':
+        baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+        break;
+      default:
+        throw new Error(`Unsupported network: ${network}`);
+    }
     
     // Ensure the address is properly formatted
     const formattedAddress = address?.toLowerCase();
@@ -224,6 +246,25 @@ const processVolumeData = (data, timeRange, collection) => {
 const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
   if (active && payload && payload.length) {
     const renderTokenIcon = () => {
+      const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+
+      // Check for ZERO token by address first
+      if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+        return <img src="/Zero.png" alt="ZERO" className="inline-block w-4 h-4 mr-1" />;
+      }
+
+      const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+      if (isNativeToken) {
+        if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) {
+          return <img src="/Zero.png" alt="ZERO" className="inline-block w-4 h-4 mr-1" />;
+        }
+        if (collection?.network === 'polygon') {
+          return <img src="/matic.png" alt="MATIC" className="inline-block w-4 h-4 mr-1" />;
+        }
+        return <FaEthereum className="inline mr-1" />;
+      }
+
+      // For custom tokens
       if (collection?.mintToken?.type === 'custom' && tokenLogo) {
         return (
           <img 
@@ -237,7 +278,30 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
           />
         );
       }
+
       return <FaEthereum className="inline mr-1" />;
+    };
+
+    const getTokenSymbol = () => {
+      const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+
+      // Check for ZERO token by address first
+      if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+        return 'ZERO';
+      }
+
+      const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+      if (isNativeToken) {
+        if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) {
+          return 'ZERO';
+        }
+        if (collection?.network === 'polygon') {
+          return 'MATIC';
+        }
+        return 'ETH';
+      }
+
+      return collection?.mintToken?.type === 'custom' ? collection.mintToken.symbol : 'ETH';
     };
 
     return (
@@ -254,7 +318,7 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
         </p>
         <p className="text-gray-400 text-sm flex items-center">
           {renderTokenIcon()}
-          {payload[0].payload.ethVolume} {collection?.mintToken?.type === 'custom' ? collection.mintToken.symbol : 'ETH'}
+          {payload[0].payload.ethVolume} {getTokenSymbol()}
         </p>
         <p className="text-gray-400 text-sm">
           Transactions: {payload[0].payload.transactions}
@@ -308,12 +372,31 @@ export default function VolumeMetrics({ contractAddress, network }) {
   }, [contractAddress, network, timeRange, symbol]);
 
   const renderTokenIcon = () => {
+    const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+
+    // Check for ZERO token by address first
+    if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+      return <img src="/Zero.png" alt="ZERO" className="inline-block w-4 h-4 mr-1" />;
+    }
+
+    const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+    if (isNativeToken) {
+      if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) {
+        return <img src="/Zero.png" alt="ZERO" className="inline-block w-4 h-4 mr-1" />;
+      }
+      if (collection?.network === 'polygon') {
+        return <img src="/matic.png" alt="MATIC" className="inline-block w-4 h-4 mr-1" />;
+      }
+      return <FaEthereum className="inline mr-1" />;
+    }
+
+    // For custom tokens
     if (collection?.mintToken?.type === 'custom' && tokenLogo) {
       return (
         <img 
           src={tokenLogo} 
           alt="Token" 
-          className="w-5 h-5 mr-1 rounded-full"
+          className="inline-block w-4 h-4 mr-1 rounded-full"
           onError={(e) => {
             e.target.onerror = null;
             e.target.src = '/placeholder.png';
@@ -321,7 +404,8 @@ export default function VolumeMetrics({ contractAddress, network }) {
         />
       );
     }
-    return <FaEthereum className="mr-1 text-[#00ffbd]" />;
+
+    return <FaEthereum className="inline mr-1" />;
   };
 
   // Calculate summary metrics
@@ -392,7 +476,19 @@ export default function VolumeMetrics({ contractAddress, network }) {
           className="bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800"
         >
           <h3 className="text-gray-500 dark:text-gray-400 text-sm mb-2">
-            {collection?.mintToken?.type === 'custom' ? collection.mintToken.symbol : 'ETH'} Volume
+            {(() => {
+              const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+              if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') return 'ZERO';
+              
+              const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+              if (isNativeToken) {
+                if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) return 'ZERO';
+                if (collection?.network === 'polygon') return 'MATIC';
+                return 'ETH';
+              }
+              
+              return collection?.mintToken?.type === 'custom' ? collection.mintToken.symbol : 'ETH';
+            })()} Volume
           </h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
             {renderTokenIcon()}

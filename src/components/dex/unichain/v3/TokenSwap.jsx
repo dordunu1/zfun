@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import { BiWallet } from 'react-icons/bi';
 import { FaExchangeAlt, FaStar } from 'react-icons/fa';
-import { useWeb3Modal } from '@web3modal/react';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import TokenSelector from '../shared/TokenSelector';
 import { getTokenLogo } from '../../../../utils/tokens';
@@ -656,7 +655,6 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken, e
 export default function TokenSwap() {
   const { address } = useAccount();
   const { chain } = useNetwork();
-  const { open: openConnectModal } = useWeb3Modal();
   
   // Add shared provider ref
   const providerRef = useRef(null);

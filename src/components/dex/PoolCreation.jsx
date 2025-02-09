@@ -6,7 +6,6 @@ import TokenSelectionModal from './TokenSelectionModal';
 import { useUniswap } from '../../hooks/useUniswap';
 import { UNISWAP_ADDRESSES } from '../../services/uniswap';
 import { ERC20_ABI } from '../../services/erc20';
-import { useWeb3Modal } from '@web3modal/react';
 import { BiWallet } from 'react-icons/bi';
 import { getTokenDeploymentByAddress } from '../../services/firebase';
 

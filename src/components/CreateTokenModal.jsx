@@ -111,30 +111,35 @@ const Icons = {
 // Network Configuration
 const CHAIN_IDS = {
   SEPOLIA: 11155111,
+  POLYGON: 137,
   UNICHAIN: 1301,
   MOONWALKER: 1828369849
 };
 
 const FACTORY_ADDRESSES = {
   [CHAIN_IDS.SEPOLIA]: import.meta.env.VITE_FACTORY_ADDRESS_11155111,
+  [CHAIN_IDS.POLYGON]: import.meta.env.VITE_FACTORY_ADDRESS_137,
   [CHAIN_IDS.UNICHAIN]: import.meta.env.VITE_FACTORY_ADDRESS_1301,
   [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_FACTORY_ADDRESS_1828369849
 };
 
 const CHAIN_FEES = {
   [CHAIN_IDS.SEPOLIA]: "0.01",    // Sepolia fee in ETH
+  [CHAIN_IDS.POLYGON]: "1",      // Polygon fee in POL
   [CHAIN_IDS.UNICHAIN]: "0.01",   // Unichain fee in ETH
-  [CHAIN_IDS.MOONWALKER]: "369"    // Moonwalker fee in ZERO
+  [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
 };
 
 const NETWORK_NAMES = {
   [CHAIN_IDS.SEPOLIA]: 'Sepolia',
+  [CHAIN_IDS.POLYGON]: 'Polygon',
   [CHAIN_IDS.UNICHAIN]: 'Unichain',
   [CHAIN_IDS.MOONWALKER]: 'Moonwalker'
 };
 
 const NETWORK_CURRENCIES = {
   [CHAIN_IDS.SEPOLIA]: 'ETH',
+  [CHAIN_IDS.POLYGON]: 'POL',
   [CHAIN_IDS.UNICHAIN]: 'ETH',
   [CHAIN_IDS.MOONWALKER]: 'ZERO'
 };
@@ -410,19 +415,19 @@ const DEX_CONFIGS = {
       name: 'QuickSwap',
       logo: '/quickswap.png',
       addLiquidityUrl: (tokenAddress) =>
-        `https://quickswap.exchange/#/add/MATIC/${tokenAddress}`
+        `https://quickswap.exchange/#/add/POL/${tokenAddress}`
     },
     {
       name: 'SushiSwap',
       logo: '/sushiswap.png',
       addLiquidityUrl: (tokenAddress) =>
-        `https://app.sushi.com/add/MATIC/${tokenAddress}`
+        `https://app.sushi.com/add/POL/${tokenAddress}`
     },
     {
       name: 'Uniswap',
       logo: '/uniswap.png',
       addLiquidityUrl: (tokenAddress) =>
-        `https://app.uniswap.org/#/add/MATIC/${tokenAddress}?chain=polygon`
+        `https://app.uniswap.org/#/add/POL/${tokenAddress}?chain=polygon`
     }
   ]
 };
@@ -622,7 +627,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
       }
 
       const factory = new ethers.Contract(factoryAddress, TokenFactoryABI.abi, signer);
-      
+
       // Calculate fee based on network
       let fee;
       if (currentChainId === CHAIN_IDS.MOONWALKER) {
@@ -649,37 +654,54 @@ export default function CreateTokenModal({ isOpen, onClose }) {
 
       const receipt = await tx.wait();
       
+      // Find the TokenCreated event
       const tokenCreatedEvent = receipt.logs.find(log => {
+        // Check if this log is from our factory contract
+        if (log.address.toLowerCase() !== factoryAddress.toLowerCase()) {
+          return false;
+        }
+        
         try {
-          const parsed = factory.interface.parseLog({
-            topics: log.topics,
-            data: log.data
-          });
-          return parsed?.name === 'TokenCreated';
+        // Get the event signature for TokenCreated event
+        const eventSignature = ethers.id(
+          'TokenCreated(address,address,string,string,uint8,uint256,string,bool)'
+      );
+
+          // Check if this log's first topic matches our event signature
+        return log.topics[0].toLowerCase() === eventSignature.toLowerCase();
         } catch (e) {
+          console.error('Error checking event signature:', e);
           return false;
         }
       });
 
       if (!tokenCreatedEvent) {
+        console.error('Factory address:', factoryAddress);
+        console.error('Available logs:', receipt.logs);
+        console.error('Transaction hash:', tx.hash);
         throw new Error('Token creation event not found');
       }
 
-      const parsedEvent = factory.interface.parseLog({
+      // Parse the event data using the factory interface
+      const parsedLog = factory.interface.parseLog({
         topics: tokenCreatedEvent.topics,
         data: tokenCreatedEvent.data
       });
-      
-      const deployedAddress = parsedEvent.args[1];
-      const eventData = {
-        name: parsedEvent.args[2],
-        symbol: parsedEvent.args[3],
-        decimals: parsedEvent.args[4],
-        supply: parsedEvent.args[5],
-        logo: parsedEvent.args[6]
-      };
 
-      await handleSuccess(deployedAddress, eventData, logoUrls);
+      console.log('Parsed event log:', parsedLog);
+      console.log('Event arguments:', parsedLog.args);
+      
+      // Extract data from the parsed log
+      const tokenAddress = parsedLog.args[1];  // indexed tokenAddress
+      const tokenData = {
+        name: parsedLog.args[2],      // non-indexed name
+        symbol: parsedLog.args[3],     // non-indexed symbol
+        decimals: parsedLog.args[4],   // non-indexed decimals
+        supply: parsedLog.args[5],     // non-indexed supply
+        logo: parsedLog.args[6]        // non-indexed logo
+        };
+      
+      await handleSuccess(tokenAddress, tokenData, logoUrls);
 
       // Show completed state and trigger confetti
       setProgressStep('completed');
@@ -744,23 +766,23 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
           <Dialog.Panel className="relative w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-[#0a0b0f] p-6">
             <div className="relative">
-              {/* L-shaped corners */}
-              <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
-                <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-              <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
-                <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-              <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
-                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
-              <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
-                <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
-                <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
-              </div>
+            {/* L-shaped corners */}
+            <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
+            <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+              <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+              <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+            </div>
 
               {/* Glowing dots in corners */}
               <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
@@ -781,18 +803,18 @@ export default function CreateTokenModal({ isOpen, onClose }) {
 
               {/* Main Content */}
               <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Create New Token
-                  </Dialog.Title>
+            <div className="flex justify-between items-center mb-6">
+              <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
+                Create New Token
+              </Dialog.Title>
                   <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
                     <BiX size={24} />
-                  </button>
-                </div>
-
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+              </button>
+            </div>
+            
+            <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
                   Launch your own token. Fee: {getFee() || '...'}
-                </p>
+            </p>
 
                 {!account ? (
                   <div className="text-center py-8">
@@ -808,119 +830,119 @@ export default function CreateTokenModal({ isOpen, onClose }) {
                     <w3m-button />
                   </div>
                 ) : (
-                  <form onSubmit={createToken} className="space-y-4">
-                    {/* Logo Upload */}
-                    <div className="flex justify-center mb-4">
-                      <div className="relative w-24 h-24">
-                        <div className={`w-full h-full rounded-full border-2 border-dashed ${previewLogo ? 'border-[#00ffbd]' : 'border-gray-300'} flex items-center justify-center overflow-hidden`}>
-                          {previewLogo ? (
-                            <img src={previewLogo} alt="Token Logo" className="w-full h-full object-cover" />
-                          ) : (
-                            <BiImageAdd size={32} className="text-gray-400" />
-                          )}
-                        </div>
-                        <input
-                          type="file"
-                          onChange={handleLogoChange}
-                          accept="image/*"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                      </div>
-                    </div>
+            <form onSubmit={createToken} className="space-y-4">
+              {/* Logo Upload */}
+              <div className="flex justify-center mb-4">
+                <div className="relative w-24 h-24">
+                  <div className={`w-full h-full rounded-full border-2 border-dashed ${previewLogo ? 'border-[#00ffbd]' : 'border-gray-300'} flex items-center justify-center overflow-hidden`}>
+                    {previewLogo ? (
+                      <img src={previewLogo} alt="Token Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <BiImageAdd size={32} className="text-gray-400" />
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    onChange={handleLogoChange}
+                    accept="image/*"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
 
-                    {/* Rest of the form remains the same */}
-                    <div>
-                      <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Token Name</label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none transition-all duration-200
-                        autofill:bg-gray-50 dark:autofill:bg-[#1a1b1f] 
-                        [-webkit-autofill]:!bg-gray-50 dark:[-webkit-autofill]:!bg-[#1a1b1f]
-                        [-webkit-autofill]:!text-gray-900 dark:[-webkit-autofill]:!text-white
-                        [-webkit-autofill_selected]:!bg-gray-50 dark:[-webkit-autofill_selected]:!bg-[#1a1b1f]"
-                        placeholder="My Token"
-                        required
-                        autoComplete="off"
-                      />
-                    </div>
+              {/* Rest of the form remains the same */}
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Token Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none transition-all duration-200
+                  autofill:bg-gray-50 dark:autofill:bg-[#1a1b1f] 
+                  [-webkit-autofill]:!bg-gray-50 dark:[-webkit-autofill]:!bg-[#1a1b1f]
+                  [-webkit-autofill]:!text-gray-900 dark:[-webkit-autofill]:!text-white
+                  [-webkit-autofill_selected]:!bg-gray-50 dark:[-webkit-autofill_selected]:!bg-[#1a1b1f]"
+                  placeholder="My Token"
+                  required
+                  autoComplete="off"
+                />
+              </div>
 
-                    <div>
-                      <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Token Symbol</label>
-                      <input
-                        type="text"
-                        name="symbol"
-                        value={formData.symbol}
-                        onChange={handleChange}
-                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none transition-all duration-200
-                        autofill:bg-gray-50 dark:autofill:bg-[#1a1b1f] 
-                        [-webkit-autofill]:!bg-gray-50 dark:[-webkit-autofill]:!bg-[#1a1b1f]
-                        [-webkit-autofill]:!text-gray-900 dark:[-webkit-autofill]:!text-white
-                        [-webkit-autofill_selected]:!bg-gray-50 dark:[-webkit-autofill_selected]:!bg-[#1a1b1f]"
-                        placeholder="MTK"
-                        required
-                        autoComplete="off"
-                      />
-                    </div>
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Token Symbol</label>
+                <input
+                  type="text"
+                  name="symbol"
+                  value={formData.symbol}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none transition-all duration-200
+                  autofill:bg-gray-50 dark:autofill:bg-[#1a1b1f] 
+                  [-webkit-autofill]:!bg-gray-50 dark:[-webkit-autofill]:!bg-[#1a1b1f]
+                  [-webkit-autofill]:!text-gray-900 dark:[-webkit-autofill]:!text-white
+                  [-webkit-autofill_selected]:!bg-gray-50 dark:[-webkit-autofill_selected]:!bg-[#1a1b1f]"
+                  placeholder="MTK"
+                  required
+                  autoComplete="off"
+                />
+              </div>
 
-                    <div>
-                      <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Decimals</label>
-                      <input
-                        type="number"
-                        name="decimals"
-                        value="18"
-                        disabled
-                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 cursor-not-allowed opacity-75"
-                      />
-                      <div className="mt-1 text-xs text-gray-500">
-                        Standard ERC20 decimal places (non-modifiable)
-                      </div>
-                    </div>
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Decimals</label>
+                <input
+                  type="number"
+                  name="decimals"
+                  value="18"
+                  disabled
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 cursor-not-allowed opacity-75"
+                />
+                <div className="mt-1 text-xs text-gray-500">
+                  Standard ERC20 decimal places (non-modifiable)
+                </div>
+              </div>
 
-                    <div>
-                      <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Total Supply</label>
-                      <input
-                        type="text"
-                        name="totalSupply"
-                        value={formData.totalSupply}
-                        onChange={handleChange}
-                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none transition-all duration-200"
-                        placeholder="1000000"
-                        required
-                      />
-                    </div>
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Total Supply</label>
+                <input
+                  type="text"
+                  name="totalSupply"
+                  value={formData.totalSupply}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none transition-all duration-200"
+                  placeholder="1000000"
+                  required
+                />
+              </div>
 
-                    <div>
-                      <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Description</label>
-                      <textarea
-                        name="description"
-                        value={formData.description}
-                        onChange={handleChange}
-                        className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none resize-none transition-all duration-200"
-                        placeholder="Describe your token..."
-                        rows="3"
-                      />
-                    </div>
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">Description</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none resize-none transition-all duration-200"
+                  placeholder="Describe your token..."
+                  rows="3"
+                />
+              </div>
 
-                    <div className="flex justify-end gap-4 mt-6">
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
+              <div className="flex justify-end gap-4 mt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
                         disabled={!account}
-                      >
-                        Create Token
-                      </button>
-                    </div>
-                  </form>
+                >
+                  Create Token
+                </button>
+              </div>
+            </form>
                 )}
               </div>
             </div>

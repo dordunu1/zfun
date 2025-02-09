@@ -12,7 +12,6 @@ import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
 import { ERC20_ABI } from '../../../../services/erc20';
 import { getTokenDeploymentByAddress } from '../../../../services/firebase';
 import { BiWallet } from 'react-icons/bi';
-import { useWeb3Modal } from '@web3modal/react';
 import { toast } from 'react-hot-toast';
 
 // Add CSS keyframes at the top of the file
@@ -486,7 +485,6 @@ const buttonVariants = {
 
 export default function PoolCreation({ setActiveTab }) {
   const { address: isConnected } = useAccount();
-  const { open: openConnectModal } = useWeb3Modal();
   const navigate = useNavigate();
   const [currentChainId, setCurrentChainId] = useState(null);
   const uniswap = useUnichain();
@@ -514,17 +512,38 @@ export default function PoolCreation({ setActiveTab }) {
 
   // Add useEffect to get chain ID and listen for changes
   useEffect(() => {
+    let mounted = true;
+
     const checkChain = async () => {
-      if (window.ethereum) {
+      if (!window.ethereum || !mounted) return;
+      try {
         const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (mounted) {
+          setCurrentChainId(parseInt(chainId, 16));
+        }
+      } catch (error) {
+        // Silent fail - will be handled by wagmi's chain handling
+      }
+    };
+
+    const handleChainChanged = (chainId) => {
+      if (mounted) {
         setCurrentChainId(parseInt(chainId, 16));
       }
     };
+
     checkChain();
 
-    window.ethereum?.on('chainChanged', (chainId) => {
-      setCurrentChainId(parseInt(chainId, 16));
-    });
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', handleChainChanged);
+    }
+
+    return () => {
+      mounted = false;
+      if (window.ethereum) {
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      }
+    };
   }, []);
 
   // Add function to validate Ethereum address
@@ -539,7 +558,6 @@ export default function PoolCreation({ setActiveTab }) {
   // Handle token selection
   const handleToken0Select = async (token) => {
     try {
-      // Check for WETH and show warning
       if (token.symbol === 'WETH') {
         toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
           duration: 6000,
@@ -560,7 +578,6 @@ export default function PoolCreation({ setActiveTab }) {
           decimals: 18
         };
       } else {
-        // Try to get token info from Firebase first
         try {
           const tokenDeployment = await getTokenDeploymentByAddress(token.address);
           if (tokenDeployment) {
@@ -573,7 +590,6 @@ export default function PoolCreation({ setActiveTab }) {
               logoIpfs: tokenDeployment.logoIpfs
             };
           } else {
-            // Fallback to contract info
             const tokenInfo = await uniswap.getTokenInfo(token.address);
             selectedToken = { 
               ...token,
@@ -583,8 +599,7 @@ export default function PoolCreation({ setActiveTab }) {
               logo: token.logo || '/token-placeholder.png'
             };
           }
-        } catch (firebaseError) {
-          console.warn('Firebase fetch failed, falling back to contract:', firebaseError);
+        } catch (error) {
           const tokenInfo = await uniswap.getTokenInfo(token.address);
           selectedToken = { 
             ...token,
@@ -608,28 +623,19 @@ export default function PoolCreation({ setActiveTab }) {
           provider
         );
         
-        console.log('Checking pool existence for:', {
-          token0: selectedToken.address,
-          token1: token1.address
-        });
-        
         const poolAddress = await factoryContract.getPair(selectedToken.address, token1.address);
-        console.log('Pool address:', poolAddress);
         
         if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-          console.log('Pool exists at address:', poolAddress);
           setPoolExists({ address: poolAddress });
           setError('pool exists');
           setShowProgressModal(true);
           setCurrentStep('preparing');
         } else {
-          console.log('Pool does not exist');
           setPoolExists(null);
           setError(null);
         }
       }
     } catch (error) {
-      console.error('Error selecting token:', error);
       toast.error('Failed to load token information. Please try again.');
     }
   };
@@ -705,22 +711,14 @@ export default function PoolCreation({ setActiveTab }) {
           provider
         );
         
-        console.log('Checking pool existence for:', {
-          token0: token0.address,
-          token1: selectedToken.address
-        });
-        
         const poolAddress = await factoryContract.getPair(token0.address, selectedToken.address);
-        console.log('Pool address:', poolAddress);
         
         if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-          console.log('Pool exists at address:', poolAddress);
           setPoolExists({ address: poolAddress });
           setError('pool exists');
           setShowProgressModal(true);
           setCurrentStep('preparing');
         } else {
-          console.log('Pool does not exist');
           setPoolExists(null);
           setError(null);
         }
@@ -800,8 +798,7 @@ export default function PoolCreation({ setActiveTab }) {
     setError(null);
     
     try {
-      // Check if pool exists FIRST
-      const provider = new ethers.JsonRpcProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const factoryContract = new ethers.Contract(
         '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
         ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
@@ -809,10 +806,8 @@ export default function PoolCreation({ setActiveTab }) {
       );
       
       const poolAddress = await factoryContract.getPair(token0.address, token1.address);
-      console.log('Pool address:', poolAddress);
       
       if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-        console.log('Pool exists at address:', poolAddress);
         setPoolExists({ address: poolAddress });
         setError('pool exists');
         setCurrentStep('preparing');
@@ -820,17 +815,13 @@ export default function PoolCreation({ setActiveTab }) {
         return;
       }
 
-      // Continue with pool creation if pool doesn't exist
-      console.log('Creating new pool...');
       setIsNewPool(true);
       setCurrentStep('approval');
       
-      // Parse amounts
       const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
       const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
 
-      // Create pool and add liquidity
-      const result = await uniswap.createPool(
+      await uniswap.createPool(
         token0.address,
         token1.address,
         parsedAmount0,
@@ -839,18 +830,15 @@ export default function PoolCreation({ setActiveTab }) {
 
       setCurrentStep('completed');
       
-      // Show completed state briefly, then close modal and show confetti
       setTimeout(() => {
         setShowProgressModal(false);
         setCurrentStep(null);
         setShowConfetti(true);
         
-        // Show rating modal after a short delay
         setTimeout(() => {
           setShowRatingModal(true);
         }, 1000);
         
-        // Reset form and cleanup after confetti
         setTimeout(() => {
           setAmount0('');
           setAmount1('');
@@ -858,7 +846,6 @@ export default function PoolCreation({ setActiveTab }) {
         }, 30000);
       }, 1000);
     } catch (error) {
-      console.error('Error creating pool:', error);
       setError(error.message);
     } finally {
       setLoading(false);

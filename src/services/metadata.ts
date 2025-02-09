@@ -29,8 +29,6 @@ export async function prepareAndUploadMetadata(
       };
     }).filter(attr => attr.trait_type && attr.value !== '') || [];
 
-    console.log('Formatted attributes:', JSON.stringify(attributes, null, 2));
-
     // 2. Prepare metadata exactly matching OpenSea's format
     const metadata: NFTMetadata = {
       name: formData.name + (tokenId ? ` #${tokenId}` : ''),
@@ -41,11 +39,8 @@ export async function prepareAndUploadMetadata(
       background_color: formData.background_color || '000000'
     };
 
-    console.log('Final metadata being uploaded:', JSON.stringify(metadata, null, 2));
-
     // 3. Upload metadata to IPFS
     const metadataUrl = await uploadMetadataToIPFS(metadata);
-    console.log('Metadata URL:', metadataUrl);
 
     return {
       metadataUrl,
@@ -53,7 +48,6 @@ export async function prepareAndUploadMetadata(
       imageIpfsUrl
     };
   } catch (error) {
-    console.error('Error preparing metadata:', error);
     throw new Error('Failed to prepare and upload metadata');
   }
 } 

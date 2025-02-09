@@ -21,7 +21,12 @@ const ALCHEMY_URLS = {
   'mumbai': 'https://polygon-mumbai.g.alchemy.com/v2/',
   'arbitrum': 'https://arb-mainnet.g.alchemy.com/v2/',
   'optimism': 'https://opt-mainnet.g.alchemy.com/v2/',
-  'unichain': 'https://unichain-sepolia.g.alchemy.com/v2/',
+  'unichain': 'https://unichain-sepolia.g.alchemy.com/v2/'
+};
+
+// Network RPC URLs for non-Alchemy networks
+const NETWORK_RPC_URLS = {
+  'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm'
 };
 
 const formatAddress = (address) => {
@@ -81,9 +86,14 @@ export default function TopHolders({ collection }) {
           throw new Error('No contract address available');
         }
 
-        // Special handling for Unichain
+        // Special handling for Unichain and Moonwalker
         if (collection.network === 'unichain') {
           await loadUnichainHolders(collection.contractAddress);
+          return;
+        }
+
+        if (collection.network === 'moonwalker') {
+          await loadMoonwalkerHolders(collection.contractAddress);
           return;
         }
 
@@ -136,12 +146,10 @@ export default function TopHolders({ collection }) {
 
     // Function to load ERC721 holders
     const loadERC721Holders = async (contractAddress, provider) => {
-      console.log('Processing ERC721 collection');
       const erc721Interface = ['event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'];
       const erc721Contract = new ethers.Contract(contractAddress, erc721Interface, provider);
       
       const events = await erc721Contract.queryFilter('Transfer', 0, 'latest');
-      console.log('Found ERC721 transfer events:', events.length);
       
       // Track current token ownership
       const tokenOwners = new Map();
@@ -174,7 +182,6 @@ export default function TopHolders({ collection }) {
 
     // Function to load ERC1155 holders
     const loadERC1155Holders = async (contractAddress, provider) => {
-      console.log('Processing ERC1155 collection');
       const erc1155Interface = [
         'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
         'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)'
@@ -187,7 +194,6 @@ export default function TopHolders({ collection }) {
       
       // Get and process TransferSingle events
       const singleEvents = await erc1155Contract.queryFilter('TransferSingle', 0, 'latest');
-      console.log('Found ERC1155 TransferSingle events:', singleEvents.length);
       
       for (const event of singleEvents) {
         const { from, to, value } = event.args;
@@ -205,7 +211,6 @@ export default function TopHolders({ collection }) {
 
       // Get and process TransferBatch events
       const batchEvents = await erc1155Contract.queryFilter('TransferBatch', 0, 'latest');
-      console.log('Found ERC1155 TransferBatch events:', batchEvents.length);
       
       for (const event of batchEvents) {
         const { from, to, values } = event.args;
@@ -242,34 +247,49 @@ export default function TopHolders({ collection }) {
         // Initialize ethers provider for Unichain Sepolia
         const provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
         
-        // Debug log to see what type we're getting
-        console.log('Collection data:', {
-          type: collection.type,
-          tokenType: collection.tokenType,
-          contractType: collection.contractType,
-          collection
-        });
-
         // Check for ERC1155 in multiple possible properties and formats
         const isERC1155 = collection.type?.toUpperCase().replace('-', '') === 'ERC1155' || 
                          collection.tokenType?.toUpperCase().replace('-', '') === 'ERC1155' ||
                          collection.contractType?.toUpperCase().replace('-', '') === 'ERC1155';
         
-        console.log('Is ERC1155?', isERC1155);
-        
         let holdersData;
         if (isERC1155) {
           holdersData = await loadERC1155Holders(contractAddress, provider);
-          console.log('Processed ERC1155 holders:', holdersData);
         } else {
           holdersData = await loadERC721Holders(contractAddress, provider);
-          console.log('Processed ERC721 holders:', holdersData);
         }
 
         setHolders(holdersData);
         setError(null);
       } catch (error) {
         console.error('Error loading Unichain holders:', error);
+        setError(error.message);
+        toast.error(`Failed to load holders: ${error.message}`);
+      }
+    };
+
+    // Function to load Moonwalker holders using ethers.js
+    const loadMoonwalkerHolders = async (contractAddress) => {
+      try {
+        // Initialize ethers provider for Moonwalker using the RPC URL
+        const provider = new ethers.JsonRpcProvider(NETWORK_RPC_URLS.moonwalker);
+        
+        // Check for ERC1155 in multiple possible properties and formats
+        const isERC1155 = collection.type?.toUpperCase().replace('-', '') === 'ERC1155' || 
+                         collection.tokenType?.toUpperCase().replace('-', '') === 'ERC1155' ||
+                         collection.contractType?.toUpperCase().replace('-', '') === 'ERC1155';
+        
+        let holdersData;
+        if (isERC1155) {
+          holdersData = await loadERC1155Holders(contractAddress, provider);
+        } else {
+          holdersData = await loadERC721Holders(contractAddress, provider);
+        }
+
+        setHolders(holdersData);
+        setError(null);
+      } catch (error) {
+        console.error('Error loading Moonwalker holders:', error);
         setError(error.message);
         toast.error(`Failed to load holders: ${error.message}`);
       }

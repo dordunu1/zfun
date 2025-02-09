@@ -5,4 +5,5 @@ const functions = require('firebase-functions');
 admin.initializeApp();
 
 // Export all functions
-exports.email = require('./email'); 
+exports.email = require('./email');
+exports.orderCancellation = require('./orderAutoCancellation'); 

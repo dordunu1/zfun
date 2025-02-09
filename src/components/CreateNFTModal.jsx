@@ -10,18 +10,52 @@ import { NFTFactoryABI } from '../abi/NFTFactory';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { parseEther } from 'viem';
-import { sepolia, polygon } from 'wagmi/chains';
-import { prepareAndUploadMetadata } from '../services/metadata';
-import { Contract } from 'ethers';
-import { saveCollection } from '../services/firebase';
-import FuturisticCard from './FuturisticCard';
-import { useAccount } from 'wagmi';
-import { useWeb3Modal } from '@web3modal/react';
+import { useAccount, useNetwork } from 'wagmi';
 import { NFTCollectionABI } from '../abi/NFTCollection';
 import * as XLSX from 'xlsx';
 import { createPortal } from 'react-dom';
 import Papa from 'papaparse';
 import Confetti from 'react-confetti';
+import { prepareAndUploadMetadata } from '../services/metadata';
+import { Contract } from 'ethers';
+import { saveCollection } from '../services/firebase';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+
+// Chain IDs configuration
+const CHAIN_IDS = {
+  SEPOLIA: 11155111,
+  POLYGON: 137,
+  UNICHAIN: 1301,
+  MOONWALKER: 1828369849
+};
+
+const NFT_FACTORY_ADDRESSES = {
+  [CHAIN_IDS.SEPOLIA]: import.meta.env.VITE_NFT_FACTORY_SEPOLIA,
+  [CHAIN_IDS.POLYGON]: import.meta.env.VITE_NFT_FACTORY_POLYGON,
+  [CHAIN_IDS.UNICHAIN]: import.meta.env.VITE_NFT_FACTORY_UNICHAIN,
+  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_NFT_FACTORY_MOONWALKER
+};
+
+const CHAIN_FEES = {
+  [CHAIN_IDS.SEPOLIA]: "0.01",    // Sepolia fee in ETH
+  [CHAIN_IDS.POLYGON]: "20",      // Polygon fee in MATIC
+  [CHAIN_IDS.UNICHAIN]: "0.01",   // Unichain fee in ETH
+  [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
+};
+
+const NETWORK_NAMES = {
+  [CHAIN_IDS.SEPOLIA]: 'Sepolia',
+  [CHAIN_IDS.POLYGON]: 'Polygon',
+  [CHAIN_IDS.UNICHAIN]: 'Unichain',
+  [CHAIN_IDS.MOONWALKER]: 'Moonwalker'
+};
+
+const NETWORK_CURRENCIES = {
+  [CHAIN_IDS.SEPOLIA]: 'ETH',
+  [CHAIN_IDS.POLYGON]: 'MATIC',
+  [CHAIN_IDS.UNICHAIN]: 'ETH',
+  [CHAIN_IDS.MOONWALKER]: 'ZERO'
+};
 
 // Add required keyframe animations at the top of the file
 const style = document.createElement('style');
@@ -153,9 +187,9 @@ const ProgressModal = ({ isOpen, onClose, currentStep, collectionName, error }) 
     return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
   };
 
-  return (
+  return createPortal(
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="fixed inset-0 z-[10000]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -252,7 +286,8 @@ const ProgressModal = ({ isOpen, onClose, currentStep, collectionName, error }) 
           </div>
         </div>
       </Dialog>
-    </Transition>
+    </Transition>,
+    document.body
   );
 };
 
@@ -337,6 +372,8 @@ const CREATION_FEES = {
   137: "20 POL",  // Polygon
   11155111: "0.015 ETH",  // Sepolia
   1: "0.015 ETH",  // Mainnet
+  1301: "0.015 ETH", // Unichain
+  1828369849: "369 ZERO", // Moonwalker
 };
 
 const setWhitelistInContract = async (collectionAddress, whitelistAddresses, signer) => {
@@ -536,6 +573,9 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
 
 export default function CreateNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
+  const { address: account } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { chain } = useNetwork();
   const [currentStep, setCurrentStep] = useState('type');
   const [newAddress, setNewAddress] = useState('');
   const [currentChainId, setCurrentChainId] = useState(null);
@@ -545,44 +585,190 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [isMintingTokenOpen, setIsMintingTokenOpen] = useState(false);
-  const [windowSize, setWindowSize] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  });
   const [formData, setFormData] = useState({
-    type: '', // ERC721 or ERC1155
+    type: '',
     name: '',
     symbol: '',
     description: '',
     website: '',
+    category: '',
     socials: {
       twitter: '',
       discord: '',
       telegram: '',
       zos: ''
     },
-    category: '',
     artwork: null,
     previewUrl: null,
-    attributes: [], // Changed from properties to attributes
+    artworkType: null,
+    attributes: [],
     mintPrice: '',
     maxSupply: '',
     maxPerWallet: '',
     releaseDate: '',
-    whitelist: false,
-    whitelistAddresses: [],
-    mintingToken: 'native', // 'native', 'usdc', 'usdt', or 'custom'
-    customTokenAddress: '',
-    customTokenSymbol: '',
     mintEndDate: '',
     infiniteMint: false,
+    enableWhitelist: false,
+    whitelistAddresses: [],
+    mintingToken: 'native',
+    customTokenAddress: '',
+    customTokenSymbol: '',
     royaltyFeePercent: '',
-    royaltyFeeNumerator: '',
+    royaltyFeeNumerator: 0,
     royaltyReceiver: ''
   });
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
-  const { address: account, isConnected } = useAccount();
-  const { open: openConnectModal } = useWeb3Modal();
+  // Add near the top of the component, after the initial state declarations
+  const [chainId, setChainId] = useState(null);
+
+  // Add chain detection effect
+  useEffect(() => {
+    const getChainId = async () => {
+      if (window.ethereum) {
+        try {
+          const id = await window.ethereum.request({ method: 'eth_chainId' });
+          setChainId(parseInt(id, 16));
+        } catch (error) {
+          console.error('Error getting chain ID:', error);
+        }
+      }
+    };
+
+    getChainId();
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', (id) => setChainId(parseInt(id, 16)));
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('chainChanged', (id) => setChainId(parseInt(id, 16)));
+      }
+    };
+  }, []);
+
+  // Add helper function to get available tokens
+  const getAvailableTokens = () => {
+    if (chainId === 1301) { // UniChain
+      return [
+        {
+          id: 'native',
+          name: 'Native Token (ETH)',
+          icon: <FaEthereum className="text-[#00ffbd]" />,
+          address: '',
+          symbol: 'ETH'
+        },
+        {
+          id: 'custom',
+          name: 'Custom Token',
+          icon: <BiWallet className="text-[#00ffbd]" />,
+          address: '',
+          symbol: ''
+        }
+      ];
+    } else if (chainId === 1828369849) { // Moonwaker
+      return [
+        {
+          id: 'zero',
+          name: 'ZERO Token',
+          icon: <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />,
+          address: '0xf4a67Fd6F54FF994b7DF9013744A79281f88766e',
+          symbol: 'ZERO'
+        },
+        {
+          id: 'custom',
+          name: 'Custom Token',
+          icon: <BiWallet className="text-[#00ffbd]" />,
+          address: '',
+          symbol: ''
+        }
+      ];
+    } else if (chainId === 137) { // Polygon
+      return [
+        {
+          id: 'native',
+          name: 'Native Token (POL)',
+          icon: <img src="/polygon.png" alt="POL" className="w-5 h-5" />,
+          address: '',
+          symbol: 'POL'
+        },
+        {
+          id: 'custom',
+          name: 'Custom Token',
+          icon: <BiWallet className="text-[#00ffbd]" />,
+          address: '',
+          symbol: ''
+        }
+      ];
+    }
+    
+    // Default or unsupported chain
+    return [
+      {
+        id: 'custom',
+        name: 'Custom Token',
+        icon: <BiWallet className="text-[#00ffbd]" />,
+        address: '',
+        symbol: ''
+      }
+    ];
+  };
+
+  // Replace the token selection UI with this
+  const renderTokenSelection = () => {
+    const availableTokens = getAvailableTokens();
+    const selectedToken = availableTokens.find(t => t.id === formData.mintingToken) || availableTokens[0];
+
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsMintingTokenOpen(!isMintingTokenOpen)}
+          className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2">
+            {selectedToken.icon}
+            <span>{formData.mintingToken === 'custom' && formData.customTokenSymbol 
+              ? formData.customTokenSymbol 
+              : selectedToken.name}</span>
+          </div>
+          <BiChevronDown className={`transition-transform ${isMintingTokenOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isMintingTokenOpen && (
+          <div className="absolute z-10 mt-1 w-full bg-white dark:bg-[#1a1b1f] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
+            {availableTokens.map((token) => (
+              <button
+                key={token.id}
+                onClick={() => {
+                  updateFormData({ 
+                    mintingToken: token.id,
+                    customTokenAddress: token.address,
+                    customTokenSymbol: token.symbol
+                  });
+                  setIsMintingTokenOpen(false);
+                }}
+                className="w-full px-4 py-2 text-left text-gray-900 dark:text-white hover:bg-[#00ffbd]/10 flex items-center gap-2"
+              >
+                {token.icon}
+                <span>{token.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const getCreationFee = React.useCallback(() => {
+    if (!chain?.id) return '...';
+    const networkConfig = Object.values(SUPPORTED_NETWORKS).find(n => n.id === chain.id);
+    if (!networkConfig) return '...';
+    return `${networkConfig.fee} ${networkConfig.nativeCurrency || 'ETH'}`;
+  }, [chain?.id]);
 
   const updateFormData = (updates) => {
     setFormData(prev => ({ ...prev, ...updates }));
@@ -692,14 +878,13 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       toast.dismiss('whitelist-info');
       
       if (!account) {
-        openConnectModal();
+        toast.error('Please connect your wallet first');
         return;
       }
 
       // Validate form data
       if (!formData.type || !formData.name || !formData.symbol || !formData.artwork) {
-        setProgressStep('error');
-        setProgressError('Please fill in all required fields');
+        toast.error('Please fill in all required fields');
         return;
       }
 
@@ -709,10 +894,14 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       const networkChainId = parseInt(currentChainId, 16);
 
       // Get factory address for current chain
-      const factoryAddress = NFT_CONTRACTS[networkChainId]?.NFT_FACTORY;
+      const networkConfig = Object.values(SUPPORTED_NETWORKS).find(n => n.id === networkChainId);
+      if (!networkConfig) {
+        toast.error('Please switch to a supported network (Unichain, Sepolia, or Moonwalker)');
+        return;
+      }
+      const factoryAddress = networkConfig.factoryAddress;
       if (!factoryAddress) {
-        setProgressStep('error');
-        setProgressError('Please switch to a supported network (Unichain or Sepolia)');
+        toast.error('Factory address not found for this network');
         return;
       }
 
@@ -721,9 +910,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       setProgressError(null);
 
       const signer2 = await provider.getSigner();
-
       // Calculate fee based on network
-      const fee = ethers.parseEther(networkChainId === 137 ? '20' : '0.015');
+      let fee;
+      if (networkChainId === CHAIN_IDS.MOONWALKER) {
+        // For moonwalker, we'll still send ETH for now until contract is updated
+        fee = ethers.parseEther("0.01"); // Keep original fee until contract update
+        toast.info('Note: 369 ZERO fee will be implemented in the next contract update');
+      } else {
+        fee = ethers.parseEther(networkConfig.fee || "0.015");
+      }
 
       try {
         // Step 1: Upload metadata
@@ -823,7 +1018,10 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         const collectionData = {
           ...formData,
           contractAddress: collectionAddress,
-          network: networkChainId === 1301 ? 'unichain' : networkChainId === 11155111 ? 'sepolia' : networkChainId === 137 ? 'polygon' : 'unknown',
+          network: networkChainId === 1301 ? 'unichain' : 
+                  networkChainId === 11155111 ? 'sepolia' : 
+                  networkChainId === 137 ? 'polygon' : 
+                  networkChainId === 1828369849 ? 'moonwalker' : 'unknown',
           chainId: networkChainId,
           previewUrl: imageHttpUrl,
           imageIpfsUrl: imageIpfsUrl,
@@ -1537,114 +1735,46 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 space-y-6">
               <div className="space-y-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Minting Currency
+                  Minting Currency *
                 </label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsMintingTokenOpen(!isMintingTokenOpen)}
-                    className={clsx(
-                      "w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5",
-                      "border border-gray-200 dark:border-gray-700",
-                      "focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none",
-                      "flex items-center justify-between"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      {formData.mintingToken === 'native' ? (
-                        <>
-                          <FaEthereum className="text-[#00ffbd]" />
-                          <span className="text-gray-900 dark:text-white">Native Token (ETH)</span>
-                        </>
-                      ) : formData.mintingToken === 'custom' ? (
-                        <>
-                          <BiWallet className="text-[#00ffbd]" />
-                          <span className="text-gray-900 dark:text-white">Custom Token</span>
-                        </>
-                      ) : (
-                        <>
-                          <BiWallet className="text-[#00ffbd]" />
-                          <span className="text-gray-900 dark:text-white">Select Token</span>
-                        </>
-                      )}
-                    </div>
-                    <BiChevronDown className={clsx(
-                      "transition-transform text-gray-900 dark:text-white",
-                      isMintingTokenOpen && "rotate-180"
-                    )} />
-                  </button>
-
-                  {isMintingTokenOpen && (
-                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-[#1a1b1f] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
-                      <button
-                        onClick={() => {
-                          updateFormData({ mintingToken: 'native', customTokenAddress: '', customTokenSymbol: '' });
-                          setIsMintingTokenOpen(false);
-                        }}
-                        className={clsx(
-                          "w-full px-4 py-2 text-left",
-                          "text-gray-900 dark:text-white",
-                          "hover:bg-[#00ffbd]/10",
-                          "flex items-center gap-2"
-                        )}
-                      >
-                        <FaEthereum className="text-[#00ffbd]" />
-                        <span>Native Token (ETH/POL)</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          updateFormData({ mintingToken: 'custom' });
-                          setIsMintingTokenOpen(false);
-                        }}
-                        className={clsx(
-                          "w-full px-4 py-2 text-left",
-                          "text-gray-900 dark:text-white",
-                          "hover:bg-[#00ffbd]/10",
-                          "flex items-center gap-2"
-                        )}
-                      >
-                        <BiWallet className="text-[#00ffbd]" />
-                        <span>Custom Token</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {formData.mintingToken === 'custom' && (
-                  <div className="mt-4 space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                        Custom Token Address
-                      </label>
-                      <input
-                        id="customTokenAddress"
-                        type="text"
-                        value={formData.customTokenAddress}
-                        onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
-                        className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                        placeholder="Enter token contract address"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                        Custom Token Symbol
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.customTokenSymbol}
-                        onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
-                        className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                        placeholder="Enter token symbol"
-                      />
-                    </div>
-                  </div>
-                )}
+                {renderTokenSelection()}
               </div>
+
+              {formData.mintingToken === 'custom' && (
+                <div className="mt-4 space-y-4 animate-[fadeIn_0.3s_ease-in-out]">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Custom Token Address *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.customTokenAddress}
+                      onChange={(e) => updateFormData({ customTokenAddress: e.target.value })}
+                      className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      placeholder="Enter token contract address"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Custom Token Symbol *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.customTokenSymbol}
+                      onChange={(e) => updateFormData({ customTokenSymbol: e.target.value })}
+                      className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                      placeholder="Enter token symbol"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Mint Price
+                    Mint Price *
                   </label>
                   <div className="relative">
                     <input
@@ -1654,37 +1784,21 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                       onChange={(e) => updateFormData({ mintPrice: e.target.value })}
                       className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg pl-16 p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                       placeholder="0.00"
+                      required
                     />
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                      {formData.mintingToken === 'native' && <FaEthereum className="text-gray-400" size={20} />}
-                      {formData.mintingToken === 'usdc' && <img src="/usdc.png" alt="USDC" className="w-5 h-5" />}
-                      {formData.mintingToken === 'usdt' && <img src="/usdt.png" alt="USDT" className="w-5 h-5" />}
-                    </div>
                   </div>
                 </div>
 
-                {/* Royalty Settings */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Royalty Fee (%)
                   </label>
                   <input
                     type="number"
-                    value={formData.royaltyFeePercent || ''}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value);
-                      if (value >= 0 && value <= 100) {
-                        updateFormData({ 
-                          royaltyFeePercent: value,
-                          royaltyFeeNumerator: Math.floor(value * 100) // Convert percent to basis points
-                        });
-                      }
-                    }}
+                    value={formData.royaltyFeePercent}
+                    onChange={(e) => updateFormData({ royaltyFeePercent: e.target.value })}
                     className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                    placeholder="Enter royalty percentage (0-100)"
-                    min="0"
-                    max="100"
-                    step="0.1"
+                    placeholder="Enter royalty percentage (0-100) (Optional)"
                   />
                 </div>
 
@@ -1694,16 +1808,16 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   </label>
                   <input
                     type="text"
-                    value={formData.royaltyReceiver || ''}
+                    value={formData.royaltyReceiver}
                     onChange={(e) => updateFormData({ royaltyReceiver: e.target.value })}
                     className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                    placeholder="Enter address"
+                    placeholder="Enter address (Optional)"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Max Supply
+                    Max Supply *
                   </label>
                   <input
                     type="number"
@@ -1711,50 +1825,43 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                     onChange={(e) => updateFormData({ maxSupply: e.target.value })}
                     className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                     placeholder="Enter max supply"
+                    required
                   />
-                </div>
-
-                {/* Max Per Wallet Input */}
-                <div className="mb-4">
-                  <label className="block text-gray-700 dark:text-gray-200 text-sm font-medium mb-2">
-                    Max Per Wallet
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="1"
-                      value={formData.maxPerWallet}
-                      onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
-                      placeholder="Enter max per wallet"
-                      className={`w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-[#00ffbd] ${
-                        formData.enableWhitelist ? 'cursor-not-allowed bg-gray-100 dark:bg-[#1a1b1f] opacity-75' : ''
-                      }`}
-                      disabled={formData.enableWhitelist}
-                    />
-                    {formData.enableWhitelist && (
-                      <div className="absolute right-3 top-2.5 text-xs text-[#00ffbd] flex items-center">
-                        <span className="mr-1">���</span> 
-                        <span className="text-gray-600 dark:text-[#00ffbd]">Whitelist Mode</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Release Date
+                    Max Per Wallet *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.maxPerWallet}
+                    onChange={(e) => updateFormData({ maxPerWallet: e.target.value })}
+                    placeholder="Enter max per wallet"
+                    className={`w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-[#00ffbd] ${
+                      formData.enableWhitelist ? 'cursor-not-allowed bg-gray-100 dark:bg-[#1a1b1f] opacity-75' : ''
+                    }`}
+                    disabled={formData.enableWhitelist}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Release Date *
                   </label>
                   <input
                     type="datetime-local"
                     value={formData.releaseDate}
                     onChange={(e) => updateFormData({ releaseDate: e.target.value })}
-                    className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none appearance-auto"
+                    className="w-full bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
+                    required
                   />
                 </div>
               </div>
 
-              {/* Whitelist Toggle */}
-              <div className="mb-4">
+              <div className="mt-6">
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -1769,8 +1876,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
               </div>
 
               {formData.enableWhitelist && (
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
+                <div className="mt-4 space-y-4">
+                  <div className="flex justify-between items-center">
                     <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Import Whitelist
                     </h3>
@@ -1784,7 +1891,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   </div>
 
                   {/* Manual address input */}
-                  <div className="flex gap-2 mb-3">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       placeholder="Enter wallet address (0x...)"
@@ -1827,29 +1934,30 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                 </div>
               )}
 
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Mint End Date
-                  </label>
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Mint End Date *
+                </label>
+                <div className="flex items-center gap-3">
                   <input
                     type="datetime-local"
-                    disabled={formData.infiniteMint}
                     value={formData.mintEndDate}
-                    onChange={(e) => setFormData({ ...formData, mintEndDate: e.target.value })}
-                    className="w-full px-3 py-2 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00ffbd] [color-scheme:light] dark:[color-scheme:dark]"
+                    onChange={(e) => updateFormData({ mintEndDate: e.target.value })}
+                    className={`flex-1 bg-white dark:bg-[#1a1b1f] text-gray-900 dark:text-white rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none ${
+                      formData.infiniteMint ? 'cursor-not-allowed opacity-50' : ''
+                    }`}
+                    disabled={formData.infiniteMint}
+                    required={!formData.infiniteMint}
                   />
-                </div>
-                <div className="flex items-center mt-6">
-                  <input
-                    type="checkbox"
-                    id="infiniteMint"
-                    checked={formData.infiniteMint}
-                    onChange={(e) => setFormData({ ...formData, infiniteMint: e.target.checked, mintEndDate: '' })}
-                    className="mr-2"
-                  />
-                  <label htmlFor="infiniteMint" className="text-sm text-gray-700 dark:text-gray-300">
-                    Infinite Mint
+                  <label className="inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.infiniteMint}
+                      onChange={(e) => updateFormData({ infiniteMint: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#00ffbd]/20 dark:peer-focus:ring-[#00ffbd]/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-[#00ffbd]"></div>
+                    <span className="ms-3 text-sm font-medium text-gray-700 dark:text-gray-300">Infinite Mint</span>
                   </label>
                 </div>
               </div>
@@ -1969,6 +2077,32 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     }
   };
 
+  // Add Moonwalker to supported networks
+  const SUPPORTED_NETWORKS = {
+    SEPOLIA: {
+      id: 11155111,
+      name: 'Sepolia',
+      factoryAddress: import.meta.env.VITE_NFT_FACTORY_SEPOLIA,
+      fee: '0.015',
+      nativeCurrency: 'ETH'
+    },
+    UNICHAIN: {
+      id: 1301,
+      name: 'Unichain',
+      factoryAddress: import.meta.env.VITE_NFT_FACTORY_UNICHAIN,
+      fee: '0.015',
+      nativeCurrency: 'ETH'
+    },
+    MOONWALKER: {
+      id: 1828369849,
+      name: 'Moonwalker',
+      factoryAddress: import.meta.env.VITE_NFT_FACTORY_MOONWALKER,
+      fee: '369',
+      nativeCurrency: 'ZERO'
+    }
+  };
+
+  // Update the createNFT function to support Moonwalker
   const createNFT = async () => {
     if (!account) {
       toast.error('Please connect your wallet first');
@@ -1981,21 +2115,22 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       const network = await provider.getNetwork();
       const chainId = Number(network.chainId);
 
-      // Validate chain
-      if (!NFT_CONTRACTS[chainId]) {
+      // Find network configuration
+      const networkConfig = Object.values(SUPPORTED_NETWORKS).find(n => n.id === chainId);
+      if (!networkConfig) {
         toast.error('Please switch to a supported network');
         return;
       }
 
       const factory = new ethers.Contract(
-        NFT_CONTRACTS[chainId],
+        networkConfig.factoryAddress,
         NFTFactoryABI,
         signer
       );
 
       // Prepare transaction with explicit chain configuration
       const txParams = {
-        value: parseEther("0.015"),
+        value: ethers.parseEther(networkConfig.fee),
         chainId: chainId,
       };
 
@@ -2036,9 +2171,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         Please connect your wallet to create an NFT collection
       </p>
       <button
-        onClick={() => {
-          openConnectModal();
-        }}
+        onClick={openConnectModal}
         className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
       >
         Connect Wallet
@@ -2061,10 +2194,6 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       setCurrentChainId(parseInt(chainId, 16));
     });
   }, []);
-
-  const getCreationFee = () => {
-    return CREATION_FEES[currentChainId] || "0.015 ETH";
-  };
 
   // Add new state for address modal
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -2141,10 +2270,10 @@ export default function CreateNFTModal({ isOpen, onClose }) {
   // Add the modal to the main render
   return (
     <>
-      <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-        <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
+      <Dialog open={isOpen} onClose={onClose} className="relative z-[9999]">
+        <div className="fixed inset-0 bg-black/70 z-[9999]" aria-hidden="true" />
         
-        <div className="fixed inset-0 flex items-center justify-center p-4">
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
           <Dialog.Panel className="relative w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-[#0a0b0f] p-6">
             <div className="relative">
               {/* L-shaped corners */}
@@ -2193,7 +2322,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   </button>
                 </div>
 
-                {!isConnected ? renderConnectPrompt() : (
+                {!account ? renderConnectPrompt() : (
                   <>
                     {/* Progress Indicator */}
                     <div className="mb-6">
@@ -2280,4 +2409,4 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       />
     </>
   );
-} 
+}

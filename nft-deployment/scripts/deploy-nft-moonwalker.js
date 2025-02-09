@@ -27,10 +27,10 @@ async function main() {
   const factoryAddress = await factory.getAddress();
   console.log("NFTFactory deployed to:", factoryAddress);
 
-  // Set initial fee for Unichain
-  const unichainFee = hre.ethers.parseEther("0.015"); // 0.015 ETH for Unichain
-  await factory.setChainFee(1301, unichainFee); // Unichain chain ID
-  console.log("Set Unichain fee to:", hre.ethers.formatEther(unichainFee), "ETH");
+  // Set initial fee for Moonwalker
+  const moonwalkerFee = hre.ethers.parseEther("369"); // 369 ZERO for Moonwalker
+  await factory.setChainFee(1828369849, moonwalkerFee); // Moonwalker chain ID
+  console.log("Set Moonwalker fee to:", hre.ethers.formatEther(moonwalkerFee), "ZERO");
 
   // Wait for fee setting to be mined
   console.log("Waiting for fee setting to be confirmed...");
@@ -50,15 +50,15 @@ async function main() {
   let envContent = fs.readFileSync(envPath, 'utf8');
   
   envContent = envContent
-    .replace(/VITE_NFT721_IMPLEMENTATION_UNICHAIN=.*/, `VITE_NFT721_IMPLEMENTATION_UNICHAIN=${nft721Address}`)
-    .replace(/VITE_NFT1155_IMPLEMENTATION_UNICHAIN=.*/, `VITE_NFT1155_IMPLEMENTATION_UNICHAIN=${nft1155Address}`)
-    .replace(/VITE_NFT_FACTORY_UNICHAIN=.*/, `VITE_NFT_FACTORY_UNICHAIN=${factoryAddress}`);
+    .replace(/VITE_NFT721_IMPLEMENTATION_MOONWALKER=.*/, `VITE_NFT721_IMPLEMENTATION_MOONWALKER=${nft721Address}`)
+    .replace(/VITE_NFT1155_IMPLEMENTATION_MOONWALKER=.*/, `VITE_NFT1155_IMPLEMENTATION_MOONWALKER=${nft1155Address}`)
+    .replace(/VITE_NFT_FACTORY_MOONWALKER=.*/, `VITE_NFT_FACTORY_MOONWALKER=${factoryAddress}`);
   
   fs.writeFileSync(envPath, envContent);
   console.log("Updated .env file with new contract addresses");
 
   // Verify contracts
-  console.log("\nVerifying contracts on Uniscan...");
+  console.log("\nVerifying contracts on Moonwalker Blockscout...");
   
   try {
     await hre.run("verify:verify", {
@@ -92,7 +92,7 @@ async function main() {
 
   console.log("\nDeployment Summary:");
   console.log("-------------------");
-  console.log("Network: Unichain");
+  console.log("Network: Moonwalker Testnet");
   console.log("NFT721 Implementation:", nft721Address);
   console.log("NFT1155 Implementation:", nft1155Address);
   console.log("NFTFactory:", factoryAddress);

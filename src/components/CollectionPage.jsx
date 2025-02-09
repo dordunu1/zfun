@@ -177,7 +177,7 @@ const Icons = {
 const ProgressModal = ({ isOpen, onClose, currentStep, error }) => {
   const steps = [
     { key: 'preparing', label: 'Preparing Transaction', icon: Icons.Preparing },
-    { key: 'uploading', label: 'Uploading Metadata', icon: Icons.UploadingMetadata },
+    { key: 'uploading', label: 'Preparing Mint', icon: Icons.UploadingMetadata },
     { key: 'minting', label: 'Minting NFT', icon: Icons.Minting },
     { key: 'completed', label: 'Minting Completed', icon: Icons.Completed }
   ];
@@ -524,7 +524,20 @@ export default function CollectionPage() {
 
   // Add this effect specifically for getting maxSupply
   useEffect(() => {
-    if (collection?.contractAddress) {
+    // Initialize maxSupply to 0 if collection is not loaded yet
+    if (!collection) {
+      setMaxSupply(0);
+      return;
+    }
+
+    // For Unichain and Moonwalker, use the collection data directly
+    if (collection.network === 'unichain' || collection.network === 'moonwalker') {
+      setMaxSupply(Number(collection.maxSupply) || 0);
+      return;
+    }
+
+    // For other networks, try to get from contract
+    if (collection.contractAddress) {
       const getMaxSupply = async () => {
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
@@ -536,17 +549,19 @@ export default function CollectionPage() {
 
           // Get maxSupply from contract config
           const config = await contract.config();
-          setMaxSupply(Number(config.maxSupply));
+          setMaxSupply(Number(config.maxSupply) || 0);
         } catch (error) {
-          console.error('Error getting max supply:', error);
           // Fallback to collection data
-          setMaxSupply(Number(collection.maxSupply));
+          setMaxSupply(Number(collection.maxSupply) || 0);
         }
       };
 
       getMaxSupply();
+    } else {
+      // Fallback to collection data if no contract address
+      setMaxSupply(Number(collection.maxSupply) || 0);
     }
-  }, [collection?.contractAddress]);
+  }, [collection]);
 
   // Add this useEffect to initialize provider
   useEffect(() => {
@@ -563,11 +578,6 @@ export default function CollectionPage() {
         try {
           // Use the payment token info directly from collection data
           const paymentToken = collection.mintToken;
-          
-          console.log('Collection payment token:', {
-            mintToken: paymentToken,
-            customTokenAddress: collection.customTokenAddress
-          });
 
           if (paymentToken && paymentToken.type === 'custom') {
             setPaymentTokenInfo({
@@ -586,7 +596,7 @@ export default function CollectionPage() {
             });
           }
         } catch (error) {
-          console.error('Error setting payment token info:', error);
+          // Silently fail
         }
       }
     };
@@ -617,28 +627,43 @@ export default function CollectionPage() {
   }, [collection?.mintToken?.address]);
 
   const renderCurrencyLogo = () => {
-    // For custom token mints
-    if (collection?.mintToken?.type === 'custom') {
-      const tokenAddress = collection.mintToken.address?.toLowerCase();
-      const logoUrl = tokenLogos[tokenAddress];
-      
-      if (logoUrl) {
-        return (
-          <img 
-            src={logoUrl}
-            alt={collection.mintToken.symbol || 'Token'}
-            className="w-5 h-5 rounded-full"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = '/token-default.png';
-            }}
-          />
-        );
+    const tokenAddress = collection?.mintToken?.address?.toLowerCase();
+    const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+
+    // Handle native tokens based on network
+    if (isNativeToken) {
+      if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) {
+        return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
       }
+      if (collection?.network === 'polygon') {
+        return <img src="/matic.png" alt="MATIC" className="w-5 h-5" />;
+      }
+      return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
+    }
+
+    // Handle ZERO token by address
+    if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+      return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
+    }
+
+    // For other custom tokens with logo
+    const logoUrl = tokenLogos[tokenAddress];
+    if (logoUrl) {
+      return (
+        <img 
+          src={logoUrl}
+          alt={collection.mintToken.symbol || 'Token'}
+          className="w-5 h-5 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/token-default.png';
+          }}
+        />
+      );
     }
     
-    // For ETH mints, use the green ETH logo
-    return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
+    // Default fallback
+    return <img src="/token-default.png" alt="Token" className="w-5 h-5 rounded-full" />;
   };
 
   // Add window size effect
@@ -714,35 +739,18 @@ export default function CollectionPage() {
   const handleMint = async () => {
     try {
       if (!account) {
-        toast.error('Please connect your wallet');
+        setProgressStep('error');
+        setShowProgressModal(true);
+        setProgressError('Please connect your wallet first');
         return;
       }
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      
-      // Get the current network
-      const network = await provider.getNetwork();
-      const chainId = Number(network.chainId);
-      
-      // Validate chain based on collection's network
-      const expectedChainId = collection.network === 'unichain' ? 1301 :
-                           collection.network === 'sepolia' ? 11155111 :
-                           collection.network === 'polygon' ? 137 : null;
-
-      if (chainId !== expectedChainId) {
-        const networkName = collection.network.charAt(0).toUpperCase() + collection.network.slice(1);
-        toast.error(`Please switch to ${networkName} network to mint this NFT`);
-        return;
-      }
-
-      // Show progress modal and set initial step
-      setShowProgressModal(true);
       setProgressStep('preparing');
+      setShowProgressModal(true);
       setProgressError(null);
 
       // Prepare metadata before minting
-      setProgressStep('uploading');
+      setProgressStep('preparing');
       const imageResponse = await fetch(collection.previewUrl);
       const imageBlob = await imageResponse.blob();
       const artworkFile = new File([imageBlob], 'artwork.png', { type: 'image/png' });
@@ -761,7 +769,26 @@ export default function CollectionPage() {
 
       // Extract IPFS hash without the protocol prefix
       const ipfsHash = metadataUrl.replace('ipfs://', '').trim();
+
+      const signer = await provider.getSigner();
       
+      // Calculate mint price in Wei
+      let mintPriceWei;
+      try {
+        if (collection.mintToken?.type === 'custom') {
+          // For custom tokens, use the price as is (no conversion needed)
+          mintPriceWei = BigInt(Math.floor(Number(collection.mintPrice) * Math.pow(10, collection.mintToken.decimals || 18)));
+        } else {
+          // For native tokens (ETH), convert to Wei
+          mintPriceWei = ethers.parseEther(collection.mintPrice.toString());
+        }
+      } catch (error) {
+        mintPriceWei = BigInt(0);
+      }
+
+      // Calculate total cost
+      const totalCost = mintPriceWei * BigInt(mintAmount);
+
       setProgressStep('minting');
 
       const nftContract = new ethers.Contract(
@@ -770,30 +797,39 @@ export default function CollectionPage() {
         signer
       );
 
-      // Use the payment token from collection data
-      const paymentToken = collection.mintToken?.address;
-      let mintPriceWei;
-      try {
-        mintPriceWei = collection.mintPrice ? ethers.parseEther(collection.mintPrice.toString()) : BigInt(0);
-      } catch (error) {
-        console.error('Error parsing mint price:', error);
-        mintPriceWei = BigInt(0);
-      }
-      const totalCost = mintPriceWei * BigInt(mintAmount);
-
       // Mint the NFT with proper parameters based on contract type
       let tx;
       if (collection.type === 'ERC1155') {
-        // For ERC1155, we need to pass tokenId (usually 0 for new mints), amount, and metadata
-        tx = await nftContract.mint(0, mintAmount, ipfsHash, {
-          value: totalCost
-        });
+        if (collection.mintToken?.type === 'custom') {
+          // First approve the NFT contract to spend the custom token
+          const tokenContract = new ethers.Contract(collection.mintToken.address, ['function approve(address spender, uint256 amount) public returns (bool)'], signer);
+          const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
+          await approveTx.wait();
+          
+          // Then mint with custom token
+          tx = await nftContract.mint(0, mintAmount, ipfsHash);
+        } else {
+          // Mint with native token (ETH)
+          tx = await nftContract.mint(0, mintAmount, ipfsHash, {
+            value: totalCost
+          });
+        }
       } else {
-        // For ERC721, we pass amount and metadata
-        tx = await nftContract.mint(mintAmount, ipfsHash, {
-          value: totalCost,
-          gasLimit: 500000 * mintAmount // Adjust gas limit based on mint amount
-        });
+        if (collection.mintToken?.type === 'custom') {
+          // First approve the NFT contract to spend the custom token
+          const tokenContract = new ethers.Contract(collection.mintToken.address, ['function approve(address spender, uint256 amount) public returns (bool)'], signer);
+          const approveTx = await tokenContract.approve(collection.contractAddress, totalCost);
+          await approveTx.wait();
+          
+          // Then mint with custom token
+          tx = await nftContract.mint(mintAmount, ipfsHash);
+        } else {
+          // Mint with native token (ETH)
+          tx = await nftContract.mint(mintAmount, ipfsHash, {
+            value: totalCost,
+            gasLimit: collection.network === 'unichain' ? 1000000 * mintAmount : 500000 * mintAmount // Higher gas limit for Unichain
+          });
+        }
       }
 
       const receipt = await tx.wait();
@@ -819,8 +855,12 @@ export default function CollectionPage() {
           formattedValue = parseFloat(ethValue).toFixed(6);
         }
       } catch (error) {
-        console.error('Error formatting values:', error);
+        // Silently handle formatting errors
       }
+
+      // Get current chain ID
+      const network = await provider.getNetwork();
+      const currentChainId = Number(network.chainId);
 
       // Save mint data to Firebase
       await saveMintData({
@@ -835,7 +875,9 @@ export default function CollectionPage() {
         name: collection.name,
         symbol: collection.symbol,
         artworkType: collection.artworkType || 'image',
-        network: chainId === 1301 ? 'unichain' : chainId === 137 ? 'polygon' : 'sepolia',
+        network: currentChainId === 1301 ? 'unichain' : 
+                currentChainId === 137 ? 'polygon' : 
+                currentChainId === 1828369849 ? 'moonwalker' : 'sepolia',
         mintPrice: formattedMintPrice,
         paymentToken: collection.mintToken || null
       });
@@ -862,9 +904,10 @@ export default function CollectionPage() {
       }, 2000);
 
     } catch (error) {
-      console.error('Error minting NFT:', error);
+      console.error('Minting error:', error);
       setProgressStep('error');
-      setProgressError(error.message || 'Failed to mint NFT. Please try again.');
+      setProgressError(error.message || 'Transaction failed');
+      // Keep the modal open to show the error
     }
   };
 
@@ -939,16 +982,6 @@ export default function CollectionPage() {
     }
   };
 
-  // Add this check when loading collection data
-  const verifyCollectionData = async () => {
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const nftContract = new ethers.Contract(collection.contractAddress, abi, provider);
-    const config = await nftContract.config();
-    
-    console.log('On-chain config:', config);
-    console.log('Local collection data:', collection);
-  };
-
   // Update the price display section to show correct price
   const renderPrice = () => {
     if (!collection?.mintPrice) return null;
@@ -975,9 +1008,16 @@ export default function CollectionPage() {
     // Determine if on wrong network
     const expectedChainId = collection.network === 'unichain' ? 1301 :
                            collection.network === 'sepolia' ? 11155111 :
+                           collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 1828369849 :
                            collection.network === 'polygon' ? 137 : null;
     
     const isWrongNetwork = currentChainId && currentChainId !== expectedChainId;
+
+    // Get network display name
+    const networkDisplayName = collection.network === 'unichain' ? 'Unichain' :
+                             collection.network === 'sepolia' ? 'Sepolia' :
+                             collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 'MoonWalker' :
+                             collection.network === 'polygon' ? 'Polygon' : 'Unknown Network';
 
     return (
       <div className="flex flex-col gap-2">
@@ -992,7 +1032,7 @@ export default function CollectionPage() {
           <button
             onClick={() => setMintAmount(Math.max(1, mintAmount - 1))}
             className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!isLive || mintAmount <= 1 || isWrongNetwork || (
+            disabled={!isLive || mintAmount <= 1 || (
               collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
             )}
           >
@@ -1010,7 +1050,7 @@ export default function CollectionPage() {
               setMintAmount(Math.min(remaining, mintAmount + 1));
             }}
             className="p-2 rounded-lg bg-white dark:bg-[#1a1b1f] text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!isLive || isWrongNetwork || (
+            disabled={!isLive || (
               collection.enableWhitelist ? (
                 !whitelistChecked || 
                 !isWhitelisted || 
@@ -1056,18 +1096,13 @@ export default function CollectionPage() {
               : 'bg-[#00ffbd] hover:bg-[#00e6a9] text-black'
           } disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-lg transition-colors`}
         >
-          {isMintEnded ? 'Mint Ended' :
-           !isLive ? 'Not Live Yet' :
-           isWrongNetwork ? `Switch to ${collection.network.charAt(0).toUpperCase() + collection.network.slice(1)} Network` :
-           collection.enableWhitelist ? (
-             !whitelistChecked ? 'Check Whitelist Status First' :
-             !isWhitelisted ? 'Address Not Whitelisted' :
-             userMintedAmount >= (whitelistEntry?.maxMint || 1) ? 'Whitelist Limit Reached' :
-             'Mint Now (Whitelist)'
-           ) : (
-             userMintedAmount >= collection.maxPerWallet ? 'Max Limit Reached' :
-             'Mint Now'
-           )
+          {!account ? 'Connect Wallet' :
+           !isLive ? 'Minting Not Live' :
+           isMintEnded ? 'Minting Ended' :
+           isWrongNetwork ? `Switch to ${networkDisplayName} Network` :
+           collection.enableWhitelist && !whitelistChecked ? 'Check Whitelist Status' :
+           collection.enableWhitelist && !isWhitelisted ? 'Not Whitelisted' :
+           'Mint Now'
           }
         </button>
       </div>
@@ -1352,7 +1387,9 @@ export default function CollectionPage() {
                           ? 'https://polygonscan.com' 
                           : collection.network === 'unichain' || collection.chainId === 1301
                             ? 'https://unichain-sepolia.blockscout.com'
-                            : 'https://sepolia.etherscan.io'
+                            : collection.network === 'moonwalker' || collection.chainId === 1828369849
+                              ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+                              : 'https://sepolia.etherscan.io'
                       }/address/${collection.creatorAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1373,7 +1410,9 @@ export default function CollectionPage() {
                         ? 'https://polygonscan.com' 
                         : collection.network === 'unichain' || collection.chainId === 1301
                           ? 'https://unichain-sepolia.blockscout.com'
-                          : 'https://sepolia.etherscan.io'
+                          : collection.network === 'moonwalker' || collection.chainId === 1828369849
+                            ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+                            : 'https://sepolia.etherscan.io'
                     }/address/${collection.contractAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"

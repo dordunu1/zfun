@@ -6,75 +6,111 @@
       "type": "constructor"
     },
     {
+      "anonymous": false,
       "inputs": [
         {
-          "internalType": "string",
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "symbol",
-          "type": "string"
-        },
-        {
-          "internalType": "uint8",
-          "name": "decimals",
-          "type": "uint8"
-        },
-        {
+          "indexed": false,
           "internalType": "uint256",
-          "name": "initialSupply",
+          "name": "chainId",
           "type": "uint256"
         },
         {
-          "internalType": "string",
-          "name": "logoURI",
-          "type": "string"
-        }
-      ],
-      "name": "createToken",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "payable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getChainFee",
-      "outputs": [
-        {
+          "indexed": false,
           "internalType": "uint256",
-          "name": "",
+          "name": "newFee",
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
-      "type": "function"
+      "name": "FeeUpdated",
+      "type": "event"
     },
     {
+      "anonymous": false,
       "inputs": [
         {
+          "indexed": true,
           "internalType": "address",
-          "name": "",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "FeeWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "maticAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidityAdded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "maticAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidityAdditionFailed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
           "type": "address"
         }
       ],
-      "name": "tokenLogos",
-      "outputs": [
-        {
-          "internalType": "string",
-          "name": "",
-          "type": "string"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
+      "name": "OwnershipTransferred",
+      "type": "event"
     },
     {
       "anonymous": false,
@@ -120,10 +156,333 @@
           "internalType": "string",
           "name": "logoURI",
           "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "isMeme",
+          "type": "bool"
         }
       ],
       "name": "TokenCreated",
       "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "chainFees",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalSupply",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "marketingWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "communityFeePercent",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidityFeePercent",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "burnFeePercent",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxWalletPercent",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxTxPercent",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "antiBot",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "autoLiquidity",
+              "type": "bool"
+            },
+            {
+              "internalType": "string",
+              "name": "logoURI",
+              "type": "string"
+            },
+            {
+              "internalType": "bool",
+              "name": "addInitialLiquidity",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "initialLiquidityPercent",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidityLockPeriod",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct TokenFactory.MemeTokenParams",
+          "name": "params",
+          "type": "tuple"
+        }
+      ],
+      "name": "createMemeToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "internalType": "uint8",
+          "name": "decimals",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "initialSupply",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "logoURI",
+          "type": "string"
+        }
+      ],
+      "name": "createToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "defaultDex",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "dexConfigs",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "router",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "factory",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "bool",
+          "name": "isActive",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getChainFee",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "memeImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "fee",
+          "type": "uint256"
+        }
+      ],
+      "name": "setChainFee",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "standardImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "tokenLogos",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawFees",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     }
   ]
 }

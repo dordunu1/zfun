@@ -142,6 +142,27 @@ export default function Dashboard() {
     const isNFT = deployment.type === 'nft';
     const collectionUrl = `/collection/${deployment.symbol}`;
 
+    // Helper to normalize network names
+    const normalizeNetworkName = (chainName) => {
+      if (!chainName) return 'unknown';
+      const name = chainName.toLowerCase();
+      switch (name) {
+        case 'unknown':
+        case 'localhost':
+        case '1828369849':
+          return 'moonwalker';
+        case 'sepolia':
+          return 'sepolia';
+        case 'unichain':
+          return 'unichain';
+        default:
+          return name;
+      }
+    };
+
+    // Get normalized network name
+    const networkName = normalizeNetworkName(deployment.chainName || deployment.network);
+
     const getExplorerUrl = (chainName, address) => {
       switch (chainName.toLowerCase()) {
         case 'sepolia':
@@ -150,6 +171,8 @@ export default function Dashboard() {
           return `https://polygonscan.com/token/${address}`;
         case 'unichain':
           return `https://unichain-sepolia.blockscout.com/token/${address}`;
+        case 'moonwalker':
+          return `https://moonwalker-sepolia.blockscout.com/token/${address}`;
         default:
           return '#';
       }
@@ -200,7 +223,7 @@ export default function Dashboard() {
               )}
             </div>
             <div className="text-xs text-gray-500">
-              on {deployment.chainName}
+              on {networkName}
             </div>
           </div>
         </div>
@@ -221,7 +244,7 @@ export default function Dashboard() {
             </Link>
           ) : (
             <a 
-              href={getExplorerUrl(deployment.chainName, deployment.address)}
+              href={getExplorerUrl(networkName, deployment.address)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-[#00ffbd] hover:text-[#00e6a9] transition-colors"

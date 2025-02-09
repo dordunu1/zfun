@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaExchangeAlt, FaPlus, FaWater, FaList } from 'react-icons/fa';
 import { useNetwork, useAccount } from 'wagmi';
-import { useWeb3Modal } from '@web3modal/react';
 import SepoliaTokenSwap from '../components/dex/TokenSwap';
 import UnichainTokenSwapV2 from '../components/dex/unichain/v2/TokenSwap';
 import UnichainTokenSwapV3 from '../components/dex/unichain/v3/TokenSwap';
@@ -22,6 +21,7 @@ import { useUniswapVersion } from '../hooks/useUniswapVersion';
 import UnichainManageLiquidityV2 from '../components/dex/unichain/v2/ManageLiquidity';
 import UnichainManageLiquidityV3 from '../components/dex/unichain/v3/ManageLiquidity';
 import { useLocation } from 'react-router-dom';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 const getTabsForVersion = (version) => {
   if (version === 'v2') {
@@ -47,11 +47,11 @@ export default function ActivityPage() {
   const [selectedPoolAddress, setSelectedPoolAddress] = useState(null);
   const { chain } = useNetwork();
   const { address: account } = useAccount();
-  const { open: openConnectModal } = useWeb3Modal();
   const [devModeEnabled, setDevModeEnabled] = useState(false);
   const [zKeyPresses, setZKeyPresses] = useState([]);
   const { version } = useUniswapVersion();
   const TABS = getTabsForVersion(version);
+  const { openConnectModal } = useConnectModal();
 
   // Modified setActiveTab to handle additional data
   const handleTabChange = (tab, data) => {

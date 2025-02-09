@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useNetwork, useSwitchNetwork } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { ethers } from 'ethers';
 import { Dialog, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
+import { Fragment } from "react";
 import { useUnichain } from '../../hooks/useUnichain';
-import { useWeb3Modal } from '@web3modal/react';
 import { BiWallet, BiTime, BiChevronDown } from 'react-icons/bi';
 import { FaGasPump, FaArrowRight, FaExchangeAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
@@ -920,8 +920,8 @@ export default function BridgePage() {
 function Bridge() {
   // Network and wallet hooks
   const { address, isConnected } = useAccount();
-  const { open: openConnectModal } = useWeb3Modal();
   const { chain } = useNetwork();
+  const { openConnectModal } = useConnectModal();
   const uniswap = useUnichain();
   
   // Add network selection state
@@ -966,26 +966,63 @@ function Bridge() {
     }
   }, [chain?.id, isConnected, selectedFromNetwork]);
 
-  // Balance update effect
+  // Balance update effect with optimized polling
   useEffect(() => {
+    let mounted = true;
+    let timeoutId;
+
     const fetchBalance = async () => {
-      if (!address) return;
-      setIsLoadingBalance(true);
+      if (!address || !mounted) return;
+      
       try {
+        setIsLoadingBalance(true);
         const provider = new ethers.BrowserProvider(window.ethereum);
         const balance = await provider.getBalance(address);
-        setEthBalance(ethers.formatEther(balance));
+        if (mounted) {
+          setEthBalance(ethers.formatEther(balance));
+          setIsLoadingBalance(false);
+        }
       } catch (error) {
-        console.error('Error fetching balance:', error);
-      } finally {
-        setIsLoadingBalance(false);
+        if (mounted) {
+          setIsLoadingBalance(false);
+        }
       }
     };
 
+    const debouncedFetch = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(fetchBalance, 1000);
+    };
+
     fetchBalance();
-    const interval = setInterval(fetchBalance, 10000);
-    return () => clearInterval(interval);
+
+    if (window.ethereum) {
+      window.ethereum.on('block', debouncedFetch);
+      window.ethereum.on('chainChanged', fetchBalance);
+      window.ethereum.on('accountsChanged', fetchBalance);
+    }
+
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (window.ethereum) {
+        window.ethereum.removeListener('block', debouncedFetch);
+        window.ethereum.removeListener('chainChanged', fetchBalance);
+        window.ethereum.removeListener('accountsChanged', fetchBalance);
+      }
+    };
   }, [address, chain?.id]);
+
+  // Add transaction status check with error handling
+  const checkTransactionStatus = useCallback(async (txHash) => {
+    try {
+      const provider = new ethers.providers.JsonRpcProvider('https://rpc.sepolia.org');
+      const receipt = await provider.getTransactionReceipt(txHash);
+      return receipt;
+    } catch (error) {
+      return null;
+    }
+  }, []);
 
   const handleAmountChange = (e) => {
     const value = e.target.value;
@@ -1013,6 +1050,7 @@ function Bridge() {
     setShowSummary(true);
   };
 
+  // Handle bridge transaction
   const handleAcceptTerms = async () => {
     setShowTerms(false);
     setShowProgress(true);
@@ -1025,16 +1063,8 @@ function Bridge() {
       const userAddress = await signer.getAddress();
       const txValue = ethers.parseEther(amount);
       
-      // Sepolia -> Unichain: Use L1StandardBridge
       const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
 
-      console.log('Bridge parameters:', {
-        to: userAddress,
-        minGasLimit: '200000',
-        value: txValue.toString()
-      });
-
-      // Let MetaMask handle gas estimation
       const tx = await l1Bridge.bridgeETHTo(
         userAddress,
         200000n,
@@ -1045,10 +1075,12 @@ function Bridge() {
       );
       
       setTxHash(tx.hash);
-      console.log('Bridge transaction sent:', tx.hash);
       
       const receipt = await tx.wait();
-      console.log('Bridge transaction confirmed:', receipt);
+      if (receipt.status === 0) {
+        throw new Error('Bridge transaction failed');
+      }
+      
       setCurrentStep('waiting');
       
       setTimeout(() => {
@@ -1057,7 +1089,6 @@ function Bridge() {
       }, 180000);
       
     } catch (error) {
-      console.error('Bridge error:', error);
       toast.error(error.message || 'Failed to bridge ETH');
       setLoading(false);
       setShowProgress(false);
@@ -1210,22 +1241,66 @@ function Bridge() {
   // Early return for wallet connection
   if (!isConnected) {
     return (
-      <div className="text-center py-8">
-        <div className="mb-4">
-          <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
+      <div className="relative">
+        {/* L-shaped corners */}
+        <div className="absolute -top-[2px] -left-[2px] w-8 h-8">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute top-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-          Connect Your Wallet
-        </h3>
-        <p className="text-gray-500 dark:text-gray-400 mb-6">
-          Please connect your wallet to start bridging
-        </p>
-        <button
-          onClick={openConnectModal}
-          className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
-        >
-          Connect Wallet
-        </button>
+        <div className="absolute -top-[2px] -right-[2px] w-8 h-8">
+          <div className="absolute top-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute top-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+        <div className="absolute -bottom-[2px] -left-[2px] w-8 h-8">
+          <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute bottom-0 left-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+        <div className="absolute -bottom-[2px] -right-[2px] w-8 h-8">
+          <div className="absolute bottom-0 right-0 w-full h-[2px] bg-[#00ffbd]" />
+          <div className="absolute bottom-0 right-0 w-[2px] h-full bg-[#00ffbd]" />
+        </div>
+
+        {/* Glowing dots in corners */}
+        <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+        <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+        <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full bg-[#00ffbd] shadow-[0_0_10px_#00ffbd]" />
+
+        {/* Three animated dots */}
+        <div className="absolute top-3 right-3 flex gap-1 z-20">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="w-1.5 h-1.5 bg-[#00ffbd] rounded-full animate-pulse"
+              style={{ animationDelay: `${i * 0.2}s` }}
+            />
+          ))}
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6 rounded-xl">
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-20 h-20 mb-6 rounded-full bg-[#e6fff7] dark:bg-[#002419] flex items-center justify-center">
+              <svg className="w-10 h-10 text-[#00ffbd]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 9l-6 6m0-6l6 6" />
+              </svg>
+            </div>
+            <h2 className="text-[28px] font-semibold text-gray-900 dark:text-white mb-4">
+              Connect Your Wallet
+            </h2>
+            <p className="text-gray-600 dark:text-[#7f8596] text-center mb-8 max-w-[460px] text-base">
+              Please connect your wallet to bridge your NFTs between networks. You'll be able to transfer your NFTs across different blockchains.
+            </p>
+            <button
+              onClick={openConnectModal}
+              className="inline-flex items-center px-6 py-3 bg-[#00ffbd] hover:bg-[#00ffbd]/90 text-black font-medium rounded-lg transition-colors duration-200"
+            >
+              <span className="mr-2">+</span>
+              Connect Wallet
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

@@ -47,23 +47,16 @@ export default function RecentMints() {
     const loadCollection = async () => {
       try {
         const collectionData = await getCollection(symbol);
-        console.log('Collection Data:', collectionData);
         setCollection(collectionData);
         
         if (collectionData?.contractAddress) {
           // Initial fetch
           const recentMints = await getRecentMints(collectionData.contractAddress, displayLimit);
-          console.log('Recent mints data:', recentMints);
 
           // Get token deployment data for the payment token
           if (collectionData.mintToken?.address) {
             const tokenAddress = collectionData.mintToken.address;
-            console.log('Looking for token deployment:', {
-              address: tokenAddress
-            });
-            
             const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
-            console.log('Token Deployment Result:', tokenDeployment);
             
             if (tokenDeployment?.logo) {
               setTokenLogos(prev => ({
@@ -83,7 +76,6 @@ export default function RecentMints() {
 
           // Subscribe to real-time updates
           const unsubscribe = subscribeToMints(collectionData.contractAddress, (updatedMints) => {
-            console.log('Subscription update - mints:', updatedMints);
             setMints(prevMints => {
               // Merge new mints with existing ones, avoiding duplicates
               const existingIds = new Set(prevMints.map(m => m.id));
@@ -95,7 +87,6 @@ export default function RecentMints() {
           return () => unsubscribe();
         }
       } catch (error) {
-        console.error('Error loading collection:', error);
         setLoading(false);
       }
     };
@@ -123,7 +114,6 @@ export default function RecentMints() {
         setDisplayLimit(newLimit);
       }
     } catch (error) {
-      console.error('Error loading more mints:', error);
       toast.error('Failed to load more mints');
     } finally {
       setLoadingMore(false);
@@ -167,7 +157,6 @@ export default function RecentMints() {
         minimumFractionDigits: 0
       });
     } catch (error) {
-      console.error('Error formatting value:', error, typeof value, value);
       return '0';
     }
   };
@@ -206,7 +195,6 @@ export default function RecentMints() {
   };
 
   const renderTokenInfo = (mint) => {
-    console.log('Rendering token info for mint:', mint);
     const explorerUrl = mint.network === 'polygon' 
       ? 'https://polygonscan.com' 
       : mint.network === 'unichain' 
@@ -248,21 +236,32 @@ export default function RecentMints() {
     );
   };
 
-  const renderCurrencyLogo = () => {
-    const tokenAddress = collection?.mintToken?.address;
-    const logoUrl = tokenLogos[tokenAddress];
-    
-    console.log('Currency Logo Render:', {
-      tokenAddress,
-      hasLogo: Boolean(logoUrl),
-      logoUrl
-    });
+  const renderCurrencyLogo = (mint) => {
+    const tokenAddress = mint?.paymentToken?.address?.toLowerCase();
+    const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
 
-    if (tokenAddress && logoUrl) {
+    // Handle native tokens based on network
+    if (isNativeToken) {
+      if (mint.network === 'moonwalker') {
+        return <img src="/Zero.png" alt="ZERO" className="w-6 h-6" />;
+      }
+      if (mint.network === 'polygon') {
+        return <img src="/matic.png" alt="MATIC" className="w-6 h-6" />;
+      }
+      return <FaEthereum className="w-6 h-6 text-[#00ffbd]" />;
+    }
+
+    // Handle ZERO token by address
+    if (tokenAddress === '0xf4a67fd6f54ff994b7df9013744a79281f88766e') {
+      return <img src="/Zero.png" alt="ZERO" className="w-6 h-6" />;
+    }
+
+    // For custom tokens with logo
+    if (tokenAddress && tokenLogos[tokenAddress]) {
       return (
         <img 
-          src={logoUrl} 
-          alt="Token"
+          src={tokenLogos[tokenAddress]}
+          alt={mint.paymentToken.symbol || 'Token'}
           className="w-6 h-6 rounded-full"
           onError={(e) => {
             e.target.onerror = null;
@@ -272,8 +271,36 @@ export default function RecentMints() {
       );
     }
     
+    // Default to token-default.png for custom tokens without logo
+    if (mint.paymentToken?.type === 'custom') {
+      return <img src="/token-default.png" alt="Token" className="w-6 h-6 rounded-full" />;
+    }
+    
     return <FaEthereum className="w-6 h-6 text-[#00ffbd]" />;
   };
+
+  // Update the useEffect to fetch logos for all payment tokens
+  useEffect(() => {
+    const fetchTokenLogos = async () => {
+      for (const mint of mints) {
+        if (mint?.paymentToken?.address && !tokenLogos[mint.paymentToken.address.toLowerCase()]) {
+          try {
+            const tokenDeployment = await getTokenDeploymentByAddress(mint.paymentToken.address);
+            if (tokenDeployment?.logo) {
+              setTokenLogos(prev => ({
+                ...prev,
+                [mint.paymentToken.address.toLowerCase()]: tokenDeployment.logo
+              }));
+            }
+          } catch (error) {
+            console.error('Error fetching token logo:', error);
+          }
+        }
+      }
+    };
+
+    fetchTokenLogos();
+  }, [mints]);
 
   if (loading) {
     return <div className="text-gray-400">Loading...</div>;
@@ -342,7 +369,7 @@ export default function RecentMints() {
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex items-center gap-1 text-[#00ffbd]">
-                    {renderCurrencyLogo()}
+                    {renderCurrencyLogo(mint)}
                     <span className="font-medium">{formatValue(mint.value)}</span>
                   </div>
                   {renderTimeWithHash(mint)}

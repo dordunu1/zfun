@@ -14,7 +14,8 @@ import {
   FaDiscord, 
   FaTwitter,
   FaChartBar,
-  FaLink
+  FaLink,
+  FaRocket
 } from 'react-icons/fa';
 import { BiHome, BiCollection, BiHistory, BiHomeAlt, BiCoin, BiStore } from 'react-icons/bi';
 import { AiOutlinePlus } from 'react-icons/ai'
@@ -110,6 +111,13 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       label: 'History',
       to: '/history',
       isRouterLink: true,
+    },
+    {
+      icon: FaRocket,
+      label: 'MemeFactory',
+      to: '/memefactory',
+      isRouterLink: true,
+      description: 'Launch your own meme token 🚀'
     },
   ];
 

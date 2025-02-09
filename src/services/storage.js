@@ -1,17 +1,51 @@
-const MAX_FILE_SIZE = 500 * 1024; // 500KB
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 export const validateFile = (file) => {
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error('File must be .jpg, .png, or .webp');
+  // Check if file exists and is a File or Blob object
+  if (!file || !(file instanceof File || file instanceof Blob)) {
+    throw new Error('Invalid file object');
   }
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error('File size must be less than 500KB');
+
+  // Get file type from either type property or name extension
+  let fileType = file.type;
+  if (!fileType && file.name) {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        fileType = 'image/jpeg';
+        break;
+      case 'png':
+        fileType = 'image/png';
+        break;
+      case 'webp':
+        fileType = 'image/webp';
+        break;
+      default:
+        throw new Error('Unsupported file type. Please use .jpg, .jpeg, .png, or .webp');
+    }
+  }
+
+  // Validate file type
+  if (!fileType || !ACCEPTED_IMAGE_TYPES.includes(fileType.toLowerCase())) {
+    throw new Error('File must be .jpg, .jpeg, .png, or .webp');
+  }
+
+  // Check file size
+  if (!file.size || file.size > MAX_FILE_SIZE) {
+    throw new Error('File size must be less than 5MB');
+  }
+
+  // Additional check for empty files
+  if (file.size === 0) {
+    throw new Error('File is empty');
   }
 };
 
 export async function uploadTokenLogo(file) {
   try {
+    // Validate file first
     validateFile(file);
     
     // Convert file to FormData
@@ -52,7 +86,7 @@ export async function uploadTokenLogo(file) {
     } else if (error.message.includes('413')) {
       throw new Error('File size too large. Please use a smaller image.');
     } else {
-      throw new Error(`Upload failed: ${error.message}`);
+      throw error;
     }
   }
 }

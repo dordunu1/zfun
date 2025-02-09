@@ -2,6 +2,7 @@
 // Sepolia: 11155111
 // Polygon Mainnet: 137
 // Unichain Testnet: 1301
+// Moonwalker: 1828369849
 
 export const NFT_CONTRACTS = {
     // Sepolia Testnet
@@ -21,6 +22,12 @@ export const NFT_CONTRACTS = {
         NFT721_IMPLEMENTATION: import.meta.env.VITE_NFT721_IMPLEMENTATION_UNICHAIN,
         NFT1155_IMPLEMENTATION: import.meta.env.VITE_NFT1155_IMPLEMENTATION_UNICHAIN,
         NFT_FACTORY: import.meta.env.VITE_NFT_FACTORY_UNICHAIN
+    },
+    // Moonwalker
+    1828369849: {
+        NFT721_IMPLEMENTATION: import.meta.env.VITE_NFT721_IMPLEMENTATION_MOONWALKER,
+        NFT1155_IMPLEMENTATION: import.meta.env.VITE_NFT1155_IMPLEMENTATION_MOONWALKER,
+        NFT_FACTORY: import.meta.env.VITE_NFT_FACTORY_MOONWALKER
     }
 };
 
@@ -37,6 +44,10 @@ export const TOKEN_CONTRACTS = {
     1301: {
         FACTORY: import.meta.env.VITE_FACTORY_ADDRESS_UNICHAIN,
         ROUTER: import.meta.env.VITE_ROUTER_ADDRESS_UNICHAIN
+    },
+    1828369849: {
+        FACTORY: import.meta.env.VITE_FACTORY_ADDRESS_MOONWALKER,
+        ROUTER: import.meta.env.VITE_ROUTER_ADDRESS_MOONWALKER
     }
 };
 
@@ -44,6 +55,7 @@ export const TOKEN_CONTRACTS = {
 // - Sepolia: 0.015 ETH
 // - Polygon: 20 POL
 // - Unichain: 0.015 ETH
+// - Moonwalker: 0.015 ZERO
 
 export const TOKEN_ADDRESSES = {
     11155111: { // Sepolia
@@ -60,5 +72,10 @@ export const TOKEN_ADDRESSES = {
         USDC: import.meta.env.VITE_UNICHAIN_USDC_ADDRESS,
         USDT: import.meta.env.VITE_UNICHAIN_USDT_ADDRESS,
         WETH: "0x4E6F7372696F00000000000000000000000000FF"
+    },
+    1828369849: { // Moonwalker
+        USDC: import.meta.env.VITE_MOONWALKER_USDC_ADDRESS,
+        USDT: import.meta.env.VITE_MOONWALKER_USDT_ADDRESS,
+        WZERO: import.meta.env.VITE_MOONWALKER_WZERO_ADDRESS
     }
 };
