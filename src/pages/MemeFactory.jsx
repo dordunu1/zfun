@@ -10,7 +10,7 @@ import clsx from 'clsx';
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import TokenFactoryABI from '../contracts/TokenFactory.json';
-import MemeTokenABI from '../../erc20-deployment/artifacts/contracts/MemeToken.sol/MemeToken.json';
+import MemeTokenABI from '../abi/MemeToken.json';
 import { uploadTokenLogo } from '../services/storage';
 import { useDeployments } from '../context/DeploymentsContext';
 import { ipfsToHttp } from '../utils/ipfs';

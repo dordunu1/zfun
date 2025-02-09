@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { BiCopy, BiRefresh, BiRocket, BiMoney, BiWater, BiLinkExternal } from 'react-icons/bi';
 import { FaFire } from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import MemeTokenABI from '../../erc20-deployment/artifacts/contracts/MemeToken.sol/MemeToken.json';
+import MemeTokenABI from '../abi/MemeToken.json';
 import { useDeployments } from '../context/DeploymentsContext';
 
 // Meme-themed animations
