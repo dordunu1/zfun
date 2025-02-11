@@ -11,7 +11,7 @@ import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
 import TokenFactoryABI from '../contracts/TokenFactory.json';
 import MemeTokenABI from '../abi/MemeToken.json';
-import { uploadTokenLogo } from '../services/storage';
+import { uploadTokenLogo, validateFile } from '../services/storage';
 import { useDeployments } from '../context/DeploymentsContext';
 import { ipfsToHttp } from '../utils/ipfs';
 import { trackTokenTransfers } from '../services/tokenTransfers';
@@ -528,27 +528,24 @@ export default function MemeFactory() {
 
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
-    console.log('Selected file:', file);
     if (file) {
-      // Validate file type
-      const fileType = file.type.toLowerCase();
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      
-      if (!validTypes.includes(fileType)) {
-        toast.error('Please select a valid image file (JPG, PNG, or WebP)');
-        return;
-      }
-      
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('File size must be less than 5MB');
-        return;
-      }
-      
-      console.log('File type:', fileType);
-      console.log('File size:', file.size);
-      setFormData(prev => ({ ...prev, logo: file }));
-      setPreviewLogo(URL.createObjectURL(file));
+      // Debug log
+      console.log('Selected file:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        isFile: file instanceof File,
+        isBlob: file instanceof Blob
+      });
+
+      // Create a new File object to ensure proper type
+      const logoFile = new File([file], file.name, {
+        type: file.type,
+        lastModified: file.lastModified
+      });
+
+      setFormData(prev => ({ ...prev, logo: logoFile }));
+      setPreviewLogo(URL.createObjectURL(logoFile));
     }
   };
 
@@ -639,20 +636,32 @@ export default function MemeFactory() {
       setProgressStep('uploading');
       setShowProgressModal(true);
 
-      // Validate logo file exists
+      // Validate logo exists
       if (!formData.logo) {
         throw new Error('Please select a logo file');
       }
 
-      console.log('Form data before upload:', formData);
-      console.log('Logo file before upload:', {
-        name: formData.logo.name,
-        type: formData.logo.type,
-        size: formData.logo.size
+      // Ensure we have a valid File object by recreating it if necessary
+      let logoFile = formData.logo;
+      if (!(logoFile instanceof File)) {
+        // If the logo was restored from localStorage, recreate the File object
+        logoFile = new File([formData.logo], formData.logo.name, {
+          type: formData.logo.type,
+          lastModified: formData.logo.lastModified
+        });
+      }
+
+      // Debug log
+      console.log('Logo file:', {
+        name: logoFile.name,
+        type: logoFile.type,
+        size: logoFile.size,
+        isFile: logoFile instanceof File,
+        isBlob: logoFile instanceof Blob
       });
 
       // Upload logo to IPFS using the storage service
-      const logoUrls = await uploadTokenLogo(formData.logo);
+      const logoUrls = await uploadTokenLogo(logoFile);
       if (!logoUrls) {
         throw new Error('Failed to upload logo');
       }

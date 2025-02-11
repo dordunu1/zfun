@@ -112,13 +112,6 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       to: '/history',
       isRouterLink: true,
     },
-    {
-      icon: FaRocket,
-      label: 'MemeFactory',
-      to: '/memefactory',
-      isRouterLink: true,
-      description: 'Launch your own meme token 🚀'
-    },
   ];
 
   const socialLinks = [
