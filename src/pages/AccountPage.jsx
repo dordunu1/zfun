@@ -92,7 +92,7 @@ const fetchBlockscoutNFTs = async (address, chainId) => {
     } else if (chainId === 1301) {
       baseUrl = 'https://unichain-sepolia.blockscout.com';
     } else if (chainId === 137) {
-      baseUrl = 'https://polygonscan.com';
+      baseUrl = 'https://polygon.blockscout.com';
     } else if (chainId === 1828369849) {
       baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
     } else if (chainId === 11155111) {
@@ -101,8 +101,64 @@ const fetchBlockscoutNFTs = async (address, chainId) => {
       return [];
     }
 
+    console.log('Fetching NFTs from Blockscout:', { baseUrl, address, chainId });
+
+    // First get all NFT tokens owned by the address
     const response = await axios.get(`${baseUrl}/api/v2/addresses/${address}/nft?type=ERC-721%2CERC-404%2CERC-1155`);
-    return response.data.items;
+    const nftTokens = response.data.items || [];
+
+    // Process each NFT token to get its transfers and metadata
+    const processedNFTs = await Promise.all(nftTokens.map(async (nft) => {
+      try {
+        // Get token transfers for this specific NFT
+        const transfersResponse = await axios.get(
+          `${baseUrl}/api/v2/tokens/${nft.token.address}/transfers`, {
+            params: {
+              type: nft.token.type,
+              holder: address,
+              token_id: nft.id
+            }
+          }
+        );
+
+        const transfers = transfersResponse.data.items || [];
+        const latestTransfer = transfers[0]; // Most recent transfer
+
+        // Get token metadata
+        const metadataResponse = await axios.get(
+          `${baseUrl}/api/v2/tokens/${nft.token.address}/instances/${nft.id}/metadata`
+        );
+        const metadata = metadataResponse.data;
+
+        return {
+          contractAddress: nft.token.address,
+          tokenId: nft.id,
+          type: nft.token.type,
+          name: metadata.name || `${nft.token.name} #${nft.id}`,
+          symbol: nft.token.symbol,
+          collectionName: nft.token.name,
+          description: metadata.description,
+          image: metadata.image,
+          balance: nft.value || '1',
+          chainId,
+          network: chainId === 137 ? 'polygon' : 
+                  chainId === 1301 ? 'unichain' :
+                  chainId === 130 ? 'unichain-mainnet' :
+                  chainId === 1828369849 ? 'moonwalker' : 'sepolia',
+          mintedAt: latestTransfer?.timestamp || Date.now(),
+          value: latestTransfer?.value || '0',
+          mintToken: {
+            address: '0x0000000000000000000000000000000000000000', // Native token
+            type: 'native'
+          }
+        };
+      } catch (error) {
+        console.error('Error processing NFT:', error);
+        return null;
+      }
+    }));
+
+    return processedNFTs.filter(Boolean); // Remove any null entries
   } catch (error) {
     console.error('Error fetching from Blockscout:', error);
     return [];
@@ -305,86 +361,85 @@ export default function AccountPage() {
         // Load owned NFTs from Firebase
         const ownedNFTs = await getOwnedNFTs(account);
         
-        // Fetch Blockscout NFTs for accurate balances based on chain
-        const chainId = chain?.id;
-        const blockscoutNFTs = await fetchBlockscoutNFTs(account, chainId);
-        
-        // Create a map of NFT balances from Blockscout
-        const balanceMap = new Map();
-        blockscoutNFTs.forEach(nft => {
-          const key = `${nft.token.address}-${nft.id}`;
-          balanceMap.set(key, parseInt(nft.value || '1'));
-        });
-        
-        // Process NFTs with accurate balances
-        const processedNFTs = ownedNFTs.flatMap(nft => {
-          const blockscoutKey = `${nft.contractAddress}-${nft.tokenId || '0'}`;
-          const blockscoutBalance = balanceMap.get(blockscoutKey) || 1;
-          
-          // For ERC1155, use balance from Blockscout
-          if (nft.type === 'ERC1155') {
-            return [{
-              ...nft,
-              tokenId: nft.tokenId || '0',
-              uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}`,
-              balance: blockscoutBalance,
-              individualMintPrice: nft.value ? String(Number(nft.value) / blockscoutBalance) : '0'
-            }];
-          }
-          
-          // For ERC721 with multiple mints in one transaction
-          const quantity = parseInt(nft.quantity || '1');
-          if (quantity > 1) {
-            return Array(quantity).fill().map((_, index) => {
-              const tokenId = String(parseInt(nft.tokenId || '0') + index);
-              return {
+        // Get NFTs from Blockscout for all supported chains
+        const supportedChains = [
+          137,  // Polygon
+          1301, // Unichain Testnet
+          130,  // Unichain Mainnet
+          1828369849, // Moonwalker
+          11155111    // Sepolia
+        ];
+
+        // Fetch NFTs from all chains in parallel
+        const chainNFTs = await Promise.all(
+          supportedChains.map(async (chainId) => {
+            try {
+              console.log(`Fetching NFTs for chain ${chainId}`);
+              const nfts = await fetchBlockscoutNFTs(account, chainId);
+              return nfts.map(nft => ({
                 ...nft,
-                tokenId,
-                uniqueId: `${nft.contractAddress}-${tokenId}-${nft.type}-${Date.now()}-${index}`,
-                individualMintPrice: nft.value ? String(Number(nft.value) / quantity) : '0'
-              };
-            });
-          }
-          
-          // For single NFTs
-          return [{
-            ...nft,
-            uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${Date.now()}`,
-            individualMintPrice: nft.value,
-            balance: nft.type === 'ERC1155' ? blockscoutBalance : 1
-          }];
-        });
+                uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${chainId}`
+              }));
+            } catch (error) {
+              console.error(`Error fetching NFTs for chain ${chainId}:`, error);
+              return [];
+            }
+          })
+        );
+
+        // Combine NFTs from all chains
+        const allNFTs = chainNFTs.flat();
         
-        // Filter NFTs based on current chain - improved chain detection
-        const filteredNFTs = processedNFTs.filter(nft => {
-          // Don't filter by chain - show all NFTs
-          return true;
+        // Create a map for quick lookup of Blockscout NFT data
+        const blockscoutNFTMap = new Map(
+          allNFTs.map(nft => [`${nft.contractAddress}-${nft.tokenId}`, nft])
+        );
+        
+        // Process and merge NFTs from Firebase with Blockscout data
+        const processedNFTs = ownedNFTs.map(nft => {
+          const blockscoutData = blockscoutNFTMap.get(`${nft.contractAddress}-${nft.tokenId}`);
+          
+          return {
+            ...nft,
+            ...blockscoutData,
+            balance: blockscoutData?.balance || nft.balance || '1',
+            uniqueId: `${nft.contractAddress}-${nft.tokenId}-${nft.type}-${nft.chainId || blockscoutData?.chainId}`,
+            network: nft.network || blockscoutData?.network || 
+              (nft.chainId === 137 ? 'polygon' :
+               nft.chainId === 1301 ? 'unichain' :
+               nft.chainId === 130 ? 'unichain-mainnet' :
+               nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
+          };
         });
 
-        // Process NFTs to ensure network information is preserved
-        const processedWithNetwork = filteredNFTs.map(nft => ({
-          ...nft,
-          network: nft.network || 
-            (nft.chainId === 11155111 ? 'sepolia' :
-             nft.chainId === 1301 ? 'unichain' :
-             nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
-        }));
+        // Add any NFTs from Blockscout that aren't in Firebase
+        const firebaseNFTKeys = new Set(
+          ownedNFTs.map(nft => `${nft.contractAddress}-${nft.tokenId}`)
+        );
 
-        // Sort NFTs by mint date (newest first)
-        const sortedNFTs = processedWithNetwork.sort((a, b) => {
+        const newBlockscoutNFTs = allNFTs.filter(
+          nft => !firebaseNFTKeys.has(`${nft.contractAddress}-${nft.tokenId}`)
+        );
+
+        // Combine all NFTs and sort by mint date
+        const finalNFTs = [...processedNFTs, ...newBlockscoutNFTs].sort((a, b) => {
           const dateA = new Date(a.mintedAt || 0);
           const dateB = new Date(b.mintedAt || 0);
           return dateB - dateA;
         });
 
-        // Get unique token addresses for minting tokens
+        // Cache and set the results
+        cacheNFTs(account, chain?.id, finalNFTs);
+        setNfts(finalNFTs);
+        setLoading(false);
+
+        // Load token logos
         const uniqueTokenAddresses = [...new Set(
-          sortedNFTs
+          finalNFTs
             .filter(nft => nft.mintToken?.address)
             .map(nft => nft.mintToken.address.toLowerCase())
         )];
 
-        // Load all token logos in parallel
         const logos = {};
         await Promise.all(
           uniqueTokenAddresses.map(async (tokenAddress) => {
@@ -399,11 +454,7 @@ export default function AccountPage() {
           })
         );
 
-        // Cache and set the results
-        cacheNFTs(account, chain?.id, processedWithNetwork);
         setTokenLogos(logos);
-        setNfts(processedWithNetwork);
-        setLoading(false);
       } catch (error) {
         console.error('Error loading fresh NFT data:', error);
         setLoading(false);
@@ -1008,7 +1059,7 @@ const getExplorerUrl = (chainId, type, value) => {
       baseUrl = 'https://unichain-sepolia.blockscout.com';
       break;
     case 137:
-      baseUrl = 'https://polygonscan.com';
+      baseUrl = 'https://polygon.blockscout.com';
       break;
     case 1828369849:
       baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';

@@ -68,28 +68,33 @@ export const getCollection = async (symbol) => {
 export const getAllCollections = async (filters = {}) => {
   try {
     let q = collection(db, 'collections');
+    const constraints = [];
 
     if (filters.network && filters.network !== 'all') {
-      if (filters.type && filters.type !== 'all') {
-        q = query(q, 
-          where('network', '==', filters.network),
-          where('type', '==', filters.type),
-          orderBy('createdAt', 'desc')
-        );
+      if (filters.network === 'unichain-mainnet') {
+        // For unichain-mainnet, we need to check both network and chainId
+        constraints.push(where('chainId', '==', 130));
+      } else if (filters.network === 'unichain') {
+        constraints.push(where('chainId', '==', 1301));
       } else {
-        q = query(q, 
-          where('network', '==', filters.network),
-          orderBy('createdAt', 'desc')
-        );
+        constraints.push(where('network', '==', filters.network));
       }
-    } else if (filters.type && filters.type !== 'all') {
-      q = query(q, 
-        where('type', '==', filters.type),
-        orderBy('createdAt', 'desc')
-      );
-    } else {
-      q = query(q, orderBy('createdAt', 'desc'));
     }
+
+    if (filters.type && filters.type !== 'all') {
+      constraints.push(where('type', '==', filters.type));
+    }
+
+    // Add isRandomMint filter if specified
+    if (filters.isRandomMint) {
+      constraints.push(where('isRandomMint', '==', true));
+    }
+
+    // Always add createdAt ordering
+    constraints.push(orderBy('createdAt', 'desc'));
+
+    // Apply all constraints to the query
+    q = query(q, ...constraints);
 
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
@@ -97,6 +102,7 @@ export const getAllCollections = async (filters = {}) => {
       ...doc.data()
     }));
   } catch (error) {
+    console.error('Error in getAllCollections:', error);
     throw error;
   }
 };

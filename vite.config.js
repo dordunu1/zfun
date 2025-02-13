@@ -24,6 +24,17 @@ export default defineConfig({
     include: ['recharts']
   },
   server: {
-    host: true
+    host: true,
+    proxy: {
+      '/polygon-api': {
+        target: 'https://api.polygonscan.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/polygon-api/, ''),
+        secure: false,
+        headers: {
+          'Access-Control-Allow-Origin': '*'
+        }
+      }
+    }
   }
 });

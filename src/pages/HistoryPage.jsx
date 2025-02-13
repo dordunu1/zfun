@@ -240,10 +240,8 @@ export default function HistoryPage() {
 
         // Format token transfers
         const formattedTokenTransfers = await Promise.all(transfers.map(async tx => {
-          // First check if token details exist in the map (for deployed tokens)
           let tokenDetails = tokenDetailsMap[tx.tokenAddress.toLowerCase()];
           
-          // If not in map, fetch from Firebase (for non-deployed tokens)
           if (!tokenDetails) {
             const fetchedDetails = await getTokenDetails(tx.tokenAddress);
             if (fetchedDetails) {
@@ -256,7 +254,6 @@ export default function HistoryPage() {
             }
           }
 
-          // Fallback if still no details
           tokenDetails = tokenDetails || {
             name: 'Unknown Token',
             symbol: 'TOKEN',
@@ -265,14 +262,25 @@ export default function HistoryPage() {
           
           const formattedAmount = ethers.formatUnits(tx.amount, tokenDetails.decimals);
           
-          // Determine the network based on the transaction's chain ID or network field
-          let network = 'sepolia'; // default
-          if (tx.chainId === 1301 || tx.network === 'unichain') {
-            network = 'unichain';
-          } else if (tx.chainId === 137 || tx.network === 'polygon') {
+          // Determine the network based on chainId first, then fallback to network field
+          let network = 'sepolia';
+          let chainId = tx.chainId;
+          
+          if (chainId === 137 || tx.network === 'polygon') {
             network = 'polygon';
-          } else if (tx.chainId === 11155111 || tx.network === 'sepolia') {
+            chainId = 137;
+          } else if (chainId === 130 || tx.network === 'unichain-mainnet') {
+            network = 'unichain-mainnet';
+            chainId = 130;
+          } else if (chainId === 1301 || tx.network === 'unichain') {
+            network = 'unichain';
+            chainId = 1301;
+          } else if (chainId === 1828369849 || tx.network === 'moonwalker') {
+            network = 'moonwalker';
+            chainId = 1828369849;
+          } else if (chainId === 11155111 || tx.network === 'sepolia') {
             network = 'sepolia';
+            chainId = 11155111;
           }
           
           return {
@@ -287,30 +295,51 @@ export default function HistoryPage() {
               ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
               : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
             address: tx.tokenAddress,
-            network: network,
+            network,
+            chainId,
             transactionHash: tx.transactionHash,
             amount: formattedAmount,
             tokenSymbol: tokenDetails.symbol,
             fromAddress: tx.fromAddress,
-            toAddress: tx.toAddress,
-            chainId: tx.chainId
+            toAddress: tx.toAddress
           };
         }));
 
         // Format token deployments
-        const formattedTokenDeployments = deployments.map(token => ({
-          id: token.address,
-          activityType: 'token_creation',
-          timestamp: token.createdAt,
-          image: token.logo,
-          title: `Created ${token.name}`,
-          subtitle: 'Token Creation',
-          address: token.address,
-          network: token.chainId === 1301 ? 'unichain' : 
-                  token.chainId === 1828369849 ? 'moonwalker' :
-                  token.chainName?.toLowerCase().includes('polygon') ? 'polygon' : 'sepolia',
-          chainId: token.chainId
-        }));
+        const formattedTokenDeployments = deployments.map(token => {
+          // Determine network and chainId based on token data
+          let network = 'sepolia';
+          let chainId = token.chainId;
+
+          if (chainId === 137 || token.chainName?.toLowerCase().includes('polygon')) {
+            network = 'polygon';
+            chainId = 137;
+          } else if (chainId === 130) {
+            network = 'unichain-mainnet';
+            chainId = 130;
+          } else if (chainId === 1301) {
+            network = 'unichain';
+            chainId = 1301;
+          } else if (chainId === 1828369849) {
+            network = 'moonwalker';
+            chainId = 1828369849;
+          } else if (chainId === 11155111) {
+            network = 'sepolia';
+            chainId = 11155111;
+          }
+
+          return {
+            id: token.address,
+            activityType: 'token_creation',
+            timestamp: token.createdAt,
+            image: token.logo,
+            title: `Created ${token.name}`,
+            subtitle: 'Token Creation',
+            address: token.address,
+            network,
+            chainId
+          };
+        });
 
         // Get unique token addresses and fetch missing details
         const uniqueTokenAddresses = new Set([
@@ -323,9 +352,30 @@ export default function HistoryPage() {
           collections.map(collection => [collection.contractAddress.toLowerCase(), collection])
         );
 
-        // Format NFT transfers
+        // Format NFT transfers with proper network identification
         const formattedNFTTransfers = transferEvents.map(tx => {
           const collection = collectionsMap.get(tx.contractAddress.toLowerCase());
+          let network = collection?.network || 'sepolia';
+          let chainId = collection?.chainId;
+
+          // Determine network and chainId based on collection or transaction data
+          if (collection?.chainId === 137 || tx.chainId === 137) {
+            network = 'polygon';
+            chainId = 137;
+          } else if (collection?.chainId === 130 || tx.chainId === 130) {
+            network = 'unichain-mainnet';
+            chainId = 130;
+          } else if (collection?.chainId === 1301 || tx.chainId === 1301) {
+            network = 'unichain';
+            chainId = 1301;
+          } else if (collection?.chainId === 1828369849 || tx.chainId === 1828369849) {
+            network = 'moonwalker';
+            chainId = 1828369849;
+          } else if (collection?.chainId === 11155111 || tx.chainId === 11155111) {
+            network = 'sepolia';
+            chainId = 11155111;
+          }
+
           return {
             id: `${tx.transactionHash}-${tx.tokenId}`,
             activityType: 'nft_transfer',
@@ -338,9 +388,8 @@ export default function HistoryPage() {
               ? `To ${tx.toAddress.slice(0, 6)}...${tx.toAddress.slice(-4)}`
               : `From ${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`,
             address: tx.contractAddress,
-            network: collection?.network || 
-                    (chain?.id === 1301 ? 'unichain' : 
-                     chain?.id === 1828369849 ? 'moonwalker' : 'sepolia'),
+            network,
+            chainId,
             symbol: collection?.symbol,
             artworkType: collection?.artworkType,
             tokenId: tx.tokenId,
@@ -370,6 +419,27 @@ export default function HistoryPage() {
             return mints
               .filter(mint => mint.minterAddress?.toLowerCase() === account.toLowerCase())
               .flatMap(mint => {
+                // Determine network and chainId based on collection data
+                let network = collection.network || 'sepolia';
+                let chainId = collection.chainId;
+
+                if (chainId === 137 || network === 'polygon') {
+                  network = 'polygon';
+                  chainId = 137;
+                } else if (chainId === 130 || network === 'unichain-mainnet') {
+                  network = 'unichain-mainnet';
+                  chainId = 130;
+                } else if (chainId === 1301 || network === 'unichain') {
+                  network = 'unichain';
+                  chainId = 1301;
+                } else if (chainId === 1828369849 || network === 'moonwalker') {
+                  network = 'moonwalker';
+                  chainId = 1828369849;
+                } else if (chainId === 11155111 || network === 'sepolia') {
+                  network = 'sepolia';
+                  chainId = 11155111;
+                }
+
                 // Handle multiple mints in a single transaction
                 const quantity = parseInt(mint.quantity || '1');
                 if (quantity > 1) {
@@ -381,7 +451,8 @@ export default function HistoryPage() {
                     title: `Minted ${collection.name} #${parseInt(mint.tokenId) + index}`,
                     subtitle: `NFT Mint #${parseInt(mint.tokenId) + index}`,
                     address: collection.contractAddress,
-                    network: collection.network,
+                    network,
+                    chainId,
                     symbol: collection.symbol,
                     artworkType: collection.artworkType,
                     transactionHash: mint.hash,
@@ -399,7 +470,8 @@ export default function HistoryPage() {
                   title: `Minted ${collection.name} #${mint.tokenId}`,
                   subtitle: `NFT Mint #${mint.tokenId}`,
                   address: collection.contractAddress,
-                  network: collection.network,
+                  network,
+                  chainId,
                   symbol: collection.symbol,
                   artworkType: collection.artworkType,
                   transactionHash: mint.hash,
@@ -510,8 +582,20 @@ export default function HistoryPage() {
       network === 'moonwalker' ? 1828369849 :
       11155111 // Sepolia as default
     );
-    
-    return getExplorerUrlFromUtils(resolvedChainId);
+
+    // Return the appropriate explorer URL based on chainId
+    switch (resolvedChainId) {
+      case 130:
+        return 'https://mainnet.uniscan.org';
+      case 1301:
+        return 'https://testnet.uniscan.org';
+      case 137:
+        return 'https://polygonscan.com';
+      case 1828369849:
+        return 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+      default:
+        return 'https://sepolia.etherscan.io';
+    }
   };
 
   const getNetworkDisplayName = (network, chainId) => {
@@ -519,7 +603,7 @@ export default function HistoryPage() {
     if (chainId) {
       switch (chainId) {
         case 130:
-          return 'Unichain';
+          return 'Unichain Mainnet';
         case 1301:
           return 'Unichain Testnet';
         case 137:
@@ -536,7 +620,7 @@ export default function HistoryPage() {
     // Fallback to network name if chainId not available
     switch (network) {
       case 'unichain-mainnet':
-        return 'Unichain';
+        return 'Unichain Mainnet';
       case 'unichain':
         return 'Unichain Testnet';
       case 'polygon':
@@ -658,7 +742,7 @@ export default function HistoryPage() {
               {/* Add transaction link */}
               {activity.transactionHash && (
                 <a
-                  href={`${getExplorerUrl(activity.network, activity.chainId)}/tx/${activity.transactionHash}`}
+                  href={getExplorerUrlFromUtils(activity.chainId, 'tx', activity.transactionHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-[#00ffbd] transition-colors"

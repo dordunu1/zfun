@@ -92,11 +92,10 @@ export default function CollectionsList() {
       .filter(collection => {
         // Network filter
         if (filters.network !== 'all') {
-          // Check both network field and chainId
           if (filters.network === 'unichain-mainnet') {
-            return collection.network === 'unichain-mainnet' || collection.chainId === 130;
+            return collection.chainId === 130;
           } else if (filters.network === 'unichain') {
-            return collection.network === 'unichain' || collection.chainId === 1301;
+            return collection.chainId === 1301;
           } else if (filters.network === 'sepolia') {
             return collection.network === 'sepolia' || collection.chainId === 11155111;
           } else if (filters.network === 'polygon') {

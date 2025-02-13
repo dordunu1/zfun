@@ -28,13 +28,13 @@ const ERC1155_ABI = [
 const NETWORK_RPC_URLS = {
   'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm',
   'unichain': 'https://sepolia.unichain.org',
-  'unichain-mainnet': 'https://mainnet.unichain.org'
+  'unichain-mainnet': 'https://unichain.blockscout.com'
 };
 
 // Helper function to get provider based on network/chainId
 const getProvider = (network, chainId) => {
   if (chainId === 130) {
-    return new ethers.JsonRpcProvider('https://mainnet.unichain.org');
+    return new ethers.JsonRpcProvider('https://unichain.blockscout.com');
   } else if (chainId === 1301) {
     return new ethers.JsonRpcProvider('https://sepolia.unichain.org');
   } else if (network === 'moonwalker' || chainId === 1828369849) {
@@ -51,8 +51,8 @@ const getExplorerUrl = (network, chainId) => {
     return 'https://unichain-sepolia.blockscout.com';
   } else if (network === 'moonwalker' || chainId === 1828369849) {
     return 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
-  } else if (network === 'polygon') {
-    return 'https://polygonscan.com';
+  } else if (network === 'polygon' || chainId === 137) {
+    return 'https://polygon.blockscout.com';
   }
   return 'https://sepolia.etherscan.io';
 };
@@ -127,15 +127,98 @@ const fetchTransferEvents = async (address, network, chainId) => {
   }
 };
 
+const fetchPolygonData = async (address) => {
+  try {
+    const apiKey = import.meta.env.VITE_POLYGONSCAN_API_KEY;
+    if (!apiKey) {
+      throw new Error('Polygonscan API key not found in environment variables');
+    }
+
+    // First, determine if this is an ERC721 or ERC1155
+    const abiResponse = await fetch(`/polygon-api/api?module=contract&action=getabi&address=${address}&apikey=${apiKey}`);
+    const abiData = await abiResponse.json();
+    
+    let isERC1155 = false;
+    if (abiData.status === '1') {
+      const abi = JSON.parse(abiData.result);
+      isERC1155 = abi.some(item => 
+        item.type === 'event' && 
+        (item.name === 'TransferBatch' || item.name === 'TransferSingle')
+      );
+    }
+
+    console.log('Contract type:', isERC1155 ? 'ERC1155' : 'ERC721');
+
+    // Get token transfers based on contract type
+    const transfersResponse = await fetch(`/polygon-api/api`, {
+      params: {
+        module: 'account',
+        action: isERC1155 ? 'token1155tx' : 'tokennfttx', // Use tokennfttx for NFT transfers
+        address: address,
+        apikey: apiKey,
+        sort: 'desc',
+        startblock: 0,
+        endblock: 99999999
+      }
+    });
+
+    const data = await transfersResponse.json();
+    console.log('Polygon transfer data:', data);
+
+    if (data.status === '1' && data.result) {
+      // Transform the data to match our expected format
+      const transfers = data.result.map(tx => ({
+        timestamp: new Date(parseInt(tx.timeStamp) * 1000),
+        type: isERC1155 ? 'ERC-1155' : 'ERC-721',
+        value: isERC1155 ? tx.tokenValue : '1', // For ERC721, each transfer is 1 NFT
+        blockNumber: parseInt(tx.blockNumber),
+        from: tx.from.toLowerCase(),
+        to: tx.to.toLowerCase()
+      }));
+      
+      // Filter out self-transfers and only count actual transfers
+      const validTransfers = transfers.filter(tx => 
+        tx.from !== tx.to && // Exclude self-transfers
+        tx.from !== '0x0000000000000000000000000000000000000000' // Include mints
+      );
+
+      return { 
+        transfers: validTransfers, 
+        tokenData: { 
+          type: isERC1155 ? 'ERC-1155' : 'ERC-721'
+        } 
+      };
+    }
+    
+    if (data.status === '0' && data.message === 'No transactions found') {
+      console.log('No transactions found for address:', address);
+    }
+    
+    return { transfers: [], tokenData: null };
+  } catch (error) {
+    console.error('Error fetching Polygon data:', error);
+    const errorMessage = error.response?.data?.message || error.message;
+    console.error('Detailed error:', errorMessage);
+    
+    if (error.message.includes('CORS')) {
+      console.error('CORS error detected. Please ensure CORS is properly configured');
+    }
+    
+    throw error;
+  }
+};
+
 const fetchBlockscoutData = async (address, network, chainId) => {
   try {
     const baseUrl = getExplorerUrl(network, chainId);
+    console.log('Using Blockscout URL:', baseUrl);
     
     // Ensure the address is properly formatted
     const formattedAddress = address?.toLowerCase();
     
     // Get token info first to determine type
     const tokenEndpoint = `/api/v2/tokens/${formattedAddress}`;
+    console.log('Fetching token info from:', `${baseUrl}${tokenEndpoint}`);
     const tokenResponse = await axios.get(`${baseUrl}${tokenEndpoint}`);
     const tokenData = tokenResponse.data;
     
@@ -145,8 +228,9 @@ const fetchBlockscoutData = async (address, network, chainId) => {
       return { transfers, tokenData };
     }
     
-    // For other token types, use Blockscout API
+    // For other token types (ERC721), use Blockscout API
     const transfersEndpoint = `/api/v2/tokens/${formattedAddress}/transfers`;
+    console.log('Fetching transfers from:', `${baseUrl}${transfersEndpoint}`);
     const transfersResponse = await axios.get(`${baseUrl}${transfersEndpoint}`);
     const transfers = transfersResponse.data.items || [];
 
