@@ -127,8 +127,8 @@ const FACTORY_ADDRESSES = {
 
 const CHAIN_FEES = {
   [CHAIN_IDS.SEPOLIA]: "0.01",    // Sepolia fee in ETH
-  [CHAIN_IDS.POLYGON]: "1",      // Polygon fee in POL
-  [CHAIN_IDS.UNICHAIN_MAINNET]: "0.0001",   // Unichain Mainnet fee in ETH
+  [CHAIN_IDS.POLYGON]: "20",      // Polygon fee in POL
+  [CHAIN_IDS.UNICHAIN_MAINNET]: "0.01",   // Unichain Mainnet fee in ETH
   [CHAIN_IDS.UNICHAIN]: "0.01",   // Unichain fee in ETH
   [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
 };
