@@ -25,22 +25,26 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 const CHAIN_IDS = {
   SEPOLIA: 11155111,
   POLYGON: 137,
+  UNICHAIN_MAINNET: 130,
   UNICHAIN: 1301,
   MOONWALKER: 1828369849
+};
+
+// Explorer URL Configuration
+const EXPLORER_URLS = {
+  [CHAIN_IDS.SEPOLIA]: 'https://sepolia.etherscan.io',
+  [CHAIN_IDS.POLYGON]: 'https://polygonscan.com',
+  [CHAIN_IDS.UNICHAIN_MAINNET]: 'https://unichain.blockscout.com',
+  [CHAIN_IDS.UNICHAIN]: 'https://unichain-sepolia.blockscout.com',
+  [CHAIN_IDS.MOONWALKER]: 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
 };
 
 const NFT_FACTORY_ADDRESSES = {
   [CHAIN_IDS.SEPOLIA]: import.meta.env.VITE_NFT_FACTORY_SEPOLIA,
   [CHAIN_IDS.POLYGON]: import.meta.env.VITE_NFT_FACTORY_POLYGON,
+  [CHAIN_IDS.UNICHAIN_MAINNET]: import.meta.env.VITE_NFT_FACTORY_UNICHAIN_MAINNET,
   [CHAIN_IDS.UNICHAIN]: import.meta.env.VITE_NFT_FACTORY_UNICHAIN,
   [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_NFT_FACTORY_MOONWALKER
-};
-
-const CHAIN_FEES = {
-  [CHAIN_IDS.SEPOLIA]: "0.01",    // Sepolia fee in ETH
-  [CHAIN_IDS.POLYGON]: "20",      // Polygon fee in MATIC
-  [CHAIN_IDS.UNICHAIN]: "0.01",   // Unichain fee in ETH
-  [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
 };
 
 const NETWORK_NAMES = {
@@ -52,7 +56,7 @@ const NETWORK_NAMES = {
 
 const NETWORK_CURRENCIES = {
   [CHAIN_IDS.SEPOLIA]: 'ETH',
-  [CHAIN_IDS.POLYGON]: 'MATIC',
+  [CHAIN_IDS.POLYGON]: 'POL',
   [CHAIN_IDS.UNICHAIN]: 'ETH',
   [CHAIN_IDS.MOONWALKER]: 'ZERO'
 };
@@ -369,7 +373,7 @@ const STEPS = [
 ];
 
 const CREATION_FEES = {
-  137: "20 POL",  // Polygon
+  137: "2 POL",  // Polygon
   11155111: "0.015 ETH",  // Sepolia
   1: "0.015 ETH",  // Mainnet
   1301: "0.015 ETH", // Unichain
@@ -571,6 +575,21 @@ const AddressModal = ({ isOpen, onClose, addresses, onRemoveAddress, onUpdateAdd
   );
 };
 
+const getExplorerUrl = (chainId, type, value) => {
+  const baseUrl = EXPLORER_URLS[chainId] || EXPLORER_URLS[CHAIN_IDS.SEPOLIA];
+  
+  switch (type) {
+    case 'tx':
+      return `${baseUrl}/tx/${value}`;
+    case 'token':
+      return `${baseUrl}/token/${value}`;
+    case 'address':
+      return `${baseUrl}/address/${value}`;
+    default:
+      return `${baseUrl}/tx/${value}`;
+  }
+};
+
 export default function CreateNFTModal({ isOpen, onClose }) {
   const navigate = useNavigate();
   const { address: account } = useAccount();
@@ -652,7 +671,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
   // Add helper function to get available tokens
   const getAvailableTokens = () => {
-    if (chainId === 1301) { // UniChain
+    if (chainId === 130) { // Unichain Mainnet
       return [
         {
           id: 'native',
@@ -669,14 +688,14 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           symbol: ''
         }
       ];
-    } else if (chainId === 1828369849) { // Moonwaker
+    } else if (chainId === 1301) { // Unichain Testnet
       return [
         {
-          id: 'zero',
-          name: 'ZERO Token',
-          icon: <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />,
-          address: '0xf4a67Fd6F54FF994b7DF9013744A79281f88766e',
-          symbol: 'ZERO'
+          id: 'native',
+          name: 'Native Token (ETH)',
+          icon: <FaEthereum className="text-[#00ffbd]" />,
+          address: '',
+          symbol: 'ETH'
         },
         {
           id: 'custom',
@@ -763,12 +782,68 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     );
   };
 
-  const getCreationFee = React.useCallback(() => {
-    if (!chain?.id) return '...';
-    const networkConfig = Object.values(SUPPORTED_NETWORKS).find(n => n.id === chain.id);
-    if (!networkConfig) return '...';
-    return `${networkConfig.fee} ${networkConfig.nativeCurrency || 'ETH'}`;
-  }, [chain?.id]);
+  const getCreationFee = async () => {
+    try {
+      // Get chain ID from window.ethereum
+      let chainId;
+      if (window.ethereum) {
+        chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        chainId = parseInt(chainId, 16);
+      }
+      
+      if (!chainId) {
+        console.error('Chain ID not available');
+        return null;
+      }
+      
+      // Get the factory contract for the current chain
+      const factoryAddress = NFT_FACTORY_ADDRESSES[chainId];
+      if (!factoryAddress) {
+        console.error('Factory address not found for chain:', chainId);
+        return null;
+      }
+
+      // Get the provider for the current chain
+      const provider = new ethers.JsonRpcProvider(
+        chainId === CHAIN_IDS.POLYGON ? "https://polygon-rpc.com" :
+        chainId === CHAIN_IDS.UNICHAIN ? "https://sepolia.unichain.org" :
+        chainId === CHAIN_IDS.UNICHAIN_MAINNET ? "https://mainnet.unichain.org" :
+        "https://polygon-rpc.com" // Default to Polygon RPC
+      );
+
+      // Create contract instance
+      const factoryContract = new ethers.Contract(
+        factoryAddress,
+        ['function chainFees(uint256) view returns (uint256)'],
+        provider
+      );
+
+      // Get the fee from the contract
+      const fee = await factoryContract.chainFees(chainId);
+      
+      // Format the fee based on the chain
+      const formattedFee = ethers.formatEther(fee);
+      const currency = NETWORK_CURRENCIES[chainId] || 'ETH';
+      
+      return `${formattedFee} ${currency}`;
+    } catch (error) {
+      console.error('Error getting creation fee:', error);
+      return null;
+    }
+  };
+
+  // Update useEffect to call getCreationFee
+  useEffect(() => {
+    const init = async () => {
+      await getCreationFee().then(fee => {
+        setFormData(prev => ({
+          ...prev,
+          fee
+        }));
+      });
+    };
+    init();
+  }, []);
 
   const updateFormData = (updates) => {
     setFormData(prev => ({ ...prev, ...updates }));
@@ -894,14 +969,19 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       const networkChainId = parseInt(currentChainId, 16);
 
       // Get factory address for current chain
-      const networkConfig = Object.values(SUPPORTED_NETWORKS).find(n => n.id === networkChainId);
-      if (!networkConfig) {
-        toast.error('Please switch to a supported network (Unichain, Sepolia, or Moonwalker)');
-        return;
+      let factoryAddress;
+      if (networkChainId === 137) { // Polygon Mainnet
+        factoryAddress = import.meta.env.VITE_NFT_FACTORY_POLYGON;
+      } else if (networkChainId === 130) { // Unichain Mainnet
+        factoryAddress = import.meta.env.VITE_NFT_FACTORY_UNICHAIN_MAINNET;
+      } else if (networkChainId === 1301) { // Unichain Testnet
+        factoryAddress = import.meta.env.VITE_NFT_FACTORY_UNICHAIN_TESTNET;
+      } else if (networkChainId === 1828369849) { // Moonwalker
+        factoryAddress = import.meta.env.VITE_NFT_FACTORY_MOONWALKER;
       }
-      const factoryAddress = networkConfig.factoryAddress;
+
       if (!factoryAddress) {
-        toast.error('Factory address not found for this network');
+        toast.error(`Factory address not found for network with chain ID ${networkChainId}`);
         return;
       }
 
@@ -910,15 +990,17 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       setProgressError(null);
 
       const signer2 = await provider.getSigner();
+      
       // Calculate fee based on network
-      let fee;
-      if (networkChainId === CHAIN_IDS.MOONWALKER) {
-        // For moonwalker, we'll still send ETH for now until contract is updated
-        fee = ethers.parseEther("0.01"); // Keep original fee until contract update
-        toast.info('Note: 369 ZERO fee will be implemented in the next contract update');
-      } else {
-        fee = ethers.parseEther(networkConfig.fee || "0.015");
+      const actualFee = await getCreationFee();
+      if (!actualFee) {
+        toast.error('Failed to get creation fee from contract');
+        return;
       }
+      // Extract just the numeric part before parsing to ether
+      const [numericFee] = actualFee.split(' '); // Split by space and take first part
+      const fee = ethers.parseEther(numericFee); // Parse only the numeric part
+      console.log('Setting fee:', fee.toString());
 
       try {
         // Step 1: Upload metadata
@@ -941,6 +1023,13 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         const maxPerWallet = formData.enableWhitelist 
           ? BigInt(1000000) // High number to effectively remove the general limit
           : BigInt(formData.maxPerWallet || 1);
+
+        // Verify fee amount before sending transaction
+        const parsedFee = Number(ethers.formatEther(fee));
+        const expectedFee = Number(numericFee);
+        if (parsedFee !== expectedFee) {
+          throw new Error(`Invalid fee amount: ${parsedFee}. Expected: ${expectedFee}`);
+        }
 
         const tx = await factory.createNFTCollection(
           {
@@ -1031,8 +1120,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
                     formData.mintingToken === 'usdt' ? 'USDT' : 
                     formData.mintingToken === 'custom' ? formData.customTokenSymbol :
-                    formData.mintingToken === 'native' ? (networkChainId === 137 ? 'MATIC' : 'ETH') :
-                    networkChainId === 137 ? 'MATIC' : 'ETH',
+                    formData.mintingToken === 'native' ? (networkChainId === 137 ? 'POL' : 'ETH') :
+                    networkChainId === 137 ? 'POL' : 'ETH',
             address: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
                     formData.mintingToken === 'custom' ? formData.customTokenAddress :
                     paymentTokenAddress || '0x0000000000000000000000000000000000000000'
@@ -1277,7 +1366,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
                   Create NFT Collection
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Choose your collection type. Creation fee: {getCreationFee()}
+                  Choose your collection type. Creation fee: {formData.fee || 'Loading...'} 
                 </p>
               </div>
 
@@ -2056,6 +2145,10 @@ export default function CreateNFTModal({ isOpen, onClose }) {
 
   const getPaymentToken = (chainId) => {
     if (!formData.mintingToken || formData.mintingToken === 'native') {
+      // Return native POL address for Polygon network
+      if (chainId === 137) {
+        return '0x0000000000000000000000000000000000001010';
+      }
       return '0x0000000000000000000000000000000000000000';
     }
     
@@ -2086,9 +2179,23 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       fee: '0.015',
       nativeCurrency: 'ETH'
     },
+    POLYGON: {
+      id: 137,
+      name: 'Polygon',
+      factoryAddress: import.meta.env.VITE_NFT_FACTORY_POLYGON,
+      fee: '20',
+      nativeCurrency: 'POL'
+    },
+    UNICHAIN_MAINNET: {
+      id: 130,
+      name: 'Unichain Mainnet',
+      factoryAddress: import.meta.env.VITE_NFT_FACTORY_UNICHAIN_MAINNET,
+      fee: '0.01',
+      nativeCurrency: 'ETH'
+    },
     UNICHAIN: {
       id: 1301,
-      name: 'Unichain',
+      name: 'Unichain Testnet',
       factoryAddress: import.meta.env.VITE_NFT_FACTORY_UNICHAIN,
       fee: '0.015',
       nativeCurrency: 'ETH'
@@ -2122,6 +2229,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         return;
       }
 
+      // Get the correct factory address and fee based on the network
       const factory = new ethers.Contract(
         networkConfig.factoryAddress,
         NFTFactoryABI,
@@ -2266,6 +2374,73 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleSuccess = async (deployedAddress, eventData, logoUrls) => {
+    try {
+      // Get chain name based on chain ID
+      const getChainName = (chainId) => {
+        switch (chainId) {
+          case CHAIN_IDS.POLYGON:
+            return 'polygon';
+          case CHAIN_IDS.SEPOLIA:
+            return 'sepolia';
+          case CHAIN_IDS.UNICHAIN_MAINNET:
+            return 'unichain-mainnet';
+          case CHAIN_IDS.UNICHAIN:
+            return 'unichain';
+          case CHAIN_IDS.MOONWALKER:
+            return 'moonwalker';
+          default:
+            return 'unknown';
+        }
+      };
+
+      const chainName = getChainName(currentChainId);
+      const { imageHttpUrl, imageIpfsUrl, metadataUrl } = logoUrls;
+
+      console.log('Saving NFT collection with data:', {
+        name: eventData.name,
+        symbol: eventData.symbol,
+        address: deployedAddress,
+        chainId: currentChainId,
+        chainName,
+        previewUrl: imageHttpUrl,
+        imageIpfsUrl: imageIpfsUrl,
+        metadataUrl: metadataUrl,
+        description: formData.description,
+        timestamp: Date.now(),
+        creatorAddress: account.toLowerCase(),
+        network: chainName
+      });
+
+      await saveCollection({
+        name: eventData.name,
+        symbol: eventData.symbol,
+        address: deployedAddress,
+        chainId: currentChainId,
+        chainName,
+        previewUrl: imageHttpUrl,
+        imageIpfsUrl: imageIpfsUrl,
+        metadataUrl: metadataUrl,
+        description: formData.description,
+        timestamp: Date.now(),
+        creatorAddress: account.toLowerCase(),
+        network: chainName
+      });
+
+      console.log('NFT collection saved successfully');
+      setDeployedTokenAddress(deployedAddress);
+      setProgressStep('completed');
+      setShowConfetti(true);
+      
+      // Clear any existing toasts
+      toast.dismiss();
+    } catch (error) {
+      console.error('Error in handleSuccess:', error);
+      setProgressError(error.message);
+      toast.error('Failed to save collection data');
+    }
+  };
 
   // Add the modal to the main render
   return (

@@ -483,6 +483,48 @@ const buttonVariants = {
   }
 };
 
+// Add NetworkStatus component
+const NetworkStatus = ({ currentChainId }) => {
+  const getNetworkInfo = () => {
+    switch (currentChainId) {
+      case 1301:
+        return {
+          name: 'Unichain Testnet',
+          status: 'supported',
+          className: 'bg-green-500/10 text-green-500 border-green-500/20'
+        };
+      case 130:
+        return {
+          name: 'Unichain Mainnet',
+          status: 'supported',
+          className: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+        };
+      default:
+        return {
+          name: 'Unsupported Network',
+          status: 'unsupported',
+          className: 'bg-red-500/10 text-red-500 border-red-500/20'
+        };
+    }
+  };
+
+  const networkInfo = getNetworkInfo();
+
+  return (
+    <div className={`px-4 py-2 rounded-xl text-sm font-medium ${networkInfo.className} border mb-4`}>
+      <div className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${networkInfo.status === 'supported' ? 'bg-current' : 'bg-red-500'}`} />
+        <span>{networkInfo.name}</span>
+      </div>
+      {networkInfo.status === 'unsupported' && (
+        <p className="text-xs mt-1">
+          Please switch to Unichain network (Testnet or Mainnet) to create pools
+        </p>
+      )}
+    </div>
+  );
+};
+
 export default function PoolCreation({ setActiveTab }) {
   const { address: isConnected } = useAccount();
   const navigate = useNavigate();
@@ -522,7 +564,7 @@ export default function PoolCreation({ setActiveTab }) {
           setCurrentChainId(parseInt(chainId, 16));
         }
       } catch (error) {
-        // Silent fail - will be handled by wagmi's chain handling
+        console.error('Error checking chain:', error);
       }
     };
 
@@ -546,18 +588,17 @@ export default function PoolCreation({ setActiveTab }) {
     };
   }, []);
 
-  // Add function to validate Ethereum address
-  const isValidAddress = (address) => {
-    try {
-      return ethers.isAddress(address);
-    } catch (error) {
-      return false;
-    }
-  };
+  // Add network validation
+  const isValidNetwork = currentChainId === 1301 || currentChainId === 130;
 
   // Handle token selection
   const handleToken0Select = async (token) => {
     try {
+      if (!isValidNetwork) {
+        toast.error('Please switch to Unichain network (Testnet or Mainnet)');
+        return;
+      }
+
       if (token.symbol === 'WETH') {
         toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
           duration: 6000,
@@ -574,7 +615,7 @@ export default function PoolCreation({ setActiveTab }) {
       if (token.symbol === 'ETH') {
         selectedToken = {
           ...token,
-          address: UNISWAP_ADDRESSES.WETH,
+          address: UNISWAP_ADDRESSES[currentChainId]?.WETH,
           decimals: 18
         };
       } else {
@@ -617,8 +658,14 @@ export default function PoolCreation({ setActiveTab }) {
       // Check for pool existence if both tokens are selected
       if (token1) {
         const provider = new ethers.BrowserProvider(window.ethereum);
+        const factoryAddress = UNISWAP_ADDRESSES[currentChainId]?.factory;
+        
+        if (!factoryAddress) {
+          throw new Error('Invalid network configuration');
+        }
+
         const factoryContract = new ethers.Contract(
-          '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+          factoryAddress,
           ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
           provider
         );
@@ -636,12 +683,18 @@ export default function PoolCreation({ setActiveTab }) {
         }
       }
     } catch (error) {
+      console.error('Error selecting token0:', error);
       toast.error('Failed to load token information. Please try again.');
     }
   };
 
   const handleToken1Select = async (token) => {
     try {
+      if (!isValidNetwork) {
+        toast.error('Please switch to Unichain network (Testnet or Mainnet)');
+        return;
+      }
+
       // Check for WETH and show warning
       if (token.symbol === 'WETH') {
         toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
@@ -659,7 +712,7 @@ export default function PoolCreation({ setActiveTab }) {
       if (token.symbol === 'ETH') {
         selectedToken = {
           ...token,
-          address: UNISWAP_ADDRESSES.WETH,
+          address: UNISWAP_ADDRESSES[currentChainId]?.WETH,
           decimals: 18
         };
       } else {
@@ -705,8 +758,14 @@ export default function PoolCreation({ setActiveTab }) {
       // Check for pool existence if both tokens are selected
       if (token0) {
         const provider = new ethers.BrowserProvider(window.ethereum);
+        const factoryAddress = UNISWAP_ADDRESSES[currentChainId]?.factory;
+        
+        if (!factoryAddress) {
+          throw new Error('Invalid network configuration');
+        }
+
         const factoryContract = new ethers.Contract(
-          '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+          factoryAddress,
           ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
           provider
         );
@@ -724,7 +783,7 @@ export default function PoolCreation({ setActiveTab }) {
         }
       }
     } catch (error) {
-      console.error('Error selecting token:', error);
+      console.error('Error selecting token1:', error);
       toast.error('Failed to load token information. Please try again.');
     }
   };
@@ -778,6 +837,11 @@ export default function PoolCreation({ setActiveTab }) {
       return;
     }
 
+    if (!isValidNetwork) {
+      toast.error('Please switch to Unichain network (Testnet or Mainnet)');
+      return;
+    }
+
     if (!token0 || !token1) {
       setError('Please select both tokens');
       setShowProgressModal(true);
@@ -799,8 +863,14 @@ export default function PoolCreation({ setActiveTab }) {
     
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const factoryAddress = UNISWAP_ADDRESSES[currentChainId]?.factory;
+      
+      if (!factoryAddress) {
+        throw new Error('Invalid network configuration');
+      }
+
       const factoryContract = new ethers.Contract(
-        '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+        factoryAddress,
         ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
         provider
       );
@@ -846,6 +916,7 @@ export default function PoolCreation({ setActiveTab }) {
         }, 30000);
       }, 1000);
     } catch (error) {
+      console.error('Pool creation error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -949,6 +1020,9 @@ export default function PoolCreation({ setActiveTab }) {
         variants={itemVariants}
         className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800"
       >
+        {/* Add NetworkStatus component */}
+        <NetworkStatus currentChainId={currentChainId} />
+
         {!isConnected ? (
           <motion.div 
             variants={itemVariants}
@@ -1136,16 +1210,16 @@ export default function PoolCreation({ setActiveTab }) {
           whileHover="hover"
           whileTap="tap"
           onClick={handleCreatePool}
-          disabled={loading || !token0 || !token1 || !amount0 || !amount1}
+          disabled={loading || !token0 || !token1 || !amount0 || !amount1 || !isValidNetwork}
           className={`
             w-full px-4 py-4 rounded-xl font-medium text-black text-lg
-            ${loading || !token0 || !token1 || !amount0 || !amount1
+            ${loading || !token0 || !token1 || !amount0 || !amount1 || !isValidNetwork
               ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
               : 'bg-[#00ffbd] hover:bg-[#00e6a9] transition-colors'
             }
           `}
         >
-          {loading ? 'Creating Pool...' : 'Create Pool'}
+          {loading ? 'Creating Pool...' : !isValidNetwork ? 'Switch to Unichain Network' : 'Create Pool'}
         </motion.button>
       )}
 
@@ -1155,12 +1229,14 @@ export default function PoolCreation({ setActiveTab }) {
         onClose={() => setShowToken0Modal(false)}
         onSelect={handleToken0Select}
         selectedTokenAddress={token0?.address}
+        currentChainId={currentChainId}
       />
       <TokenSelectionModal
         isOpen={showToken1Modal}
         onClose={() => setShowToken1Modal(false)}
         onSelect={handleToken1Select}
         selectedTokenAddress={token1?.address}
+        currentChainId={currentChainId}
       />
       <PoolProgressModal
         isOpen={showProgressModal}

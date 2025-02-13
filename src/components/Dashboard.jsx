@@ -153,6 +153,9 @@ export default function Dashboard() {
           return 'moonwalker';
         case 'sepolia':
           return 'sepolia';
+        case '130':
+          return 'unichain-mainnet';
+        case '1301':
         case 'unichain':
           return 'unichain';
         default:
@@ -169,6 +172,8 @@ export default function Dashboard() {
           return `https://sepolia.etherscan.io/token/${address}`;
         case 'polygon':
           return `https://polygonscan.com/token/${address}`;
+        case 'unichain-mainnet':
+          return `https://unichain.blockscout.com/token/${address}`;
         case 'unichain':
           return `https://unichain-sepolia.blockscout.com/token/${address}`;
         case 'moonwalker':

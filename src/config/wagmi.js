@@ -1,5 +1,5 @@
 import { createConfig, configureChains } from 'wagmi'
-import { sepolia, polygon } from 'wagmi/chains'
+import { sepolia, polygon, mainnet } from 'wagmi/chains'
 import { publicProvider } from 'wagmi/providers/public'
 import { getDefaultWallets, connectorsForWallets, darkTheme } from '@rainbow-me/rainbowkit'
 import {
@@ -17,6 +17,34 @@ if (!import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID) {
 }
 
 const projectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+
+// Define Unichain Mainnet
+const unichainMainnet = {
+  id: 130,
+  name: 'Unichain',
+  network: 'unichain-mainnet',
+  iconUrl: '/unichain-logo.png',
+  nativeCurrency: {
+    name: 'ETH',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://mainnet.unichain.org'],
+    },
+    public: {
+      http: ['https://mainnet.unichain.org'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Uniscan',
+      url: 'https://unichain.blockscout.com',
+    },
+  },
+  testnet: false,
+}
 
 // Define Unichain Testnet
 const unichainTestnet = {
@@ -40,7 +68,7 @@ const unichainTestnet = {
   blockExplorers: {
     default: {
       name: 'Uniscan',
-      url: 'https://sepolia.uniscan.xyz',
+      url: 'https://unichain-sepolia.blockscout.com',
     },
   },
   testnet: true,
@@ -76,6 +104,10 @@ const moonwalkerChain = {
 // Define available chains
 const chains = [
   {
+    ...mainnet,
+    iconUrl: '/ethereum.png'
+  },
+  {
     ...sepolia,
     iconUrl: '/sepolia.png'
   },
@@ -83,6 +115,7 @@ const chains = [
     ...polygon,
     iconUrl: '/polygon.png'
   },
+  unichainMainnet,
   unichainTestnet, 
   moonwalkerChain
 ];
@@ -151,4 +184,4 @@ const wagmiConfig = createConfig({
 
 // Export everything needed
 export { chains, wagmiConfig }
-export { unichainTestnet, moonwalkerChain }
+export { unichainMainnet, unichainTestnet, moonwalkerChain }

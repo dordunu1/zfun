@@ -93,10 +93,14 @@ export default function CollectionsList() {
         // Network filter
         if (filters.network !== 'all') {
           // Check both network field and chainId
-          if (filters.network === 'unichain') {
+          if (filters.network === 'unichain-mainnet') {
+            return collection.network === 'unichain-mainnet' || collection.chainId === 130;
+          } else if (filters.network === 'unichain') {
             return collection.network === 'unichain' || collection.chainId === 1301;
           } else if (filters.network === 'sepolia') {
             return collection.network === 'sepolia' || collection.chainId === 11155111;
+          } else if (filters.network === 'polygon') {
+            return collection.network === 'polygon' || collection.chainId === 137;
           } else if (filters.network === 'moonwalker') {
             return collection.network === 'moonwalker' || collection.chainId === 1828369849;
           }
@@ -167,7 +171,9 @@ export default function CollectionsList() {
     const networks = [
       { value: 'all', label: 'All Networks' },
       { value: 'sepolia', label: 'Sepolia' },
-      { value: 'unichain', label: 'Unichain' },
+      { value: 'unichain-mainnet', label: 'Unichain Mainnet' },
+      { value: 'unichain', label: 'Unichain Testnet' },
+      { value: 'polygon', label: 'Polygon' },
       { value: 'moonwalker', label: 'Moonwalker' }
     ];
 
@@ -388,7 +394,7 @@ export default function CollectionsList() {
         return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
       }
       if (collection?.network === 'polygon') {
-        return <img src="/matic.png" alt="MATIC" className="w-5 h-5" />;
+        return <img src="/polygon.png" alt="POL" className="w-5 h-5" />;
       }
       return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
     }

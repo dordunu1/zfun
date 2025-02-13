@@ -112,6 +112,7 @@ const Icons = {
 const CHAIN_IDS = {
   SEPOLIA: 11155111,
   POLYGON: 137,
+  UNICHAIN_MAINNET: 130,
   UNICHAIN: 1301,
   MOONWALKER: 1828369849
 };
@@ -119,6 +120,7 @@ const CHAIN_IDS = {
 const FACTORY_ADDRESSES = {
   [CHAIN_IDS.SEPOLIA]: import.meta.env.VITE_FACTORY_ADDRESS_11155111,
   [CHAIN_IDS.POLYGON]: import.meta.env.VITE_FACTORY_ADDRESS_137,
+  [CHAIN_IDS.UNICHAIN_MAINNET]: import.meta.env.VITE_FACTORY_ADDRESS_130,
   [CHAIN_IDS.UNICHAIN]: import.meta.env.VITE_FACTORY_ADDRESS_1301,
   [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_FACTORY_ADDRESS_1828369849
 };
@@ -126,6 +128,7 @@ const FACTORY_ADDRESSES = {
 const CHAIN_FEES = {
   [CHAIN_IDS.SEPOLIA]: "0.01",    // Sepolia fee in ETH
   [CHAIN_IDS.POLYGON]: "1",      // Polygon fee in POL
+  [CHAIN_IDS.UNICHAIN_MAINNET]: "0.0001",   // Unichain Mainnet fee in ETH
   [CHAIN_IDS.UNICHAIN]: "0.01",   // Unichain fee in ETH
   [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
 };
@@ -133,13 +136,15 @@ const CHAIN_FEES = {
 const NETWORK_NAMES = {
   [CHAIN_IDS.SEPOLIA]: 'Sepolia',
   [CHAIN_IDS.POLYGON]: 'Polygon',
-  [CHAIN_IDS.UNICHAIN]: 'Unichain',
+  [CHAIN_IDS.UNICHAIN_MAINNET]: 'Unichain Mainnet',
+  [CHAIN_IDS.UNICHAIN]: 'Unichain Testnet',
   [CHAIN_IDS.MOONWALKER]: 'Moonwalker'
 };
 
 const NETWORK_CURRENCIES = {
   [CHAIN_IDS.SEPOLIA]: 'ETH',
   [CHAIN_IDS.POLYGON]: 'POL',
+  [CHAIN_IDS.UNICHAIN_MAINNET]: 'ETH',
   [CHAIN_IDS.UNICHAIN]: 'ETH',
   [CHAIN_IDS.MOONWALKER]: 'ZERO'
 };
@@ -429,6 +434,14 @@ const DEX_CONFIGS = {
       addLiquidityUrl: (tokenAddress) =>
         `https://app.uniswap.org/#/add/POL/${tokenAddress}?chain=polygon`
     }
+  ],
+  130: [ // Unichain Mainnet
+    {
+      name: 'UniDex',
+      logo: '/unidex.png',
+      addLiquidityUrl: (tokenAddress) =>
+        `https://unichain.blockscout.com/token/${tokenAddress}`
+    }
   ]
 };
 
@@ -501,8 +514,12 @@ export default function CreateTokenModal({ isOpen, onClose }) {
             return 'polygon';
           case 11155111:
             return 'sepolia';
+          case 130:
+            return 'unichain-mainnet';
           case 1301:
             return 'unichain';
+          case 1828369849:
+            return 'moonwalker';
           default:
             return 'unknown';
         }

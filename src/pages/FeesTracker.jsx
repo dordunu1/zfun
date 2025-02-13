@@ -12,6 +12,22 @@ const METHOD_IDS = {
 };
 
 const CHAIN_INFO = {
+  137: {
+    name: "Polygon",
+    currency: "POL",
+    factoryAddress: import.meta.env.VITE_FACTORY_ADDRESS_137,
+    nftFactoryAddress: import.meta.env.VITE_NFT_FACTORY_POLYGON,
+    rpc: "https://polygon-rpc.com",
+    chainId: "0x89" // 137 in hex
+  },
+  130: {
+    name: "Unichain Mainnet",
+    currency: "ETH",
+    factoryAddress: import.meta.env.VITE_FACTORY_ADDRESS_130,
+    nftFactoryAddress: import.meta.env.VITE_NFT_FACTORY_UNICHAIN_MAINNET,
+    rpc: "https://mainnet.unichain.org",
+    chainId: "0x82" // 130 in hex
+  },
   1301: {
     name: "Unichain",
     currency: "ETH",
@@ -83,82 +99,164 @@ function FeesTracker() {
       try {
         const baseUrl = selectedChain === "1301" 
           ? "https://unichain-sepolia.blockscout.com"
+          : selectedChain === "130"
+          ? "https://unichain.blockscout.com"
+          : selectedChain === "137"
+          ? "https://api.polygonscan.com/api"
           : "https://moonwalker-blockscout.eu-north-2.gateway.fm";
 
-        const tokenCreationsUrl = `${baseUrl}/api/v2/addresses/${info.factoryAddress}/transactions?filter=to|from`;
-        const nftCreationsUrl = `${baseUrl}/api/v2/addresses/${info.nftFactoryAddress}/transactions?filter=to|from`;
-        
-        const [tokenResponse, nftResponse] = await Promise.all([
-          fetch(tokenCreationsUrl),
-          fetch(nftCreationsUrl)
-        ]);
+        // For Polygon, use Polygonscan API
+        if (selectedChain === "137") {
+          const apiKey = import.meta.env.VITE_POLYGONSCAN_API_KEY;
+          const tokenCreationsUrl = `${baseUrl}?module=account&action=txlist&address=${info.factoryAddress}&apikey=${apiKey}`;
+          const nftCreationsUrl = `${baseUrl}?module=account&action=txlist&address=${info.nftFactoryAddress}&apikey=${apiKey}`;
+          
+          const [tokenResponse, nftResponse] = await Promise.all([
+            fetch(tokenCreationsUrl),
+            fetch(nftCreationsUrl)
+          ]);
 
-        if (!tokenResponse.ok || !nftResponse.ok) {
-          throw new Error(`Blockscout API request failed`);
-        }
+          if (!tokenResponse.ok || !nftResponse.ok) {
+            throw new Error(`Polygonscan API request failed`);
+          }
 
-        const [tokenData, nftData] = await Promise.all([
-          tokenResponse.json(),
-          nftResponse.json()
-        ]);
-        
-        // Process NFT creations
-        if (nftData.items && Array.isArray(nftData.items)) {
-          for (const tx of nftData.items) {
-            // Check for NFT creation method calls using method ID
-            if (tx.to?.hash?.toLowerCase() === info.nftFactoryAddress?.toLowerCase() && 
-                tx.status === "ok" &&
-                (tx.method === METHOD_IDS.NFT_CREATE || tx.decoded_input?.method_id === METHOD_IDS.NFT_CREATE.slice(2))) {
-              console.log("Found NFT creation:", tx.hash, tx.method, tx.decoded_input?.method_id);
-              totalNFTCreations++;
-              const creator = tx.from?.hash?.toLowerCase();
-              if (creator) {
-                uniqueNFTCreators.add(creator);
-                
-                const txTimestamp = new Date(tx.timestamp).getTime() / 1000;
-                if (txTimestamp >= oneDayAgo) {
-                  uniqueRecentNFTCreators.add(creator);
-                  recent24hNFTCreations++;
+          const [tokenData, nftData] = await Promise.all([
+            tokenResponse.json(),
+            nftResponse.json()
+          ]);
+
+          // Process NFT creations from Polygonscan
+          if (nftData.result && Array.isArray(nftData.result)) {
+            for (const tx of nftData.result) {
+              if (tx.to?.toLowerCase() === info.nftFactoryAddress?.toLowerCase() && 
+                  tx.isError === "0" &&
+                  tx.input?.startsWith(METHOD_IDS.NFT_CREATE)) {
+                totalNFTCreations++;
+                const creator = tx.from?.toLowerCase();
+                if (creator) {
+                  uniqueNFTCreators.add(creator);
+                  
+                  const txTimestamp = parseInt(tx.timeStamp);
+                  if (txTimestamp >= oneDayAgo) {
+                    uniqueRecentNFTCreators.add(creator);
+                    recent24hNFTCreations++;
+                  }
+
+                  nftTxs.push({
+                    hash: tx.hash,
+                    creator: tx.from,
+                    timestamp: new Date(txTimestamp * 1000).toISOString(),
+                    blockNumber: tx.blockNumber
+                  });
                 }
-
-                // Store transaction details
-                nftTxs.push({
-                  hash: tx.hash,
-                  creator: tx.from.hash,
-                  timestamp: tx.timestamp,
-                  blockNumber: tx.block_number
-                });
               }
             }
           }
-        }
 
-        // Process token creations
-        if (tokenData.items && Array.isArray(tokenData.items)) {
-          for (const tx of tokenData.items) {
-            // Check for token creation method calls using method ID
-            if (tx.to?.hash?.toLowerCase() === info.factoryAddress?.toLowerCase() && 
-                tx.status === "ok" &&
-                (tx.method === METHOD_IDS.TOKEN_CREATE || tx.decoded_input?.method_id === METHOD_IDS.TOKEN_CREATE.slice(2))) {
-              console.log("Found token creation:", tx.hash, tx.method, tx.decoded_input?.method_id);
-              totalTokenCreations++;
-              const creator = tx.from?.hash?.toLowerCase();
-              if (creator) {
-                uniqueTokenCreators.add(creator);
-                
-                const txTimestamp = new Date(tx.timestamp).getTime() / 1000;
-                if (txTimestamp >= oneDayAgo) {
-                  uniqueRecentTokenCreators.add(creator);
-                  recent24hTokenCreations++;
+          // Process token creations from Polygonscan
+          if (tokenData.result && Array.isArray(tokenData.result)) {
+            for (const tx of tokenData.result) {
+              if (tx.to?.toLowerCase() === info.factoryAddress?.toLowerCase() && 
+                  tx.isError === "0" &&
+                  tx.input?.startsWith(METHOD_IDS.TOKEN_CREATE)) {
+                totalTokenCreations++;
+                const creator = tx.from?.toLowerCase();
+                if (creator) {
+                  uniqueTokenCreators.add(creator);
+                  
+                  const txTimestamp = parseInt(tx.timeStamp);
+                  if (txTimestamp >= oneDayAgo) {
+                    uniqueRecentTokenCreators.add(creator);
+                    recent24hTokenCreations++;
+                  }
+
+                  tokenTxs.push({
+                    hash: tx.hash,
+                    creator: tx.from,
+                    timestamp: new Date(txTimestamp * 1000).toISOString(),
+                    blockNumber: tx.blockNumber
+                  });
                 }
+              }
+            }
+          }
+        } else {
+          // Original Blockscout API handling for other networks
+          const tokenCreationsUrl = `${baseUrl}/api/v2/addresses/${info.factoryAddress}/transactions?filter=to|from`;
+          const nftCreationsUrl = `${baseUrl}/api/v2/addresses/${info.nftFactoryAddress}/transactions?filter=to|from`;
+          
+          const [tokenResponse, nftResponse] = await Promise.all([
+            fetch(tokenCreationsUrl),
+            fetch(nftCreationsUrl)
+          ]);
 
-                // Store transaction details
-                tokenTxs.push({
-                  hash: tx.hash,
-                  creator: tx.from.hash,
-                  timestamp: tx.timestamp,
-                  blockNumber: tx.block_number
-                });
+          if (!tokenResponse.ok || !nftResponse.ok) {
+            throw new Error(`Blockscout API request failed`);
+          }
+
+          const [tokenData, nftData] = await Promise.all([
+            tokenResponse.json(),
+            nftResponse.json()
+          ]);
+          
+          // Process NFT creations
+          if (nftData.items && Array.isArray(nftData.items)) {
+            for (const tx of nftData.items) {
+              // Check for NFT creation method calls using method ID
+              if (tx.to?.hash?.toLowerCase() === info.nftFactoryAddress?.toLowerCase() && 
+                  tx.status === "ok" &&
+                  (tx.method === METHOD_IDS.NFT_CREATE || tx.decoded_input?.method_id === METHOD_IDS.NFT_CREATE.slice(2))) {
+                console.log("Found NFT creation:", tx.hash, tx.method, tx.decoded_input?.method_id);
+                totalNFTCreations++;
+                const creator = tx.from?.hash?.toLowerCase();
+                if (creator) {
+                  uniqueNFTCreators.add(creator);
+                  
+                  const txTimestamp = new Date(tx.timestamp).getTime() / 1000;
+                  if (txTimestamp >= oneDayAgo) {
+                    uniqueRecentNFTCreators.add(creator);
+                    recent24hNFTCreations++;
+                  }
+
+                  // Store transaction details
+                  nftTxs.push({
+                    hash: tx.hash,
+                    creator: tx.from.hash,
+                    timestamp: tx.timestamp,
+                    blockNumber: tx.block_number
+                  });
+                }
+              }
+            }
+          }
+
+          // Process token creations
+          if (tokenData.items && Array.isArray(tokenData.items)) {
+            for (const tx of tokenData.items) {
+              // Check for token creation method calls using method ID
+              if (tx.to?.hash?.toLowerCase() === info.factoryAddress?.toLowerCase() && 
+                  tx.status === "ok" &&
+                  (tx.method === METHOD_IDS.TOKEN_CREATE || tx.decoded_input?.method_id === METHOD_IDS.TOKEN_CREATE.slice(2))) {
+                console.log("Found token creation:", tx.hash, tx.method, tx.decoded_input?.method_id);
+                totalTokenCreations++;
+                const creator = tx.from?.hash?.toLowerCase();
+                if (creator) {
+                  uniqueTokenCreators.add(creator);
+                  
+                  const txTimestamp = new Date(tx.timestamp).getTime() / 1000;
+                  if (txTimestamp >= oneDayAgo) {
+                    uniqueRecentTokenCreators.add(creator);
+                    recent24hTokenCreations++;
+                  }
+
+                  // Store transaction details
+                  tokenTxs.push({
+                    hash: tx.hash,
+                    creator: tx.from.hash,
+                    timestamp: tx.timestamp,
+                    blockNumber: tx.block_number
+                  });
+                }
               }
             }
           }

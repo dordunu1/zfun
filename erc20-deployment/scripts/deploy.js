@@ -3,95 +3,124 @@ const hre = require("hardhat");
 async function main() {
   console.log("Starting deployment...");
 
+  const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
+
   // Get deployer address
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying contracts with the account:", deployer.address);
 
-  // Deploy MemeToken template
-  console.log("Deploying MemeToken template...");
-  const MemeToken = await hre.ethers.getContractFactory("MemeToken");
-  const memeToken = await MemeToken.deploy(
-    "TEMPLATE", 
-    "TEMP",
-    1,
-    deployer.address, // Use deployer as marketing wallet
-    1,
-    1,
-    1,
-    1,
-    1,
-    false,
-    false
-  );
-  await memeToken.waitForDeployment();
-  console.log("MemeToken template deployed to:", await memeToken.getAddress());
-
-  // Deploy ERC20Template
-  console.log("Deploying ERC20Template...");
-  const ERC20Template = await hre.ethers.getContractFactory("ERC20Template");
-  const erc20Template = await ERC20Template.deploy();
-  await erc20Template.waitForDeployment();
-  console.log("ERC20Template deployed to:", await erc20Template.getAddress());
-
-  // Deploy TokenFactory
-  console.log("Deploying TokenFactory...");
-  const TokenFactory = await hre.ethers.getContractFactory("TokenFactory");
-  const tokenFactory = await TokenFactory.deploy();
-  await tokenFactory.waitForDeployment();
-  console.log("TokenFactory deployed to:", await tokenFactory.getAddress());
-
-  // Verify contracts
-  console.log("\nWaiting for block confirmations...");
-  await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30s for block confirmations
-
-  console.log("\nVerifying contracts on Etherscan...");
-  
-  try {
-    await hre.run("verify:verify", {
-      address: await memeToken.getAddress(),
-      constructorArguments: [
-        "TEMPLATE", 
-        "TEMP",
-        1,
-        deployer.address, // Use deployer as marketing wallet
-        1,
-        1,
-        1,
-        1,
-        1,
-        false,
-        false
-      ],
-    });
-    console.log("MemeToken template verified");
-  } catch (error) {
-    console.error("Error verifying MemeToken:", error);
-  }
+  // Get the current nonce
+  const currentNonce = await deployer.getNonce();
+  console.log("Current nonce:", currentNonce);
 
   try {
-    await hre.run("verify:verify", {
-      address: await erc20Template.getAddress(),
-      constructorArguments: [],
-    });
-    console.log("ERC20Template verified");
-  } catch (error) {
-    console.error("Error verifying ERC20Template:", error);
-  }
+    // Deploy MemeToken template
+    console.log("Deploying MemeToken template...");
+    const MemeToken = await hre.ethers.getContractFactory("MemeToken");
+    const memeToken = await MemeToken.deploy(
+      "TEMPLATE", 
+      "TEMP",
+      1,
+      deployer.address, // marketing wallet
+      1, // communityFeePercent
+      1, // liquidityFeePercent
+      1, // burnFeePercent
+      100, // maxWalletPercent
+      100, // maxTxPercent
+      false, // antiBot
+      false, // autoLiquidity
+      { nonce: currentNonce }
+    );
+    await memeToken.waitForDeployment();
+    console.log("MemeToken template deployed to:", await memeToken.getAddress());
 
-  try {
-    await hre.run("verify:verify", {
-      address: await tokenFactory.getAddress(),
-      constructorArguments: [],
-    });
-    console.log("TokenFactory verified");
-  } catch (error) {
-    console.error("Error verifying TokenFactory:", error);
-  }
+    // Deploy ERC20Template
+    console.log("Deploying ERC20Template...");
+    const ERC20Template = await hre.ethers.getContractFactory("ERC20Template");
+    const erc20Template = await ERC20Template.deploy({ nonce: currentNonce + 1 });
+    await erc20Template.waitForDeployment();
+    console.log("ERC20Template deployed to:", await erc20Template.getAddress());
 
-  console.log("\nDeployment completed!");
-  console.log("TokenFactory:", await tokenFactory.getAddress());
-  console.log("ERC20Template:", await erc20Template.getAddress());
-  console.log("MemeToken template:", await memeToken.getAddress());
+    // Deploy TokenFactory
+    console.log("Deploying TokenFactory...");
+    const TokenFactory = await hre.ethers.getContractFactory("TokenFactory");
+    const tokenFactory = await TokenFactory.deploy({ nonce: currentNonce + 2 });
+    await tokenFactory.waitForDeployment();
+    console.log("TokenFactory deployed to:", await tokenFactory.getAddress());
+
+    // Transfer ownership of TokenFactory to admin wallet
+    console.log("\nTransferring ownership to admin wallet...");
+    try {
+      const tx = await tokenFactory.transferOwnership(ADMIN_WALLET, { nonce: currentNonce + 3 });
+      await tx.wait();
+      console.log("Ownership transferred to:", ADMIN_WALLET);
+    } catch (error) {
+      console.error("Error transferring ownership:", error);
+    }
+
+    // Verify contracts
+    console.log("\nWaiting for block confirmations...");
+    await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30s for block confirmations
+
+    console.log("\nVerifying contracts on Etherscan/Blockscout...");
+    
+    try {
+      await hre.run("verify:verify", {
+        address: await memeToken.getAddress(),
+        constructorArguments: [
+          "TEMPLATE", 
+          "TEMP",
+          1,
+          deployer.address,
+          1,
+          1,
+          1,
+          100,
+          100,
+          false,
+          false
+        ],
+      });
+      console.log("MemeToken template verified");
+    } catch (error) {
+      console.error("Error verifying MemeToken:", error);
+    }
+
+    try {
+      await hre.run("verify:verify", {
+        address: await erc20Template.getAddress(),
+        constructorArguments: [],
+      });
+      console.log("ERC20Template verified");
+    } catch (error) {
+      console.error("Error verifying ERC20Template:", error);
+    }
+
+    try {
+      await hre.run("verify:verify", {
+        address: await tokenFactory.getAddress(),
+        constructorArguments: [],
+      });
+      console.log("TokenFactory verified");
+    } catch (error) {
+      console.error("Error verifying TokenFactory:", error);
+    }
+
+    console.log("\nDeployment completed!");
+    console.log("TokenFactory:", await tokenFactory.getAddress());
+    console.log("ERC20Template:", await erc20Template.getAddress());
+    console.log("MemeToken template:", await memeToken.getAddress());
+  } catch (error) {
+    console.error("\nDeployment failed:", error);
+    // If it's a nonce error, provide more helpful information
+    if (error.message.includes('nonce')) {
+      console.log("\nTry running these commands to fix nonce issues:");
+      console.log("1. npx hardhat clean");
+      console.log("2. Delete the artifacts and cache folders");
+      console.log("3. Wait a few minutes for any pending transactions to complete");
+    }
+    process.exit(1);
+  }
 }
 
 main()

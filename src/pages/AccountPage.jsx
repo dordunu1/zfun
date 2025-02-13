@@ -87,10 +87,16 @@ const cacheNFTs = (address, chainId, nfts) => {
 const fetchBlockscoutNFTs = async (address, chainId) => {
   try {
     let baseUrl;
-    if (chainId === 11155111) {
-      baseUrl = 'https://eth-sepolia.blockscout.com';
+    if (chainId === 130) {
+      baseUrl = 'https://unichain.blockscout.com';
     } else if (chainId === 1301) {
       baseUrl = 'https://unichain-sepolia.blockscout.com';
+    } else if (chainId === 137) {
+      baseUrl = 'https://polygonscan.com';
+    } else if (chainId === 1828369849) {
+      baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+    } else if (chainId === 11155111) {
+      baseUrl = 'https://eth-sepolia.blockscout.com';
     } else {
       return [];
     }
@@ -228,19 +234,20 @@ export default function AccountPage() {
   // Add filteredNFTs memo
   const filteredNFTs = useMemo(() => {
     return nfts.filter(nft => {
-      // Filter by type
+      // Type filter
       if (filters.type !== 'all' && nft.type !== filters.type) return false;
-
-      // Filter by network
+      
+      // Network filter
       if (filters.network !== 'all') {
-        const nftNetwork = nft.network || 
-          (nft.chainId === 11155111 ? 'sepolia' : 
-           nft.chainId === 1301 ? 'unichain' :
-           nft.chainId === 1828369849 ? 'moonwalker' : null);
-        
-        if (nftNetwork !== filters.network) return false;
+        const networkId = parseInt(filters.network);
+        return nft.chainId === networkId || 
+               (networkId === 11155111 && nft.network === 'sepolia') ||
+               (networkId === 130 && nft.network === 'unichain-mainnet') ||
+               (networkId === 1301 && nft.network === 'unichain') ||
+               (networkId === 137 && nft.network === 'polygon') ||
+               (networkId === 1828369849 && nft.network === 'moonwalker');
       }
-
+      
       return true;
     });
   }, [nfts, filters]);
@@ -523,9 +530,11 @@ export default function AccountPage() {
 
     const networkCount = {
       all: nfts.length,
-      sepolia: nfts.filter(nft => nft.network === 'sepolia' || nft.chainId === 11155111).length,
-      unichain: nfts.filter(nft => nft.network === 'unichain' || nft.chainId === 1301).length,
-      moonwalker: nfts.filter(nft => nft.network === 'moonwalker' || nft.chainId === 1828369849).length
+      11155111: nfts.filter(nft => nft.network === 'sepolia' || nft.chainId === 11155111).length,
+      130: nfts.filter(nft => nft.network === 'unichain-mainnet' || nft.chainId === 130).length,
+      1301: nfts.filter(nft => nft.network === 'unichain' || nft.chainId === 1301).length,
+      137: nfts.filter(nft => nft.network === 'polygon' || nft.chainId === 137).length,
+      1828369849: nfts.filter(nft => nft.network === 'moonwalker' || nft.chainId === 1828369849).length
     };
 
     const types = [
@@ -535,10 +544,21 @@ export default function AccountPage() {
     ];
 
     const networks = [
-      { value: 'all', label: `All Networks (${networkCount.all})` },
-      { value: 'sepolia', label: `Sepolia (${networkCount.sepolia})` },
-      { value: 'unichain', label: `Unichain (${networkCount.unichain})` },
-      { value: 'moonwalker', label: `Moonwalker (${networkCount.moonwalker})` }
+      { value: 'all', label: 'All Networks' },
+      { value: '11155111', label: 'Sepolia' },
+      { value: '130', label: 'Unichain Mainnet' },
+      { value: '1301', label: 'Unichain Testnet' },
+      { value: '137', label: 'Polygon' },
+      { value: '1828369849', label: 'Moonwalker' }
+    ];
+
+    const networkFilters = [
+      { id: 'all', label: `All Networks (${networkCount.all})` },
+      { id: '11155111', label: `Sepolia (${networkCount[11155111]})` },
+      { id: '130', label: `Unichain Mainnet (${networkCount[130]})` },
+      { id: '1301', label: `Unichain Testnet (${networkCount[1301]})` },
+      { id: '137', label: `Polygon (${networkCount[137]})` },
+      { id: '1828369849', label: `Moonwalker (${networkCount[1828369849]})` }
     ];
 
     return (
@@ -597,7 +617,7 @@ export default function AccountPage() {
             type="button"
             className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between text-xs"
           >
-            <span>{networks.find(n => n.value === filters.network)?.label}</span>
+            <span>{networkFilters.find(n => n.id === filters.network)?.label}</span>
             <svg
               className={`w-4 h-4 text-gray-500 transition-transform ${networkDropdownOpen ? 'rotate-180' : ''}`}
               fill="none"
@@ -613,15 +633,15 @@ export default function AccountPage() {
               onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
               onMouseLeave={() => handleMouseLeave(setNetworkDropdownOpen)}
             >
-              {networks.map(network => (
+              {networkFilters.map(network => (
                 <button
-                  key={network.value}
+                  key={network.id}
                   onClick={() => {
-                    setFilters(f => ({ ...f, network: network.value }));
+                    setFilters(f => ({ ...f, network: network.id }));
                     setNetworkDropdownOpen(false);
                   }}
                   className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 text-xs ${
-                    filters.network === network.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                    filters.network === network.id ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
                   }`}
                 >
                   {network.label}
@@ -641,13 +661,13 @@ export default function AccountPage() {
 
     // Handle native tokens based on network
     if (isNativeToken) {
-      if (nft.network === 'moonwalker') {
-        return <img src="/Zero.png" alt="ZERO" className="w-4 h-4" />;
+      if (nft?.network === 'moonwalker' || nft?.chainId === 1828369849) {
+        return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
       }
-      if (nft.network === 'polygon') {
-        return <img src="/matic.png" alt="MATIC" className="w-4 h-4" />;
+      if (nft?.network === 'polygon' || nft?.chainId === 137) {
+        return <img src="/polygon.png" alt="POL" className="w-5 h-5" />;
       }
-      return <FaEthereum className="w-4 h-4 text-[#00ffbd]" />;
+      return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
     }
 
     // Handle ZERO token by address
@@ -798,7 +818,7 @@ export default function AccountPage() {
                           const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
                           if (isNativeToken) {
                             if (nft.network === 'moonwalker' || nft.chainId === 1828369849) return 'ZERO';
-                            if (nft.network === 'polygon') return 'MATIC';
+                            if (nft.network === 'polygon' || nft.chainId === 137) return 'POL';
                             return 'ETH';
                           }
                           
@@ -976,3 +996,35 @@ export default function AccountPage() {
     </div>
   );
 } 
+
+const getExplorerUrl = (chainId, type, value) => {
+  let baseUrl;
+  
+  switch (chainId) {
+    case 130:
+      baseUrl = 'https://unichain.blockscout.com';
+      break;
+    case 1301:
+      baseUrl = 'https://unichain-sepolia.blockscout.com';
+      break;
+    case 137:
+      baseUrl = 'https://polygonscan.com';
+      break;
+    case 1828369849:
+      baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+      break;
+    default:
+      baseUrl = 'https://sepolia.etherscan.io';
+  }
+
+  switch (type) {
+    case 'tx':
+      return `${baseUrl}/tx/${value}`;
+    case 'token':
+      return `${baseUrl}/token/${value}`;
+    case 'address':
+      return `${baseUrl}/address/${value}`;
+    default:
+      return `${baseUrl}/tx/${value}`;
+  }
+}; 

@@ -14,7 +14,7 @@ async function main() {
     if (network.name === 'sepolia') {
         WETHAddress = "0xfff9976782d46cc05630d1f6ebab18b2324d6b14"; // Sepolia WETH
     } else if (network.name === 'unichain') {
-        WETHAddress = "0x4E6F7372696F00000000000000000000000000FF"; // Unichain WETH
+        WETHAddress = "0x4200000000000000000000000000000000000006"; // Unichain Mainnet WETH
     } else {
         throw new Error("Unsupported network");
     }

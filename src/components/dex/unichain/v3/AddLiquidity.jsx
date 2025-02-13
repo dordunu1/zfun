@@ -86,10 +86,11 @@ const TICK_SPACINGS = {
 };
 
 // Factory and NFT Position Manager addresses for Unichain Testnet
-const V3_ADDRESSES = {
-  factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',  // Unichain Sepolia factory
-  nftPositionManager: '0xB7F724d6dDDFd008eFf5cc2834edDE5F9eF0d075',
-  WETH: UNISWAP_ADDRESSES.WETH // Only needed for ETH<>WETH handling
+const UNISWAP_V3_ADDRESSES = {
+  factory: '0x1f984000000000000000000000000000000000003',  // Unichain Mainnet factory
+  quoter: '0x385a5cf5f83e99f7bb2852b6a19c3538b9f7658',
+  router: '0x73855d06de49d0fe49c42638ba8d4d3638a9c62a',
+  nftPositionManage: '0xb7610f9b733e7d45184be3a1bc8a847be6ec4f0b'
 };
 
 // Add multicall contract address and ABI
@@ -321,7 +322,7 @@ const usePools = () => {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const factoryContract = new ethers.Contract(
-        V3_ADDRESSES.factory,
+        UNISWAP_V3_ADDRESSES.factory,
         ['event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)'],
         provider
       );

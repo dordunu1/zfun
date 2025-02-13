@@ -41,6 +41,14 @@ module.exports = {
       accounts: [`0x${process.env.PRIVATE_KEY}`],
       chainId: 137,
       gasPrice: 100000000000 // 100 gwei in POL
+    },
+    "unichain-mainnet": {
+      url: "https://mainnet.unichain.org",
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 130,
+      gasPrice: 500000000, // 0.5 gwei
+      gas: 5000000,       // Set a fixed gas limit
+      timeout: 60000      // Increase timeout to 60 seconds
     }
   },
   sourcify: {
@@ -51,7 +59,8 @@ module.exports = {
       moonwalker: "any-string-works-here", // Blockscout doesn't require an API key
       unichain: "any-string-works-here",   // Uniscan doesn't require an API key
       sepolia: process.env.VITE_ETHERSCAN_API_KEY,
-      polygon: process.env.VITE_POLYGONSCAN_API_KEY
+      polygon: process.env.VITE_POLYGONSCAN_API_KEY,
+      "unichain-mainnet": process.env.VITE_UNICHAIN_EXPLORER_API_KEY
     },
     customChains: [
       {
@@ -66,8 +75,16 @@ module.exports = {
         network: "unichain",
         chainId: 1301,
         urls: {
-          apiURL: "https://api-sepolia.uniscan.xyz/api",
-          browserURL: "https://sepolia.uniscan.xyz"
+          apiURL: "https://unichain-sepolia.blockscout.com/api",
+          browserURL: "https://unichain-sepolia.blockscout.com"
+        }
+      },
+      {
+        network: "unichain-mainnet",
+        chainId: 130,
+        urls: {
+          apiURL: "https://unichain.blockscout.com/api",
+          browserURL: "https://unichain.blockscout.com"
         }
       }
     ]

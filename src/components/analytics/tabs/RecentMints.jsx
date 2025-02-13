@@ -197,9 +197,11 @@ export default function RecentMints() {
   const renderTokenInfo = (mint) => {
     const explorerUrl = mint.network === 'polygon' 
       ? 'https://polygonscan.com' 
-      : mint.network === 'unichain' 
-        ? 'https://unichain-sepolia.blockscout.com'
-        : 'https://sepolia.etherscan.io';
+      : mint.network === 'unichain-mainnet' || mint.chainId === 130
+        ? 'https://unichain.blockscout.com'
+        : mint.network === 'unichain' 
+          ? 'https://unichain-sepolia.blockscout.com'
+          : 'https://sepolia.etherscan.io';
 
     return (
       <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -218,9 +220,11 @@ export default function RecentMints() {
   const renderTimeWithHash = (mint) => {
     const explorerUrl = mint.network === 'polygon' 
       ? 'https://polygonscan.com' 
-      : mint.network === 'unichain' 
-        ? 'https://unichain-sepolia.blockscout.com'
-        : 'https://sepolia.etherscan.io';
+      : mint.network === 'unichain-mainnet' || mint.chainId === 130
+        ? 'https://unichain.blockscout.com'
+        : mint.network === 'unichain' 
+          ? 'https://unichain-sepolia.blockscout.com'
+          : 'https://sepolia.etherscan.io';
 
     return (
       <div className="text-sm text-gray-400">
@@ -246,7 +250,7 @@ export default function RecentMints() {
         return <img src="/Zero.png" alt="ZERO" className="w-6 h-6" />;
       }
       if (mint.network === 'polygon') {
-        return <img src="/matic.png" alt="MATIC" className="w-6 h-6" />;
+        return <img src="/polygon.png" alt="POL" className="w-6 h-6" />;
       }
       return <FaEthereum className="w-6 h-6 text-[#00ffbd]" />;
     }

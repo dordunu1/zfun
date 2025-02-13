@@ -24,31 +24,54 @@ const ERC1155_ABI = [
   'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)'
 ];
 
-// Helper function to fetch NFT data from blockchain
-const fetchTransferEvents = async (address, network) => {
+// Network RPC URLs
+const NETWORK_RPC_URLS = {
+  'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm',
+  'unichain': 'https://sepolia.unichain.org',
+  'unichain-mainnet': 'https://mainnet.unichain.org'
+};
+
+// Helper function to get provider based on network/chainId
+const getProvider = (network, chainId) => {
+  if (chainId === 130) {
+    return new ethers.JsonRpcProvider('https://mainnet.unichain.org');
+  } else if (chainId === 1301) {
+    return new ethers.JsonRpcProvider('https://sepolia.unichain.org');
+  } else if (network === 'moonwalker' || chainId === 1828369849) {
+    return new ethers.JsonRpcProvider(NETWORK_RPC_URLS.moonwalker);
+  }
+  return new ethers.BrowserProvider(window.ethereum);
+};
+
+// Helper function to get explorer URL
+const getExplorerUrl = (network, chainId) => {
+  if (chainId === 130) {
+    return 'https://unichain.blockscout.com';
+  } else if (chainId === 1301) {
+    return 'https://unichain-sepolia.blockscout.com';
+  } else if (network === 'moonwalker' || chainId === 1828369849) {
+    return 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+  } else if (network === 'polygon') {
+    return 'https://polygonscan.com';
+  }
+  return 'https://sepolia.etherscan.io';
+};
+
+const fetchTransferEvents = async (address, network, chainId) => {
   try {
-    // Create a custom provider based on network
-    let provider;
-    switch (network) {
-      case 'moonwalker':
-        provider = new ethers.JsonRpcProvider('https://moonwalker-rpc.eu-north-2.gateway.fm');
-        break;
-      case 'unichain':
-        provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
-        break;
-      default:
-        provider = new ethers.Web3Provider(window.ethereum);
-    }
+    // Get the appropriate provider
+    const provider = getProvider(network, chainId);
     
     // Create contract instance
     const contract = new ethers.Contract(address, ERC1155_ABI, provider);
     
     // Get the current block
     const currentBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, currentBlock - 10000); // Last 10000 blocks, ensure not negative
+    const fromBlock = Math.max(0, currentBlock - 10000); // Last 10000 blocks
     
     console.log('Fetching transfer events:', {
       network,
+      chainId,
       address,
       fromBlock,
       currentBlock
@@ -100,27 +123,13 @@ const fetchTransferEvents = async (address, network) => {
     }));
   } catch (error) {
     console.error('Error fetching transfer events:', error);
-    return [];
+    throw error;
   }
 };
 
-// Helper function to fetch NFT data from Blockscout
-const fetchBlockscoutData = async (address, network) => {
+const fetchBlockscoutData = async (address, network, chainId) => {
   try {
-    let baseUrl;
-    switch (network) {
-      case 'sepolia':
-        baseUrl = 'https://eth-sepolia.blockscout.com';
-        break;
-      case 'unichain':
-        baseUrl = 'https://unichain-sepolia.blockscout.com';
-        break;
-      case 'moonwalker':
-        baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
-        break;
-      default:
-        throw new Error(`Unsupported network: ${network}`);
-    }
+    const baseUrl = getExplorerUrl(network, chainId);
     
     // Ensure the address is properly formatted
     const formattedAddress = address?.toLowerCase();
@@ -132,7 +141,7 @@ const fetchBlockscoutData = async (address, network) => {
     
     if (tokenData.type === 'ERC-1155') {
       // For ERC1155, use blockchain events
-      const transfers = await fetchTransferEvents(address, network);
+      const transfers = await fetchTransferEvents(address, network, chainId);
       return { transfers, tokenData };
     }
     
@@ -201,7 +210,10 @@ const processVolumeData = (data, timeRange, collection) => {
   // Group transactions by day
   const volumeByDay = new Map();
   
-  data.transfers.forEach(item => {
+  // Ensure data is an array before processing
+  const transfers = Array.isArray(data) ? data : [];
+  
+  transfers.forEach(item => {
     const date = startOfDay(new Date(item.timestamp));
     let volume = 0;
     let ethValue = 0;
@@ -259,7 +271,7 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
           return <img src="/Zero.png" alt="ZERO" className="inline-block w-4 h-4 mr-1" />;
         }
         if (collection?.network === 'polygon') {
-          return <img src="/matic.png" alt="MATIC" className="inline-block w-4 h-4 mr-1" />;
+          return <img src="/polygon.png" alt="POL" className="inline-block w-4 h-4 mr-1" />;
         }
         return <FaEthereum className="inline mr-1" />;
       }
@@ -296,7 +308,7 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
           return 'ZERO';
         }
         if (collection?.network === 'polygon') {
-          return 'MATIC';
+          return 'POL';
         }
         return 'ETH';
       }
@@ -330,9 +342,10 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
 };
 
 export default function VolumeMetrics({ contractAddress, network }) {
-  const [metrics, setMetrics] = useState([]);
+  const [volumeData, setVolumeData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState('7d');
+  const [error, setError] = useState(null);
+  const [timeRange, setTimeRange] = useState('24h');
   const { prices } = useTokenPrices();
   const { symbol } = useParams();
   const [collection, setCollection] = useState(null);
@@ -342,25 +355,42 @@ export default function VolumeMetrics({ contractAddress, network }) {
     const loadData = async () => {
       try {
         setLoading(true);
-        
-        // First get collection data to get mint price
+        setError(null);
+
+        // Get collection data first
         const collectionData = await getCollection(symbol);
         setCollection(collectionData);
 
-        // Get token logo if it's a custom token
+        // Get the chainId from collection data
+        const chainId = collectionData?.chainId;
+
+        console.log('Loading volume data for:', {
+          network,
+          chainId,
+          contractAddress
+        });
+
+        // Fetch data from Blockscout
+        const { transfers, tokenData } = await fetchBlockscoutData(contractAddress, network, chainId);
+        
+        // Process volume data
+        if (transfers && transfers.length > 0) {
+          const processedData = processVolumeData(transfers, timeRange, collectionData);
+          setVolumeData(processedData);
+        } else {
+          setVolumeData([]);
+        }
+
+        // Fetch token logo if available
         if (collectionData?.mintToken?.address) {
           const tokenDeployment = await getTokenDeploymentByAddress(collectionData.mintToken.address);
           if (tokenDeployment?.logo) {
             setTokenLogo(tokenDeployment.logo);
           }
         }
-        
-        // Then get Blockscout data
-        const blockscoutData = await fetchBlockscoutData(contractAddress, network);
-        const processedData = processVolumeData(blockscoutData, timeRange, collectionData);
-        setMetrics(processedData);
       } catch (error) {
         console.error('Error loading volume metrics:', error);
+        setError(error.message);
       } finally {
         setLoading(false);
       }
@@ -385,7 +415,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
         return <img src="/Zero.png" alt="ZERO" className="inline-block w-4 h-4 mr-1" />;
       }
       if (collection?.network === 'polygon') {
-        return <img src="/matic.png" alt="MATIC" className="inline-block w-4 h-4 mr-1" />;
+        return <img src="/polygon.png" alt="POL" className="inline-block w-4 h-4 mr-1" />;
       }
       return <FaEthereum className="inline mr-1" />;
     }
@@ -409,9 +439,9 @@ export default function VolumeMetrics({ contractAddress, network }) {
   };
 
   // Calculate summary metrics
-  const totalVolume = metrics.reduce((sum, m) => sum + m.volume, 0);
-  const totalEthVolume = metrics.reduce((sum, m) => sum + Number(m.ethVolume.replace(/,/g, '')), 0);
-  const totalTransactions = metrics.reduce((sum, m) => sum + m.transactions, 0);
+  const totalVolume = volumeData.reduce((sum, m) => sum + m.volume, 0);
+  const totalEthVolume = volumeData.reduce((sum, m) => sum + Number(m.ethVolume.replace(/,/g, '')), 0);
+  const totalTransactions = volumeData.reduce((sum, m) => sum + m.transactions, 0);
   const avgVolume = totalTransactions > 0 ? totalVolume / totalTransactions : 0;
 
   if (loading) {
@@ -483,7 +513,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
               const isNativeToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
               if (isNativeToken) {
                 if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) return 'ZERO';
-                if (collection?.network === 'polygon') return 'MATIC';
+                if (collection?.network === 'polygon') return 'POL';
                 return 'ETH';
               }
               
@@ -529,7 +559,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
         <h3 className="text-gray-900 dark:text-white font-medium mb-4">Volume</h3>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={metrics}>
+            <AreaChart data={volumeData}>
               <defs>
                 <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#00ffbd" stopOpacity={0.3} />
@@ -563,7 +593,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
         </div>
       </motion.div>
 
-      {metrics.length === 0 && (
+      {volumeData.length === 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

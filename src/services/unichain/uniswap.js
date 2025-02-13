@@ -1,12 +1,22 @@
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 
-// Uniswap V2 Contract Addresses (Unichain)
+// Uniswap V2 Contract Addresses
 export const UNISWAP_ADDRESSES = {
-  router: '0x920b806E40A00E02E7D2b94fFc89860fDaEd3640',
-  factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
-  WETH: '0x4200000000000000000000000000000000000006',
-  USDT: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
+  // Unichain Testnet (1301)
+  1301: {
+    router: '0x920b806E40A00E02E7D2b94fFc89860fDaEd3640',
+    factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
+    WETH: '0x4200000000000000000000000000000000000006',
+    USDT: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
+  },
+  // Unichain Mainnet (130)
+  130: {
+    router: '0x284F11109359a7e1306C3e447ef14D38400063FF',
+    factory: '0x1F98400000000000000000000000000000000002',
+    WETH: '0x4200000000000000000000000000000000000006',
+    USDT: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
+  }
 };
 
 // ERC20 ABI for token interactions
@@ -96,12 +106,11 @@ const CHAINLINK_AGGREGATOR_ABI = [
 ];
 
 export class UnichainUniswapService {
-  constructor(publicClient, walletClient) {
-    this.publicClient = publicClient;
-    this.walletClient = walletClient;
+  constructor() {
     this.provider = null;
     this.signer = null;
     this.router = null;
+    this.chainId = null;
     
     // Initialize cache
     this.poolCache = new Map();
@@ -155,18 +164,18 @@ export class UnichainUniswapService {
   }
 
   async init() {
-    if (!window.ethereum) {
-      throw new Error('No Web3 provider found');
-    }
+    if (!window.ethereum) throw new Error('No Web3 Provider found');
+
     this.provider = new ethers.BrowserProvider(window.ethereum);
     this.signer = await this.provider.getSigner();
-    
-    // Create router contract with full ABI
-    this.router = new ethers.Contract(
-      UNISWAP_ADDRESSES.router,
-      ROUTER_ABI,
-      this.signer
-    );
+    const network = await this.provider.getNetwork();
+    this.chainId = Number(network.chainId);
+
+    // Get the correct addresses for the current network
+    const addresses = UNISWAP_ADDRESSES[this.chainId];
+    if (!addresses) throw new Error('Unsupported network');
+
+    this.router = new ethers.Contract(addresses.router, ROUTER_ABI, this.signer);
   }
 
   // Helper function to approve tokens
@@ -174,10 +183,17 @@ export class UnichainUniswapService {
     try {
       const token = new ethers.Contract(tokenAddress, ERC20_ABI, this.signer);
       const account = await this.signer.getAddress();
-      const allowance = await token.allowance(account, UNISWAP_ADDRESSES.router);
+      const chainId = await this.signer.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
+      const allowance = await token.allowance(account, addresses.router);
       
       if (allowance < amount) {
-        const tx = await token.approve(UNISWAP_ADDRESSES.router, ethers.MaxUint256);
+        const tx = await token.approve(addresses.router, ethers.MaxUint256);
         await tx.wait();
       }
     } catch (error) {
@@ -262,10 +278,17 @@ export class UnichainUniswapService {
       if (!this.router) await this.init();
       
       const account = await this.signer.getAddress();
+      const chainId = await this.signer.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
 
-      const isToken0WETH = token0Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-      const isToken1WETH = token1Address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+      const isToken0WETH = token0Address.toLowerCase() === addresses.WETH.toLowerCase();
+      const isToken1WETH = token1Address.toLowerCase() === addresses.WETH.toLowerCase();
       const isETHPair = isToken0WETH || isToken1WETH;
 
       const factoryAddress = await this.router.factory();
@@ -280,7 +303,7 @@ export class UnichainUniswapService {
         const tokenAmount = isToken0WETH ? amount1 : amount0;
 
         if (isNewPair) {
-          const createPairTx = await factory.createPair(UNISWAP_ADDRESSES.WETH, tokenAddress);
+          const createPairTx = await factory.createPair(addresses.WETH, tokenAddress);
           await createPairTx.wait();
         }
 
@@ -389,6 +412,13 @@ export class UnichainUniswapService {
     try {
       if (!this.router) await this.init();
 
+      const chainId = await this.signer.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
 
       // Approve token first
@@ -399,8 +429,8 @@ export class UnichainUniswapService {
       const amountETHMin = (amountETH * 990n) / 1000n;
 
       // Replace WETH with actual token address if it's WETH
-      const actualTokenAddress = tokenAddress.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
-        ? UNISWAP_ADDRESSES.WETH 
+      const actualTokenAddress = tokenAddress.toLowerCase() === addresses.WETH.toLowerCase() 
+        ? addresses.WETH 
         : tokenAddress;
 
       const tx = await this.router.addLiquidityETH(
@@ -588,9 +618,16 @@ export class UnichainUniswapService {
         };
       }
 
+      const chainId = await this.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       // Always use WETH in the path, even when the user specifies ETH
-      const fromAddress = fromToken.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : fromToken.address;
-      const toAddress = toToken.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : toToken.address;
+      const fromAddress = fromToken.symbol === 'ETH' ? addresses.WETH : fromToken.address;
+      const toAddress = toToken.symbol === 'ETH' ? addresses.WETH : toToken.address;
 
       // Parse input amount - use 18 decimals for ETH
       const amountIn = ethers.parseUnits(
@@ -600,9 +637,9 @@ export class UnichainUniswapService {
 
       // Try routing through USDT first
       try {
-        const pathThroughUSDT = [fromAddress, UNISWAP_ADDRESSES.USDT, toAddress];
-        const hasFirstPair = await this.checkPoolExists(fromAddress, UNISWAP_ADDRESSES.USDT);
-        const hasSecondPair = await this.checkPoolExists(UNISWAP_ADDRESSES.USDT, toAddress);
+        const pathThroughUSDT = [fromAddress, addresses.USDT, toAddress];
+        const hasFirstPair = await this.checkPoolExists(fromAddress, addresses.USDT);
+        const hasSecondPair = await this.checkPoolExists(addresses.USDT, toAddress);
         
         if (hasFirstPair && hasSecondPair) {
           try {
@@ -700,9 +737,16 @@ export class UnichainUniswapService {
     try {
       if (!this.signer) await this.init();
 
+      const chainId = await this.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       // Create WETH contract instance
       const weth = new ethers.Contract(
-        UNISWAP_ADDRESSES.WETH,
+        addresses.WETH,
         WETH_ABI,
         this.signer
       );
@@ -724,9 +768,16 @@ export class UnichainUniswapService {
     try {
       if (!this.signer) await this.init();
 
+      const chainId = await this.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       // Create WETH contract instance
       const weth = new ethers.Contract(
-        UNISWAP_ADDRESSES.WETH,
+        addresses.WETH,
         WETH_ABI,
         this.signer
       );
@@ -745,8 +796,15 @@ export class UnichainUniswapService {
     try {
       if (!this.provider) await this.init();
 
+      const chainId = await this.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       const weth = new ethers.Contract(
-        UNISWAP_ADDRESSES.WETH,
+        addresses.WETH,
         WETH_ABI,
         this.provider
       );
@@ -765,7 +823,7 @@ export class UnichainUniswapService {
 
       // Get factory contract
       const factory = new ethers.Contract(
-        UNISWAP_ADDRESSES.factory,
+        addresses.factory,
         FACTORY_ABI,
         this.provider
       );
@@ -958,10 +1016,10 @@ export class UnichainUniswapService {
   }
 
   // Add method to get price from pool ratio
-  async getPriceFromPool(tokenAddress, quoteTokenAddress = UNISWAP_ADDRESSES.USDT) {
+  async getPriceFromPool(tokenAddress, quoteTokenAddress = addresses.USDT) {
     try {
       const factory = new ethers.Contract(
-        UNISWAP_ADDRESSES.factory,
+        addresses.factory,
         FACTORY_ABI,
         this.provider
       );
@@ -1027,8 +1085,15 @@ export class UnichainUniswapService {
 
       if (!this.provider) await this.init();
       
+      const chainId = await this.provider.getNetwork().then(network => network.chainId);
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
       const factory = new ethers.Contract(
-        UNISWAP_ADDRESSES.factory,
+        addresses.factory,
         FACTORY_ABI,
         this.provider
       );
@@ -1214,8 +1279,8 @@ export class UnichainUniswapService {
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
 
       // Check if one of the tokens is WETH
-      const isTokenAWETH = tokenA.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-      const isTokenBWETH = tokenB.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
+      const isTokenAWETH = tokenA.toLowerCase() === addresses.WETH.toLowerCase();
+      const isTokenBWETH = tokenB.toLowerCase() === addresses.WETH.toLowerCase();
 
       let tx;
       if (isTokenAWETH || isTokenBWETH) {

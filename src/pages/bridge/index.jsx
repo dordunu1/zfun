@@ -13,7 +13,13 @@ import { createBridgeGasEstimator } from '../../services/bridgeGasEstimation';
 import { CheckIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { createPortal } from 'react-dom';
 
-const L1_BRIDGE_ADDRESS = '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2';
+// Bridge contract addresses for different networks
+const BRIDGE_CONTRACTS = {
+  MAINNET: '0x81014F44b0a345033bB2b3B21C7a1A308B35fEeA',
+  SEPOLIA: '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2',
+  UNICHAIN_MAINNET: '0x81014F44b0a345033bB2b3B21C7a1A308B35fEeA',
+  UNICHAIN_TESTNET: '0xea58fcA6849d79EAd1f26608855c2D6407d54Ce2'
+};
 
 const L1_BRIDGE_ABI = [
   {"inputs":[{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},{"internalType":"bytes","name":"_extraData","type":"bytes"}],"name":"bridgeETH","outputs":[],"stateMutability":"payable","type":"function"},
@@ -70,7 +76,7 @@ const CountdownTimer = ({ targetTime }) => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
         if (prev <= 0) {
           clearInterval(timer);
           return 0;
@@ -96,20 +102,25 @@ const CountdownTimer = ({ targetTime }) => {
   );
 };
 
-const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash }) => {
+const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash, fromNetwork, toNetwork }) => {
   const [startTime] = useState(Date.now());
 
-  const getExplorerUrl = (hash) => {
-    return `https://sepolia.etherscan.io/tx/${hash}`;
+  const getExplorerUrl = (hash, network) => {
+    if (network.id === 1) {
+      return `https://etherscan.io/tx/${hash}`;
+    } else if (network.id === 11155111) {
+      return `https://sepolia.etherscan.io/tx/${hash}`;
+    }
+    return '#';
   };
 
-  // Define steps for Sepolia to Unichain only
+  // Define steps based on the networks
   const steps = [
     {
-      title: 'Start on Sepolia',
+      title: `Start on ${fromNetwork?.name}`,
       description: 'Bridge transaction initiated',
       status: currentStep === 'start' ? 'current' : currentStep ? 'complete' : 'upcoming',
-      link: txHash ? getExplorerUrl(txHash) : null
+      link: txHash ? getExplorerUrl(txHash, fromNetwork) : null
     },
     {
       title: 'Wait ~3 mins',
@@ -118,7 +129,7 @@ const BridgeProgressModal = ({ isOpen, onClose, currentStep, txHash }) => {
       timer: currentStep === 'waiting' ? 180 : null
     },
     {
-      title: 'Get ETH on Unichain Sepolia',
+      title: `Get ETH on ${toNetwork?.name}`,
       description: 'Bridge complete',
       status: currentStep === 'complete' ? 'complete' : 'upcoming'
     }
@@ -375,134 +386,104 @@ const SkeletonHistoryItem = () => (
   </motion.div>
 );
 
+// Add this near the top of the file with other imports
+const NetworkModeToggle = ({ mode, onChange }) => (
+  <div className="flex items-center gap-2 p-1 bg-[#1a1b1f] rounded-lg mb-4">
+    <button
+      className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+        mode === 'mainnet' 
+          ? 'bg-[#2d2f36] text-white' 
+          : 'text-gray-400 hover:text-white'
+      }`}
+      onClick={() => onChange('mainnet')}
+    >
+      Mainnet
+    </button>
+    <button
+      className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+        mode === 'testnet' 
+          ? 'bg-[#2d2f36] text-white' 
+          : 'text-gray-400 hover:text-white'
+      }`}
+      onClick={() => onChange('testnet')}
+    >
+      Testnet
+    </button>
+  </div>
+);
+
+// Update the ActivityModal component
 const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentStep, setTxHash }) => {
   const [activities, setActivities] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Add function to check transaction status
-  const checkTransactionStatus = useCallback(async (txHash) => {
-    try {
-      // Use Sepolia RPC instead of Unichain
-      const provider = new ethers.providers.JsonRpcProvider('https://rpc.sepolia.org');
-      const receipt = await provider.getTransactionReceipt(txHash);
-      return receipt;
-    } catch (error) {
-      console.error('Error checking transaction status:', error);
-      return null;
-    }
-  }, []);
-
-  // Add polling effect for pending transactions
-  useEffect(() => {
-    if (!activities.length) return;
-
-    const interval = setInterval(async () => {
-      const updatedActivities = await Promise.all(
-        activities.map(async (activity) => {
-          if (activity.status === 'pending') {
-            const receipt = await checkTransactionStatus(activity.txHash);
-            if (!receipt) {
-              return activity; // Still pending
-            }
-            
-            const minutesPassed = Math.floor((Date.now() - activity.timestamp) / (1000 * 60));
-            
-            if (receipt.status === 0) {
-              return { ...activity, status: 'failed' };
-            } else {
-              // Transaction confirmed on Sepolia
-              if (minutesPassed >= 3) {
-                return { ...activity, status: 'complete' };
-              } else {
-                return { ...activity, status: 'processing', minutesPassed };
-              }
-            }
-          }
-          return activity;
-        })
-      );
-
-      if (JSON.stringify(updatedActivities) !== JSON.stringify(activities)) {
-        setActivities(updatedActivities);
-      }
-    }, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [activities, checkTransactionStatus]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [networkMode, setNetworkMode] = useState('testnet');
 
   const fetchBridgeHistory = async () => {
     if (!address) return;
     
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
-      );
+      let responses = [];
+      const etherscanApiKey = import.meta.env.VITE_ETHERSCAN_API_KEY;
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch bridge history');
+      if (networkMode === 'mainnet') {
+        responses = await Promise.all([
+          fetch(`https://api.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${etherscanApiKey}`),
+          fetch(`https://unichain.blockscout.com/api/v2/addresses/${address}/transactions`)
+        ]);
+      } else {
+        responses = await Promise.all([
+          fetch(`https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${etherscanApiKey}`),
+          fetch(`https://unichain-sepolia.blockscout.com/api/v2/addresses/${address}/transactions`)
+        ]);
       }
 
-      const data = await response.json();
-      
-      const formattedActivities = await Promise.all(data.items
-        .filter(tx => {
-          return tx.to?.hash?.toLowerCase() === L1_BRIDGE_ADDRESS.toLowerCase() &&
-                 tx.value !== '0' &&
-                 tx.decoded_input?.method_call?.includes('bridgeETH');
+      const [ethData, unichainData] = await Promise.all(
+        responses.map(async r => {
+          if (!r.ok) return { result: [] };
+          const data = await r.json();
+          return data.result ? data : { result: data.items || [] };
         })
-        .map(async tx => {
-          const gasUsedBigInt = BigInt(tx.gas_used || 0);
-          const gasPriceBigInt = BigInt(tx.gas_price || 0);
-          const actualGasFee = ethers.formatEther((gasUsedBigInt * gasPriceBigInt).toString());
+      );
 
-          const txTime = new Date(tx.timestamp).getTime();
-          const minutesPassed = Math.floor((Date.now() - txTime) / (1000 * 60));
-          
-          // Determine initial status
-          let bridgeStatus;
-          if (tx.status === '0') {
-            bridgeStatus = 'failed';
-          } else if (minutesPassed >= 3 && tx.confirmations > 0) {
-            bridgeStatus = 'complete';
-          } else if (tx.confirmations > 0) {
-            bridgeStatus = 'processing';
-          } else {
-            bridgeStatus = 'pending';
-          }
+      const bridgeContract = networkMode === 'mainnet' 
+        ? BRIDGE_CONTRACTS.MAINNET.toLowerCase()
+        : BRIDGE_CONTRACTS.SEPOLIA.toLowerCase();
 
-          return {
-            amount: ethers.formatEther(tx.value),
-            timestamp: txTime,
-            status: bridgeStatus,
-            fromNetwork: 'Sepolia',
-            toNetwork: 'Unichain Sepolia',
-            txHash: tx.hash,
-            bridgeFee: actualGasFee,
-            gasUsed: tx.gas_used,
-            gasPrice: ethers.formatUnits(tx.gas_price || '0', 'gwei'),
-            confirmations: tx.confirmations,
-            estimatedTime: '~3 mins',
-            minutesPassed,
-          };
-        }));
+      const formattedActivities = [
+        ...(ethData.result || [])
+          .filter(tx => {
+            const txToAddress = typeof tx.to === 'string' ? tx.to.toLowerCase() : '';
+            return txToAddress === bridgeContract;
+          })
+          .map(tx => ({
+            hash: tx.hash,
+            timestamp: new Date(tx.timeStamp * 1000).getTime(),
+            value: ethers.formatEther(tx.value || '0'),
+            fromNetwork: networkMode === 'mainnet' ? 'ETH Mainnet' : 'Sepolia',
+            toNetwork: networkMode === 'mainnet' ? 'Unichain Mainnet' : 'Unichain Testnet',
+            status: tx.confirmations > 12 ? 'completed' : 'pending',
+            fee: tx.gasPrice ? ethers.formatEther(BigInt(tx.gasPrice) * BigInt(tx.gasUsed || '21000')) : '0'
+          })),
+        
+        ...(unichainData.result || [])
+          .filter(tx => {
+            const txToAddress = typeof tx.to === 'string' ? tx.to.toLowerCase() : tx.to?.hash?.toLowerCase() || '';
+            return txToAddress === bridgeContract;
+          })
+          .map(tx => ({
+            hash: tx.hash,
+            timestamp: new Date(tx.timestamp || tx.timeStamp * 1000).getTime(),
+            value: ethers.formatEther(tx.value || '0'),
+            fromNetwork: networkMode === 'mainnet' ? 'Unichain Mainnet' : 'Unichain Testnet',
+            toNetwork: networkMode === 'mainnet' ? 'ETH Mainnet' : 'Sepolia',
+            status: tx.confirmations > 12 ? 'completed' : 'pending',
+            fee: tx.gasPrice ? ethers.formatEther(BigInt(tx.gasPrice) * BigInt(tx.gasUsed || '21000')) : '0'
+          }))
+      ];
 
-      // Sort activities: pending/processing first, then by timestamp
-      const sortedActivities = formattedActivities.sort((a, b) => {
-        // First, sort by status (pending/processing at top)
-        if ((a.status === 'pending' || a.status === 'processing') && 
-            (b.status !== 'pending' && b.status !== 'processing')) {
-          return -1;
-        }
-        if ((b.status === 'pending' || b.status === 'processing') && 
-            (a.status !== 'pending' && a.status !== 'processing')) {
-          return 1;
-        }
-        // Then by timestamp (newest first)
-        return b.timestamp - a.timestamp;
-      });
-
-      setActivities(sortedActivities);
+      console.log('Fetched activities:', formattedActivities);
+      setActivities(formattedActivities.sort((a, b) => b.timestamp - a.timestamp));
     } catch (error) {
       console.error('Error fetching bridge history:', error);
       toast.error('Failed to load bridge history');
@@ -511,240 +492,125 @@ const ActivityModal = ({ isOpen, onClose, address, setShowProgress, setCurrentSt
     }
   };
 
-  // Refresh history when modal opens
   useEffect(() => {
     if (isOpen && address) {
       fetchBridgeHistory();
     }
-  }, [isOpen, address]);
-
-  const formatAddress = (addr) => {
-    if (!addr) return '';
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
-
-  const formatTxHash = (hash) => {
-    if (!hash) return '';
-    return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
-  };
-
-  const formatDate = (timestamp, status) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
-    
-    if (diffInHours < 24) {
-      // If less than 24 hours ago, show relative time
-      if (diffInHours < 1) {
-        const minutes = Math.floor((now - date) / (1000 * 60));
-        if (minutes < 1) {
-          return date.toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-            hour12: true
-          });
-        }
-        return `${minutes} minutes ago`;
-      }
-      return `${diffInHours} hours ago`;
-    } else {
-      // Otherwise show formatted date
-      return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true
-      });
-    }
-  };
+  }, [isOpen, address, networkMode]);
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      className="relative z-50"
+    >
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-2xl bg-[#0d0e12] rounded-2xl flex flex-col max-h-[80vh]">
+          {/* Fixed Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-800">
+            <Dialog.Title className="text-xl font-semibold text-white">
+              Bridge History
+            </Dialog.Title>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors"
             >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-transparent p-6 text-left align-middle shadow-xl transition-all">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white">
-                      Bridge History
-                    </Dialog.Title>
-                    <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                      {formatAddress(address)}
-                    </div>
-                  </div>
-                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="space-y-8 mt-6">
-                  {isLoading ? (
-                    <div className="space-y-4 mt-6">
-                      {[1, 2, 3].map((i) => (
-                        <SkeletonHistoryItem key={i} />
-                      ))}
-                    </div>
-                  ) : activities.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="mb-4">
-                        <BiTime size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
-                      </div>
-                      <p className="text-gray-500 dark:text-gray-400">
-                        No bridge history found
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-8 mt-6">
-                      <AnimatePresence mode="popLayout">
-                        {activities.map((activity, index) => (
-                          <motion.div
-                            key={activity.txHash}
-                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                            transition={{ 
-                              duration: 0.3,
-                              delay: index * 0.1,
-                              ease: "easeOut"
-                            }}
-                            className="bg-gray-50/80 dark:bg-gray-800/80 rounded-xl p-5"
-                          >
-                            <div className="space-y-4">
-                              {/* Header with amount and time */}
-                              <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-2">
-                                  <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
-                                  <span className="text-xl font-bold text-gray-900 dark:text-white">{activity.amount} ETH</span>
-                                </div>
-                                <div className="flex flex-col items-end">
-                                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                                    {formatDate(activity.timestamp, activity.status)}
-                                  </span>
-                                  <div className="flex items-center gap-2 text-[#00ffbd] mt-1">
-                                    {activity.status === 'complete' ? (
-                                      <>
-                                        <CheckIcon className="h-4 w-4" />
-                                        <span className="text-sm">Bridge successful</span>
-                                      </>
-                                    ) : activity.status === 'failed' ? (
-                                      <>
-                                        <XMarkIcon className="h-4 w-4 text-red-500" />
-                                        <span className="text-sm text-red-500">Bridge failed</span>
-                                      </>
-                                    ) : activity.status === 'processing' ? (
-                                      <>
-                                        <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
-                                        <span className="text-sm">Processing ({3 - activity.minutesPassed} mins left)</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <div className="w-4 h-4 border-2 border-[#00ffbd] border-t-transparent rounded-full animate-spin" />
-                                        <span className="text-sm">Pending confirmation</span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Network flow */}
-                              <div className="flex items-center justify-between bg-white/80 dark:bg-black/20 p-2 rounded-lg">
-                                <div className="flex items-center gap-2">
-                                  <img src="/sepolia-logo.png" alt="From" className="w-5 h-5" />
-                                  <span className="text-sm text-gray-700 dark:text-gray-400">Sepolia</span>
-                                </div>
-                                <FaArrowRight className="text-[#00ffbd]" size={12} />
-                                <div className="flex items-center gap-2">
-                                  <img src="/unichain-logo.png" alt="To" className="w-5 h-5" />
-                                  <span className="text-sm text-gray-700 dark:text-gray-400">Unichain Sepolia</span>
-                                </div>
-                              </div>
-
-                              {/* Transaction details */}
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600 dark:text-gray-400">Network Fee</span>
-                                  <span className="text-gray-900 dark:text-white">{parseFloat(activity.bridgeFee).toFixed(6)} ETH</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600 dark:text-gray-400">Gas Price</span>
-                                  <span className="text-gray-900 dark:text-white">{activity.gasPrice} Gwei</span>
-                                </div>
-                                
-                                {/* Transaction hash with link and Via Native Bridge */}
-                                <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                                    <span>Via Native Bridge</span>
-                                    <div className="flex items-center">
-                                      <img 
-                                        src="/sepolia-logo.png"
-                                        alt="Sepolia"
-                                        className="w-4 h-4"
-                                      />
-                                      <img 
-                                        src="/unichain-logo.png"
-                                        alt="Unichain"
-                                        className="w-4 h-4 -ml-1"
-                                      />
-                                    </div>
-                                  </div>
-                                  <a
-                                    href={`https://sepolia.etherscan.io/tx/${activity.txHash}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-[#00ffbd] hover:text-[#00e6a9] flex items-center gap-2"
-                                  >
-                                    <span>View transaction</span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                      <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                                    </svg>
-                                  </a>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                  )}
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
+              <XMarkIcon className="w-6 h-6" />
+            </button>
           </div>
-        </div>
-      </Dialog>
-    </Transition>
+
+          {/* Fixed Network Toggle */}
+          <div className="px-6 py-4 border-b border-gray-800">
+            <NetworkModeToggle 
+              mode={networkMode} 
+              onChange={setNetworkMode}
+            />
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto scrollbar-hide">
+            <div className="p-6 space-y-4">
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <SkeletonHistoryItem key={i} />
+                ))
+              ) : activities.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-400">No bridge transactions found</p>
+                </div>
+              ) : (
+                <>
+                  {activities.map((activity, index) => (
+                    <div
+                      key={index}
+                      className="bg-[#1a1b1f] rounded-xl p-5 space-y-4"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2">
+                          <img src="/eth-logo.png" alt="ETH" className="w-6 h-6" />
+                          <span className="text-white font-medium">
+                            {activity.value} ETH
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-400">
+                            {new Date(activity.timestamp).toLocaleDateString()}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {new Date(activity.timestamp).toLocaleTimeString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-black/20 p-2 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={activity.fromNetwork.includes('ETH') ? '/eth.png' : 
+                                activity.fromNetwork.includes('Sepolia') ? '/sepolia.png' : 
+                                '/unichain-logo.png'} 
+                            alt={activity.fromNetwork}
+                            className="w-5 h-5"
+                          />
+                          <span className="text-sm text-gray-400">{activity.fromNetwork}</span>
+                        </div>
+                        <FaArrowRight className="text-[#00ffbd]" size={12} />
+                        <div className="flex items-center gap-2">
+                          <img 
+                            src={activity.toNetwork.includes('ETH') ? '/eth.png' : 
+                                activity.toNetwork.includes('Sepolia') ? '/sepolia.png' : 
+                                '/unichain-logo.png'}
+                            alt={activity.toNetwork}
+                            className="w-5 h-5"
+                          />
+                          <span className="text-sm text-gray-400">{activity.toNetwork}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Status</span>
+                        <span className={activity.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}>
+                          {activity.status === 'completed' ? 'Completed' : 'Pending'}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Network Fee</span>
+                        <span className="text-gray-400">{parseFloat(activity.fee).toFixed(6)} ETH</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </Dialog.Panel>
+      </div>
+    </Dialog>
   );
 };
 
-const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount }) => {
+const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount, fromNetwork, toNetwork }) => {
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -780,13 +646,13 @@ const TransactionSummaryModal = ({ isOpen, onClose, onConfirm, amount }) => {
                   {/* Network Flow */}
                   <div className="flex items-center justify-between bg-gray-50 dark:bg-[#2d2f36] p-3 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <img src="/sepolia-logo.png" alt="From Network" className="w-6 h-6" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Sepolia</span>
+                      <img src={fromNetwork?.logo} alt="From Network" className="w-6 h-6" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{fromNetwork?.name}</span>
                     </div>
                     <FaArrowRight className="text-[#00ffbd]" size={12} />
                     <div className="flex items-center gap-2">
-                      <img src="/unichain-logo.png" alt="To Network" className="w-6 h-6" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Unichain Sepolia</span>
+                      <img src={toNetwork?.logo} alt="To Network" className="w-6 h-6" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{toNetwork?.name}</span>
                     </div>
                   </div>
 
@@ -847,21 +713,22 @@ const NETWORKS = {
       id: 1,
       name: 'ETH Mainnet',
       logo: '/eth.png',
-      disabled: true,
-      comingSoon: true
+      disabled: false,
+      bridgeAddress: BRIDGE_CONTRACTS.MAINNET
     },
     testnet: {
       id: 11155111,
       name: 'Sepolia',
-      logo: '/sepolia-logo.png'
+      logo: '/sepolia.png',
+      bridgeAddress: BRIDGE_CONTRACTS.SEPOLIA
     }
   },
   unichain: {
     mainnet: {
-      name: 'Unichain',
+      id: 130,
+      name: 'Unichain Mainnet',
       logo: '/unichain-logo.png',
-      disabled: true,
-      comingSoon: true
+      disabled: false
     },
     testnet: {
       id: 1301,
@@ -924,9 +791,12 @@ function Bridge() {
   const { openConnectModal } = useConnectModal();
   const uniswap = useUnichain();
   
+  // Add network mode state
+  const [isMainnetMode, setIsMainnetMode] = useState(true);
+  
   // Add network selection state
-  const [selectedFromNetwork, setSelectedFromNetwork] = useState(NETWORKS.eth.testnet);
-  const [selectedToNetwork, setSelectedToNetwork] = useState(NETWORKS.unichain.testnet);
+  const [selectedFromNetwork, setSelectedFromNetwork] = useState(NETWORKS.eth.mainnet);
+  const [selectedToNetwork, setSelectedToNetwork] = useState(NETWORKS.unichain.mainnet);
   
   // All other state hooks remain the same
   const [showActivity, setShowActivity] = useState(false);
@@ -1063,7 +933,7 @@ function Bridge() {
       const userAddress = await signer.getAddress();
       const txValue = ethers.parseEther(amount);
       
-      const l1Bridge = new ethers.Contract(L1_BRIDGE_ADDRESS, L1_BRIDGE_ABI, signer);
+      const l1Bridge = new ethers.Contract(selectedFromNetwork.bridgeAddress, L1_BRIDGE_ABI, signer);
 
       const tx = await l1Bridge.bridgeETHTo(
         userAddress,
@@ -1104,7 +974,7 @@ function Bridge() {
       
       try {
         const response = await fetch(
-          `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${L1_BRIDGE_ADDRESS}`
+          `https://eth-sepolia.blockscout.com/api/v2/addresses/${address}/transactions?filter=to%7C${selectedFromNetwork.bridgeAddress}`
         );
         
         if (!response.ok) return;
@@ -1116,7 +986,7 @@ function Bridge() {
           .filter(tx => {
             const txTime = new Date(tx.timestamp).getTime();
             const minutesPassed = Math.floor((Date.now() - txTime) / (1000 * 60));
-            return tx.to?.hash?.toLowerCase() === L1_BRIDGE_ADDRESS.toLowerCase() &&
+            return tx.to?.hash?.toLowerCase() === selectedFromNetwork.bridgeAddress.toLowerCase() &&
                    tx.value !== '0' &&
                    tx.decoded_input?.method_call?.includes('bridgeETH') &&
                    ((tx.confirmations === 0) || // Pending confirmation
@@ -1134,7 +1004,7 @@ function Bridge() {
     const interval = setInterval(checkPendingTransactions, 10000);
 
     return () => clearInterval(interval);
-  }, [address]);
+  }, [address, selectedFromNetwork.bridgeAddress]);
 
   // Add click handler for network selection
   const handleNetworkSelect = (network, type) => {
@@ -1143,11 +1013,25 @@ function Bridge() {
       return;
     }
     
+    // If selecting from network
     if (type === 'from') {
       setSelectedFromNetwork(network);
+      // Set the corresponding destination network based on mainnet/testnet mode
+      if (isMainnetMode) {
+        setSelectedToNetwork(NETWORKS.unichain.mainnet);
+      } else {
+        setSelectedToNetwork(NETWORKS.unichain.testnet);
+      }
       setShowFromDropdown(false);
     } else {
+      // If selecting to network
       setSelectedToNetwork(network);
+      // Set the corresponding source network based on mainnet/testnet mode
+      if (isMainnetMode) {
+        setSelectedFromNetwork(NETWORKS.eth.mainnet);
+      } else {
+        setSelectedFromNetwork(NETWORKS.eth.testnet);
+      }
       setShowToDropdown(false);
     }
   };
@@ -1158,8 +1042,9 @@ function Bridge() {
 
     const rect = anchorRef.current.getBoundingClientRect();
     
-    // Filter networks based on direction
+    // Filter networks based on direction and mode
     const networks = type === 'from' ? NETWORKS.eth : NETWORKS.unichain;
+    const network = isMainnetMode ? networks.mainnet : networks.testnet;
     
     return createPortal(
       <div 
@@ -1171,46 +1056,24 @@ function Bridge() {
         }}
       >
         <div className="w-64 bg-white dark:bg-[#1a1b1f] rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 py-2">
-          {/* Mainnet Section */}
           <div className="px-3 py-1">
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Mainnet
+              {isMainnetMode ? 'Mainnet' : 'Testnet'}
             </div>
             <button
-              onClick={() => onSelect(networks.mainnet)}
+              onClick={() => onSelect(network)}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d2f36] transition-colors"
-              disabled={networks.mainnet.disabled}
+              disabled={network.disabled}
             >
               <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-[#2d2f36] flex items-center justify-center">
-                <img src={networks.mainnet.logo} alt={networks.mainnet.name} className="w-6 h-6" />
+                <img src={network.logo} alt={network.name} className="w-6 h-6" />
               </div>
               <span className="text-sm text-gray-900 dark:text-white">
-                {networks.mainnet.name}
+                {network.name}
               </span>
-              {networks.mainnet.comingSoon && (
+              {network.comingSoon && (
                 <span className="text-xs text-[#00ffbd] ml-auto">Coming Soon</span>
               )}
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-gray-200 dark:bg-gray-800 my-1" />
-
-          {/* Testnet Section */}
-          <div className="px-3 py-1">
-            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Testnet
-            </div>
-            <button
-              onClick={() => onSelect(networks.testnet)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2d2f36] transition-colors"
-            >
-              <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-[#2d2f36] flex items-center justify-center">
-                <img src={networks.testnet.logo} alt={networks.testnet.name} className="w-6 h-6" />
-              </div>
-              <span className="text-sm text-gray-900 dark:text-white">
-                {networks.testnet.name}
-              </span>
             </button>
           </div>
         </div>
@@ -1237,6 +1100,17 @@ function Bridge() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Update useEffect to handle network mode changes
+  useEffect(() => {
+    if (isMainnetMode) {
+      setSelectedFromNetwork(NETWORKS.eth.mainnet);
+      setSelectedToNetwork(NETWORKS.unichain.mainnet);
+    } else {
+      setSelectedFromNetwork(NETWORKS.eth.testnet);
+      setSelectedToNetwork(NETWORKS.unichain.testnet);
+    }
+  }, [isMainnetMode]);
 
   // Early return for wallet connection
   if (!isConnected) {
@@ -1308,8 +1182,33 @@ function Bridge() {
   return (
     <div className="max-w-lg mx-auto">
       <div className="bg-white dark:bg-[#1a1b1f] rounded-2xl p-4 md:p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
-        {/* History Button */}
-        <div className="flex justify-end mb-4">
+        {/* History Button and Network Mode Toggle */}
+        <div className="flex justify-between items-center mb-4">
+          {/* Network Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMainnetMode(true)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isMainnetMode
+                  ? 'bg-[#00ffbd] text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              Mainnet
+            </button>
+            <button
+              onClick={() => setIsMainnetMode(false)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                !isMainnetMode
+                  ? 'bg-[#00ffbd] text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              Testnet
+            </button>
+          </div>
+
+          {/* History Button */}
           <button
             onClick={() => setShowActivity(true)}
             className="flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-[#2d2f36] rounded-full text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#3d4046] transition-colors border border-gray-200 dark:border-gray-700"
@@ -1576,6 +1475,8 @@ function Bridge() {
         onClose={() => setShowProgress(false)}
         currentStep={currentStep}
         txHash={txHash}
+        fromNetwork={selectedFromNetwork}
+        toNetwork={selectedToNetwork}
       />
 
       <TransactionSummaryModal
@@ -1586,6 +1487,8 @@ function Bridge() {
           setShowTerms(true);
         }}
         amount={amount}
+        fromNetwork={selectedFromNetwork}
+        toNetwork={selectedToNetwork}
       />
     </div>
   );

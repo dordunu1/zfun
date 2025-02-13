@@ -12,35 +12,69 @@ import { getTokenLogo, getTokenMetadata } from '../../../../utils/tokens';
 // Constants and configuration
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-// Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: UNISWAP_ADDRESSES.WETH,
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/logos/eth.png'
+// Add network constants
+const UNICHAIN_NETWORKS = {
+  TESTNET: {
+    id: 1301,
+    name: 'Unichain Testnet',
+    blockscoutUrl: 'https://unichain-sepolia.blockscout.com'
   },
-  {
-    address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
-    symbol: 'USDC',
-    name: 'USD Coin',
-    decimals: 6,
-    logo: '/logos/usdc.png'
-  },
-  {
-    address: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
-    symbol: 'USDT',
-    name: 'Tether USD',
-    decimals: 6,
-    logo: '/logos/usdt.png'
+  MAINNET: {
+    id: 130,
+    name: 'Unichain Mainnet',
+    blockscoutUrl: 'https://unichain.blockscout.com'
   }
-];
+};
 
-// Helper function to get token metadata
-const getCommonTokenMetadata = (token) => {
-  // Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => t.address?.toLowerCase() === token.address?.toLowerCase());
+// Common tokens with metadata per network
+const COMMON_TOKENS = {
+  // Testnet tokens (1301)
+  1301: [
+    {
+      address: UNISWAP_ADDRESSES[1301].WETH,
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/logos/eth.png'
+    },
+    {
+      address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      logo: '/logos/usdc.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[1301].USDT,
+      symbol: 'USDT',
+      name: 'Tether USD',
+      decimals: 6,
+      logo: '/logos/usdt.png'
+    }
+  ],
+  // Mainnet tokens (130)
+  130: [
+    {
+      address: UNISWAP_ADDRESSES[130].WETH,
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/logos/eth.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[130].USDT,
+      symbol: 'USDT',
+      name: 'Tether USD',
+      decimals: 6,
+      logo: '/logos/usdt.png'
+    }
+  ]
+};
+
+// Helper function to get token metadata based on network
+const getCommonTokenMetadata = (token, chainId) => {
+  // Check if it's a common token for the current network
+  const commonToken = COMMON_TOKENS[chainId]?.find(t => t.address?.toLowerCase() === token.address?.toLowerCase());
   if (commonToken) {
     return {
       ...token,
@@ -199,6 +233,8 @@ export default function MyPools() {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchAddress, setSearchAddress] = useState('');
+  const [currentChainId, setCurrentChainId] = useState(null);
+  const [error, setError] = useState('');
 
   // Animation variants
   const containerVariants = {
@@ -235,14 +271,53 @@ export default function MyPools() {
     }
   };
 
+  // Get current chain ID
+  useEffect(() => {
+    const getChainId = async () => {
+      if (!window.ethereum) return;
+      try {
+        const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        setCurrentChainId(parseInt(hexChainId, 16));
+      } catch (error) {
+        console.error('Error getting chain ID:', error);
+      }
+    };
+    getChainId();
+
+    // Listen for chain changes
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', (chainId) => {
+        setCurrentChainId(parseInt(chainId, 16));
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('chainChanged', () => {});
+      }
+    };
+  }, []);
+
   // Load pools data
   useEffect(() => {
     const loadPools = async () => {
-      if (!address || !uniswap) {
+      if (!address || !uniswap || !currentChainId) {
+        return;
+      }
+
+      // Check if we're on a supported network
+      const isUnichain = currentChainId === UNICHAIN_NETWORKS.TESTNET.id || 
+                        currentChainId === UNICHAIN_NETWORKS.MAINNET.id;
+      
+      if (!isUnichain) {
+        setError('Please switch to Unichain network (Testnet or Mainnet)');
+        setPools([]);
         return;
       }
       
       setLoading(true);
+      setError('');
+      
       try {
         // Check cache first
         if (myPoolsCache.isValid() && myPoolsCache.data) {
@@ -251,8 +326,13 @@ export default function MyPools() {
           return;
         }
 
+        // Get the correct Blockscout URL for the current network
+        const blockscoutUrl = currentChainId === UNICHAIN_NETWORKS.TESTNET.id
+          ? UNICHAIN_NETWORKS.TESTNET.blockscoutUrl
+          : UNICHAIN_NETWORKS.MAINNET.blockscoutUrl;
+
         // Fetch LP tokens from Blockscout API
-        const response = await fetch(`https://unichain-sepolia.blockscout.com/api/v2/addresses/${address}/token-balances`);
+        const response = await fetch(`${blockscoutUrl}/api/v2/addresses/${address}/token-balances`);
         if (!response.ok) {
           throw new Error('Failed to fetch token balances from Blockscout');
         }
@@ -296,7 +376,7 @@ export default function MyPools() {
                 decimals: token0Firebase?.decimals || poolInfo.token0.decimals,
                 logo: token0Firebase?.logo || '/token-default.png',
                 logoIpfs: token0Firebase?.logoIpfs
-              });
+              }, currentChainId);
 
               const token1Metadata = getCommonTokenMetadata({
                 ...poolInfo.token1,
@@ -305,7 +385,7 @@ export default function MyPools() {
                 decimals: token1Firebase?.decimals || poolInfo.token1.decimals,
                 logo: token1Firebase?.logo || '/token-default.png',
                 logoIpfs: token1Firebase?.logoIpfs
-              });
+              }, currentChainId);
 
               return {
                 pairAddress: poolAddress,
@@ -323,6 +403,7 @@ export default function MyPools() {
                 }
               };
             } catch (error) {
+              console.error('Error fetching pool info:', error);
               return null;
             }
           })
@@ -338,6 +419,7 @@ export default function MyPools() {
         // Cache the valid pools
         myPoolsCache.set(validPools);
       } catch (error) {
+        console.error('Error loading pools:', error);
         toast.error('Failed to load pools: ' + error.message);
       } finally {
         setLoading(false);
@@ -345,7 +427,7 @@ export default function MyPools() {
     };
 
     loadPools();
-  }, [uniswap, address]);
+  }, [uniswap, address, currentChainId]);
 
   // Filter pools based on search term
   const filteredPools = pools.filter(pool => {
@@ -417,6 +499,29 @@ export default function MyPools() {
       variants={containerVariants}
       className="space-y-6 overflow-x-hidden overflow-y-auto"
     >
+      {/* Network Status */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400"
+        >
+          {error}
+        </motion.div>
+      )}
+
+      {/* Current Network Indicator */}
+      {currentChainId && (UNICHAIN_NETWORKS.TESTNET.id === currentChainId || UNICHAIN_NETWORKS.MAINNET.id === currentChainId) && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-4 py-2 rounded-xl bg-[#00ffbd]/10 border border-[#00ffbd]/20 text-[#00ffbd] text-sm inline-flex items-center gap-2"
+        >
+          <div className="w-2 h-2 rounded-full bg-[#00ffbd] animate-pulse" />
+          {currentChainId === UNICHAIN_NETWORKS.TESTNET.id ? 'Unichain Testnet' : 'Unichain Mainnet'}
+        </motion.div>
+      )}
+
       {/* Search Bar */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

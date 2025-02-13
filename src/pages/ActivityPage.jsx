@@ -101,24 +101,37 @@ export default function ActivityPage() {
   const getChainComponent = (componentType) => {
     if (!chain) return null;
 
-    if (chain.id === 11155111 && !devModeEnabled) {
+    // Support both Unichain testnet and mainnet
+    const isUnichain = chain.id === 1301 || chain.id === 130;
+
+    if (!isUnichain && !devModeEnabled) {
       return (
-        <div className="text-center py-8 text-gray-500">
-          Please switch to Unichain network
+        <div className="text-center py-8">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+              <img src="/unichain-logo.png" alt="Unichain" className="w-8 h-8" />
+            </div>
+            <div className="text-center">
+              <p className="text-gray-500 dark:text-gray-400 mb-2">Please switch to Unichain network</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">
+                Trading is available on both Unichain Testnet and Mainnet
+              </p>
+            </div>
+          </div>
         </div>
       );
     }
 
     switch (componentType) {
       case 'swap':
-        if (chain.id === unichainTestnet.id) {
+        if (isUnichain) {
           return version === 'v2' ? <UnichainTokenSwapV2 /> : <UnichainTokenSwapV3 />;
         } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaTokenSwap />;
         }
         break;
       case 'pool':
-        if (chain.id === unichainTestnet.id) {
+        if (isUnichain) {
           return version === 'v2' 
             ? <UnichainPoolCreationV2 setActiveTab={handleTabChange} /> 
             : <UnichainPoolCreationV3 setActiveTab={handleTabChange} />;
@@ -127,7 +140,7 @@ export default function ActivityPage() {
         }
         break;
       case 'liquidity':
-        if (chain.id === unichainTestnet.id) {
+        if (isUnichain) {
           return version === 'v2' 
             ? <UnichainManageLiquidityV2 initialTokens={selectedTokens} poolAddress={selectedPoolAddress} /> 
             : <UnichainManageLiquidityV3 initialTokens={selectedTokens} poolAddress={selectedPoolAddress} />;
@@ -136,7 +149,7 @@ export default function ActivityPage() {
         }
         break;
       case 'my-pools':
-        if (chain.id === unichainTestnet.id) {
+        if (isUnichain) {
           return version === 'v2' ? <UnichainMyPoolsV2 /> : <UnichainMyPoolsV3 />;
         } else if (chain.id === 11155111 && devModeEnabled) {
           return <SepoliaMyPools />;
@@ -145,8 +158,18 @@ export default function ActivityPage() {
     }
 
     return (
-      <div className="text-center py-8 text-gray-500">
-        Please switch to Unichain network
+      <div className="text-center py-8">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-[#00ffbd]/10 flex items-center justify-center">
+            <img src="/unichain-logo.png" alt="Unichain" className="w-8 h-8" />
+          </div>
+          <div className="text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-2">Please switch to Unichain network</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">
+              Trading is available on both Unichain Testnet and Mainnet
+            </p>
+          </div>
+        </div>
       </div>
     );
   };

@@ -75,10 +75,10 @@ function App() {
                     <Route path="/collection/:symbol" element={<CollectionPage />} />
                     <Route path="/history" element={<HistoryPage />} />
                     <Route path="/account" element={<AccountPage />} />
-                    <Route path="/trading" element={<ActivityPage />} />
                     <Route path="/bridge" element={<BridgePage />} />
                     <Route path="/feestracker" element={<FeesTracker />} />
                     <Route path="/memefactory" element={<MemeFactory />} />
+                    <Route path="/trading" element={<ActivityPage />} />
                     {/* Admin Routes */}
                     <Route path="/admin" element={<AdminLayout />}>
                       <Route index element={<AdminDashboard />} />

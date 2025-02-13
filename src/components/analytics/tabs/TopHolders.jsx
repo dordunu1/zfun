@@ -21,12 +21,15 @@ const ALCHEMY_URLS = {
   'mumbai': 'https://polygon-mumbai.g.alchemy.com/v2/',
   'arbitrum': 'https://arb-mainnet.g.alchemy.com/v2/',
   'optimism': 'https://opt-mainnet.g.alchemy.com/v2/',
-  'unichain': 'https://unichain-sepolia.g.alchemy.com/v2/'
+  'unichain': 'https://unichain-sepolia.g.alchemy.com/v2/',
+  'unichain-mainnet': 'https://unichain.blockscout.com/v2/'
 };
 
 // Network RPC URLs for non-Alchemy networks
 const NETWORK_RPC_URLS = {
-  'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm'
+  'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm',
+  'unichain': 'https://sepolia.unichain.org',
+  'unichain-mainnet': 'https://mainnet.unichain.org'
 };
 
 const formatAddress = (address) => {
@@ -77,24 +80,19 @@ export default function TopHolders({ collection }) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Check for API key first
-        if (!ALCHEMY_API_KEY) {
-          throw new Error('Alchemy API key is not configured');
-        }
-
         if (!collection?.contractAddress) {
           throw new Error('No contract address available');
         }
 
-        // Special handling for Unichain and Moonwalker
-        if (collection.network === 'unichain') {
+        // Special handling for Unichain networks
+        if (collection.chainId === 130 || collection.chainId === 1301) {
           await loadUnichainHolders(collection.contractAddress);
           return;
         }
 
-        if (collection.network === 'moonwalker') {
-          await loadMoonwalkerHolders(collection.contractAddress);
-          return;
+        // Check for API key first
+        if (!ALCHEMY_API_KEY) {
+          throw new Error('Alchemy API key is not configured');
         }
 
         // Map network name to Alchemy URL key for other networks
@@ -244,8 +242,12 @@ export default function TopHolders({ collection }) {
     // Function to load Unichain holders using ethers.js
     const loadUnichainHolders = async (contractAddress) => {
       try {
-        // Initialize ethers provider for Unichain Sepolia
-        const provider = new ethers.JsonRpcProvider('https://sepolia.unichain.org');
+        // Initialize ethers provider based on network
+        const provider = new ethers.JsonRpcProvider(
+          collection.chainId === 130 
+            ? 'https://mainnet.unichain.org'
+            : 'https://sepolia.unichain.org'
+        );
         
         // Check for ERC1155 in multiple possible properties and formats
         const isERC1155 = collection.type?.toUpperCase().replace('-', '') === 'ERC1155' || 

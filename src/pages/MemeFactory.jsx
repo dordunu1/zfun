@@ -461,14 +461,6 @@ export default function MemeFactory() {
           nativeAmount: value
         }
       }));
-    } else if (name === 'initialLiquidity.lockPeriod') {
-      setFormData(prev => ({
-        ...prev,
-        initialLiquidity: {
-          ...prev.initialLiquidity,
-          lockPeriod: value
-        }
-      }));
     } else {
       setFormData(prev => ({
         ...prev,
@@ -701,8 +693,7 @@ export default function MemeFactory() {
         autoLiquidity: toggles.autoLiquidity,
         logoURI: logoUrls.ipfsUrl,
         addInitialLiquidity: false,
-        initialLiquidityPercent: 0,
-        liquidityLockPeriod: 0
+        initialLiquidityPercent: 0
       };
 
       const tx = await factory.createMemeToken(params, { value: fee });
@@ -1767,7 +1758,6 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
 const LiquidityModal = ({ isOpen, onClose, tokenAddress, tokenName, tokenSymbol, totalSupply, onSuccess }) => {
   const [liquidityAmount, setLiquidityAmount] = useState('');
   const [tokenAmount, setTokenAmount] = useState('');
-  const [lockPeriod, setLockPeriod] = useState('365');
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -1789,7 +1779,7 @@ const LiquidityModal = ({ isOpen, onClose, tokenAddress, tokenName, tokenSymbol,
 
   // Handle adding liquidity
   const handleAddLiquidity = async () => {
-    if (!tokenAmount || !liquidityAmount || !lockPeriod) {
+    if (!tokenAmount || !liquidityAmount) {
       setError('Please fill in all fields');
       return;
     }
@@ -1830,12 +1820,6 @@ const LiquidityModal = ({ isOpen, onClose, tokenAddress, tokenName, tokenSymbol,
         { value: ethAmountWei }
       );
       await addLiquidityTx.wait();
-
-      // Lock liquidity if specified
-      if (lockPeriod) {
-        const lockTx = await token.lockLiquidity(Number(lockPeriod));
-        await lockTx.wait();
-      }
 
       setIsSuccess(true);
       onSuccess();
@@ -1993,19 +1977,6 @@ const LiquidityModal = ({ isOpen, onClose, tokenAddress, tokenName, tokenSymbol,
                           onChange={(e) => setLiquidityAmount(e.target.value)}
                           className="w-full bg-white dark:bg-[#2d2f36] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
                           placeholder={`e.g., 0.1 ${chain?.nativeCurrency?.symbol || 'ETH'}`}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-gray-700 dark:text-gray-300 text-sm mb-2">
-                          Lock Period (days)
-                        </label>
-                        <input
-                          type="text"
-                          value={lockPeriod}
-                          onChange={(e) => setLockPeriod(e.target.value)}
-                          className="w-full bg-white dark:bg-[#2d2f36] text-gray-900 dark:text-white rounded-lg p-3 border border-gray-300 dark:border-gray-700 focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none"
-                          placeholder="365"
                         />
                       </div>
 

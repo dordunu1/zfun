@@ -10,35 +10,53 @@ import { ipfsToHttp } from '../../../../utils/ipfs';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import Confetti from 'react-confetti';
+import { useNavigate } from 'react-router-dom';
 
 // Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: 'ETH',
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.WETH,
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'USDT',
-    name: 'Test USDT',
-    decimals: 6,
-    logo: '/usdt.png'
-  }
-];
+const getCommonTokens = (chainId) => {
+  if (!chainId) return [];
+  
+  const addresses = UNISWAP_ADDRESSES[chainId];
+  if (!addresses) return [];
 
-const getTokenLogo = (token) => {
+  return [
+    {
+      address: 'ETH',
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: addresses.WETH,
+      symbol: 'WETH',
+      name: 'Wrapped Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: addresses.USDT,
+      symbol: 'USDT',
+      name: 'Test USDT',
+      decimals: 6,
+      logo: '/usdt.png'
+    }
+  ];
+};
+
+// Update getTokenLogo to use the function
+const getTokenLogo = (token, chainId) => {
+  if (!token) return '/token-default.png';
+  
   // Check if it's a common token
-  const commonToken = COMMON_TOKENS.find(t => t.address?.toLowerCase() === token?.address?.toLowerCase());
+  const commonTokens = getCommonTokens(chainId);
+  if (!commonTokens) return '/token-default.png';
+  
+  const commonToken = commonTokens.find(t => 
+    t.address?.toLowerCase() === token?.address?.toLowerCase() ||
+    (chainId && UNISWAP_ADDRESSES[chainId]?.WETH?.toLowerCase() === token?.address?.toLowerCase())
+  );
+  
   if (commonToken) {
     return commonToken.logo;
   }
@@ -53,7 +71,7 @@ const getTokenLogo = (token) => {
 };
 
 // Add balance display component
-const TokenBalance = ({ token }) => {
+const TokenBalance = ({ token, chainId }) => {
   const [balance, setBalance] = useState('0');
   const [isLoading, setIsLoading] = useState(false);
   const uniswap = useUnichain();
@@ -61,21 +79,32 @@ const TokenBalance = ({ token }) => {
 
   useEffect(() => {
     const fetchBalance = async () => {
-      if (!userAddress || !token || !uniswap) return;
+      if (!userAddress || !chainId) return;
       
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        // If the token is WETH, show ETH balance instead
-        if (token.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+        // Get the common tokens for the current network
+        const commonTokens = getCommonTokens(chainId);
+        const wethToken = commonTokens.find(t => t.symbol === 'WETH');
+        
+        // Check if this token is WETH/ETH
+        const isWETH = wethToken && token?.address?.toLowerCase() === wethToken.address?.toLowerCase();
+        const isETH = token?.symbol === 'ETH' || isWETH;
+
+        if (isETH) {
+          // For ETH, get the native balance
           const provider = new ethers.BrowserProvider(window.ethereum);
           const ethBalance = await provider.getBalance(userAddress);
           setBalance(ethers.formatEther(ethBalance));
-        } else {
-          const balance = await uniswap.getTokenBalance(
+        } else if (token?.address) {
+          // For other tokens, get the token balance
+          const tokenContract = new ethers.Contract(
             token.address,
-            userAddress
+            ['function balanceOf(address) view returns (uint256)'],
+            new ethers.BrowserProvider(window.ethereum)
           );
-          setBalance(balance);
+          const tokenBalance = await tokenContract.balanceOf(userAddress);
+          setBalance(ethers.formatUnits(tokenBalance, token.decimals || 18));
         }
       } catch (error) {
         console.error('Error fetching balance:', error);
@@ -86,18 +115,26 @@ const TokenBalance = ({ token }) => {
     };
 
     fetchBalance();
-  }, [token, userAddress, uniswap]);
+  }, [token, userAddress, chainId]);
 
-  if (!token) return null;
+  if (!token || !userAddress || !chainId) return null;
 
-  // Show ETH instead of WETH in the display
-  const displaySymbol = token.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() 
-    ? 'ETH' 
-    : token.symbol;
+  // Get display symbol (convert WETH to ETH)
+  const commonTokens = getCommonTokens(chainId);
+  const wethToken = commonTokens.find(t => t.symbol === 'WETH');
+  const isWETH = wethToken && token.address?.toLowerCase() === wethToken.address?.toLowerCase();
+  const displaySymbol = isWETH ? 'ETH' : token.symbol;
 
   return (
-    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-      Balance: {isLoading ? 'Loading...' : balance} {displaySymbol}
+    <div className="flex justify-between items-center text-sm">
+      <span className="text-gray-500 dark:text-gray-400">Balance:</span>
+      {isLoading ? (
+        <div className="animate-pulse bg-gray-200 dark:bg-gray-700 h-4 w-20 rounded"></div>
+      ) : (
+        <span className="text-gray-900 dark:text-white font-medium">
+          {Number(balance).toLocaleString()} {displaySymbol}
+        </span>
+      )}
     </div>
   );
 };
@@ -177,8 +214,8 @@ const Icons = {
   )
 };
 
-// Progress Modal Component
-const ProgressModal = ({ isOpen, onClose, currentStep, pool, error }) => {
+// Update ProgressModal to accept chainId prop
+const ProgressModal = ({ isOpen, onClose, currentStep, pool, error, chainId }) => {
   const steps = [
     { id: 'preparing', title: 'Preparing', icon: <Icons.Preparing /> },
     { id: 'approval', title: 'Token Approval', icon: <Icons.Approval /> },
@@ -189,21 +226,10 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool, error }) => {
 
   const isError = Boolean(error);
 
-  // Format error message to be more user-friendly
   const formatErrorMessage = (error) => {
-    if (error?.includes('user rejected')) {
-      return 'Transaction was rejected. Please try again.';
-    }
-    if (error?.includes('insufficient')) {
-      return 'Insufficient balance for adding liquidity.';
-    }
-    if (error?.includes('INSUFFICIENT_OUTPUT_AMOUNT')) {
-      return 'Price impact too high, try a smaller amount.';
-    }
-    if (error?.includes('EXCESSIVE_INPUT_AMOUNT')) {
-      return 'Insufficient liquidity for this trade.';
-    }
-    return error?.replace(/\{"action":"sendTransaction".*$/, '') || 'An error occurred';
+    if (!error) return '';
+    if (typeof error === 'string') return error;
+    return error.message || 'An unknown error occurred';
   };
 
   const getTokenPairDisplay = () => {
@@ -212,26 +238,26 @@ const ProgressModal = ({ isOpen, onClose, currentStep, pool, error }) => {
     // Convert WETH to ETH for display
     const displayToken0 = {
       ...pool.token0,
-      symbol: pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token0.symbol,
-      name: pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'Ethereum' : pool.token0.name
+      symbol: chainId && pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES[chainId]?.WETH?.toLowerCase() ? 'ETH' : pool.token0.symbol,
+      name: chainId && pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES[chainId]?.WETH?.toLowerCase() ? 'Ethereum' : pool.token0.name
     };
 
     const displayToken1 = {
       ...pool.token1,
-      symbol: pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token1.symbol,
-      name: pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'Ethereum' : pool.token1.name
+      symbol: chainId && pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES[chainId]?.WETH?.toLowerCase() ? 'ETH' : pool.token1.symbol,
+      name: chainId && pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES[chainId]?.WETH?.toLowerCase() ? 'Ethereum' : pool.token1.name
     };
 
     return (
       <div className="flex items-center gap-2">
         <div className="flex -space-x-2">
           <img
-            src={getTokenLogo(displayToken0)}
+            src={getTokenLogo(displayToken0, chainId)}
             alt={displayToken0.symbol}
             className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
           />
           <img
-            src={getTokenLogo(displayToken1)}
+            src={getTokenLogo(displayToken1, chainId)}
             alt={displayToken1.symbol}
             className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
           />
@@ -450,6 +476,7 @@ export default function AddLiquidity() {
   const [loading, setLoading] = useState(false);
   const [showPoolModal, setShowPoolModal] = useState(false);
   const [activeInput, setActiveInput] = useState(null);
+  const [chainId, setChainId] = useState(null);
   const calculateTimeoutRef = React.useRef(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(null);
@@ -460,6 +487,34 @@ export default function AddLiquidity() {
     height: window.innerHeight,
   });
   const [addLiquidityError, setAddLiquidityError] = useState(null);
+  const [currentChainId, setCurrentChainId] = useState(null);
+  const navigate = useNavigate();
+
+  // Effect to get and track chain ID
+  useEffect(() => {
+    const getChainId = async () => {
+      if (window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const network = await provider.getNetwork();
+        setChainId(Number(network.chainId));
+      }
+    };
+
+    getChainId();
+
+    // Listen for chain changes
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', () => {
+        getChainId();
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('chainChanged', getChainId);
+      }
+    };
+  }, []);
 
   // Add window resize handler
   useEffect(() => {
@@ -599,7 +654,7 @@ export default function AddLiquidity() {
       return;
     }
 
-    if (!pool || !token0Amount || !token1Amount) {
+    if (!pool || !token0Amount || !token1Amount || !chainId) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -615,16 +670,29 @@ export default function AddLiquidity() {
       const signer = await provider.getSigner();
       const account = await signer.getAddress();
 
+      // Get network-specific addresses
+      const addresses = UNISWAP_ADDRESSES[chainId];
+      if (!addresses) {
+        throw new Error('Network not supported');
+      }
+
+      // Get common tokens for the current network
+      const commonTokens = getCommonTokens(chainId);
+      const wethToken = commonTokens.find(t => t.symbol === 'WETH');
+      if (!wethToken) {
+        throw new Error('WETH token not found for this network');
+      }
+
       // Create router contract instance
       const router = new ethers.Contract(
-        UNISWAP_ADDRESSES.router,
+        addresses.router,
         ROUTER_ABI,
         signer
       );
 
       // Create factory contract instance
       const factory = new ethers.Contract(
-        UNISWAP_ADDRESSES.factory,
+        addresses.factory,
         FACTORY_ABI,
         provider
       );
@@ -678,11 +746,11 @@ export default function AddLiquidity() {
         token1Symbol: pool.token1.symbol,
         token0Address: token0Address,
         token1Address: token1Address,
-        WETH_ADDRESS: UNISWAP_ADDRESSES.WETH
+        WETH_ADDRESS: wethToken.address
       });
 
-      const isToken0WETH = token0Address?.toLowerCase() === UNISWAP_ADDRESSES.WETH?.toLowerCase();
-      const isToken1WETH = token1Address?.toLowerCase() === UNISWAP_ADDRESSES.WETH?.toLowerCase();
+      const isToken0WETH = token0Address?.toLowerCase() === wethToken.address?.toLowerCase();
+      const isToken1WETH = token1Address?.toLowerCase() === wethToken.address?.toLowerCase();
       const isToken0ETH = pool.token0.symbol === 'ETH' || pool.token0.symbol === 'WETH';
       const isToken1ETH = pool.token1.symbol === 'ETH' || pool.token1.symbol === 'WETH';
 
@@ -813,12 +881,12 @@ export default function AddLiquidity() {
         token0: {
           ...prev.token0,
           ...updatedPool.token0,
-          logo: prev.token0.logo || getTokenLogo(updatedPool.token0)
+          logo: prev.token0.logo || getTokenLogo(updatedPool.token0, chainId)
         },
         token1: {
           ...prev.token1,
           ...updatedPool.token1,
-          logo: prev.token1.logo || getTokenLogo(updatedPool.token1)
+          logo: prev.token1.logo || getTokenLogo(updatedPool.token1, chainId)
         }
       }));
     } catch (error) {
@@ -867,19 +935,26 @@ export default function AddLiquidity() {
             <div className="flex items-center gap-3">
               <div className="flex -space-x-2">
                 <img
-                  src={getTokenLogo(pool.token0)}
+                  src={getTokenLogo(pool.token0, chainId)}
                   alt={pool.token0.symbol}
                   className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                 />
                 <img
-                  src={getTokenLogo(pool.token1)}
+                  src={getTokenLogo(pool.token1, chainId)}
                   alt={pool.token1.symbol}
                   className="w-8 h-8 rounded-full ring-2 ring-white dark:ring-[#1a1b1f]"
                 />
               </div>
               <span className="font-medium text-gray-900 dark:text-white">
-                {pool.token0.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token0.symbol}/
-                {pool.token1.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase() ? 'ETH' : pool.token1.symbol}
+                {(() => {
+                  if (!chainId) return `${pool.token0.symbol}/${pool.token1.symbol}`;
+                  const commonTokens = getCommonTokens(chainId);
+                  const wethToken = commonTokens.find(t => t.symbol === 'WETH');
+                  if (!wethToken) return `${pool.token0.symbol}/${pool.token1.symbol}`;
+                  const token0Symbol = pool.token0.address?.toLowerCase() === wethToken.address?.toLowerCase() ? 'ETH' : pool.token0.symbol;
+                  const token1Symbol = pool.token1.address?.toLowerCase() === wethToken.address?.toLowerCase() ? 'ETH' : pool.token1.symbol;
+                  return `${token0Symbol}/${token1Symbol}`;
+                })()}
               </span>
             </div>
           ) : (
@@ -913,7 +988,7 @@ export default function AddLiquidity() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <img
-                  src={pool.token0.logo}
+                  src={getTokenLogo(pool.token0, chainId)}
                   alt={pool.token0.isWETH ? 'ETH' : pool.token0.symbol}
                   className="w-6 h-6 rounded-full"
                 />
@@ -922,7 +997,7 @@ export default function AddLiquidity() {
                 </span>
               </div>
             </div>
-            <TokenBalance token={pool.token0} />
+            <TokenBalance token={pool.token0} chainId={chainId} />
           </div>
 
           {/* Token 1 Input */}
@@ -940,7 +1015,7 @@ export default function AddLiquidity() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <img
-                  src={pool.token1.logo}
+                  src={getTokenLogo(pool.token1, chainId)}
                   alt={pool.token1.isWETH ? 'ETH' : pool.token1.symbol}
                   className="w-6 h-6 rounded-full"
                 />
@@ -949,7 +1024,7 @@ export default function AddLiquidity() {
                 </span>
               </div>
             </div>
-            <TokenBalance token={pool.token1} />
+            <TokenBalance token={pool.token1} chainId={chainId} />
           </div>
 
           {/* Add Liquidity Button */}
@@ -991,6 +1066,7 @@ export default function AddLiquidity() {
         currentStep={currentStep}
         pool={pool}
         error={addLiquidityError}
+        chainId={chainId}
       />
 
       {/* Add Rating Modal */}

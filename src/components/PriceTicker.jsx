@@ -12,7 +12,7 @@ const TOKENS = {
   'dogecoin': 'DOGE',
   'avalanche-2': 'AVAX',
   'chainlink': 'LINK',
-  'polygon': 'MATIC',
+  'polygon': 'POL',
   'uniswap': 'UNI',
   'stellar': 'XLM',
   'cosmos': 'ATOM',

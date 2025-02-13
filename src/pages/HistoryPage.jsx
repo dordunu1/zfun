@@ -18,6 +18,7 @@ import { getTokenTransfersForAddress, trackTokenTransfers, getNFTTransfersForAdd
 import { ipfsToHttp } from '../utils/ipfs';
 import { ethers } from 'ethers';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { getExplorerUrl as getExplorerUrlFromUtils } from '../utils/explorer';
 
 // Memory cache for activities
 const CACHE_DURATION = 30000; // 30 seconds
@@ -107,52 +108,38 @@ export default function HistoryPage() {
   const [selectedNetwork, setSelectedNetwork] = useState('all');
   const closeTimeoutRef = useRef(null);
   const { openConnectModal } = useConnectModal();
+  const [networkDropdownOpen, setNetworkDropdownOpen] = useState(false);
 
   // Add NetworkFilter component
   const NetworkFilter = () => {
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-
-    const handleMouseEnter = () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
-      setDropdownOpen(true);
-    };
-
-    const handleMouseLeave = () => {
-      closeTimeoutRef.current = setTimeout(() => {
-        setDropdownOpen(false);
-      }, 300);
-    };
-
-    // Count activities by network
-    const networkCount = {
-      all: activities.length,
-      sepolia: activities.filter(a => a.network === 'sepolia').length,
-      unichain: activities.filter(a => a.network === 'unichain').length,
-      moonwalker: activities.filter(a => a.network === 'moonwalker').length
-    };
-
     const networks = [
-      { value: 'all', label: `All Networks (${networkCount.all})` },
-      { value: 'sepolia', label: `Sepolia (${networkCount.sepolia})` },
-      { value: 'unichain', label: `Unichain (${networkCount.unichain})` },
-      { value: 'moonwalker', label: `Moonwalker (${networkCount.moonwalker})` }
+      { id: 'all', label: 'All Networks' },
+      { id: 'sepolia', label: 'Sepolia' },
+      { id: 'unichain-mainnet', label: 'Unichain Mainnet' },
+      { id: 'unichain', label: 'Unichain Testnet' },
+      { id: 'polygon', label: 'Polygon' },
+      { id: 'moonwalker', label: 'Moonwalker' }
     ];
 
+    const networkCounts = {
+      all: activities.length,
+      sepolia: activities.filter(a => a.network === 'sepolia' || a.chainId === 11155111).length,
+      'unichain-mainnet': activities.filter(a => a.network === 'unichain-mainnet' || a.chainId === 130).length,
+      unichain: activities.filter(a => a.network === 'unichain' || a.chainId === 1301).length,
+      polygon: activities.filter(a => a.network === 'polygon' || a.chainId === 137).length,
+      moonwalker: activities.filter(a => a.network === 'moonwalker' || a.chainId === 1828369849).length
+    };
+
     return (
-      <div 
-        className="relative"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
+      <div className="relative">
         <button
           type="button"
-          className="bg-white dark:bg-[#0d0e12] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:border-[#00ffbd] focus:ring-2 focus:ring-[#00ffbd]/20 focus:outline-none min-w-[160px] flex items-center justify-between text-xs"
+          onClick={() => setNetworkDropdownOpen(!networkDropdownOpen)}
+          className="bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-2 text-gray-900 dark:text-white focus:outline-none min-w-[160px] flex items-center justify-between"
         >
-          <span>{networks.find(n => n.value === selectedNetwork)?.label}</span>
+          <span>{networks.find(n => n.id === selectedNetwork)?.label} ({networkCounts[selectedNetwork]})</span>
           <svg
-            className={`w-4 h-4 text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-gray-500 transition-transform ${networkDropdownOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -160,25 +147,21 @@ export default function HistoryPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {dropdownOpen && (
-          <div 
-            className="absolute z-[110] w-full mt-2 bg-white dark:bg-[#0d0e12] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
-            style={{ top: '100%' }}
-            onMouseEnter={() => clearTimeout(closeTimeoutRef.current)}
-            onMouseLeave={handleMouseLeave}
-          >
+
+        {networkDropdownOpen && (
+          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#1a1b1f] rounded-xl shadow-lg border border-gray-200 dark:border-gray-800">
             {networks.map(network => (
               <button
-                key={network.value}
+                key={network.id}
                 onClick={() => {
-                  setSelectedNetwork(network.value);
-                  setDropdownOpen(false);
+                  setSelectedNetwork(network.id);
+                  setNetworkDropdownOpen(false);
                 }}
-                className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-lg last:rounded-b-lg transition-colors duration-150 text-xs ${
-                  selectedNetwork === network.value ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
+                className={`w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-xl last:rounded-b-xl transition-colors duration-150 ${
+                  selectedNetwork === network.id ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 'text-gray-900 dark:text-white'
                 }`}
               >
-                {network.label}
+                {network.label} ({networkCounts[network.id]})
               </button>
             ))}
           </div>
@@ -187,10 +170,17 @@ export default function HistoryPage() {
     );
   };
 
-  // Filter activities based on selected network
+  // Update the filtering logic
   const filteredActivities = useMemo(() => {
-    if (selectedNetwork === 'all') return activities;
-    return activities.filter(activity => activity.network === selectedNetwork);
+    return activities.filter(activity => {
+      if (selectedNetwork === 'all') return true;
+      return activity.network === selectedNetwork || 
+             (selectedNetwork === 'sepolia' && activity.chainId === 11155111) ||
+             (selectedNetwork === 'unichain-mainnet' && activity.chainId === 130) ||
+             (selectedNetwork === 'unichain' && activity.chainId === 1301) ||
+             (selectedNetwork === 'polygon' && activity.chainId === 137) ||
+             (selectedNetwork === 'moonwalker' && activity.chainId === 1828369849);
+    });
   }, [activities, selectedNetwork]);
 
   useEffect(() => {
@@ -511,16 +501,50 @@ export default function HistoryPage() {
     );
   };
 
-  const getExplorerUrl = (network) => {
+  const getExplorerUrl = (network, chainId) => {
+    // Convert network name to chainId if not provided
+    const resolvedChainId = chainId || (
+      network === 'unichain-mainnet' ? 130 :
+      network === 'unichain' ? 1301 :
+      network === 'polygon' ? 137 :
+      network === 'moonwalker' ? 1828369849 :
+      11155111 // Sepolia as default
+    );
+    
+    return getExplorerUrlFromUtils(resolvedChainId);
+  };
+
+  const getNetworkDisplayName = (network, chainId) => {
+    // First check chainId as it's more reliable
+    if (chainId) {
+      switch (chainId) {
+        case 130:
+          return 'Unichain';
+        case 1301:
+          return 'Unichain Testnet';
+        case 137:
+          return 'Polygon';
+        case 1828369849:
+          return 'Moonwalker';
+        case 11155111:
+          return 'Sepolia';
+        default:
+          return 'Unknown Network';
+      }
+    }
+
+    // Fallback to network name if chainId not available
     switch (network) {
+      case 'unichain-mainnet':
+        return 'Unichain';
       case 'unichain':
-        return 'https://unichain-sepolia.blockscout.com';
+        return 'Unichain Testnet';
       case 'polygon':
-        return 'https://polygonscan.com';
+        return 'Polygon';
       case 'moonwalker':
-        return 'https://moonwalker-sepolia.blockscout.com';
+        return 'Moonwalker';
       default:
-        return 'https://sepolia.etherscan.io';
+        return 'Sepolia';
     }
   };
 
@@ -627,16 +651,14 @@ export default function HistoryPage() {
               
               {activity.network && (
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  on {activity.network === 'polygon' ? 'Polygon' : 
-                      activity.network === 'unichain' ? 'Unichain' : 
-                      activity.network === 'moonwalker' ? 'Moonwalker' : 'Sepolia'}
+                  on {getNetworkDisplayName(activity.network, activity.chainId)}
                 </span>
               )}
 
               {/* Add transaction link */}
               {activity.transactionHash && (
                 <a
-                  href={`${getExplorerUrl(activity.network)}/tx/${activity.transactionHash}`}
+                  href={`${getExplorerUrl(activity.network, activity.chainId)}/tx/${activity.transactionHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-[#00ffbd] transition-colors"

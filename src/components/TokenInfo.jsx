@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
-import { useNetwork } from 'wagmi';
+import { useNetwork, useContractRead } from 'wagmi';
 import { motion } from 'framer-motion';
 import { BiCopy, BiRefresh, BiRocket, BiMoney, BiWater, BiLinkExternal } from 'react-icons/bi';
 import { FaFire } from 'react-icons/fa';
@@ -67,6 +67,14 @@ const TokenInfo = () => {
   const [error, setError] = useState('');
   const { chain } = useNetwork();
 
+  // Read total supply
+  const { data: totalSupply } = useContractRead({
+    address: tokenAddress,
+    abi: MemeTokenABI.abi,
+    functionName: 'totalSupply',
+    watch: true,
+  });
+
   const fetchTokenInfo = async () => {
     if (!tokenAddress) return;
     
@@ -93,8 +101,6 @@ const TokenInfo = () => {
         minTokensBeforeSwap,
         antiBotEnabled,
         autoLiquidityEnabled,
-        liquidityLocked,
-        liquidityUnlockTime,
         tradingEnabled,
         maxWalletAmount,
         maxTxAmount
@@ -113,8 +119,6 @@ const TokenInfo = () => {
         token.minTokensBeforeSwap(),
         token.antiBotEnabled(),
         token.autoLiquidityEnabled(),
-        token.liquidityLocked(),
-        token.liquidityUnlockTime(),
         token.tradingEnabled(),
         token.maxWalletAmount(),
         token.maxTransactionAmount()
@@ -140,8 +144,6 @@ const TokenInfo = () => {
         features: {
           antiBotEnabled,
           autoLiquidityEnabled,
-          liquidityLocked,
-          liquidityUnlockTime: liquidityUnlockTime ? Number(liquidityUnlockTime) : 0,
           tradingEnabled,
           maxWalletAmount: ethers.formatUnits(maxWalletAmount, 18),
           maxTxAmount: ethers.formatUnits(maxTxAmount, 18)
@@ -230,9 +232,22 @@ const TokenInfo = () => {
               variants={itemVariants}
               className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#2d2f36] dark:to-[#24262b] border border-gray-200 dark:border-gray-700 shadow-sm"
             >
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
-                {tokenData.name} ({tokenData.symbol}) 🚀
-              </h2>
+              <div className="flex justify-between items-start mb-3">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {tokenData.name} ({tokenData.symbol}) 🚀
+                </h2>
+                <div className="flex items-center gap-2">
+                  {tokenData.features?.tradingEnabled ? (
+                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded-full">
+                      Trading Enabled
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded-full">
+                      Trading Disabled
+                    </span>
+                  )}
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 dark:text-gray-400 text-sm">Total Supply:</span>
@@ -251,123 +266,159 @@ const TokenInfo = () => {
               </div>
             </motion.div>
 
-            {/* Fee Structure */}
+            {/* Honeypot Detection Card */}
             <motion.div
               variants={itemVariants}
-              className="grid grid-cols-1 md:grid-cols-3 gap-4"
+              className="p-4 rounded-xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200"
             >
-              {/* Marketing Fee */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-500/5 dark:to-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <BiMoney className="w-5 h-5 text-yellow-500" />
-                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Marketing Fee</h3>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{tokenData.fees.community}%</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Collected: {Number(tokenData.balances.marketing).toLocaleString()}
-                  </p>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>🍯</span> Honeypot Detection
+                </h3>
+                {tokenData.features?.tradingEnabled ? (
+                  <span className="flex items-center gap-1 text-green-500">
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                    Safe to Trade
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-yellow-500">
+                    <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                    Caution
+                  </span>
+                )}
               </div>
-
-              {/* Burn Fee */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-500/5 dark:to-red-500/10 border border-red-200 dark:border-red-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <FaFire className="w-5 h-5 text-red-500" />
-                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Burn Fee</h3>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{tokenData.fees.burn}%</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Burned: {Number(tokenData.balances.dead).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Liquidity Fee */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-500/5 dark:to-blue-500/10 border border-blue-200 dark:border-blue-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <BiWater className="w-5 h-5 text-blue-500" />
-                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Liquidity Fee</h3>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{tokenData.fees.liquidity}%</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Pending: {Number(tokenData.balances.contract).toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Auto-adds at: {Number(tokenData.minTokensBeforeSwap).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Progress to Auto-Liquidity */}
-            <motion.div
-              variants={itemVariants}
-              className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#2d2f36] dark:to-[#24262b] border border-gray-200 dark:border-gray-700"
-            >
-              <h3 className="text-base font-medium text-gray-900 dark:text-white mb-3">Progress to Auto-Liquidity 🌊</h3>
-              <div className="relative pt-1">
-                <div className="flex mb-2 items-center justify-between">
-                  <div>
-                    <span className="text-xs font-medium inline-block py-1 px-2 uppercase rounded-full bg-[#00ffbd]/10 text-[#00ffbd]">
-                      {((Number(tokenData.balances.contract) / 300) * 100).toFixed(1)}%
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Max Transaction:</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {tokenData.features?.maxTxAmount ? `${Number(tokenData.features.maxTxAmount).toLocaleString()} tokens` : 'No Limit'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Max Wallet:</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {tokenData.features?.maxWalletAmount ? `${Number(tokenData.features.maxWalletAmount).toLocaleString()} tokens` : 'No Limit'}
                     </span>
                   </div>
                 </div>
-                <div className="overflow-hidden h-2 mb-3 text-xs flex rounded bg-gray-200 dark:bg-gray-700">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ 
-                      width: `${Math.min((Number(tokenData.balances.contract) / 300) * 100, 100)}%` 
-                    }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                    className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-[#00ffbd]"
-                  />
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Anti-Bot:</span>
+                    <span className={`text-sm font-medium ${tokenData.features?.antiBotEnabled ? 'text-yellow-500' : 'text-green-500'}`}>
+                      {tokenData.features?.antiBotEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Fee:</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {Number(tokenData.fees.community) + Number(tokenData.fees.liquidity) + Number(tokenData.fees.burn)}%
+                    </span>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {Number(tokenData.balances.contract).toLocaleString()} / 300 tokens
-                </div>
+              </div>
+
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-400">
+                  <span className="font-medium">Note:</span> Always test with a small amount first and check the contract on a blockchain explorer before making large trades.
+                </p>
               </div>
             </motion.div>
 
-            {/* Token Features Section */}
-            <motion.div
-              variants={itemVariants}
-              className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#2d2f36] dark:to-[#24262b] border border-gray-200 dark:border-gray-700"
-            >
-              <h3 className="text-base font-medium text-gray-900 dark:text-white mb-3">Token Features 🚀</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className={`flex items-center gap-2 p-2 rounded-lg ${tokenData.features?.autoLiquidityEnabled ? 'bg-[#00ffbd]/10' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${tokenData.features?.autoLiquidityEnabled ? 'bg-[#00ffbd] text-black' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                    {tokenData.features?.autoLiquidityEnabled ? '✓' : '×'}
-                  </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-300">Auto-Liquidity</span>
+            {/* Features and Stats Cards */}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Marketing Fee Card */}
+              <div className="p-4 rounded-2xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-amber-500 dark:text-amber-400 text-xl">✉</span>
+                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Marketing Fee</h3>
                 </div>
-                <div className={`flex items-center gap-2 p-2 rounded-lg ${tokenData.features?.antiBotEnabled ? 'bg-[#00ffbd]/10' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${tokenData.features?.antiBotEnabled ? 'bg-[#00ffbd] text-black' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                    {tokenData.features?.antiBotEnabled ? '✓' : '×'}
-                  </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-300">Anti-Bot Protection</span>
-                </div>
-                <div className={`flex items-center gap-2 p-2 rounded-lg ${tokenData.features?.liquidityLocked ? 'bg-[#00ffbd]/10' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${tokenData.features?.liquidityLocked ? 'bg-[#00ffbd] text-black' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                    {tokenData.features?.liquidityLocked ? '✓' : '×'}
-                  </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-300">
-                    Liquidity Locked {tokenData.features?.liquidityLocked && tokenData.features?.liquidityUnlockTime > 0 && 
-                      `(until ${new Date(tokenData.features.liquidityUnlockTime * 1000).toLocaleDateString()})`}
-                  </span>
-                </div>
-                <div className={`flex items-center gap-2 p-2 rounded-lg ${Number(tokenData.features?.maxWalletAmount) < Number(tokenData.totalSupply) ? 'bg-[#00ffbd]/10' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${Number(tokenData.features?.maxWalletAmount) < Number(tokenData.totalSupply) ? 'bg-[#00ffbd] text-black' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                    {Number(tokenData.features?.maxWalletAmount) < Number(tokenData.totalSupply) ? '✓' : '×'}
-                  </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-300">Max Wallet Limit</span>
+                <div className="space-y-1.5">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Fee: {tokenData.fees.community}%</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="block text-xs text-gray-500 dark:text-gray-500">Collected:</span>
+                    {Number(tokenData.balances.marketing).toLocaleString()} tokens
+                  </p>
                 </div>
               </div>
-            </motion.div>
+
+              {/* Burn Fee Card with Enhanced Flame Effect */}
+              <div className="relative p-4 rounded-2xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors duration-200">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-red-500 dark:text-red-400 text-xl">🔥</span>
+                    <h3 className="text-base font-medium text-gray-900 dark:text-white">Burn Fee</h3>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Fee: {tokenData.fees.burn}%</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <span className="block text-xs text-gray-500 dark:text-gray-500">Burned:</span>
+                      {Number(tokenData.balances.dead).toLocaleString()} tokens
+                    </p>
+                  </div>
+                </div>
+                {/* Enhanced Flame Effects */}
+                <div className="absolute inset-0">
+                  <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-red-500/20 via-orange-400/10 to-transparent dark:from-red-600/40 dark:via-orange-500/20"></div>
+                  <div className="absolute inset-x-0 -bottom-2 h-48 bg-gradient-to-t from-red-500 via-orange-400 to-yellow-300 dark:from-red-600 dark:via-orange-500 dark:to-yellow-500 opacity-20 dark:opacity-30 animate-flame"></div>
+                  <div className="absolute inset-x-4 -bottom-2 h-40 bg-gradient-to-t from-red-600 via-orange-500 to-yellow-400 dark:from-red-700 dark:via-orange-600 dark:to-yellow-600 opacity-30 dark:opacity-40 animate-flame-slow"></div>
+                  <div className="absolute inset-x-8 -bottom-2 h-32 bg-gradient-to-t from-red-700 via-orange-600 to-yellow-500 dark:from-red-800 dark:via-orange-700 dark:to-yellow-700 opacity-40 dark:opacity-50 animate-flame-slower"></div>
+                  {/* Glow Effect */}
+                  <div className="absolute inset-0 bg-red-500/5 dark:bg-red-500/10 blur-xl"></div>
+                </div>
+              </div>
+
+              {/* Liquidity Fee Card */}
+              <div className="p-4 rounded-2xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-blue-500 dark:text-blue-400 text-xl">💧</span>
+                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Liquidity Fee</h3>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Fee: {tokenData.fees.liquidity}%</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="block text-xs text-gray-500 dark:text-gray-500">Balance:</span>
+                    {Number(tokenData.balances.contract).toLocaleString()} tokens
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-Liquidity Progress Bar */}
+            {tokenData.features.autoLiquidityEnabled && (
+              <motion.div
+                variants={itemVariants}
+                className="mt-4 p-4 rounded-xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#00ffbd]">💧</span>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Progress to Auto-Liquidity</h3>
+                  </div>
+                  <span className="text-[#00ffbd] font-mono">
+                    {((Number(tokenData.balances.contract) / Number(tokenData.minTokensBeforeSwap)) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[#00ffbd] rounded-full transition-all duration-300"
+                    style={{ 
+                      width: `${Math.min(
+                        (Number(tokenData.balances.contract) / Number(tokenData.minTokensBeforeSwap)) * 100, 
+                        100
+                      )}%` 
+                    }}
+                  />
+                </div>
+                <div className="mt-2 text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 font-mono">
+                    {Number(tokenData.balances.contract).toLocaleString()} / {Number(tokenData.minTokensBeforeSwap).toLocaleString()} tokens
+                  </span>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </div>

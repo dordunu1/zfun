@@ -407,7 +407,10 @@ export default function CollectionPage() {
     const getChainId = async () => {
       if (window.ethereum) {
         const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        setCurrentChainId(parseInt(chainId, 16));
+        const parsedChainId = parseInt(chainId, 16);
+        console.log('Current Chain ID:', parsedChainId);
+        console.log('Current Network:', collection?.network);
+        setCurrentChainId(parsedChainId);
       }
     };
     getChainId();
@@ -435,7 +438,7 @@ export default function CollectionPage() {
             provider
           );
 
-          // Get contract data based on type
+          // Get contract data based on type and network
           if (collection.type === 'ERC1155') {
             const [totalMinted, userMinted] = await Promise.all([
               contract.totalSupply(),
@@ -444,9 +447,14 @@ export default function CollectionPage() {
             setTotalMinted(Number(totalMinted));
             setUserMintedAmount(Number(userMinted));
           } else {
+            // Add higher gas limit for Unichain networks
+            const options = collection.network === 'unichain-mainnet' || collection.network === 'unichain' 
+              ? { gasLimit: 1000000 }
+              : {};
+              
             const [totalMinted, userMinted] = await Promise.all([
-              contract.totalSupply(),
-              contract.mintedPerWallet(account)
+              contract.totalSupply(options),
+              contract.mintedPerWallet(account, options)
             ]);
             setTotalMinted(Number(totalMinted));
             setUserMintedAmount(Number(userMinted));
@@ -463,7 +471,7 @@ export default function CollectionPage() {
       // Reset states when no wallet is connected
       setUserMintedAmount(0);
     }
-  }, [account, collection?.contractAddress]); // Add account to dependencies
+  }, [account, collection?.contractAddress]);
 
   // Add this effect to reset states on disconnect
   useEffect(() => {
@@ -522,7 +530,7 @@ export default function CollectionPage() {
     return () => unsubscribe();
   }, [symbol]);
 
-  // Add this effect specifically for getting maxSupply
+  // Update maxSupply handling
   useEffect(() => {
     // Initialize maxSupply to 0 if collection is not loaded yet
     if (!collection) {
@@ -530,8 +538,8 @@ export default function CollectionPage() {
       return;
     }
 
-    // For Unichain and Moonwalker, use the collection data directly
-    if (collection.network === 'unichain' || collection.network === 'moonwalker') {
+    // For Unichain mainnet, Unichain testnet, and Moonwalker, use the collection data directly
+    if (collection.network === 'unichain-mainnet' || collection.network === 'unichain' || collection.network === 'moonwalker') {
       setMaxSupply(Number(collection.maxSupply) || 0);
       return;
     }
@@ -571,7 +579,7 @@ export default function CollectionPage() {
     }
   }, []);
 
-  // Add new useEffect to fetch payment token info
+  // Update payment token info handling
   useEffect(() => {
     const fetchPaymentTokenInfo = async () => {
       if (collection?.contractAddress && window.ethereum) {
@@ -590,7 +598,8 @@ export default function CollectionPage() {
             // Native token case
             setPaymentTokenInfo({
               address: ethers.ZeroAddress,
-              symbol: collection.network === 'polygon' ? 'MATIC' : 'ETH',
+              symbol: collection.network === 'polygon' ? 'POL' :
+                     collection.network === 'moonwalker' ? 'ZERO' : 'ETH',
               decimals: 18,
               isNative: true
             });
@@ -636,7 +645,11 @@ export default function CollectionPage() {
         return <img src="/Zero.png" alt="ZERO" className="w-5 h-5" />;
       }
       if (collection?.network === 'polygon') {
-        return <img src="/matic.png" alt="MATIC" className="w-5 h-5" />;
+        return <img src="/polygon.png" alt="POL" className="w-5 h-5" />;
+      }
+      // Both Unichain mainnet and testnet use ETH
+      if (collection?.network === 'unichain-mainnet' || collection?.network === 'unichain') {
+        return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
       }
       return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
     }
@@ -875,8 +888,9 @@ export default function CollectionPage() {
         name: collection.name,
         symbol: collection.symbol,
         artworkType: collection.artworkType || 'image',
-        network: currentChainId === 1301 ? 'unichain' : 
-                currentChainId === 137 ? 'polygon' : 
+        network: currentChainId === 130 ? 'unichain-mainnet' :
+                currentChainId === 1301 ? 'unichain' :
+                currentChainId === 137 ? 'polygon' :
                 currentChainId === 1828369849 ? 'moonwalker' : 'sepolia',
         mintPrice: formattedMintPrice,
         paymentToken: collection.mintToken || null
@@ -1006,15 +1020,24 @@ export default function CollectionPage() {
     const isMintEnded = !collection.infiniteMint && mintEndDate && now >= mintEndDate;
 
     // Determine if on wrong network
-    const expectedChainId = collection.network === 'unichain' ? 1301 :
+    const expectedChainId = collection.network === 'unichain-mainnet' || collection.chainId === 130 ? 130 :
+                           collection.network === 'unichain' ? 1301 :
                            collection.network === 'sepolia' ? 11155111 :
                            collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 1828369849 :
                            collection.network === 'polygon' ? 137 : null;
     
+    console.log('Network Check:', {
+      currentChainId,
+      expectedChainId,
+      collectionNetwork: collection.network,
+      collectionChainId: collection.chainId
+    });
+    
     const isWrongNetwork = currentChainId && currentChainId !== expectedChainId;
 
     // Get network display name
-    const networkDisplayName = collection.network === 'unichain' ? 'Unichain' :
+    const networkDisplayName = collection.network === 'unichain-mainnet' || collection.chainId === 130 ? 'Unichain Mainnet' :
+                             collection.network === 'unichain' ? 'Unichain Testnet' :
                              collection.network === 'sepolia' ? 'Sepolia' :
                              collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 'MoonWalker' :
                              collection.network === 'polygon' ? 'Polygon' : 'Unknown Network';
@@ -1385,11 +1408,13 @@ export default function CollectionPage() {
                       href={`${
                         collection.network === 'polygon' 
                           ? 'https://polygonscan.com' 
-                          : collection.network === 'unichain' || collection.chainId === 1301
-                            ? 'https://unichain-sepolia.blockscout.com'
-                            : collection.network === 'moonwalker' || collection.chainId === 1828369849
-                              ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
-                              : 'https://sepolia.etherscan.io'
+                          : collection.network === 'unichain-mainnet' || collection.chainId === 130
+                            ? 'https://unichain.blockscout.com'
+                            : collection.network === 'unichain'
+                                ? 'https://unichain-sepolia.blockscout.com'
+                                : collection.network === 'moonwalker' || collection.chainId === 1828369849
+                                    ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+                                    : 'https://sepolia.etherscan.io'
                       }/address/${collection.creatorAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1408,11 +1433,13 @@ export default function CollectionPage() {
                     href={`${
                       collection.network === 'polygon' 
                         ? 'https://polygonscan.com' 
-                        : collection.network === 'unichain' || collection.chainId === 1301
-                          ? 'https://unichain-sepolia.blockscout.com'
-                          : collection.network === 'moonwalker' || collection.chainId === 1828369849
-                            ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
-                            : 'https://sepolia.etherscan.io'
+                        : collection.network === 'unichain-mainnet' || collection.chainId === 130
+                          ? 'https://unichain.blockscout.com'
+                          : collection.network === 'unichain'
+                              ? 'https://unichain-sepolia.blockscout.com'
+                              : collection.network === 'moonwalker' || collection.chainId === 1828369849
+                                  ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+                                  : 'https://sepolia.etherscan.io'
                     }/address/${collection.contractAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"

@@ -76,19 +76,6 @@ async function main() {
     console.log("Error checking fees:", error.message);
   }
 
-  console.log("\n5. Checking Liquidity Lock Status");
-  try {
-    const liquidityLocked = await token.liquidityLocked();
-    console.log("Liquidity Locked:", liquidityLocked);
-    if (liquidityLocked) {
-      const unlockTime = await token.liquidityUnlockTime();
-      const currentTime = Math.floor(Date.now() / 1000);
-      console.log("Time until unlock:", (unlockTime - currentTime), "seconds");
-    }
-  } catch (error) {
-    console.log("Error checking liquidity lock:", error.message);
-  }
-
   // Keep the script running to catch events
   console.log("\nWaiting for SwapAndLiquify events... (Press Ctrl+C to exit)");
 }

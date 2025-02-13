@@ -259,11 +259,6 @@
               "internalType": "uint256",
               "name": "initialLiquidityPercent",
               "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "liquidityLockPeriod",
-              "type": "uint256"
             }
           ],
           "internalType": "struct TokenFactory.MemeTokenParams",

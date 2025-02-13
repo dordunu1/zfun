@@ -61,15 +61,22 @@ export default function Sidebar({ onOpenModal, onOpenNFTModal }) {
       isRouterLink: true,
       noDefaultHighlight: true,
     },
+    {
+      icon: FaRocket,
+      label: 'Meme Factory',
+      to: '/memefactory',
+      isRouterLink: true,
+    },
     // Divider
     { type: 'divider' },
-    // Trading & Analytics Group
+    // Trading Section
     {
-      icon: FaChartLine,
+      icon: TbChartCandle,
       label: 'Trading',
       to: '/trading',
       isRouterLink: true,
     },
+    // Bridge & Store Group
     {
       icon: FaLink,
       label: 'Bridge',

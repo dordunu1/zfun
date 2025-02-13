@@ -10,42 +10,75 @@ import { ipfsToHttp } from '../../../../utils/ipfs';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Add RPC URL constant at the top
-const UNICHAIN_RPC_URL = 'https://sepolia.unichain.org';
+const UNICHAIN_RPC_URLS = {
+  1301: 'https://sepolia.unichain.org',
+  130: 'https://mainnet.unichain.org'
+};
 
 // Add chain ID constant at the top
-const UNICHAIN_CHAIN_ID = 1301; // Unichain Sepolia chain ID
+const UNICHAIN_CHAIN_IDS = {
+  TESTNET: 1301,
+  MAINNET: 130
+};
 
 // Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: 'ETH',
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.WETH,
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 18,
-    logo: '/eth.png'
-  },
-  {
-    address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
-    symbol: 'USDC',
-    name: 'USD Coin',
-    decimals: 6,
-    logo: '/usdc.png'
-  },
-  {
-    address: UNISWAP_ADDRESSES.USDT,
-    symbol: 'USDT',
-    name: 'Test USDT',
-    decimals: 6,
-    logo: '/usdt.png'
-  }
-];
+const COMMON_TOKENS = {
+  // Testnet tokens (1301)
+  1301: [
+    {
+      address: 'ETH',
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[1301].WETH,
+      symbol: 'WETH',
+      name: 'Wrapped Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      logo: '/usdc.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[1301].USDT,
+      symbol: 'USDT',
+      name: 'Test USDT',
+      decimals: 6,
+      logo: '/usdt.png'
+    }
+  ],
+  // Mainnet tokens (130)
+  130: [
+    {
+      address: 'ETH',
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[130].WETH,
+      symbol: 'WETH',
+      name: 'Wrapped Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[130].USDT,
+      symbol: 'USDT',
+      name: 'USDT',
+      decimals: 6,
+      logo: '/usdt.png'
+    }
+  ]
+};
 
 // Add CSS for custom scrollbar
 const scrollbarStyles = `
@@ -71,18 +104,20 @@ const formatBalance = (balance, decimals = 18) => {
   return Number(ethers.formatUnits(balance, decimals)).toString();
 };
 
-const scanForTokens = async (provider, userAddress) => {
+const scanForTokens = async (provider, userAddress, chainId) => {
   try {
-    // Create a list of known token addresses to scan
+    // Create a list of known token addresses to scan based on chain ID
     const knownTokens = [
-      '0x31d0220469e10c4E71834a79b1f276d740d3768F', // USDC
-      UNISWAP_ADDRESSES.WETH,
-      UNISWAP_ADDRESSES.USDT,
+      ...(COMMON_TOKENS[chainId] || []).map(token => token.address).filter(addr => addr !== 'ETH'),
     ];
 
-    // Fetch tokens from Blockscout API
+    // Fetch tokens from Blockscout API based on chain
+    const blockscoutUrl = chainId === UNICHAIN_CHAIN_IDS.TESTNET 
+      ? 'https://unichain-sepolia.blockscout.com'
+      : 'https://unichain.blockscout.com';
+
     const apiTokens = await fetch(
-      `https://unichain-sepolia.blockscout.com/api/v2/addresses/${userAddress}/token-balances`
+      `${blockscoutUrl}/api/v2/addresses/${userAddress}/token-balances`
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(`API request failed with status ${res.status}`);
@@ -182,7 +217,7 @@ const scanForTokens = async (provider, userAddress) => {
   }
 };
 
-const getWalletTokens = async (provider, userAddress) => {
+const getWalletTokens = async (provider, userAddress, chainId) => {
   try {
     const ethersProvider = new ethers.BrowserProvider(provider);
     
@@ -194,14 +229,14 @@ const getWalletTokens = async (provider, userAddress) => {
         const tokenPermission = permissions.find(p => p.parentCapability === 'eth_accounts');
         return tokenPermission?.caveats?.[0]?.value || [];
       }).catch(() => []),
-      scanForTokens(ethersProvider, userAddress)
+      scanForTokens(ethersProvider, userAddress, chainId)
     ]);
 
     // Combine and format tokens
     const formattedWalletTokens = (walletTokens || [])
-      .filter(token => token && typeof token === 'object')
+      .filter(token => token && typeof token === 'object' && token.address)
       .map(token => ({
-        address: token.address || '',
+        address: token.address,
         symbol: token.symbol || 'Unknown',
         name: token.name || 'Unknown Token',
         decimals: token.decimals || 18,
@@ -210,12 +245,12 @@ const getWalletTokens = async (provider, userAddress) => {
       }));
 
     // Combine tokens and remove duplicates
-    const allTokens = [...formattedWalletTokens, ...scannedTokens];
-    const uniqueTokens = Array.from(new Map(
-      allTokens.map(token => [token.address.toLowerCase(), token])
-    ).values());
+    const allTokens = [...formattedWalletTokens, ...scannedTokens].filter(token => token && token.address);
+    const uniqueTokens = Array.from(
+      new Map(allTokens.map(token => [token.address.toLowerCase(), token]))
+    ).values();
 
-    return uniqueTokens.filter(token => token && token.address);
+    return Array.from(uniqueTokens);
   } catch (error) {
     console.error('Error getting wallet tokens:', error);
     return [];
@@ -260,10 +295,12 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
         const chainId = parseInt(hexChainId, 16);
         
-        if (chainId !== UNICHAIN_CHAIN_ID) {
-          setError('Please switch to Unichain Sepolia network');
+        const isUnichain = chainId === UNICHAIN_CHAIN_IDS.TESTNET || chainId === UNICHAIN_CHAIN_IDS.MAINNET;
+        
+        if (!isUnichain) {
+          setError('Please switch to Unichain network (Testnet or Mainnet)');
           setDeployedTokens([]);
-          setTokensWithBalance(COMMON_TOKENS);
+          setTokensWithBalance(COMMON_TOKENS[chainId] || COMMON_TOKENS[UNICHAIN_CHAIN_IDS.TESTNET]);
           return;
         }
         
@@ -272,16 +309,16 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         // Get tokens from different sources
         const [deployedTokens, walletTokens] = await Promise.all([
           getAllTokenDeployments(),
-          getWalletTokens(window.ethereum, userAddress)
+          getWalletTokens(window.ethereum, userAddress, chainId)
         ]);
         
         // Filter and format tokens
         const chainTokens = deployedTokens.filter(token => 
-          token && token.chainId?.toString() === UNICHAIN_CHAIN_ID.toString()
+          token && token.chainId?.toString() === chainId.toString()
         );
         
         const allTokens = [
-          ...COMMON_TOKENS,
+          ...(COMMON_TOKENS[chainId] || []),
           ...chainTokens,
           ...walletTokens
         ].filter(token => token && token.address);
@@ -305,6 +342,8 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         await Promise.all(
           uniqueTokens.map(async (token) => {
             try {
+              if (!token || !token.address) return;
+              
               let rawBalance, decimals;
 
               if (token.address === 'ETH') {
@@ -411,7 +450,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   // Move renderTokenLogo outside of TokenRow
   const renderTokenLogo = (token) => {
     // For common tokens, use their predefined logos
-    const commonToken = COMMON_TOKENS.find(t => t.address === token.address);
+    const commonToken = COMMON_TOKENS[currentChainId]?.find(t => t.address === token.address);
     if (commonToken) {
       return <img src={commonToken.logo} alt={commonToken.symbol} className="w-8 h-8 rounded-full" />;
     }
@@ -448,7 +487,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       if (token.symbol === 'ETH') {
         finalToken = {
           ...token,
-          address: UNISWAP_ADDRESSES.WETH
+          address: UNISWAP_ADDRESSES[currentChainId].WETH
         };
       } else {
         // Try to get token info from Firebase
@@ -662,7 +701,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                                     key={`${token.address}-${refreshTrigger}`}
                                     token={token}
                                     onSelect={handleTokenSelect}
-                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES[currentChainId].WETH : token.address)}
                                   />
                                 ))}
                             </AnimatePresence>
@@ -696,7 +735,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                                     key={`${token.address}-${refreshTrigger}`}
                                     token={token}
                                     onSelect={handleTokenSelect}
-                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES.WETH : token.address)}
+                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES[currentChainId].WETH : token.address)}
                                   />
                                 ))}
                             </AnimatePresence>

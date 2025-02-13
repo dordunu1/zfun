@@ -51,7 +51,6 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         string logoURI;
         bool addInitialLiquidity;
         uint256 initialLiquidityPercent;
-        uint256 liquidityLockPeriod;
     }
     
     // Events
@@ -71,8 +70,7 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         address indexed token, 
         uint256 tokenAmount, 
         uint256 polAmount,
-        uint256 liquidityAmount,
-        uint256 lockPeriod
+        uint256 liquidityAmount
     );
     event LiquidityAdditionFailed(address indexed token, uint256 tokenAmount, uint256 polAmount);
 
@@ -115,6 +113,14 @@ contract TokenFactory is Ownable, ReentrancyGuard {
             router: 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff,  // QuickSwap
             factory: 0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32,
             name: "QuickSwap",
+            isActive: true
+        });
+
+         // Unichain Mainnet - Uniswap V2
+        dexConfigs[130] = DEXConfig({
+            router: 0x284F11109359a7e1306C3e447ef14D38400063FF,  // Unichain Mainnet Uniswap V2 Router
+            factory: 0x1F98400000000000000000000000000000000002, // Unichain Mainnet Factory
+            name: "Uniswap V2",
             isActive: true
         });
 
@@ -256,12 +262,7 @@ contract TokenFactory is Ownable, ReentrancyGuard {
                 block.timestamp + 300 // 5 minutes deadline
             );
             
-            // Lock liquidity if requested
-            if (params.liquidityLockPeriod > 0) {
-                MemeToken(token).lockLiquidity(params.liquidityLockPeriod);
-            }
-            
-            emit LiquidityAdded(token, tokensForLiquidity, msg.value - requiredFee, liquidity, params.liquidityLockPeriod);
+            emit LiquidityAdded(token, tokensForLiquidity, msg.value - requiredFee, liquidity);
         }
 
         // Transfer ownership to creator

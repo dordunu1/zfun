@@ -42,11 +42,6 @@ contract MemeToken is ERC20, Ownable, ReentrancyGuard {
     mapping(address => bool) private _isExcludedFromFees;
     mapping(address => bool) private _isExcludedFromLimits;
     
-    // New variables for liquidity locking
-    uint256 public liquidityLockPeriod;
-    uint256 public liquidityUnlockTime;
-    bool public liquidityLocked;
-    
     // Router addresses for different networks
     mapping(uint256 => address) public networkRouters;
     
@@ -60,11 +55,8 @@ contract MemeToken is ERC20, Ownable, ReentrancyGuard {
     event LiquidityAdded(
         uint256 tokenAmount,
         uint256 ethAmount,
-        uint256 liquidity,
-        uint256 lockPeriod
+        uint256 liquidity
     );
-    event LiquidityLocked(uint256 lockPeriod, uint256 unlockTime);
-    event LiquidityUnlocked();
 
     constructor(
         string memory name_,
@@ -161,6 +153,7 @@ contract MemeToken is ERC20, Ownable, ReentrancyGuard {
         
         // Set router addresses for different networks
         networkRouters[11155111] = 0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008; // Sepolia
+        networkRouters[130] = 0x284F11109359a7e1306C3e447ef14D38400063FF;      // Unichain Mainnet
         networkRouters[137] = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;      // Polygon (QuickSwap)
         networkRouters[1301] = 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640;     // Unichain
         networkRouters[1828369849] = 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640; // Moonwalker
@@ -392,38 +385,13 @@ contract MemeToken is ERC20, Ownable, ReentrancyGuard {
         return _isExcludedFromLimits[account];
     }
     
-    // Liquidity locking functions
-    function lockLiquidity(uint256 _lockPeriod) external onlyOwner {
-        require(!liquidityLocked, "Liquidity already locked");
-        require(_lockPeriod > 0, "Lock period must be > 0");
-        
-        liquidityLockPeriod = _lockPeriod;
-        liquidityUnlockTime = block.timestamp + (_lockPeriod * 1 days);
-        liquidityLocked = true;
-        
-        emit LiquidityLocked(_lockPeriod, liquidityUnlockTime);
-    }
-    
-    function unlockLiquidity() external onlyOwner {
-        require(liquidityLocked, "Liquidity not locked");
-        require(block.timestamp >= liquidityUnlockTime, "Liquidity still locked");
-        
-        liquidityLocked = false;
-        emit LiquidityUnlocked();
-    }
-    
-    // Override _transfer to handle locked liquidity
+    // Override _transfer to handle basic checks
     function _beforeTokenTransfer(
         address from,
         address to,
         uint256 amount
     ) internal virtual override {
         super._beforeTokenTransfer(from, to, amount);
-        
-        // If liquidity is locked, prevent removal of liquidity
-        if (liquidityLocked && from == uniswapV2Pair) {
-            require(block.timestamp >= liquidityUnlockTime, "Liquidity locked");
-        }
     }
     
     // Required for receiving ETH

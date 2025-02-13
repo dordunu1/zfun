@@ -9,30 +9,91 @@ import { getTokenLogo, getTokenMetadata } from '../../../../utils/tokens';
 import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
 import { getTokenDeploymentByAddress } from '../../../../services/firebase';
 
-// Add common token list (we'll keep updating this)
+// Add network constants
+const UNICHAIN_NETWORKS = {
+  TESTNET: {
+    id: 1301,
+    name: 'Unichain Testnet',
+    blockscoutUrl: 'https://unichain-sepolia.blockscout.com'
+  },
+  MAINNET: {
+    id: 130,
+    name: 'Unichain Mainnet',
+    blockscoutUrl: 'https://unichain.blockscout.com'
+  }
+};
+
+// Common tokens with metadata per network
 const COMMON_TOKENS = {
-  [UNISWAP_ADDRESSES.WETH.toLowerCase()]: {
-    name: 'Wrapped Ether',
-    symbol: 'WETH',
-    decimals: 18,
-    logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png'
-  },
-  [UNISWAP_ADDRESSES.USDT.toLowerCase()]: {
-    name: 'Tether USD',
-    symbol: 'USDT',
-    decimals: 6,
-    logoURI: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png'
-  },
-  // Add more common tokens as needed
+  // Testnet tokens (1301)
+  1301: [
+    {
+      address: UNISWAP_ADDRESSES[1301].WETH,
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      logo: '/usdc.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[1301].USDT,
+      symbol: 'USDT',
+      name: 'Test USDT',
+      decimals: 6,
+      logo: '/usdt.png'
+    }
+  ],
+  // Mainnet tokens (130)
+  130: [
+    {
+      address: UNISWAP_ADDRESSES[130].WETH,
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      logo: '/eth.png'
+    },
+    {
+      address: UNISWAP_ADDRESSES[130].USDT,
+      symbol: 'USDT',
+      name: 'USDT',
+      decimals: 6,
+      logo: '/usdt.png'
+    }
+  ]
+};
+
+// Helper function to get token metadata based on network
+const getCommonTokenMetadata = (token, chainId) => {
+  // Check if it's a common token for the current network
+  const commonToken = COMMON_TOKENS[chainId]?.find(t => t.address?.toLowerCase() === token.address?.toLowerCase());
+  if (commonToken) {
+    return {
+      ...token,
+      ...commonToken,
+      logo: commonToken.logo
+    };
+  }
+
+  return token;
 };
 
 // Enhanced token metadata fetcher
-const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
+const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata, chainId) => {
   try {
-    // First check if it's a common token
-    const chainTokens = getChainTokens(1301); // Unichain chainId
-    const commonToken = chainTokens.find(t => 
-      t.address.toLowerCase() === tokenAddress.toLowerCase()
+    if (!tokenAddress) {
+      console.warn('Token address is undefined in getEnhancedTokenMetadata');
+      return existingMetadata;
+    }
+
+    // First check if it's a common token for the current network
+    const commonToken = COMMON_TOKENS[chainId]?.find(t => 
+      t.address?.toLowerCase() === tokenAddress?.toLowerCase()
     );
 
     if (commonToken) {
@@ -45,6 +106,11 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
       };
     }
 
+    // Get the correct Blockscout URL based on the chain
+    const blockscoutUrl = chainId === UNICHAIN_NETWORKS.TESTNET.id
+      ? UNICHAIN_NETWORKS.TESTNET.blockscoutUrl
+      : UNICHAIN_NETWORKS.MAINNET.blockscoutUrl;
+
     // Try to get from Firebase first
     try {
       const tokenDeployment = await getTokenDeploymentByAddress(tokenAddress);
@@ -52,13 +118,13 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
         const logo = tokenDeployment.logo || getTokenLogo({ 
           ...tokenDeployment,
           address: tokenAddress 
-        }, 1301);
+        }, chainId);
         
         return {
           ...existingMetadata,
-          name: tokenDeployment.name || existingMetadata.name,
-          symbol: tokenDeployment.symbol || existingMetadata.symbol,
-          decimals: tokenDeployment.decimals || existingMetadata.decimals || 18,
+          name: tokenDeployment.name || existingMetadata?.name,
+          symbol: tokenDeployment.symbol || existingMetadata?.symbol,
+          decimals: tokenDeployment.decimals || existingMetadata?.decimals || 18,
           logo,
           logoIpfs: tokenDeployment.logoIpfs,
           address: tokenAddress,
@@ -69,29 +135,29 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
       console.log('Firebase fetch failed:', error);
     }
 
-    // Try to get from Unichain scan API if available
+    // Try to get from Blockscout API
     try {
-      const response = await fetch(`https://api.unichainscanner.com/api/v1/tokens/${tokenAddress}`);
+      const response = await fetch(`${blockscoutUrl}/api/v2/tokens/${tokenAddress}`);
       if (response.ok) {
         const data = await response.json();
         return {
           ...existingMetadata,
-          name: data.name || existingMetadata.name,
-          symbol: data.symbol || existingMetadata.symbol,
-          decimals: data.decimals || existingMetadata.decimals || 18,
-          logo: data.logo || getTokenLogo({ address: tokenAddress }, 1301),
+          name: data.name || existingMetadata?.name,
+          symbol: data.symbol || existingMetadata?.symbol,
+          decimals: parseInt(data.decimals) || existingMetadata?.decimals || 18,
+          logo: data.logo || getTokenLogo({ address: tokenAddress }, chainId),
           address: tokenAddress,
           verified: true
         };
       }
     } catch (error) {
-      console.log('Unichain scan fetch failed, falling back to existing metadata');
+      console.log('Blockscout API fetch failed, falling back to existing metadata');
     }
 
     // Fall back to existing metadata with default logo
     return {
       ...existingMetadata,
-      logo: existingMetadata.logo || getTokenLogo({ address: tokenAddress }, 1301),
+      logo: existingMetadata?.logo || getTokenLogo({ address: tokenAddress }, chainId),
       address: tokenAddress,
       verified: false
     };
@@ -102,14 +168,16 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata) => {
 };
 
 const getDisplaySymbol = (token) => {
-  if (token?.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+  if (!token?.address) return 'Unknown';
+  if (token.address.toLowerCase() === UNISWAP_ADDRESSES.WETH?.toLowerCase()) {
     return 'ETH';
   }
   return token?.symbol || 'Unknown';
 };
 
 const getDisplayName = (token) => {
-  if (token?.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase()) {
+  if (!token?.address) return 'Unknown Token';
+  if (token.address.toLowerCase() === UNISWAP_ADDRESSES.WETH?.toLowerCase()) {
     return 'Ethereum';
   }
   return token?.name || 'Unknown Token';
@@ -275,6 +343,97 @@ const SkeletonPoolItem = () => {
   );
 };
 
+// Process pool data function
+const processPoolData = async (pool) => {
+  try {
+    if (!pool?.token0?.address || !pool?.token1?.address) {
+      console.warn('Invalid pool data - missing token addresses');
+      return null;
+    }
+
+    // Get token metadata using the same pattern as the original PoolSelectionModal
+    const [token0Metadata, token1Metadata] = await Promise.all([
+      getEnhancedTokenMetadata(pool.token0.address, pool.token0, pool.chainId),
+      getEnhancedTokenMetadata(pool.token1.address, pool.token1, pool.chainId)
+    ]);
+
+    // Special handling for USDT
+    const USDT_ADDRESS = UNISWAP_ADDRESSES[pool.chainId]?.USDT;
+    const isToken0USDT = token0Metadata?.address?.toLowerCase() === USDT_ADDRESS?.toLowerCase();
+    const isToken1USDT = token1Metadata?.address?.toLowerCase() === USDT_ADDRESS?.toLowerCase();
+
+    // Convert WETH to ETH consistently
+    const WETH_ADDRESS = UNISWAP_ADDRESSES[pool.chainId]?.WETH;
+    const isToken0WETH = token0Metadata?.address?.toLowerCase() === WETH_ADDRESS?.toLowerCase();
+    const isToken1WETH = token1Metadata?.address?.toLowerCase() === WETH_ADDRESS?.toLowerCase();
+
+    const displayToken0 = isToken0WETH
+      ? {
+          ...token0Metadata,
+          symbol: 'ETH',
+          name: 'Ethereum',
+          logo: '/eth.png',
+          isWETH: true,
+          originalSymbol: 'WETH'
+        }
+      : isToken0USDT
+      ? {
+          ...token0Metadata,
+          logo: '/usdt.png'
+        }
+      : {
+          ...token0Metadata,
+          logo: token0Metadata?.logo || getTokenLogo(token0Metadata)
+        };
+
+    const displayToken1 = isToken1WETH
+      ? {
+          ...token1Metadata,
+          symbol: 'ETH',
+          name: 'Ethereum',
+          logo: '/eth.png',
+          isWETH: true,
+          originalSymbol: 'WETH'
+        }
+      : isToken1USDT
+      ? {
+          ...token1Metadata,
+          logo: '/usdt.png'
+        }
+      : {
+          ...token1Metadata,
+          logo: token1Metadata?.logo || getTokenLogo(token1Metadata)
+        };
+
+    // Ensure addresses are preserved
+    const processedPool = {
+      token0: {
+        ...displayToken0,
+        address: pool.token0.address,
+        isWETH: isToken0WETH
+      },
+      token1: {
+        ...displayToken1,
+        address: pool.token1.address,
+        isWETH: isToken1WETH
+      },
+      pairAddress: pool.address,
+      chainId: pool.chainId,
+      reserves: {
+        ...pool.reserves,
+        reserve0Formatted: ethers.formatUnits(pool.reserves?.reserve0 || '0', displayToken0?.decimals || 18),
+        reserve1Formatted: ethers.formatUnits(pool.reserves?.reserve1 || '0', displayToken1?.decimals || 18)
+      }
+    };
+
+    console.log('Processed pool:', processedPool);
+    return processedPool;
+  } catch (err) {
+    console.error(`Error processing pool data:`, err);
+    return null;
+  }
+};
+
 export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   const uniswap = useUnichain();
   const { address } = useAccount();
@@ -283,104 +442,71 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [currentChainId, setCurrentChainId] = useState(null);
 
-  // Function to process pool data
-  const processPoolData = async (pool) => {
-    try {
-      // Get token metadata using the same pattern as the original PoolSelectionModal
-      const [token0Metadata, token1Metadata] = await Promise.all([
-        getEnhancedTokenMetadata(pool.token0.address, pool.token0),
-        getEnhancedTokenMetadata(pool.token1.address, pool.token1)
-      ]);
+  // Get current chain ID
+  useEffect(() => {
+    const getChainId = async () => {
+      if (!window.ethereum) return;
+      try {
+        const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        setCurrentChainId(parseInt(hexChainId, 16));
+      } catch (error) {
+        console.error('Error getting chain ID:', error);
+      }
+    };
+    getChainId();
 
-      // Special handling for USDT
-      const isToken0USDT = token0Metadata.address?.toLowerCase() === '0x70262e266E50603AcFc5D58997eF73e5a8775844'.toLowerCase();
-      const isToken1USDT = token1Metadata.address?.toLowerCase() === '0x70262e266E50603AcFc5D58997eF73e5a8775844'.toLowerCase();
-
-      // Convert WETH to ETH consistently
-      const isToken0WETH = token0Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-      const isToken1WETH = token1Metadata.address?.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-
-      const displayToken0 = isToken0WETH
-        ? {
-            ...token0Metadata,
-            symbol: 'ETH',
-            name: 'Ethereum',
-            logo: '/logos/eth.png',
-            isWETH: true,
-            originalSymbol: 'WETH'
-          }
-        : isToken0USDT
-        ? {
-            ...token0Metadata,
-            logo: '/logos/usdt.png'
-          }
-        : {
-            ...token0Metadata,
-            logo: token0Metadata.logo || getTokenLogo(token0Metadata)
-          };
-
-      const displayToken1 = isToken1WETH
-        ? {
-            ...token1Metadata,
-            symbol: 'ETH',
-            name: 'Ethereum',
-            logo: '/logos/eth.png',
-            isWETH: true,
-            originalSymbol: 'WETH'
-          }
-        : isToken1USDT
-        ? {
-            ...token1Metadata,
-            logo: '/logos/usdt.png'
-          }
-        : {
-            ...token1Metadata,
-            logo: token1Metadata.logo || getTokenLogo(token1Metadata)
-          };
-
-      // Ensure addresses are preserved
-      const processedPool = {
-        token0: {
-          ...displayToken0,
-          address: pool.token0.address,
-          isWETH: isToken0WETH
-        },
-        token1: {
-          ...displayToken1,
-          address: pool.token1.address,
-          isWETH: isToken1WETH
-        },
-        pairAddress: pool.address,
-        reserves: {
-          ...pool.reserves,
-          reserve0Formatted: ethers.formatUnits(pool.reserves?.reserve0 || '0', displayToken0?.decimals || 18),
-          reserve1Formatted: ethers.formatUnits(pool.reserves?.reserve1 || '0', displayToken1?.decimals || 18)
-        }
-      };
-
-      console.log('Processed pool:', processedPool);
-      return processedPool;
-    } catch (err) {
-      console.error(`Error processing pool data:`, err);
-      return null;
+    // Listen for chain changes
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', (chainId) => {
+        setCurrentChainId(parseInt(chainId, 16));
+      });
     }
-  };
 
-  // Load initial pools
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('chainChanged', () => {});
+      }
+    };
+  }, []);
+
+  // Load pools
   useEffect(() => {
     const loadPools = async () => {
-      if (!isOpen || !address) return;
+      if (!isOpen || !address || !currentChainId) return;
 
+      // Check if we're on a supported network
+      const isUnichain = currentChainId === UNICHAIN_NETWORKS.TESTNET.id || 
+                        currentChainId === UNICHAIN_NETWORKS.MAINNET.id;
+      
+      if (!isUnichain) {
+        setError('Please switch to Unichain network (Testnet or Mainnet)');
+        setPools([]);
+        return;
+      }
+      
       setLoading(true);
       setError('');
+      
       try {
-        const allPools = await uniswap.getPools(UNISWAP_ADDRESSES.WETH);
+        const allPools = await uniswap.getPools(UNISWAP_ADDRESSES[currentChainId].WETH);
         console.log('All pools:', allPools);
 
         if (allPools && allPools.length > 0) {
           const poolsData = await Promise.all(
-            allPools.map(processPoolData)
+            allPools.map(async (pool) => {
+              try {
+                const processedPool = await processPoolData({
+                  ...pool,
+                  chainId: currentChainId
+                });
+                return processedPool;
+              } catch (error) {
+                console.error('Error processing pool:', error);
+                return null;
+              }
+            })
           );
 
           const validPools = poolsData.filter(pool => pool !== null);
@@ -396,7 +522,7 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
     };
 
     loadPools();
-  }, [isOpen, uniswap, address]);
+  }, [isOpen, uniswap, address, currentChainId]);
 
   // Handle search with debounce
   useEffect(() => {
@@ -464,11 +590,12 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
 
       // Filter existing pools
       const filtered = pools.filter(pool => {
+        if (!pool?.token0?.symbol || !pool?.token1?.symbol || !pool?.pairAddress) return false;
         const searchLower = searchTerm.toLowerCase();
         return (
-          pool.token0?.symbol?.toLowerCase().includes(searchLower) ||
-          pool.token1?.symbol?.toLowerCase().includes(searchLower) ||
-          pool.pairAddress?.toLowerCase().includes(searchLower)
+          pool.token0.symbol.toLowerCase().includes(searchLower) ||
+          pool.token1.symbol.toLowerCase().includes(searchLower) ||
+          pool.pairAddress.toLowerCase().includes(searchLower)
         );
       });
 
@@ -501,6 +628,42 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
             <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
               Select a Pool
             </Dialog.Title>
+
+            {/* Network Status */}
+            {currentChainId && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4"
+              >
+                {currentChainId === UNICHAIN_NETWORKS.TESTNET.id ? (
+                  <div className="px-4 py-2 rounded-xl bg-[#00ffbd]/10 border border-[#00ffbd]/20 text-[#00ffbd] text-sm inline-flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#00ffbd] animate-pulse" />
+                    Unichain Testnet
+                  </div>
+                ) : currentChainId === UNICHAIN_NETWORKS.MAINNET.id ? (
+                  <div className="px-4 py-2 rounded-xl bg-[#00ffbd]/10 border border-[#00ffbd]/20 text-[#00ffbd] text-sm inline-flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#00ffbd] animate-pulse" />
+                    Unichain Mainnet
+                  </div>
+                ) : (
+                  <div className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                    Please switch to Unichain network
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400"
+              >
+                {error}
+              </motion.div>
+            )}
 
             <motion.div 
               variants={searchVariants}

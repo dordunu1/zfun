@@ -160,40 +160,9 @@
           "internalType": "uint256",
           "name": "liquidity",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "lockPeriod",
-          "type": "uint256"
         }
       ],
       "name": "LiquidityAdded",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "lockPeriod",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "unlockTime",
-          "type": "uint256"
-        }
-      ],
-      "name": "LiquidityLocked",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [],
-      "name": "LiquidityUnlocked",
       "type": "event"
     },
     {
@@ -675,58 +644,6 @@
     },
     {
       "inputs": [],
-      "name": "liquidityLockPeriod",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "liquidityLocked",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "liquidityUnlockTime",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_lockPeriod",
-          "type": "uint256"
-        }
-      ],
-      "name": "lockLiquidity",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "marketingWallet",
       "outputs": [
         {
@@ -984,13 +901,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "unlockLiquidity",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
