@@ -272,7 +272,7 @@ export default function Dashboard() {
             Welcome to Token Factory
           </h1>
           <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Launch your own tokens and NFTs on Unichain and other EVM chains (coming soon). 
+            Launch your own tokens and NFTs on Unichain, Polygon and other EVM chains (coming soon). 
             Create, trade, and manage your crypto assets with our powerful platform.
           </p>
         </div>
