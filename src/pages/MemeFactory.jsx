@@ -1241,31 +1241,35 @@ export default function MemeFactory() {
                   />
 
                   {/* Navigation Buttons */}
-                  <div className="flex justify-between mt-6">
-                    {currentStep > 1 && (
-                      <button
-                        onClick={prevStep}
-                        className="px-6 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-                      >
-                        Previous
-                      </button>
-                    )}
-                    {currentStep < totalSteps ? (
-                      <button
-                        onClick={nextStep}
-                        className="px-6 py-2 text-sm font-medium rounded-lg bg-[#00ffbd] text-black hover:bg-[#00e6a9] transition-colors"
-                      >
-                        Next
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setShowPreLaunchModal(true)}
-                        className="px-6 py-2 text-sm font-medium rounded-lg bg-[#00ffbd] text-black hover:bg-[#00e6a9] transition-colors"
-                      >
-                        Create Token
-                      </button>
-                    )}
+                  <div className="mt-8 flex justify-between">
+                    <div>
+                      {currentStep > 1 && (
+                        <button
+                          onClick={prevStep}
+                          className="px-6 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                        >
+                          Previous
+                        </button>
+                      )}
                     </div>
+                    <div>
+                      {currentStep < totalSteps ? (
+                        <button
+                          onClick={nextStep}
+                          className="px-6 py-2 text-sm font-medium rounded-lg bg-[#00ffbd] text-black hover:bg-[#00e6a9] transition-colors"
+                        >
+                          Next
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowPreLaunchModal(true)}
+                          className="px-6 py-2 text-sm font-medium rounded-lg bg-[#00ffbd] text-black hover:bg-[#00e6a9] transition-colors"
+                        >
+                          Create Token
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </div>

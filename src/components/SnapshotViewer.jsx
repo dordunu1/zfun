@@ -68,7 +68,24 @@ const SnapshotViewer = ({ onClose }) => {
     const { isLoading: isSnapshotPending } = useWaitForTransaction({
         hash: snapshotData?.hash,
         onSuccess() {
+            // First show success toast
             toast.success('Snapshot taken successfully!', toastOptions);
+            // Then show refresh instructions
+            setTimeout(() => {
+                toast((t) => (
+                    <div className="flex flex-col gap-2">
+                        <p className="font-medium">Important: Refresh Required 🔄</p>
+                        <p className="text-sm">Please refresh the page and paste the contract address again to see the new snapshot data.</p>
+                    </div>
+                ), {
+                    ...toastOptions,
+                    duration: 6000,
+                    style: {
+                        ...toastOptions.style,
+                        maxWidth: '400px',
+                    }
+                });
+            }, 1000); // Wait 1 second before showing the second toast
             setIsWaitingForWallet(false);
             fetchSnapshots(); // Refresh snapshots list
         },
@@ -325,25 +342,38 @@ const SnapshotViewer = ({ onClose }) => {
             {verifiedTokenAddress && (
                 <>
                     {/* Snapshot Control Section */}
-                    <div className="mb-4 flex justify-end">
-                        {isOwner && address && (
-                            <Button
-                                onClick={handleTakeSnapshot}
-                                disabled={isSnapshotPending || isWaitingForWallet}
-                                className="bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 flex items-center text-sm"
-                            >
-                                {isSnapshotPending || isWaitingForWallet ? (
-                                    <>
-                                        <Spinner size="sm" className="mr-2" />
-                                        {isWaitingForWallet ? 'Confirm in Wallet...' : 'Taking Snapshot...'}
-                                    </>
-                                ) : (
-                                    <>
-                                        <HiOutlineCamera className="mr-1.5 h-4 w-4" />
-                                        Take Snapshot
-                                    </>
-                                )}
-                            </Button>
+                    <div className="mb-4">
+                        <div className="flex justify-between items-center">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {snapshots.length > 0 ? `${snapshots.length} snapshot${snapshots.length === 1 ? '' : 's'} available` : 'No snapshots taken yet'}
+                            </div>
+                            {isOwner && address && (
+                                <Button
+                                    onClick={handleTakeSnapshot}
+                                    disabled={isSnapshotPending || isWaitingForWallet}
+                                    className="bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 flex items-center text-sm"
+                                >
+                                    {isSnapshotPending || isWaitingForWallet ? (
+                                        <>
+                                            <Spinner size="sm" className="mr-2" />
+                                            {isWaitingForWallet ? 'Confirm in Wallet...' : 'Taking Snapshot...'}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <HiOutlineCamera className="mr-1.5 h-4 w-4" />
+                                            Take Snapshot
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
+                        {/* Add info message about refreshing */}
+                        {snapshots.length > 0 && (
+                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                                <p className="text-sm text-blue-600 dark:text-blue-400">
+                                    <span className="font-medium">Note:</span> After taking a new snapshot, please refresh the page and paste the contract address again to see the updated data.
+                                </p>
+                            </div>
                         )}
                     </div>
 
