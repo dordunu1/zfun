@@ -45,17 +45,20 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         string symbol;
         uint256 totalSupply;
         address marketingWallet;
-        uint256 communityFeePercent;
-        uint256 liquidityFeePercent;
-        uint256 burnFeePercent;
-        uint256 maxWalletPercent;
-        uint256 maxTxPercent;
-        bool antiBot;
-        bool autoLiquidity;
+        address treasuryAddress;
+        address devAddress;
+        address liquidityAddress;
+        uint256 burnFee;
+        uint256 treasuryFee;
+        uint256 devFee;
+        uint256 marketingFee;
+        uint256 liquidityFee;
+        uint256 buyFees;
+        uint256 sellFees;
+        address router;
         string logoURI;
         bool addInitialLiquidity;
         uint256 initialLiquidityPercent;
-        uint256 liquidityLockPeriod;  // New field for lock period in days
     }
 
     struct DEXConfig {
@@ -177,7 +180,7 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         require(bytes(params.symbol).length > 0, "Symbol cannot be empty");
         require(bytes(params.logoURI).length > 0, "Logo URI cannot be empty");
         require(params.marketingWallet != address(0), "Invalid marketing wallet");
-        require(params.communityFeePercent + params.liquidityFeePercent + params.burnFeePercent <= 25, "Total fees too high");
+        require(params.marketingFee + params.liquidityFee + params.burnFee <= 25, "Total fees too high");
 
         // Calculate total required value
         uint256 totalRequired = requiredFee;
@@ -192,13 +195,17 @@ contract TokenFactory is Ownable, ReentrancyGuard {
             params.symbol,
             params.totalSupply,
             params.marketingWallet,
-            params.communityFeePercent,
-            params.liquidityFeePercent,
-            params.burnFeePercent,
-            params.maxWalletPercent,
-            params.maxTxPercent,
-            params.antiBot,
-            params.autoLiquidity
+            params.marketingFee,
+            params.liquidityFee,
+            params.burnFee,
+            params.treasuryFee,
+            params.devFee,
+            params.treasuryAddress,
+            params.devAddress,
+            params.liquidityAddress,
+            params.buyFees,
+            params.sellFees,
+            params.router
         );
         
         tokenLogos[token] = params.logoURI;

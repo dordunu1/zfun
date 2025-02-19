@@ -7,6 +7,7 @@ import { FaFire } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import MemeTokenABI from '../abi/MemeToken.json';
 import { useDeployments } from '../context/DeploymentsContext';
+import TokenFactoryABI from '../contracts/TokenFactory.json';
 
 // Meme-themed animations
 const containerVariants = {
@@ -60,6 +61,25 @@ const DEX_IMAGES = {
   'Uniswap V2': '/uniswap.png'
 };
 
+// Add factory addresses mapping
+const FACTORY_ADDRESSES = {
+  11155111: import.meta.env.VITE_FACTORY_ADDRESS_11155111,
+  137: import.meta.env.VITE_FACTORY_ADDRESS_137,
+  1301: import.meta.env.VITE_FACTORY_ADDRESS_1301,
+  130: import.meta.env.VITE_FACTORY_ADDRESS_130,
+  1828369849: import.meta.env.VITE_FACTORY_ADDRESS_1828369849
+};
+
+// Add getFactoryAddress function
+const getFactoryAddress = () => {
+  const chainId = window.ethereum?.networkVersion ? parseInt(window.ethereum.networkVersion) : null;
+  const factoryAddress = FACTORY_ADDRESSES[chainId];
+  if (!factoryAddress) {
+    console.error(`No factory address found for chain ID ${chainId}`);
+  }
+  return factoryAddress;
+};
+
 const TokenInfo = () => {
   const [tokenAddress, setTokenAddress] = useState('');
   const [tokenData, setTokenData] = useState(null);
@@ -85,68 +105,91 @@ const TokenInfo = () => {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const token = new ethers.Contract(tokenAddress, MemeTokenABI.abi, provider);
 
-      // Fetch basic token info and features
+      // Fetch basic token info and features with new contract features
       const [
         name,
         symbol,
         totalSupply,
+        treasuryAddress,
+        devAddress,
         marketingWallet,
-        communityFee,
-        liquidityFee,
+        liquidityAddress,
         burnFee,
+        treasuryFee,
+        devFee,
+        marketingFee,
+        liquidityFee,
+        buyFees,
+        sellFees,
+        router,
         deadBalance,
+        treasuryBalance,
+        devBalance,
         marketingBalance,
+        liquidityBalance,
         contractBalance,
         pair,
-        minTokensBeforeSwap,
-        antiBotEnabled,
-        autoLiquidityEnabled,
         tradingEnabled,
-        maxWalletAmount,
-        maxTxAmount
+        owner
       ] = await Promise.all([
         token.name(),
         token.symbol(),
         token.totalSupply(),
-        token.marketingWallet(),
-        token.communityFeePercent(),
-        token.liquidityFeePercent(),
-        token.burnFeePercent(),
+        token.TREASURY_ADDRESS(),
+        token.DEV_ADDRESS(),
+        token.MARKETING_WALLET(),
+        token.LIQUIDITY_ADDRESS(),
+        token.burnFee(),
+        token.treasuryFee(),
+        token.devFee(),
+        token.marketingFee(),
+        token.liquidityFee(),
+        token.buyFees(),
+        token.sellFees(),
+        token.uniswapV2Router(),
         token.balanceOf("0x000000000000000000000000000000000000dEaD"),
-        token.balanceOf(await token.marketingWallet()),
+        token.balanceOf(await token.TREASURY_ADDRESS()),
+        token.balanceOf(await token.DEV_ADDRESS()),
+        token.balanceOf(await token.MARKETING_WALLET()),
+        token.balanceOf(await token.LIQUIDITY_ADDRESS()),
         token.balanceOf(tokenAddress),
         token.uniswapV2Pair(),
-        token.minTokensBeforeSwap(),
-        token.antiBotEnabled(),
-        token.autoLiquidityEnabled(),
-        token.tradingEnabled(),
-        token.maxWalletAmount(),
-        token.maxTransactionAmount()
+        token.tradingActive(),
+        token.owner()
       ]);
 
       setTokenData({
         name,
         symbol,
         totalSupply: ethers.formatUnits(totalSupply, 18),
-        marketingWallet,
+        owner,
+        addresses: {
+          treasury: treasuryAddress,
+          dev: devAddress,
+          marketing: marketingWallet,
+          liquidity: liquidityAddress
+        },
         fees: {
-          community: communityFee.toString(),
-          liquidity: liquidityFee.toString(),
-          burn: burnFee.toString()
+          burn: Number(burnFee) / 100,
+          treasury: Number(treasuryFee) / 100,
+          dev: Number(devFee) / 100,
+          marketing: Number(marketingFee) / 100,
+          liquidity: Number(liquidityFee) / 100,
+          buy: Number(buyFees) / 100,
+          sell: Number(sellFees) / 100
         },
         balances: {
           dead: ethers.formatUnits(deadBalance, 18),
+          treasury: ethers.formatUnits(treasuryBalance, 18),
+          dev: ethers.formatUnits(devBalance, 18),
           marketing: ethers.formatUnits(marketingBalance, 18),
+          liquidity: ethers.formatUnits(liquidityBalance, 18),
           contract: ethers.formatUnits(contractBalance, 18)
         },
+        router,
         pair,
-        minTokensBeforeSwap: ethers.formatUnits(minTokensBeforeSwap, 18),
         features: {
-          antiBotEnabled,
-          autoLiquidityEnabled,
-          tradingEnabled,
-          maxWalletAmount: ethers.formatUnits(maxWalletAmount, 18),
-          maxTxAmount: ethers.formatUnits(maxTxAmount, 18)
+          tradingEnabled
         }
       });
     } catch (err) {
@@ -291,31 +334,26 @@ const TokenInfo = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Max Transaction:</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {tokenData.features?.maxTxAmount ? `${Number(tokenData.features.maxTxAmount).toLocaleString()} tokens` : 'No Limit'}
-                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Buy Tax:</span>
+                    <span className="text-sm font-medium text-green-500">{tokenData.fees.buy}%</span>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Max Wallet:</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {tokenData.features?.maxWalletAmount ? `${Number(tokenData.features.maxWalletAmount).toLocaleString()} tokens` : 'No Limit'}
-                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Sell Tax:</span>
+                    <span className="text-sm font-medium text-red-500">{tokenData.fees.sell}%</span>
                   </div>
                 </div>
-                
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Anti-Bot:</span>
-                    <span className={`text-sm font-medium ${tokenData.features?.antiBotEnabled ? 'text-yellow-500' : 'text-green-500'}`}>
-                      {tokenData.features?.antiBotEnabled ? 'Enabled' : 'Disabled'}
-                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Renounced:</span>
+                    {tokenData.owner === "0x0000000000000000000000000000000000000000" ? (
+                      <span className="text-sm font-medium text-green-500">✓</span>
+                    ) : (
+                      <span className="text-sm font-medium text-red-500">✗</span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Fee:</span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {Number(tokenData.fees.community) + Number(tokenData.fees.liquidity) + Number(tokenData.fees.burn)}%
-                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Mintable:</span>
+                    <span className="text-sm font-medium text-red-500">✗</span>
                   </div>
                 </div>
               </div>
@@ -327,98 +365,167 @@ const TokenInfo = () => {
               </div>
             </motion.div>
 
-            {/* Features and Stats Cards */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Marketing Fee Card */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-amber-500 dark:text-amber-400 text-xl">✉</span>
-                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Marketing Fee</h3>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Fee: {tokenData.fees.community}%</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <span className="block text-xs text-gray-500 dark:text-gray-500">Collected:</span>
-                    {Number(tokenData.balances.marketing).toLocaleString()} tokens
-                  </p>
-                </div>
-              </div>
-
-              {/* Burn Fee Card with Enhanced Flame Effect */}
-              <div className="relative p-4 rounded-2xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 overflow-hidden transition-colors duration-200">
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-red-500 dark:text-red-400 text-xl">🔥</span>
-                    <h3 className="text-base font-medium text-gray-900 dark:text-white">Burn Fee</h3>
+            {/* Trading Fees Overview Card */}
+            <motion.div
+              variants={itemVariants}
+              className="col-span-3 p-6 rounded-2xl bg-gradient-to-r from-[#2d2f36] via-[#1a1b1f] to-[#2d2f36] border border-gray-800"
+            >
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <span>💰</span> Trading Fees Distribution
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-gray-800/50 backdrop-blur-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-400">Buy Fee</span>
+                    <span className="text-[#00ffbd] font-bold">{tokenData.fees.buy}%</span>
                   </div>
-                  <div className="space-y-1.5">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Fee: {tokenData.fees.burn}%</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <span className="block text-xs text-gray-500 dark:text-gray-500">Burned:</span>
-                      {Number(tokenData.balances.dead).toLocaleString()} tokens
-                    </p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-400 mb-2">Distribution of {tokenData.fees.buy}% buy fee:</p>
+                    {Object.entries({
+                      Burn: tokenData.fees.burn,
+                      Treasury: tokenData.fees.treasury,
+                      Dev: tokenData.fees.dev,
+                      Marketing: tokenData.fees.marketing,
+                      Liquidity: tokenData.fees.liquidity
+                    }).map(([name, value]) => (
+                      <div key={name} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500">{name}</span>
+                        <span className="text-gray-300">{value}%</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                {/* Enhanced Flame Effects */}
-                <div className="absolute inset-0">
-                  <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-red-500/20 via-orange-400/10 to-transparent dark:from-red-600/40 dark:via-orange-500/20"></div>
-                  <div className="absolute inset-x-0 -bottom-2 h-48 bg-gradient-to-t from-red-500 via-orange-400 to-yellow-300 dark:from-red-600 dark:via-orange-500 dark:to-yellow-500 opacity-20 dark:opacity-30 animate-flame"></div>
-                  <div className="absolute inset-x-4 -bottom-2 h-40 bg-gradient-to-t from-red-600 via-orange-500 to-yellow-400 dark:from-red-700 dark:via-orange-600 dark:to-yellow-600 opacity-30 dark:opacity-40 animate-flame-slow"></div>
-                  <div className="absolute inset-x-8 -bottom-2 h-32 bg-gradient-to-t from-red-700 via-orange-600 to-yellow-500 dark:from-red-800 dark:via-orange-700 dark:to-yellow-700 opacity-40 dark:opacity-50 animate-flame-slower"></div>
-                  {/* Glow Effect */}
-                  <div className="absolute inset-0 bg-red-500/5 dark:bg-red-500/10 blur-xl"></div>
-                </div>
-              </div>
-
-              {/* Liquidity Fee Card */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-blue-500 dark:text-blue-400 text-xl">💧</span>
-                  <h3 className="text-base font-medium text-gray-900 dark:text-white">Liquidity Fee</h3>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Fee: {tokenData.fees.liquidity}%</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <span className="block text-xs text-gray-500 dark:text-gray-500">Balance:</span>
-                    {Number(tokenData.balances.contract).toLocaleString()} tokens
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Auto-Liquidity Progress Bar */}
-            {tokenData.features.autoLiquidityEnabled && (
-              <motion.div
-                variants={itemVariants}
-                className="mt-4 p-4 rounded-xl bg-white dark:bg-[#1a1b1f] border border-gray-200 dark:border-gray-800 transition-colors duration-200"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[#00ffbd]">💧</span>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Progress to Auto-Liquidity</h3>
+                <div className="p-4 rounded-xl bg-gray-800/50 backdrop-blur-sm">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-400">Sell Fee</span>
+                    <span className="text-[#00ffbd] font-bold">{tokenData.fees.sell}%</span>
                   </div>
-                  <span className="text-[#00ffbd] font-mono">
-                    {((Number(tokenData.balances.contract) / Number(tokenData.minTokensBeforeSwap)) * 100).toFixed(1)}%
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-400 mb-2">Distribution of {tokenData.fees.sell}% sell fee:</p>
+                    {Object.entries({
+                      Burn: tokenData.fees.burn,
+                      Treasury: tokenData.fees.treasury,
+                      Dev: tokenData.fees.dev,
+                      Marketing: tokenData.fees.marketing,
+                      Liquidity: tokenData.fees.liquidity
+                    }).map(([name, value]) => (
+                      <div key={name} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500">{name}</span>
+                        <span className="text-gray-300">{value}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-gray-800/30 rounded-lg">
+                <p className="text-sm text-gray-400">
+                  <span className="text-[#00ffbd] font-medium">Note:</span> The percentages shown for each fee type represent their share of the total buy/sell fee.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Enhanced Burn Card with Flames */}
+            <motion.div
+              variants={itemVariants}
+              className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-900/20 to-orange-900/20 border border-red-500/20"
+            >
+              <div className="relative z-10 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <FaFire className="text-2xl text-red-500 animate-pulse" />
+                  <h3 className="text-xl font-bold text-white">Burn Stats</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Burn Fee</span>
+                    <span className="text-red-400 font-bold">{tokenData.fees.burn}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Total Burned</span>
+                    <span className="text-red-400 font-mono">
+                      {Number(tokenData.balances.dead).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Burn Rate</span>
+                    <span className="text-red-400 font-mono">
+                      {((Number(tokenData.balances.dead) / Number(tokenData.totalSupply)) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+                {/* Animated flames */}
+                <div className="absolute inset-0 z-0">
+                  <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-red-500/20 to-transparent animate-flame" />
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-orange-500/20 to-transparent animate-flame-slow" />
+                  <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-yellow-500/20 to-transparent animate-flame-slower" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Treasury & Dev Card */}
+            <motion.div
+              variants={itemVariants}
+              className="rounded-2xl bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/20 p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <BiMoney className="text-2xl text-blue-400" />
+                <h3 className="text-xl font-bold text-white">Treasury & Dev</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Treasury Fee</span>
+                  <span className="text-blue-400 font-bold">{tokenData.fees.treasury}%</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Dev Fee</span>
+                  <span className="text-blue-400 font-bold">{tokenData.fees.dev}%</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Treasury Balance</span>
+                  <span className="text-blue-400 font-mono">
+                    {Number(tokenData.balances.treasury).toLocaleString()}
                   </span>
                 </div>
-                <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-[#00ffbd] rounded-full transition-all duration-300"
-                    style={{ 
-                      width: `${Math.min(
-                        (Number(tokenData.balances.contract) / Number(tokenData.minTokensBeforeSwap)) * 100, 
-                        100
-                      )}%` 
-                    }}
-                  />
-                </div>
-                <div className="mt-2 text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-mono">
-                    {Number(tokenData.balances.contract).toLocaleString()} / {Number(tokenData.minTokensBeforeSwap).toLocaleString()} tokens
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Dev Balance</span>
+                  <span className="text-blue-400 font-mono">
+                    {Number(tokenData.balances.dev).toLocaleString()}
                   </span>
                 </div>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+
+            {/* Marketing & Liquidity Card */}
+            <motion.div
+              variants={itemVariants}
+              className="rounded-2xl bg-gradient-to-br from-green-900/20 to-teal-900/20 border border-green-500/20 p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <BiWater className="text-2xl text-green-400" />
+                <h3 className="text-xl font-bold text-white">Marketing & Liquidity</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Marketing Fee</span>
+                  <span className="text-green-400 font-bold">{tokenData.fees.marketing}%</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Liquidity Fee</span>
+                  <span className="text-green-400 font-bold">{tokenData.fees.liquidity}%</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Marketing Balance</span>
+                  <span className="text-green-400 font-mono">
+                    {Number(tokenData.balances.marketing).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Liquidity Balance</span>
+                  <span className="text-green-400 font-mono">
+                    {Number(tokenData.balances.liquidity).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </div>
@@ -431,19 +538,90 @@ const TokenInfo = () => {
   );
 };
 
-// New RecentlyCreatedTokens component
+// RecentlyCreatedTokens component
 const RecentlyCreatedTokens = () => {
-  const { deployments } = useDeployments();
+  const [recentTokens, setRecentTokens] = useState([]);
+  const [loading, setLoading] = useState(true);
   const { chain } = useNetwork();
   const [page, setPage] = useState(1);
   const tokensPerPage = 10;
 
-  // Get the most recent tokens
-  const recentTokens = useMemo(() => {
-    return deployments
-      ?.sort((a, b) => b.timestamp - a.timestamp)
-      .slice((page - 1) * tokensPerPage, page * tokensPerPage) || [];
-  }, [deployments, page]);
+  useEffect(() => {
+    const fetchTokens = async () => {
+      try {
+        setLoading(true);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const factoryAddress = getFactoryAddress();
+        
+        if (!factoryAddress) {
+          console.error('Factory address not found for this chain');
+          return;
+        }
+
+        const factory = new ethers.Contract(factoryAddress, TokenFactoryABI.abi, provider);
+        
+        // Get the latest block number
+        const latestBlock = await provider.getBlockNumber();
+        
+        // Calculate the starting block
+        const fromBlock = 0;
+
+        // Get TokenCreated events
+        const filter = factory.filters.TokenCreated();
+        const events = await factory.queryFilter(filter, fromBlock, 'latest');
+
+        // Sort events by timestamp in descending order
+        const sortedTokens = await Promise.all(events.map(async (event) => {
+          // Log the raw event args for debugging
+          console.log('Event args:', event.args);
+          
+          // Extract values from event args
+          const decimals = Number(event.args[4]); // Get decimals from event
+          const rawSupply = event.args[5].toString(); // Get supply as string
+          
+          // Calculate the actual supply based on decimals
+          let totalSupply;
+          if (rawSupply.length <= decimals) {
+            // If raw supply is shorter than decimals, it's already in base units
+            totalSupply = rawSupply;
+          } else {
+            // If it's a full number, format it with decimals
+            totalSupply = ethers.formatUnits(rawSupply, decimals);
+          }
+
+          return {
+            creator: event.args[0],
+            address: event.args[1],
+            name: event.args[2],
+            symbol: event.args[3],
+            decimals: decimals,
+            totalSupply: totalSupply,
+            logoURI: event.args[6],
+            isMeme: event.args[7],
+            timestamp: (await event.getBlock()).timestamp
+          };
+        }));
+
+        // Sort by timestamp
+        sortedTokens.sort((a, b) => b.timestamp - a.timestamp);
+
+        setRecentTokens(sortedTokens);
+      } catch (error) {
+        console.error('Error fetching recent tokens:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (chain?.id) {
+      fetchTokens();
+    }
+  }, [chain?.id]);
+
+  // Get the current page of tokens
+  const currentTokens = useMemo(() => {
+    return recentTokens.slice((page - 1) * tokensPerPage, page * tokensPerPage);
+  }, [recentTokens, page]);
 
   // Get trading URL based on chain
   const getTradeUrl = (tokenAddress, chainId) => {
@@ -459,7 +637,18 @@ const RecentlyCreatedTokens = () => {
     };
   };
 
-  if (!recentTokens.length) {
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <h3 className="meme-title text-2xl mb-4 text-[#00ffbd]">Recently Created Meme Tokens 🚀</h3>
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00ffbd]"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentTokens.length) {
     return (
       <div className="text-center py-8">
         <h3 className="meme-title text-2xl mb-4 text-[#00ffbd]">Recently Created Meme Tokens 🚀</h3>
@@ -473,7 +662,7 @@ const RecentlyCreatedTokens = () => {
       <h3 className="meme-title text-2xl mb-6 text-center text-[#00ffbd]">Recently Created Meme Tokens 🚀</h3>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {recentTokens.map((token) => (
+        {currentTokens.map((token) => (
           <motion.div
             key={token.address}
             initial={{ opacity: 0, y: 20 }}
@@ -487,12 +676,16 @@ const RecentlyCreatedTokens = () => {
               </div>
               <div className="flex items-center gap-2">
                 <img 
-                  src={DEX_IMAGES[getDexInfo(token.chainId).name]} 
-                  alt={getDexInfo(token.chainId).name}
-                  className="w-6 h-6"
+                  src={chain?.id ? (DEX_IMAGES[getDexInfo(chain.id).name] || '/token-default.png') : '/token-default.png'} 
+                  alt={chain?.id ? getDexInfo(chain.id).name : 'Unknown DEX'}
+                  className="w-6 h-6 rounded-full"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/token-default.png';
+                  }}
                 />
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {getDexInfo(token.chainId).network}
+                  {chain?.id ? getDexInfo(chain.id).network : 'Unknown Network'}
                 </span>
               </div>
             </div>
@@ -502,7 +695,7 @@ const RecentlyCreatedTokens = () => {
                 Supply: {Number(token.totalSupply).toLocaleString()}
               </div>
               <a
-                href={getTradeUrl(token.address, token.chainId)}
+                href={chain?.id ? getTradeUrl(token.address, chain.id) : '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 px-3 py-1 bg-[#00ffbd] hover:bg-[#00e6a9] text-black text-sm font-medium rounded-lg transition-colors"
@@ -515,7 +708,7 @@ const RecentlyCreatedTokens = () => {
       </div>
 
       {/* Pagination */}
-      {deployments?.length > tokensPerPage && (
+      {recentTokens.length > tokensPerPage && (
         <div className="mt-6 flex justify-center gap-2">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -525,11 +718,11 @@ const RecentlyCreatedTokens = () => {
             Previous
           </button>
           <span className="px-3 py-1 text-gray-600 dark:text-gray-400">
-            Page {page} of {Math.ceil(deployments.length / tokensPerPage)}
+            Page {page} of {Math.ceil(recentTokens.length / tokensPerPage)}
           </span>
           <button
             onClick={() => setPage(p => p + 1)}
-            disabled={page >= Math.ceil(deployments.length / tokensPerPage)}
+            disabled={page >= Math.ceil(recentTokens.length / tokensPerPage)}
             className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-50"
           >
             Next

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ERC20Template.sol";
 import "./MemeToken.sol";
@@ -11,12 +10,13 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 /// @title Token Factory Contract
 /// @notice Factory contract for creating new ERC20 tokens and meme tokens
 /// @dev Uses minimal proxy pattern for gas-efficient token deployment
-contract TokenFactory is Ownable, ReentrancyGuard {
+contract TokenFactory is ReentrancyGuard {
     using Clones for address;
 
     // Immutable variables
     address public immutable standardImplementation;
     address public immutable memeImplementation;
+    address public owner;
     
     // Chain-specific fee mapping
     mapping(uint256 => uint256) public chainFees;
@@ -41,16 +41,19 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         string symbol;
         uint256 totalSupply;
         address marketingWallet;
-        uint256 communityFeePercent;
-        uint256 liquidityFeePercent;
-        uint256 burnFeePercent;
-        uint256 maxWalletPercent;
-        uint256 maxTxPercent;
-        bool antiBot;
-        bool autoLiquidity;
+        address treasuryAddress;
+        address devAddress;
+        address liquidityAddress;
+        uint256 burnFee;
+        uint256 treasuryFee;
+        uint256 devFee;
+        uint256 marketingFee;
+        uint256 liquidityFee;
+        uint256 buyFees;
+        uint256 sellFees;
+        address router;
         string logoURI;
-        bool addInitialLiquidity;
-        uint256 initialLiquidityPercent;
+    
     }
     
     // Events
@@ -73,29 +76,52 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         uint256 liquidityAmount
     );
     event LiquidityAdditionFailed(address indexed token, uint256 tokenAmount, uint256 polAmount);
+    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
+
+    // Add new state variables
+    bool public paused;
+    
+    // Add emergency pause
+    modifier whenNotPaused() {
+        require(!paused, "Contract is paused");
+        _;
+    }
+
+    function setPaused(bool _paused) external onlyOwner {
+        paused = _paused;
+    }
+
+    // Add DEX config update function
+    function updateDexConfig(
+        uint256 chainId,
+        address router,
+        address factory,
+        string memory name,
+        bool isActive
+    ) external onlyOwner {
+        require(router != address(0), "Invalid router");
+        require(factory != address(0), "Invalid factory");
+        dexConfigs[chainId] = DEXConfig({
+            router: router,
+            factory: factory,
+            name: name,
+            isActive: isActive
+        });
+    }
 
     /// @notice Creates the factory with implementation contracts and fees
     constructor() {
+        owner = msg.sender;
+        
         // Deploy the templates
         standardImplementation = address(new ERC20Template());
-        memeImplementation = address(new MemeToken(
-            "TEMPLATE", 
-            "TEMP",
-            1,
-            address(this),
-            1,
-            1,
-            1,
-            1,
-            1,
-            false,
-            false
-        ));
+        memeImplementation = address(new MemeToken());
         
         // Set initial fees for different chains
         chainFees[11155111] = 0.01 ether;     // Sepolia
         chainFees[137] = 1 ether;             // Polygon Mainnet (1 POL)
-        chainFees[1301] = 0.01 ether;         // Unichain
+        chainFees[130] = 0.01 ether;          // Unichain Mainnet
+        chainFees[1301] = 0.01 ether;         // Unichain Testnet
         chainFees[1828369849] = 0.01 ether;   // Moonwalker
 
         // Configure DEXes for all supported networks
@@ -136,6 +162,11 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         defaultDex = dexConfigs[block.chainid].router;
     }
 
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
     function setChainFee(uint256 chainId, uint256 fee) external onlyOwner {
         chainFees[chainId] = fee;
         emit FeeUpdated(chainId, fee);
@@ -152,7 +183,7 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         uint8 decimals,
         uint256 initialSupply,
         string memory logoURI
-    ) external payable nonReentrant returns (address) {
+    ) external payable nonReentrant whenNotPaused returns (address) {
         uint256 requiredFee = getChainFee();
         require(requiredFee > 0, "Chain not supported");
         require(msg.value >= requiredFee, "Insufficient creation fee");
@@ -189,81 +220,62 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         return token;
     }
 
-    /// @notice Creates a new meme token with advanced features
-    function createMemeToken(MemeTokenParams calldata params) external payable nonReentrant returns (address) {
+    /// @notice Creates a new meme token
+    function createMemeToken(MemeTokenParams calldata params) external payable nonReentrant whenNotPaused returns (address) {
         uint256 requiredFee = getChainFee();
         require(requiredFee > 0, "Chain not supported");
         require(msg.value >= requiredFee, "Insufficient creation fee");
         require(bytes(params.name).length > 0, "Name cannot be empty");
         require(bytes(params.symbol).length > 0, "Symbol cannot be empty");
         require(params.totalSupply > 0, "Supply must be > 0");
+        
+        // Validate addresses
         require(params.marketingWallet != address(0), "Invalid marketing wallet");
+        require(params.treasuryAddress != address(0), "Invalid treasury address");
+        require(params.devAddress != address(0), "Invalid dev address");
+        require(params.liquidityAddress != address(0), "Invalid liquidity address");
+        require(params.router != address(0), "Router address cannot be zero");
         require(bytes(params.logoURI).length > 0, "Logo URI cannot be empty");
 
-        // Calculate total required value
-        uint256 totalRequired = requiredFee;
-        if (params.addInitialLiquidity) {
-            require(msg.value > requiredFee, "Must send ETH for initial liquidity");
-            totalRequired = msg.value;
-        }
+        // Validate router is whitelisted for this chain
+        DEXConfig memory dexConfig = dexConfigs[block.chainid];
+        require(dexConfig.isActive, "No DEX configured for this chain");
+        require(params.router == dexConfig.router, "Router not whitelisted for this chain");
 
-        // Deploy token
+        // Convert percentages to basis points (multiply by 100)
+        uint256 totalSecondaryFees = params.burnFee + params.treasuryFee + params.devFee + 
+                                    params.marketingFee + params.liquidityFee;
+        require(totalSecondaryFees == 100, "Secondary fees must total 100%");
+
+        uint256 buyFeesInBasis = params.buyFees * 100;
+        uint256 sellFeesInBasis = params.sellFees * 100;
+        require(buyFeesInBasis <= 2500, "Buy fees cannot exceed 25%");
+        require(sellFeesInBasis <= 2500, "Sell fees cannot exceed 25%");
+
+        // Deploy token using clone
         address payable token = payable(memeImplementation.clone());
         
-        // Initialize token with creator as the initial token holder
+        // Initialize the cloned token with msg.sender as the creator
         MemeToken(token).initialize(
             params.name,
             params.symbol,
             params.totalSupply,
+            params.treasuryAddress,
+            params.devAddress,
             params.marketingWallet,
-            params.communityFeePercent,
-            params.liquidityFeePercent,
-            params.burnFeePercent,
-            params.maxWalletPercent,
-            params.maxTxPercent,
-            params.antiBot,
-            params.autoLiquidity
+            params.liquidityAddress,
+            params.burnFee * 100,
+            params.treasuryFee * 100,
+            params.devFee * 100,
+            params.marketingFee * 100,
+            params.liquidityFee * 100,
+            params.buyFees * 100,
+            params.sellFees * 100,
+            params.router
         );
 
-        // Enable trading immediately
-        MemeToken(token).enableTrading();
-
-        // Exclude factory and pair from limits and fees for initial setup
-        MemeToken(token).excludeFromLimits(address(this), true);
-        MemeToken(token).excludeFromLimits(MemeToken(token).uniswapV2Pair(), true);
-        MemeToken(token).excludeFromFees(address(this), true);
-        MemeToken(token).excludeFromFees(MemeToken(token).uniswapV2Pair(), true);
-        MemeToken(token).excludeFromFees(address(defaultDex), true);  // Exclude router from fees
-        
         // Store logo URI
         tokenLogos[token] = params.logoURI;
-
-        // Transfer all tokens to the creator
-        uint256 totalSupplyWithDecimals = params.totalSupply * (10 ** 18); // 18 decimals
-        MemeToken(token).transfer(msg.sender, totalSupplyWithDecimals);
-
-        // Handle initial liquidity if requested
-        if (params.addInitialLiquidity) {
-            uint256 tokensForLiquidity = (totalSupplyWithDecimals * params.initialLiquidityPercent) / 100;
-            
-            // Get tokens back from creator for liquidity
-            MemeToken(token).transferFrom(msg.sender, address(this), tokensForLiquidity);
-            
-            // Approve router to spend tokens
-            MemeToken(token).approve(address(defaultDex), tokensForLiquidity);
-            
-            // Add liquidity
-            (,, uint256 liquidity) = IUniswapV2Router02(defaultDex).addLiquidityETH{value: msg.value - requiredFee}(
-                token,
-                tokensForLiquidity,
-                0, // Accept any amount of tokens
-                0, // Accept any amount of ETH
-                msg.sender,
-                block.timestamp + 300 // 5 minutes deadline
-            );
-            
-            emit LiquidityAdded(token, tokensForLiquidity, msg.value - requiredFee, liquidity);
-        }
 
         // Transfer ownership to creator
         MemeToken(token).transferOwnership(msg.sender);
@@ -287,10 +299,18 @@ contract TokenFactory is Ownable, ReentrancyGuard {
         uint256 balance = address(this).balance;
         require(balance > 0, "No balance to withdraw");
 
-        (bool success, ) = owner().call{value: balance}("");
+        (bool success, ) = owner.call{value: balance}("");
         require(success, "Withdrawal failed");
 
-        emit FeeWithdrawn(owner(), balance);
+        emit FeeWithdrawn(owner, balance);
+    }
+
+    /// @notice Transfers ownership of the contract to a new account
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner is the zero address");
+        address oldOwner = owner;
+        owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 
     /// @notice Fallback function to receive ETH

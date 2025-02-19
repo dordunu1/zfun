@@ -710,6 +710,37 @@ export default function TokenSwap() {
   });
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [swapError, setSwapError] = useState(null);
+  const [currentChainId, setCurrentChainId] = useState(null);
+
+  // Add chain ID initialization
+  useEffect(() => {
+    const getChainId = async () => {
+      if (!window.ethereum) return;
+      try {
+        const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const decimalChainId = parseInt(hexChainId, 16);
+        setCurrentChainId(decimalChainId);
+      } catch (error) {
+        console.error('Error getting chain ID:', error);
+      }
+    };
+    getChainId();
+
+    // Listen for chain changes
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', (chainId) => {
+        setCurrentChainId(parseInt(chainId, 16));
+      });
+    }
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('chainChanged', (chainId) => {
+          setCurrentChainId(parseInt(chainId, 16));
+        });
+      }
+    };
+  }, []);
 
   // Add window resize handler
   useEffect(() => {
@@ -846,26 +877,27 @@ export default function TokenSwap() {
       const signer = await provider.getSigner();
       
       // Get the route path from updateRoute
-      const { path } = await uniswap.updateRoute(fromToken, toToken, fromAmount);
-      if (!path) {
+      const routeInfo = await uniswap.updateRoute(fromToken, toToken, fromAmount);
+      if (!routeInfo || !routeInfo.path) {
         throw new Error('No valid route found');
       }
+
+      console.log('Route info:', routeInfo);
 
       // Parse input amount with proper decimals
       const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
       
-      // Parse output amount with proper decimals (especially for USDC)
+      // Parse output amount with proper decimals
       const amountOutMinRaw = ethers.parseUnits(toAmount, toToken.decimals);
       
       // Calculate slippage using user-defined slippage value
-      const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100)); // Convert percentage to basis points
+      const slippageMultiplier = BigInt(Math.floor((100 - slippage) * 100));
       const amountOutMin = (amountOutMinRaw * slippageMultiplier) / 10000n;
 
       let actualFromToken = fromToken;
-      let actualPath = path;
 
       // Check if we need to wrap ETH first
-      if (fromToken.symbol === 'ETH' && path[0] === UNISWAP_ADDRESSES.WETH) {
+      if (fromToken.symbol === 'ETH' && routeInfo.path[0] === UNISWAP_ADDRESSES[currentChainId]?.WETH) {
         const wethBalance = await uniswap.getWETHBalance(address);
         if (wethBalance < amountIn) {
           setSwapStep('wrapping');
@@ -874,7 +906,7 @@ export default function TokenSwap() {
           actualFromToken = {
             ...fromToken,
             symbol: 'WETH',
-            address: UNISWAP_ADDRESSES.WETH,
+            address: UNISWAP_ADDRESSES[currentChainId].WETH,
             decimals: 18
           };
         }
@@ -885,39 +917,168 @@ export default function TokenSwap() {
       // First approve if needed
       if (actualFromToken.symbol !== 'ETH') {
         setSwapStep('approval');
+        
+        // Get the router address for the current chain
+        const routerAddress = UNISWAP_ADDRESSES[currentChainId]?.router;
+        if (!routerAddress) {
+          throw new Error('Router address not found for current chain');
+        }
+
         const tokenContract = new ethers.Contract(
           actualFromToken.address,
           [
             'function approve(address spender, uint256 amount) external returns (bool)',
-            'function allowance(address owner, address spender) external view returns (uint256)'
+            'function allowance(address owner, address spender) external view returns (uint256)',
+            'function balanceOf(address) view returns (uint256)',
+            'function burnFee() view returns (uint256)',
+            'function marketingFee() view returns (uint256)',
+            'function liquidityFee() view returns (uint256)'
           ],
           signer
         );
         
-        const allowance = await tokenContract.allowance(address, UNISWAP_ADDRESSES.router);
+        const allowance = await tokenContract.allowance(address, routerAddress);
         if (allowance < amountIn) {
           console.log('Approving tokens...');
-          const approveTx = await tokenContract.approve(UNISWAP_ADDRESSES.router, amountIn);
+          const approveTx = await tokenContract.approve(routerAddress, amountIn);
           await approveTx.wait();
-          console.log('Tokens approved');
+        }
+
+        // Check if either token has fees
+        let fromTokenHasFees = false;
+        let toTokenHasFees = false;
+
+        try {
+          const [burnFee, marketingFee, liquidityFee] = await Promise.all([
+            tokenContract.burnFee().catch(() => 0),
+            tokenContract.marketingFee().catch(() => 0),
+            tokenContract.liquidityFee().catch(() => 0)
+          ]);
+          fromTokenHasFees = (burnFee > 0 || marketingFee > 0 || liquidityFee > 0);
+        } catch (error) {
+          fromTokenHasFees = false;
+        }
+
+        // Check if the destination token has fees
+        const toTokenContract = new ethers.Contract(
+          toToken.address,
+          [
+            'function burnFee() view returns (uint256)',
+            'function marketingFee() view returns (uint256)',
+            'function liquidityFee() view returns (uint256)'
+          ],
+          signer
+        );
+
+        try {
+          const [burnFee, marketingFee, liquidityFee] = await Promise.all([
+            toTokenContract.burnFee().catch(() => 0),
+            toTokenContract.marketingFee().catch(() => 0),
+            toTokenContract.liquidityFee().catch(() => 0)
+          ]);
+          toTokenHasFees = (burnFee > 0 || marketingFee > 0 || liquidityFee > 0);
+        } catch (error) {
+          toTokenHasFees = false;
+        }
+
+        setSwapStep('swapping');
+        console.log('Executing swap with path:', routeInfo.path);
+
+        // Use appropriate swap function based on whether either token has fees
+        if (fromTokenHasFees || toTokenHasFees) {
+          console.log('Using fee-on-transfer swap function...');
+          if (toToken.symbol === 'ETH') {
+            const tx = await uniswap.swapExactTokensForETHSupportingFeeOnTransferTokens(
+              amountIn,
+              amountOutMin,
+              routeInfo.path,
+              address,
+              deadline
+            );
+            await tx.wait();
+          } else {
+            const tx = await uniswap.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+              amountIn,
+              amountOutMin,
+              routeInfo.path,
+              address,
+              deadline
+            );
+            await tx.wait();
+          }
+        } else {
+          console.log('Using regular swap function...');
+          if (toToken.symbol === 'ETH') {
+            const tx = await uniswap.swapExactTokensForETH(
+              amountIn,
+              amountOutMin,
+              routeInfo.path,
+              address,
+              deadline
+            );
+            await tx.wait();
+          } else {
+            const tx = await uniswap.swapExactTokensForTokens(
+              amountIn,
+              amountOutMin,
+              routeInfo.path,
+              address,
+              deadline
+            );
+            await tx.wait();
+          }
+        }
+      } else {
+        // Handle ETH to token swap
+        setSwapStep('swapping');
+        console.log('Executing ETH to token swap with path:', routeInfo.path);
+        
+        // For ETH to token, we'll also check if the output token has fees
+        const tokenContract = new ethers.Contract(
+          toToken.address,
+          [
+            'function burnFee() view returns (uint256)',
+            'function marketingFee() view returns (uint256)',
+            'function liquidityFee() view returns (uint256)'
+          ],
+          signer
+        );
+
+        let hasFees = false;
+        try {
+          const [burnFee, marketingFee, liquidityFee] = await Promise.all([
+            tokenContract.burnFee().catch(() => 0),
+            tokenContract.marketingFee().catch(() => 0),
+            tokenContract.liquidityFee().catch(() => 0)
+          ]);
+          hasFees = (burnFee > 0 || marketingFee > 0 || liquidityFee > 0);
+        } catch (error) {
+          hasFees = false;
+        }
+
+        if (hasFees) {
+          console.log('Using fee-on-transfer swap function for ETH...');
+          const tx = await uniswap.swapExactETHForTokensSupportingFeeOnTransferTokens(
+            amountOutMin,
+            routeInfo.path,
+            address,
+            deadline,
+            { value: amountIn }
+          );
+          await tx.wait();
+        } else {
+          console.log('Using regular swap function for ETH...');
+          const tx = await uniswap.swapExactETHForTokens(
+            amountOutMin,
+            routeInfo.path,
+            address,
+            deadline,
+            { value: amountIn }
+          );
+          await tx.wait();
         }
       }
 
-      setSwapStep('swapping');
-      const tx = await uniswap.swap(
-        actualFromToken,
-        toToken,
-        amountIn,
-        amountOutMin,
-        actualPath,
-        deadline
-      );
-
-      console.log('Swap transaction sent:', tx.hash);
-      setSwapStep('confirming');
-      const receipt = await tx.wait();
-      console.log('Swap receipt:', receipt);
-      
       // Remove the updateBalances call and use the existing balance update mechanism
       // Trigger a balance refresh by updating the fromAmount
       setFromAmount('');
@@ -929,28 +1090,36 @@ export default function TokenSwap() {
         setShowProgressModal(false);
         setSwapStep(null);
         
-        // Show confetti after modal is closed
         setTimeout(() => {
           setShowConfetti(true);
           
-          // Show rating modal after a short delay
           setTimeout(() => {
             setShowRatingModal(true);
           }, 1000);
           
-          // Reset form and cleanup after confetti (30 seconds)
           setTimeout(() => {
             setFromAmount('');
             setToAmount('');
             setShowConfetti(false);
-          }, 30000); // 30 seconds
+          }, 30000);
         }, 100);
       }, 1000);
-      
-      // Remove the unnecessary refresh trigger
+
     } catch (error) {
       console.error('Swap error:', error);
-      setSwapError(error.message || 'Failed to swap tokens');
+      let errorMessage = 'Failed to swap tokens';
+      
+      // Handle specific error cases
+      if (error.code === 'CALL_EXCEPTION') {
+        errorMessage = 'Transaction failed - insufficient gas or contract error';
+      } else if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        errorMessage = 'Unable to estimate gas - the transaction may fail';
+      } else if (error.reason) {
+        errorMessage = error.reason;
+      }
+      
+      setSwapError(errorMessage);
+      setSwapStep('error');
     } finally {
       setLoading(false);
     }

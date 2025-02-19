@@ -17,20 +17,7 @@ async function main() {
     // Deploy MemeToken template
     console.log("Deploying MemeToken template...");
     const MemeToken = await hre.ethers.getContractFactory("MemeToken");
-    const memeToken = await MemeToken.deploy(
-      "TEMPLATE", 
-      "TEMP",
-      1,
-      deployer.address, // marketing wallet
-      1, // communityFeePercent
-      1, // liquidityFeePercent
-      1, // burnFeePercent
-      100, // maxWalletPercent
-      100, // maxTxPercent
-      false, // antiBot
-      false, // autoLiquidity
-      { nonce: currentNonce }
-    );
+    const memeToken = await MemeToken.deploy({ nonce: currentNonce });
     await memeToken.waitForDeployment();
     console.log("MemeToken template deployed to:", await memeToken.getAddress());
 
@@ -67,19 +54,7 @@ async function main() {
     try {
       await hre.run("verify:verify", {
         address: await memeToken.getAddress(),
-        constructorArguments: [
-          "TEMPLATE", 
-          "TEMP",
-          1,
-          deployer.address,
-          1,
-          1,
-          1,
-          100,
-          100,
-          false,
-          false
-        ],
+        constructorArguments: [],
       });
       console.log("MemeToken template verified");
     } catch (error) {

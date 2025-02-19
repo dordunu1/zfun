@@ -635,62 +635,63 @@ export class UnichainUniswapService {
         fromToken.symbol === 'ETH' ? 18 : fromToken.decimals
       );
 
-      // Try routing through USDT first
+      // Try WETH path first (most reliable)
       try {
-        const pathThroughUSDT = [fromAddress, addresses.USDT, toAddress];
-        const hasFirstPair = await this.checkPoolExists(fromAddress, addresses.USDT);
-        const hasSecondPair = await this.checkPoolExists(addresses.USDT, toAddress);
+        // For token to token swaps, construct path through WETH
+        const pathThroughWETH = [fromAddress, addresses.WETH, toAddress];
+        
+        // Check if pools exist
+        const hasFirstPair = await this.checkPoolExists(fromAddress, addresses.WETH);
+        const hasSecondPair = await this.checkPoolExists(addresses.WETH, toAddress);
         
         if (hasFirstPair && hasSecondPair) {
           try {
-            const amounts = await this.router.getAmountsOut(amountIn, pathThroughUSDT);
+            const amounts = await this.router.getAmountsOut(amountIn, pathThroughWETH);
             const toAmount = ethers.formatUnits(
               amounts[amounts.length - 1],
               toToken.symbol === 'ETH' ? 18 : toToken.decimals
             );
             
             return {
-              route: `${fromToken.symbol} → USDT → ${toToken.symbol}`,
+              route: `${fromToken.symbol} → WETH → ${toToken.symbol}`,
               toAmount,
-              path: pathThroughUSDT
+              path: pathThroughWETH
             };
           } catch (amountError) {
-            // Continue to try direct path
+            console.log('Error getting amounts through WETH:', amountError);
           }
         }
       } catch (error) {
-        // USDT route failed
+        console.log('Error checking WETH route:', error);
       }
 
       // Try direct path as fallback
       try {
-        const directPath = [fromAddress, toAddress];
-        const hasDirectPair = await this.checkPoolExists(fromAddress, toAddress);
-        
-        if (hasDirectPair) {
-          try {
-            const amounts = await this.router.getAmountsOut(amountIn, directPath);
-            const toAmount = ethers.formatUnits(
-              amounts[amounts.length - 1],
-              toToken.symbol === 'ETH' ? 18 : toToken.decimals
-            );
+        // Only try direct path if tokens are different
+        if (fromAddress !== toAddress) {
+          const directPath = [fromAddress, toAddress];
+          const hasDirectPair = await this.checkPoolExists(fromAddress, toAddress);
+          
+          if (hasDirectPair) {
+            try {
+              const amounts = await this.router.getAmountsOut(amountIn, directPath);
+              const toAmount = ethers.formatUnits(
+                amounts[amounts.length - 1],
+                toToken.symbol === 'ETH' ? 18 : toToken.decimals
+              );
 
-            return {
-              route: `${fromToken.symbol} → ${toToken.symbol}`,
-              toAmount,
-              path: directPath
-            };
-          } catch (amountError) {
-            // Return with calculated amounts even if they're very small
-            return {
-              route: `${fromToken.symbol} → ${toToken.symbol}`,
-              toAmount: '0',
-              path: directPath
-            };
+              return {
+                route: `${fromToken.symbol} → ${toToken.symbol}`,
+                toAmount,
+                path: directPath
+              };
+            } catch (amountError) {
+              console.log('Error getting amounts for direct path:', amountError);
+            }
           }
         }
       } catch (error) {
-        // Direct route failed
+        console.log('Error checking direct path:', error);
       }
 
       return {
@@ -699,6 +700,7 @@ export class UnichainUniswapService {
         error: 'No valid route found'
       };
     } catch (error) {
+      console.error('Error in updateRoute:', error);
       throw error;
     }
   }
@@ -1320,5 +1322,63 @@ export class UnichainUniswapService {
     } catch (error) {
       throw error;
     }
+  }
+
+  async swapExactTokensForETHSupportingFeeOnTransferTokens(amountIn, amountOutMin, path, to, deadline) {
+    if (!this.router) await this.init();
+    return this.router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+      amountIn,
+      amountOutMin,
+      path,
+      to,
+      deadline
+    );
+  }
+
+  async swapExactETHForTokensSupportingFeeOnTransferTokens(amountOutMin, path, to, deadline, options) {
+    if (!this.router) await this.init();
+    return this.router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+      amountOutMin,
+      path,
+      to,
+      deadline,
+      options
+    );
+  }
+
+  async swapExactTokensForETH(amountIn, amountOutMin, path, to, deadline) {
+    if (!this.router) await this.init();
+    return this.router.swapExactTokensForETH(
+      amountIn,
+      amountOutMin,
+      path,
+      to,
+      deadline
+    );
+  }
+
+  async swapExactETHForTokens(amountOutMin, path, to, deadline, options) {
+    if (!this.router) await this.init();
+    return this.router.swapExactETHForTokens(
+      amountOutMin,
+      path,
+      to,
+      deadline,
+      options
+    );
+  }
+
+  async swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn, amountOutMin, path, to, deadline) {
+    if (!this.router) await this.init();
+    return this.router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+      amountIn,
+      amountOutMin,
+      path,
+      to,
+      deadline,
+      {
+        gasLimit: ethers.getBigInt(1000000)
+      }
+    );
   }
 } 

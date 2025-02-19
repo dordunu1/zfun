@@ -3,6 +3,7 @@ module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "node_modules/flowbite-react/lib/esm/**/*.js"
   ],
   darkMode: 'class',
   theme: {
@@ -37,6 +38,7 @@ module.exports = {
     },
   },
   plugins: [
+    require('flowbite/plugin'),
     function({ addUtilities }) {
       const newUtilities = {
         '.custom-scrollbar': {

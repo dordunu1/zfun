@@ -106,114 +106,54 @@ const formatBalance = (balance, decimals = 18) => {
 
 const scanForTokens = async (provider, userAddress, chainId) => {
   try {
-    // Create a list of known token addresses to scan based on chain ID
-    const knownTokens = [
-      ...(COMMON_TOKENS[chainId] || []).map(token => token.address).filter(addr => addr !== 'ETH'),
-    ];
-
-    // Fetch tokens from Blockscout API based on chain
+    // Get tokens from Blockscout API
     const blockscoutUrl = chainId === UNICHAIN_CHAIN_IDS.TESTNET 
       ? 'https://unichain-sepolia.blockscout.com'
       : 'https://unichain.blockscout.com';
 
-    const apiTokens = await fetch(
+    const response = await fetch(
       `${blockscoutUrl}/api/v2/addresses/${userAddress}/token-balances`
-    )
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`API request failed with status ${res.status}`);
-        return res.json();
-      })
-      .then(async (tokens) => {
-        // Filter out non-ERC20 tokens and LP tokens
-        const erc20Tokens = tokens
-          .filter(item => {
-            const isERC20 = item.token?.type === 'ERC-20' && item.value && item.token.address;
-            const isNotLPToken = item.token?.symbol !== 'UNI-V2' && 
-                               !item.token?.name?.includes('Uniswap V2') &&
-                               !item.token?.symbol?.includes('UNI-V2') &&
-                               !item.token?.symbol?.includes('LP');
-            return isERC20 && isNotLPToken;
-          })
-          .map(item => ({
-            address: item.token.address,
-            symbol: item.token.symbol || 'Unknown',
-            name: item.token.name || 'Unknown Token',
-            decimals: parseInt(item.token.decimals || '18'),
-            balance: item.value,
-            verified: true,
-            totalSupply: item.token.total_supply,
-            holders: item.token.holders
-          }));
-
-        return erc20Tokens;
-      })
-      .catch(error => {
-        console.error('Error fetching tokens from Blockscout API:', error);
-        return [];
-      });
-
-    // Also scan known tokens in case they're not in the API response
-    const contractScannedTokens = await Promise.all(
-      knownTokens
-        .filter(addr => !apiTokens.some(t => t.address?.toLowerCase() === addr.toLowerCase()))
-        .map(async (tokenAddress) => {
-          try {
-            const contract = new ethers.Contract(
-              tokenAddress,
-              [
-                'function balanceOf(address) view returns (uint256)',
-                'function symbol() view returns (string)',
-                'function name() view returns (string)',
-                'function decimals() view returns (uint8)',
-                'function totalSupply() view returns (uint256)'
-              ],
-              provider
-            );
-
-            const [balance, symbol, name, decimals, totalSupply] = await Promise.all([
-              contract.balanceOf(userAddress),
-              contract.symbol().catch(() => 'Unknown'),
-              contract.name().catch(() => 'Unknown Token'),
-              contract.decimals().catch(() => 18),
-              contract.totalSupply().catch(() => '0')
-            ]);
-
-            const isNotLPToken = 
-              symbol !== 'UNI-V2' && 
-              !name?.includes('Uniswap V2') &&
-              !symbol?.includes('UNI-V2') &&
-              !symbol?.includes('LP');
-
-            if (balance > 0n && isNotLPToken) {
-              return {
-                address: tokenAddress,
-                symbol,
-                name,
-                decimals,
-                balance: balance.toString(),
-                totalSupply: totalSupply.toString(),
-                verified: true
-              };
-            }
-            return null;
-          } catch (error) {
-            console.error(`Error scanning token ${tokenAddress}:`, error);
-            return null;
-          }
-        })
     );
 
-    // Combine both sources of tokens and remove duplicates
-    const allTokens = [...apiTokens, ...contractScannedTokens.filter(t => t !== null)];
-    const uniqueTokens = Array.from(
-      new Map(allTokens.map(token => [token.address?.toLowerCase(), token]))
-        .values()
-    ).filter(token => token && token.address);
+    if (!response.ok) {
+      console.warn(`Blockscout API error: ${response.status}`);
+      return COMMON_TOKENS[chainId] || [];
+    }
+
+    const data = await response.json();
     
-    return uniqueTokens;
+    // Filter and format tokens
+    const tokens = data
+      .filter(item => {
+        const isERC20 = item.token?.type === 'ERC-20' && item.token?.address;
+        const isValidAddress = ethers.isAddress(item.token?.address || '');
+        const isNotLP = !item.token?.symbol?.includes('LP') && !item.token?.symbol?.includes('UNI-V2');
+        return isERC20 && isValidAddress && isNotLP;
+      })
+      .map(item => ({
+        address: item.token.address,
+        symbol: item.token.symbol || 'Unknown',
+        name: item.token.name || 'Unknown Token',
+        decimals: parseInt(item.token.decimals || '18'),
+        balance: item.value,
+        verified: true
+      }));
+
+    // Add common tokens if they're not already included
+    const commonTokens = COMMON_TOKENS[chainId] || [];
+    const allTokens = [...tokens];
+    
+    for (const commonToken of commonTokens) {
+      if (commonToken.address === 'ETH' || (commonToken.address && !allTokens.some(t => t.address?.toLowerCase() === commonToken.address?.toLowerCase()))) {
+        allTokens.push(commonToken);
+      }
+    }
+
+    return allTokens;
   } catch (error) {
-    console.error('Error scanning for tokens:', error);
-    return [];
+    console.error('Token scanning error:', error);
+    // Return common tokens as fallback
+    return COMMON_TOKENS[chainId] || [];
   }
 };
 
@@ -290,93 +230,75 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       if (!isOpen || !userAddress || !window.ethereum) return;
       
       setIsLoading(true);
+      setError('');
+      
       try {
-        // Get current chain ID and check network
-        const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
-        const chainId = parseInt(hexChainId, 16);
-        
-        const isUnichain = chainId === UNICHAIN_CHAIN_IDS.TESTNET || chainId === UNICHAIN_CHAIN_IDS.MAINNET;
-        
-        if (!isUnichain) {
-          setError('Please switch to Unichain network (Testnet or Mainnet)');
-          setDeployedTokens([]);
-          setTokensWithBalance(COMMON_TOKENS[chainId] || COMMON_TOKENS[UNICHAIN_CHAIN_IDS.TESTNET]);
-          return;
-        }
-        
-        setError('');
-        
-        // Get tokens from different sources
-        const [deployedTokens, walletTokens] = await Promise.all([
-          getAllTokenDeployments(),
-          getWalletTokens(window.ethereum, userAddress, chainId)
-        ]);
-        
-        // Filter and format tokens
-        const chainTokens = deployedTokens.filter(token => 
-          token && token.chainId?.toString() === chainId.toString()
-        );
-        
-        const allTokens = [
-          ...(COMMON_TOKENS[chainId] || []),
-          ...chainTokens,
-          ...walletTokens
-        ].filter(token => token && token.address);
-
-        // Remove duplicates
-        const seenAddresses = new Set();
-        const uniqueTokens = allTokens.filter(token => {
-          if (!token || !token.address) return false;
-          const address = token.address.toLowerCase();
-          if (seenAddresses.has(address)) return false;
-          seenAddresses.add(address);
-          return true;
-        });
-
-        setTokensWithBalance(uniqueTokens);
-        
-        // Fetch balances for all tokens
         const provider = new ethers.BrowserProvider(window.ethereum);
+        const chainId = await provider.getNetwork().then(n => n.chainId);
+        
+        // Get tokens list
+        const tokens = await scanForTokens(provider, userAddress, Number(chainId));
+        
+        // Fetch balances
         const newBalances = {};
         
         await Promise.all(
-          uniqueTokens.map(async (token) => {
+          tokens.map(async (token) => {
             try {
-              if (!token || !token.address) return;
+              if (!token.address) return;
               
-              let rawBalance, decimals;
-
               if (token.address === 'ETH') {
-                rawBalance = await provider.getBalance(userAddress);
-                decimals = 18;
-              } else {
-                const contract = new ethers.Contract(
+                const balance = await provider.getBalance(userAddress);
+                newBalances[token.address] = {
+                  raw: balance.toString(),
+                  formatted: formatBalance(balance, 18)
+                };
+              } else if (ethers.isAddress(token.address)) {
+                const tokenContract = new ethers.Contract(
                   token.address,
                   ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
                   provider
                 );
-
-                [rawBalance, decimals] = await Promise.all([
-                  contract.balanceOf(userAddress),
-                  contract.decimals().catch(() => token.decimals || 18)
+                
+                const [balance, decimals] = await Promise.all([
+                  tokenContract.balanceOf(userAddress).catch(() => ethers.parseUnits('0', token.decimals || 18)),
+                  tokenContract.decimals().catch(() => token.decimals || 18)
                 ]);
+                
+                newBalances[token.address] = {
+                  raw: balance.toString(),
+                  formatted: formatBalance(balance, decimals)
+                };
               }
-
+            } catch (err) {
+              console.warn(`Error fetching balance for token ${token.address}:`, err);
               newBalances[token.address] = {
-                raw: rawBalance.toString(),
-                formatted: formatBalance(rawBalance, decimals)
+                raw: '0',
+                formatted: '0'
               };
-            } catch (error) {
-              console.error(`Error fetching balance for ${token.symbol}:`, error);
-              newBalances[token.address] = { raw: '0', formatted: '0' };
             }
           })
         );
-
+        
         setTokenBalances(newBalances);
+        
+        // Filter and sort tokens
+        const tokensWithBalances = tokens
+          .filter(token => token && (token.address === 'ETH' || ethers.isAddress(token.address)))
+          .map(token => ({
+            ...token,
+            balance: newBalances[token.address]?.formatted || '0'
+          }))
+          .sort((a, b) => {
+            const balanceA = parseFloat(a.balance) || 0;
+            const balanceB = parseFloat(b.balance) || 0;
+            return balanceB - balanceA;
+          });
+        
+        setTokensWithBalance(tokensWithBalances);
       } catch (error) {
         console.error('Error fetching tokens and balances:', error);
-        setError('Failed to load tokens');
+        setError('Failed to fetch tokens. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -483,41 +405,85 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
 
   const handleTokenSelect = async (token) => {
     try {
+      if (!token) {
+        console.error('No token provided to handleTokenSelect');
+        setError('Invalid token selection');
+        return;
+      }
+
       let finalToken;
+      
+      // Handle ETH/WETH case
       if (token.symbol === 'ETH') {
+        if (!currentChainId || !UNISWAP_ADDRESSES[currentChainId]?.WETH) {
+          console.error('No WETH address found for current chain');
+          setError('WETH address not configured for this chain');
+          return;
+        }
         finalToken = {
           ...token,
           address: UNISWAP_ADDRESSES[currentChainId].WETH
         };
-      } else {
-        // Try to get token info from Firebase
-        const tokenDeployment = await getTokenDeploymentByAddress(token.address);
-        if (tokenDeployment) {
+      } 
+      // Handle custom token address search
+      else if (ethers.isAddress(searchQuery)) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const tokenContract = new ethers.Contract(
+            searchQuery,
+            [
+              'function symbol() view returns (string)',
+              'function name() view returns (string)',
+              'function decimals() view returns (uint8)'
+            ],
+            provider
+          );
+
+          const [symbol, name, decimals] = await Promise.all([
+            tokenContract.symbol().catch(() => 'Unknown'),
+            tokenContract.name().catch(() => 'Unknown Token'),
+            tokenContract.decimals().catch(() => 18)
+          ]);
+
           finalToken = {
-            ...token,
-            symbol: token.symbol || tokenDeployment.symbol, // Preserve original symbol if exists
-            name: token.name || tokenDeployment.name, // Preserve original name if exists
-            decimals: token.decimals || tokenDeployment.decimals || 18,
-            logo: token.logo || tokenDeployment.logo,
-            logoIpfs: token.logoIpfs || tokenDeployment.logoIpfs,
-            artworkType: token.artworkType || tokenDeployment.artworkType,
+            address: searchQuery,
+            symbol,
+            name,
+            decimals,
             verified: true
           };
-        } else {
-          // If not in Firebase, keep all original token information
-          finalToken = {
-            ...token,
-            decimals: token.decimals || 18,
-            verified: true
-          };
+        } catch (err) {
+          console.error('Error fetching custom token info:', err);
+          setError('Invalid token address or token not found');
+          return;
         }
+      }
+      // Handle regular token selection
+      else {
+        if (!token.address) {
+          console.error('Token has no address:', token);
+          setError('Invalid token: no address found');
+          return;
+        }
+        finalToken = {
+          ...token,
+          decimals: token.decimals || 18,
+          verified: true
+        };
+      }
+
+      // Final validation
+      if (!finalToken.address || !ethers.isAddress(finalToken.address)) {
+        console.error('Invalid final token address:', finalToken);
+        setError('Invalid token address');
+        return;
       }
 
       onSelect(finalToken);
       onClose();
     } catch (error) {
       console.error('Error in handleTokenSelect:', error);
-      setError('Failed to process token selection');
+      setError('Error selecting token: ' + error.message);
     }
   };
 
