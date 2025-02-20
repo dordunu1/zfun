@@ -664,10 +664,10 @@ export default function CreateTokenModal({ isOpen, onClose }) {
       let fee;
       if (currentChainId === CHAIN_IDS.MONAD_TESTNET) {
         fee = ethers.parseEther(CHAIN_FEES[currentChainId]); // Use MON as fee
-        toast.info('Creating token with MON as fee on Monad Testnet');
+        toast.success('Creating token with MON as fee on Monad Testnet');
       } else if (currentChainId === CHAIN_IDS.MOONWALKER) {
         fee = ethers.parseEther("0.01"); // Keep original fee until contract update
-        toast.info('Note: 369 ZERO fee will be implemented in the next contract update');
+        toast.success('Note: 369 ZERO fee will be implemented in the next contract update');
       } else {
         fee = ethers.parseEther(CHAIN_FEES[currentChainId]?.toString() || "0.01");
       }
