@@ -1,7 +1,24 @@
 const hre = require("hardhat");
 
+// Network-specific configurations
+const NETWORK_CONFIG = {
+  // Monad Testnet
+  10143: {
+    name: 'Monad Testnet',
+    blockConfirmations: 5,
+    verifyDelay: 30000, // 30s for Monad Testnet
+  }
+};
+
 async function main() {
   console.log("Starting deployment...");
+
+  // Get network information
+  const network = await hre.ethers.provider.getNetwork();
+  const chainId = Number(network.chainId);
+  const networkConfig = NETWORK_CONFIG[chainId] || { name: 'Unknown Network', blockConfirmations: 5, verifyDelay: 30000 };
+
+  console.log(`Deploying on ${networkConfig.name} (Chain ID: ${chainId})...`);
 
   const ADMIN_WALLET = "0x5828D525fe00902AE22f2270Ac714616651894fF";
 
@@ -47,7 +64,7 @@ async function main() {
 
     // Verify contracts
     console.log("\nWaiting for block confirmations...");
-    await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30s for block confirmations
+    await new Promise(resolve => setTimeout(resolve, networkConfig.verifyDelay));
 
     console.log("\nVerifying contracts on Etherscan/Blockscout...");
     

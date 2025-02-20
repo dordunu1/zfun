@@ -43,6 +43,14 @@ const CHAIN_INFO = {
     nftFactoryAddress: import.meta.env.VITE_NFT_FACTORY_MOONWALKER,
     rpc: "https://moonwalker-rpc.eu-north-2.gateway.fm",
     chainId: "0x6CFF49C9" // 1828369849 in hex
+  },
+  10143: {
+    name: "Monad Testnet",
+    currency: "MON",
+    factoryAddress: import.meta.env.VITE_FACTORY_ADDRESS_10143,
+    nftFactoryAddress: import.meta.env.VITE_NFT_FACTORY_MONAD_TESTNET,
+    rpc: "https://testnet-rpc.monad.xyz/",
+    chainId: "0x279F" // 10143 in hex
   }
 };
 

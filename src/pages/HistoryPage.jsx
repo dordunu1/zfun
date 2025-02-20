@@ -118,7 +118,8 @@ export default function HistoryPage() {
       { id: 'unichain-mainnet', label: 'Unichain Mainnet' },
       { id: 'unichain', label: 'Unichain Testnet' },
       { id: 'polygon', label: 'Polygon' },
-      { id: 'moonwalker', label: 'Moonwalker' }
+      { id: 'moonwalker', label: 'Moonwalker' },
+      { id: 'monad-testnet', label: 'Monad Testnet' }
     ];
 
     const networkCounts = {
@@ -127,7 +128,8 @@ export default function HistoryPage() {
       'unichain-mainnet': activities.filter(a => a.network === 'unichain-mainnet' || a.chainId === 130).length,
       unichain: activities.filter(a => a.network === 'unichain' || a.chainId === 1301).length,
       polygon: activities.filter(a => a.network === 'polygon' || a.chainId === 137).length,
-      moonwalker: activities.filter(a => a.network === 'moonwalker' || a.chainId === 1828369849).length
+      moonwalker: activities.filter(a => a.network === 'moonwalker' || a.chainId === 1828369849).length,
+      'monad-testnet': activities.filter(a => a.network === 'monad-testnet' || a.chainId === 10143).length
     };
 
     return (
@@ -179,7 +181,8 @@ export default function HistoryPage() {
              (selectedNetwork === 'unichain-mainnet' && activity.chainId === 130) ||
              (selectedNetwork === 'unichain' && activity.chainId === 1301) ||
              (selectedNetwork === 'polygon' && activity.chainId === 137) ||
-             (selectedNetwork === 'moonwalker' && activity.chainId === 1828369849);
+             (selectedNetwork === 'moonwalker' && activity.chainId === 1828369849) ||
+             (selectedNetwork === 'monad-testnet' && activity.chainId === 10143);
     });
   }, [activities, selectedNetwork]);
 
@@ -278,6 +281,9 @@ export default function HistoryPage() {
           } else if (chainId === 1828369849 || tx.network === 'moonwalker') {
             network = 'moonwalker';
             chainId = 1828369849;
+          } else if (chainId === 10143 || tx.network === 'monad-testnet') {
+            network = 'monad-testnet';
+            chainId = 10143;
           } else if (chainId === 11155111 || tx.network === 'sepolia') {
             network = 'sepolia';
             chainId = 11155111;
@@ -371,6 +377,9 @@ export default function HistoryPage() {
           } else if (collection?.chainId === 1828369849 || tx.chainId === 1828369849) {
             network = 'moonwalker';
             chainId = 1828369849;
+          } else if (collection?.chainId === 10143 || tx.chainId === 10143) {
+            network = 'monad-testnet';
+            chainId = 10143;
           } else if (collection?.chainId === 11155111 || tx.chainId === 11155111) {
             network = 'sepolia';
             chainId = 11155111;
@@ -580,6 +589,7 @@ export default function HistoryPage() {
       network === 'unichain' ? 1301 :
       network === 'polygon' ? 137 :
       network === 'moonwalker' ? 1828369849 :
+      network === 'monad-testnet' ? 10143 :
       11155111 // Sepolia as default
     );
 
@@ -593,6 +603,8 @@ export default function HistoryPage() {
         return 'https://polygonscan.com';
       case 1828369849:
         return 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+      case 10143:
+        return 'https://monad-testnet.socialscan.io';
       default:
         return 'https://sepolia.etherscan.io';
     }
@@ -610,6 +622,8 @@ export default function HistoryPage() {
           return 'Polygon';
         case 1828369849:
           return 'Moonwalker';
+        case 10143:
+          return 'Monad Testnet';
         case 11155111:
           return 'Sepolia';
         default:
@@ -627,6 +641,8 @@ export default function HistoryPage() {
         return 'Polygon';
       case 'moonwalker':
         return 'Moonwalker';
+      case 'monad-testnet':
+        return 'Monad Testnet';
       default:
         return 'Sepolia';
     }

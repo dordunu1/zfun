@@ -24,6 +24,16 @@ module.exports = {
         }
       }
     },
+    "monad-testnet": {
+      url: "https://testnet-rpc.monad.xyz",
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      chainId: 10143,
+      verify: {
+        etherscan: {
+          apiUrl: 'https://monad-testnet.socialscan.io'
+        }
+      }
+    },
     "unichain-mainnet": {
       url: "https://mainnet.unichain.org",
       accounts: [`0x${process.env.PRIVATE_KEY}`],
@@ -46,7 +56,9 @@ module.exports = {
   etherscan: {
     apiKey: {
       moonwalker: "any-string-works-here", // Blockscout doesn't require an API key
-      unichain: process.env.VITE_UNICHAIN_EXPLORER_API_KEY,
+      unichain: "any-string-works-here",   // Uniscan doesn't require an API key
+      "monad-testnet": "any-string-works-here", // Monad explorer doesn't require an API key
+      sepolia: process.env.VITE_ETHERSCAN_API_KEY,
       "unichain-mainnet": process.env.VITE_UNICHAIN_EXPLORER_API_KEY,
       polygon: process.env.VITE_POLYGONSCAN_API_KEY // Add Polygonscan API key
     },
@@ -57,6 +69,14 @@ module.exports = {
         urls: {
           apiURL: "https://moonwalker-blockscout.eu-north-2.gateway.fm/api",
           browserURL: "https://moonwalker-blockscout.eu-north-2.gateway.fm"
+        }
+      },
+      {
+        network: "monad-testnet",
+        chainId: 10143,
+        urls: {
+          apiURL: "https://monad-testnet.socialscan.io/api",
+          browserURL: "https://monad-testnet.socialscan.io"
         }
       },
       {

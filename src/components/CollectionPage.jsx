@@ -447,10 +447,12 @@ export default function CollectionPage() {
             setTotalMinted(Number(totalMinted));
             setUserMintedAmount(Number(userMinted));
           } else {
-            // Add higher gas limit for Unichain networks
+            // Add higher gas limit for Unichain networks and Monad Testnet
             const options = collection.network === 'unichain-mainnet' || collection.network === 'unichain' 
               ? { gasLimit: 1000000 }
-              : {};
+              : collection.network === 'monad-testnet'
+                ? { gasLimit: 5000000 }
+                : {};
               
             const [totalMinted, userMinted] = await Promise.all([
               contract.totalSupply(options),
@@ -646,6 +648,9 @@ export default function CollectionPage() {
       }
       if (collection?.network === 'polygon') {
         return <img src="/polygon.png" alt="POL" className="w-5 h-5" />;
+      }
+      if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) {
+        return <img src="/monad.png" alt="MON" className="w-5 h-5" />;
       }
       // Both Unichain mainnet and testnet use ETH
       if (collection?.network === 'unichain-mainnet' || collection?.network === 'unichain') {
@@ -891,7 +896,8 @@ export default function CollectionPage() {
         network: currentChainId === 130 ? 'unichain-mainnet' :
                 currentChainId === 1301 ? 'unichain' :
                 currentChainId === 137 ? 'polygon' :
-                currentChainId === 1828369849 ? 'moonwalker' : 'sepolia',
+                currentChainId === 1828369849 ? 'moonwalker' :
+                currentChainId === 10143 ? 'monad-testnet' : 'sepolia',
         mintPrice: formattedMintPrice,
         paymentToken: collection.mintToken || null
       });
@@ -1024,6 +1030,7 @@ export default function CollectionPage() {
                            collection.network === 'unichain' ? 1301 :
                            collection.network === 'sepolia' ? 11155111 :
                            collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 1828369849 :
+                           collection.network === 'monad-testnet' || collection.chainId === 10143 ? 10143 :
                            collection.network === 'polygon' ? 137 : null;
     
     console.log('Network Check:', {
@@ -1040,6 +1047,7 @@ export default function CollectionPage() {
                              collection.network === 'unichain' ? 'Unichain Testnet' :
                              collection.network === 'sepolia' ? 'Sepolia' :
                              collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 'MoonWalker' :
+                             collection.network === 'monad-testnet' || collection.chainId === 10143 ? 'Monad Testnet' :
                              collection.network === 'polygon' ? 'Polygon' : 'Unknown Network';
 
     return (
@@ -1414,7 +1422,9 @@ export default function CollectionPage() {
                                 ? 'https://unichain-sepolia.blockscout.com'
                                 : collection.network === 'moonwalker' || collection.chainId === 1828369849
                                     ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
-                                    : 'https://sepolia.etherscan.io'
+                                    : collection.network === 'monad-testnet' || collection.chainId === 10143
+                                        ? 'https://monad-testnet.socialscan.io'
+                                        : 'https://sepolia.etherscan.io'
                       }/address/${collection.creatorAddress}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1439,7 +1449,9 @@ export default function CollectionPage() {
                               ? 'https://unichain-sepolia.blockscout.com'
                               : collection.network === 'moonwalker' || collection.chainId === 1828369849
                                   ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
-                                  : 'https://sepolia.etherscan.io'
+                                  : collection.network === 'monad-testnet' || collection.chainId === 10143
+                                      ? 'https://monad-testnet.socialscan.io'
+                                      : 'https://sepolia.etherscan.io'
                     }/address/${collection.contractAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"

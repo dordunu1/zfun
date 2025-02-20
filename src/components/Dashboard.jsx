@@ -154,10 +154,14 @@ export default function Dashboard() {
         case 'sepolia':
           return 'sepolia';
         case '130':
+        case 'unichain-mainnet':
           return 'unichain-mainnet';
         case '1301':
         case 'unichain':
           return 'unichain';
+        case '10143':
+        case 'monad-testnet':
+          return 'monad-testnet';
         default:
           return name;
       }
@@ -178,6 +182,8 @@ export default function Dashboard() {
           return `https://unichain-sepolia.blockscout.com/token/${address}`;
         case 'moonwalker':
           return `https://moonwalker-sepolia.blockscout.com/token/${address}`;
+        case 'monad-testnet':
+          return `https://monad-testnet.socialscan.io/token/${address}`;
         default:
           return '#';
       }

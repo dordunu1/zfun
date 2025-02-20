@@ -28,7 +28,8 @@ const ERC1155_ABI = [
 const NETWORK_RPC_URLS = {
   'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm',
   'unichain': 'https://sepolia.unichain.org',
-  'unichain-mainnet': 'https://unichain.blockscout.com'
+  'unichain-mainnet': 'https://unichain.blockscout.com',
+  'monad-testnet': 'testnet-rpc.monad.xyz'
 };
 
 // Helper function to get provider based on network/chainId
@@ -39,6 +40,8 @@ const getProvider = (network, chainId) => {
     return new ethers.JsonRpcProvider('https://sepolia.unichain.org');
   } else if (network === 'moonwalker' || chainId === 1828369849) {
     return new ethers.JsonRpcProvider(NETWORK_RPC_URLS.moonwalker);
+  } else if (network === 'monad-testnet' || chainId === 10143) {
+    return new ethers.JsonRpcProvider(NETWORK_RPC_URLS['monad-testnet']);
   }
   return new ethers.BrowserProvider(window.ethereum);
 };
@@ -51,6 +54,8 @@ const getExplorerUrl = (network, chainId) => {
     return 'https://unichain-sepolia.blockscout.com';
   } else if (network === 'moonwalker' || chainId === 1828369849) {
     return 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+  } else if (network === 'monad-testnet' || chainId === 10143) {
+    return 'https://monad-testnet.socialscan.io';
   } else if (network === 'polygon' || chainId === 137) {
     return 'https://polygon.blockscout.com';
   }
@@ -357,6 +362,9 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
         if (collection?.network === 'polygon') {
           return <img src="/polygon.png" alt="POL" className="inline-block w-4 h-4 mr-1" />;
         }
+        if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) {
+          return <img src="/monad.png" alt="MON" className="inline-block w-4 h-4 mr-1" />;
+        }
         return <FaEthereum className="inline mr-1" />;
       }
 
@@ -393,6 +401,9 @@ const CustomTooltip = ({ active, payload, label, collection, tokenLogo }) => {
         }
         if (collection?.network === 'polygon') {
           return 'POL';
+        }
+        if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) {
+          return 'MON';
         }
         return 'ETH';
       }
@@ -501,6 +512,9 @@ export default function VolumeMetrics({ contractAddress, network }) {
       if (collection?.network === 'polygon') {
         return <img src="/polygon.png" alt="POL" className="inline-block w-4 h-4 mr-1" />;
       }
+      if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) {
+        return <img src="/monad.png" alt="MON" className="inline-block w-4 h-4 mr-1" />;
+      }
       return <FaEthereum className="inline mr-1" />;
     }
 
@@ -527,6 +541,18 @@ export default function VolumeMetrics({ contractAddress, network }) {
   const totalEthVolume = volumeData.reduce((sum, m) => sum + Number(m.ethVolume.replace(/,/g, '')), 0);
   const totalTransactions = volumeData.reduce((sum, m) => sum + m.transactions, 0);
   const avgVolume = totalTransactions > 0 ? totalVolume / totalTransactions : 0;
+
+  // Check if it's Monad Testnet
+  if (network === 'monad-testnet' || collection?.chainId === 10143) {
+    return (
+      <div className="flex items-center justify-center py-12 bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+        <div className="text-center">
+          <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">Coming Soon</h3>
+          <p className="text-gray-500 dark:text-gray-400">Volume metrics for Monad Testnet are under development.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -598,6 +624,7 @@ export default function VolumeMetrics({ contractAddress, network }) {
               if (isNativeToken) {
                 if (collection?.network === 'moonwalker' || collection?.chainId === 1828369849) return 'ZERO';
                 if (collection?.network === 'polygon') return 'POL';
+                if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) return 'MON';
                 return 'ETH';
               }
               

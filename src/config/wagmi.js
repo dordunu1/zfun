@@ -101,6 +101,34 @@ const moonwalkerChain = {
   },
 }
 
+// Define Monad Testnet
+const monadTestnet = {
+  id: 10143,
+  name: 'Monad Testnet',
+  network: 'monad-testnet',
+  iconUrl: '/monad.png',
+  nativeCurrency: {
+    name: 'MON',
+    symbol: 'MON',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://testnet-rpc.monad.xyz/'],
+    },
+    public: {
+      http: ['https://testnet-rpc.monad.xyz/'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Monad Explorer',
+      url: 'https://monad-testnet.socialscan.io/',
+    },
+  },
+  testnet: true,
+}
+
 // Define available chains
 const chains = [
   {
@@ -117,7 +145,8 @@ const chains = [
   },
   unichainMainnet,
   unichainTestnet, 
-  moonwalkerChain
+  moonwalkerChain,
+  monadTestnet
 ];
 
 // Configure chains with optimized settings

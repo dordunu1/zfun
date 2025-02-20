@@ -25,11 +25,12 @@ const ALCHEMY_URLS = {
   'unichain-mainnet': 'https://unichain.blockscout.com/v2/'
 };
 
-// Network RPC URLs for non-Alchemy networks
+// Network RPC URLs
 const NETWORK_RPC_URLS = {
   'moonwalker': 'https://moonwalker-rpc.eu-north-2.gateway.fm',
   'unichain': 'https://sepolia.unichain.org',
-  'unichain-mainnet': 'https://mainnet.unichain.org'
+  'unichain-mainnet': 'https://unichain.blockscout.com',
+  'monad-testnet': 'https://testnet-rpc.monad.xyz/'
 };
 
 const formatAddress = (address) => {
@@ -77,6 +78,18 @@ export default function TopHolders({ collection }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Check if it's Monad Testnet
+  if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) {
+    return (
+      <div className="flex items-center justify-center py-12 bg-white dark:bg-[#1a1b1f] rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+        <div className="text-center">
+          <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">Coming Soon</h3>
+          <p className="text-gray-500 dark:text-gray-400">Top holders analytics for Monad Testnet are under development.</p>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -87,6 +100,18 @@ export default function TopHolders({ collection }) {
         // Special handling for Unichain networks
         if (collection.chainId === 130 || collection.chainId === 1301) {
           await loadUnichainHolders(collection.contractAddress);
+          return;
+        }
+
+        // Special handling for Moonwalker network
+        if (collection.network === 'moonwalker' || collection.chainId === 1828369849) {
+          await loadMoonwalkerHolders(collection.contractAddress);
+          return;
+        }
+
+        // Special handling for Monad Testnet
+        if (collection.network === 'monad-testnet' || collection.chainId === 10143) {
+          await loadMonadHolders(collection.contractAddress);
           return;
         }
 
@@ -292,6 +317,33 @@ export default function TopHolders({ collection }) {
         setError(null);
       } catch (error) {
         console.error('Error loading Moonwalker holders:', error);
+        setError(error.message);
+        toast.error(`Failed to load holders: ${error.message}`);
+      }
+    };
+
+    // Function to load Monad Testnet holders using ethers.js
+    const loadMonadHolders = async (contractAddress) => {
+      try {
+        // Initialize ethers provider for Monad Testnet using the RPC URL
+        const provider = new ethers.JsonRpcProvider(NETWORK_RPC_URLS['monad-testnet']);
+        
+        // Check for ERC1155 in multiple possible properties and formats
+        const isERC1155 = collection.type?.toUpperCase().replace('-', '') === 'ERC1155' || 
+                         collection.tokenType?.toUpperCase().replace('-', '') === 'ERC1155' ||
+                         collection.contractType?.toUpperCase().replace('-', '') === 'ERC1155';
+        
+        let holdersData;
+        if (isERC1155) {
+          holdersData = await loadERC1155Holders(contractAddress, provider);
+        } else {
+          holdersData = await loadERC721Holders(contractAddress, provider);
+        }
+
+        setHolders(holdersData);
+        setError(null);
+      } catch (error) {
+        console.error('Error loading Monad holders:', error);
         setError(error.message);
         toast.error(`Failed to load holders: ${error.message}`);
       }

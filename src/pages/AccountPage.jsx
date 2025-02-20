@@ -31,7 +31,8 @@ const getCachedNFTs = (address, chainId) => {
         network: nft.network || 
           (nft.chainId === 11155111 ? 'sepolia' :
            nft.chainId === 1301 ? 'unichain' :
-           nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
+           nft.chainId === 1828369849 ? 'moonwalker' :
+           nft.chainId === 10143 ? 'monad-testnet' : 'sepolia')
       }));
     }
     // Cache expired, remove it
@@ -51,7 +52,8 @@ const getCachedNFTs = (address, chainId) => {
           network: nft.network || 
             (nft.chainId === 11155111 ? 'sepolia' :
              nft.chainId === 1301 ? 'unichain' :
-             nft.chainId === 1828369849 ? 'moonwalker' : 'sepolia')
+             nft.chainId === 1828369849 ? 'moonwalker' :
+             nft.chainId === 10143 ? 'monad-testnet' : 'sepolia')
         }));
       }
       // Cache expired, remove it
@@ -95,6 +97,8 @@ const fetchBlockscoutNFTs = async (address, chainId) => {
       baseUrl = 'https://polygon.blockscout.com';
     } else if (chainId === 1828369849) {
       baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+    } else if (chainId === 10143) {
+      baseUrl = 'https://monad-testnet.socialscan.io';
     } else if (chainId === 11155111) {
       baseUrl = 'https://eth-sepolia.blockscout.com';
     } else {
@@ -144,7 +148,8 @@ const fetchBlockscoutNFTs = async (address, chainId) => {
           network: chainId === 137 ? 'polygon' : 
                   chainId === 1301 ? 'unichain' :
                   chainId === 130 ? 'unichain-mainnet' :
-                  chainId === 1828369849 ? 'moonwalker' : 'sepolia',
+                  chainId === 1828369849 ? 'moonwalker' :
+                  chainId === 10143 ? 'monad-testnet' : 'sepolia',
           mintedAt: latestTransfer?.timestamp || Date.now(),
           value: latestTransfer?.value || '0',
           mintToken: {
@@ -585,7 +590,8 @@ export default function AccountPage() {
       130: nfts.filter(nft => nft.network === 'unichain-mainnet' || nft.chainId === 130).length,
       1301: nfts.filter(nft => nft.network === 'unichain' || nft.chainId === 1301).length,
       137: nfts.filter(nft => nft.network === 'polygon' || nft.chainId === 137).length,
-      1828369849: nfts.filter(nft => nft.network === 'moonwalker' || nft.chainId === 1828369849).length
+      1828369849: nfts.filter(nft => nft.network === 'moonwalker' || nft.chainId === 1828369849).length,
+      10143: nfts.filter(nft => nft.network === 'monad-testnet' || nft.chainId === 10143).length
     };
 
     const types = [
@@ -600,7 +606,8 @@ export default function AccountPage() {
       { value: '130', label: 'Unichain Mainnet' },
       { value: '1301', label: 'Unichain Testnet' },
       { value: '137', label: 'Polygon' },
-      { value: '1828369849', label: 'Moonwalker' }
+      { value: '1828369849', label: 'Moonwalker' },
+      { value: '10143', label: 'Monad Testnet' }
     ];
 
     const networkFilters = [
@@ -609,7 +616,8 @@ export default function AccountPage() {
       { id: '130', label: `Unichain Mainnet (${networkCount[130]})` },
       { id: '1301', label: `Unichain Testnet (${networkCount[1301]})` },
       { id: '137', label: `Polygon (${networkCount[137]})` },
-      { id: '1828369849', label: `Moonwalker (${networkCount[1828369849]})` }
+      { id: '1828369849', label: `Moonwalker (${networkCount[1828369849]})` },
+      { id: '10143', label: `Monad Testnet (${networkCount[10143]})` }
     ];
 
     return (
@@ -717,6 +725,9 @@ export default function AccountPage() {
       }
       if (nft?.network === 'polygon' || nft?.chainId === 137) {
         return <img src="/polygon.png" alt="POL" className="w-5 h-5" />;
+      }
+      if (nft?.network === 'monad-testnet' || nft?.chainId === 10143) {
+        return <img src="/monad.png" alt="MON" className="w-5 h-5" />;
       }
       return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
     }
@@ -1063,6 +1074,9 @@ const getExplorerUrl = (chainId, type, value) => {
       break;
     case 1828369849:
       baseUrl = 'https://moonwalker-blockscout.eu-north-2.gateway.fm';
+      break;
+    case 10143:
+      baseUrl = 'https://monad-testnet.socialscan.io';
       break;
     default:
       baseUrl = 'https://sepolia.etherscan.io';

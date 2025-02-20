@@ -27,7 +27,8 @@ const CHAIN_IDS = {
   POLYGON: 137,
   UNICHAIN_MAINNET: 130,
   UNICHAIN: 1301,
-  MOONWALKER: 1828369849
+  MOONWALKER: 1828369849,
+  MONAD_TESTNET: 10143
 };
 
 // Explorer URL Configuration
@@ -36,7 +37,8 @@ const EXPLORER_URLS = {
   [CHAIN_IDS.POLYGON]: 'https://polygonscan.com',
   [CHAIN_IDS.UNICHAIN_MAINNET]: 'https://unichain.blockscout.com',
   [CHAIN_IDS.UNICHAIN]: 'https://unichain-sepolia.blockscout.com',
-  [CHAIN_IDS.MOONWALKER]: 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+  [CHAIN_IDS.MOONWALKER]: 'https://moonwalker-blockscout.eu-north-2.gateway.fm',
+  [CHAIN_IDS.MONAD_TESTNET]: 'https://monad-testnet.socialscan.io'
 };
 
 const NFT_FACTORY_ADDRESSES = {
@@ -44,21 +46,26 @@ const NFT_FACTORY_ADDRESSES = {
   [CHAIN_IDS.POLYGON]: import.meta.env.VITE_NFT_FACTORY_POLYGON,
   [CHAIN_IDS.UNICHAIN_MAINNET]: import.meta.env.VITE_NFT_FACTORY_UNICHAIN_MAINNET,
   [CHAIN_IDS.UNICHAIN]: import.meta.env.VITE_NFT_FACTORY_UNICHAIN,
-  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_NFT_FACTORY_MOONWALKER
+  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_NFT_FACTORY_MOONWALKER,
+  [CHAIN_IDS.MONAD_TESTNET]: import.meta.env.VITE_NFT_FACTORY_MONAD_TESTNET
 };
 
 const NETWORK_NAMES = {
   [CHAIN_IDS.SEPOLIA]: 'Sepolia',
   [CHAIN_IDS.POLYGON]: 'Polygon',
-  [CHAIN_IDS.UNICHAIN]: 'Unichain',
-  [CHAIN_IDS.MOONWALKER]: 'Moonwalker'
+  [CHAIN_IDS.UNICHAIN_MAINNET]: 'Unichain Mainnet',
+  [CHAIN_IDS.UNICHAIN]: 'Unichain Testnet',
+  [CHAIN_IDS.MOONWALKER]: 'Moonwalker',
+  [CHAIN_IDS.MONAD_TESTNET]: 'Monad Testnet'
 };
 
 const NETWORK_CURRENCIES = {
   [CHAIN_IDS.SEPOLIA]: 'ETH',
   [CHAIN_IDS.POLYGON]: 'POL',
+  [CHAIN_IDS.UNICHAIN_MAINNET]: 'ETH',
   [CHAIN_IDS.UNICHAIN]: 'ETH',
-  [CHAIN_IDS.MOONWALKER]: 'ZERO'
+  [CHAIN_IDS.MOONWALKER]: 'ZERO',
+  [CHAIN_IDS.MONAD_TESTNET]: 'MON'
 };
 
 // Add required keyframe animations at the top of the file
@@ -378,6 +385,7 @@ const CREATION_FEES = {
   1: "0.015 ETH",  // Mainnet
   1301: "0.015 ETH", // Unichain
   1828369849: "369 ZERO", // Moonwalker
+  10143: "0.01 MON" // Monad Testnet
 };
 
 const setWhitelistInContract = async (collectionAddress, whitelistAddresses, signer) => {
@@ -722,6 +730,23 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           symbol: ''
         }
       ];
+    } else if (chainId === 10143) { // Monad Testnet
+      return [
+        {
+          id: 'native',
+          name: 'Native Token (MON)',
+          icon: <img src="/monad.png" alt="MON" className="w-5 h-5" />,
+          address: '',
+          symbol: 'MON'
+        },
+        {
+          id: 'custom',
+          name: 'Custom Token',
+          icon: <BiWallet className="text-[#00ffbd]" />,
+          address: '',
+          symbol: ''
+        }
+      ];
     }
     
     // Default or unsupported chain
@@ -795,6 +820,11 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         console.error('Chain ID not available');
         return null;
       }
+
+      // Return the static fee from CREATION_FEES if available
+      if (CREATION_FEES[chainId]) {
+        return CREATION_FEES[chainId];
+      }
       
       // Get the factory contract for the current chain
       const factoryAddress = NFT_FACTORY_ADDRESSES[chainId];
@@ -808,6 +838,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         chainId === CHAIN_IDS.POLYGON ? "https://polygon-rpc.com" :
         chainId === CHAIN_IDS.UNICHAIN ? "https://sepolia.unichain.org" :
         chainId === CHAIN_IDS.UNICHAIN_MAINNET ? "https://mainnet.unichain.org" :
+        chainId === CHAIN_IDS.MONAD_TESTNET ? "https://testnet-rpc.monad.xyz/" :
         "https://polygon-rpc.com" // Default to Polygon RPC
       );
 
@@ -828,7 +859,7 @@ export default function CreateNFTModal({ isOpen, onClose }) {
       return `${formattedFee} ${currency}`;
     } catch (error) {
       console.error('Error getting creation fee:', error);
-      return null;
+      return CREATION_FEES[chainId] || null;
     }
   };
 
@@ -978,6 +1009,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         factoryAddress = import.meta.env.VITE_NFT_FACTORY_UNICHAIN_TESTNET;
       } else if (networkChainId === 1828369849) { // Moonwalker
         factoryAddress = import.meta.env.VITE_NFT_FACTORY_MOONWALKER;
+      } else if (networkChainId === 10143) { // Monad Testnet
+        factoryAddress = import.meta.env.VITE_NFT_FACTORY_MONAD_TESTNET;
       }
 
       if (!factoryAddress) {
@@ -1031,6 +1064,18 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           throw new Error(`Invalid fee amount: ${parsedFee}. Expected: ${expectedFee}`);
         }
 
+        // Configure gas settings based on network
+        let gasSettings = {};
+        if (networkChainId === CHAIN_IDS.MONAD_TESTNET) {
+          gasSettings = {
+            gasLimit: 5000000, // Higher gas limit for Monad
+          };
+          toast('Using higher gas limit for Monad Testnet', {
+            duration: 4000,
+            icon: 'ℹ️'
+          });
+        }
+
         const tx = await factory.createNFTCollection(
           {
             collectionType: formData.type === 'ERC721' ? 'ERC721' : 'ERC1155',
@@ -1050,7 +1095,10 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             royaltyReceiver: formData.royaltyReceiver || account,
             royaltyFeeNumerator: BigInt(formData.royaltyFeeNumerator || 0)
           },
-          { value: fee }
+          { 
+            value: fee,
+            ...gasSettings
+          }
         );
 
         const receipt = await tx.wait();
@@ -1082,6 +1130,11 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           return;
         }
 
+        // Add Monad-specific error handling
+        if (networkChainId === CHAIN_IDS.MONAD_TESTNET && !collectionAddress) {
+          throw new Error('Collection deployment failed on Monad Testnet. Please check your MON balance.');
+        }
+
         // Step 3: Set whitelist if enabled
         if (formData.enableWhitelist && formData.whitelistAddresses.length > 0) {
           setProgressStep('whitelist');
@@ -1110,7 +1163,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
           network: networkChainId === 1301 ? 'unichain' : 
                   networkChainId === 11155111 ? 'sepolia' : 
                   networkChainId === 137 ? 'polygon' : 
-                  networkChainId === 1828369849 ? 'moonwalker' : 'unknown',
+                  networkChainId === 1828369849 ? 'moonwalker' :
+                  networkChainId === 10143 ? 'monad-testnet' : 'unknown',
           chainId: networkChainId,
           previewUrl: imageHttpUrl,
           imageIpfsUrl: imageIpfsUrl,
@@ -1120,8 +1174,12 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             symbol: formData.mintingToken === 'usdc' ? 'USDC' : 
                     formData.mintingToken === 'usdt' ? 'USDT' : 
                     formData.mintingToken === 'custom' ? formData.customTokenSymbol :
-                    formData.mintingToken === 'native' ? (networkChainId === 137 ? 'POL' : 'ETH') :
-                    networkChainId === 137 ? 'POL' : 'ETH',
+                    formData.mintingToken === 'native' ? (
+                      networkChainId === 137 ? 'POL' : 
+                      networkChainId === 10143 ? 'MON' : 'ETH'
+                    ) :
+                    networkChainId === 137 ? 'POL' : 
+                    networkChainId === 10143 ? 'MON' : 'ETH',
             address: formData.mintingToken === 'native' ? '0x0000000000000000000000000000000000000000' : 
                     formData.mintingToken === 'custom' ? formData.customTokenAddress :
                     paymentTokenAddress || '0x0000000000000000000000000000000000000000'
@@ -2390,6 +2448,8 @@ export default function CreateNFTModal({ isOpen, onClose }) {
             return 'unichain';
           case CHAIN_IDS.MOONWALKER:
             return 'moonwalker';
+          case CHAIN_IDS.MONAD_TESTNET:
+            return 'monad-testnet';
           default:
             return 'unknown';
         }

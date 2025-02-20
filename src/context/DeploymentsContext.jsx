@@ -27,7 +27,10 @@ export function DeploymentsProvider({ children }) {
             logoIpfs: nft.imageIpfsUrl,
             totalSupply: nft.maxSupply,
             timestamp: nft.createdAt,
-            chainName: nft.network === 'polygon' ? 'Polygon' : 'Sepolia'
+            chainName: nft.network === 'polygon' ? 'Polygon' : 
+              nft.network === 'monad-testnet' ? 'Monad Testnet' : 
+              nft.network === 'unichain-mainnet' || nft.chainId === 130 ? 'Unichain Mainnet' :
+              nft.network === 'sepolia' ? 'Sepolia' : nft.network
           }));
           setNftDeployments(formattedNftDeployments);
         } else {

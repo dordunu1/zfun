@@ -102,6 +102,8 @@ export default function CollectionsList() {
             return collection.network === 'polygon' || collection.chainId === 137;
           } else if (filters.network === 'moonwalker') {
             return collection.network === 'moonwalker' || collection.chainId === 1828369849;
+          } else if (filters.network === 'monad-testnet') {
+            return collection.network === 'monad-testnet' || collection.chainId === 10143;
           }
           return false;
         }
@@ -173,7 +175,8 @@ export default function CollectionsList() {
       { value: 'unichain-mainnet', label: 'Unichain Mainnet' },
       { value: 'unichain', label: 'Unichain Testnet' },
       { value: 'polygon', label: 'Polygon' },
-      { value: 'moonwalker', label: 'Moonwalker' }
+      { value: 'moonwalker', label: 'Moonwalker' },
+      { value: 'monad-testnet', label: 'Monad Testnet' }
     ];
 
     const types = [
@@ -394,6 +397,9 @@ export default function CollectionsList() {
       }
       if (collection?.network === 'polygon') {
         return <img src="/polygon.png" alt="POL" className="w-5 h-5" />;
+      }
+      if (collection?.network === 'monad-testnet' || collection?.chainId === 10143) {
+        return <img src="/monad.png" alt="MON" className="w-5 h-5" />;
       }
       return <FaEthereum className="w-5 h-5 text-[#00ffbd]" />;
     }

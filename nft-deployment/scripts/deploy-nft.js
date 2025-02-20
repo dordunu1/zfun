@@ -24,6 +24,13 @@ const CHAIN_CONFIG = {
     isMainnet: false,
     fee: "0.015", // 0.015 ETH
     envPrefix: 'UNICHAIN_TESTNET'
+  },
+  // Monad Testnet
+  10143: {
+    name: 'Monad Testnet',
+    isMainnet: false,
+    fee: "0.01", // 0.01 MON
+    envPrefix: 'MONAD_TESTNET'
   }
 };
 

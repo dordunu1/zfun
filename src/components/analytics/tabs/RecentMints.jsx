@@ -134,7 +134,7 @@ export default function RecentMints() {
         });
       }
       
-      // For native tokens (ETH/MATIC), convert from Wei
+      // For native tokens (ETH/MATIC/ZERO/MON), convert from Wei
       let valueInWei;
       if (typeof value === 'string') {
         const cleanValue = value.replace(/,/g, '');
@@ -201,7 +201,11 @@ export default function RecentMints() {
         ? 'https://unichain.blockscout.com'
         : mint.network === 'unichain' 
           ? 'https://unichain-sepolia.blockscout.com'
-          : 'https://sepolia.etherscan.io';
+          : mint.network === 'moonwalker' || mint.chainId === 1828369849
+            ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+            : mint.network === 'monad-testnet' || mint.chainId === 10143
+              ? 'https://monad-testnet.socialscan.io'
+              : 'https://sepolia.etherscan.io';
 
     return (
       <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -224,7 +228,11 @@ export default function RecentMints() {
         ? 'https://unichain.blockscout.com'
         : mint.network === 'unichain' 
           ? 'https://unichain-sepolia.blockscout.com'
-          : 'https://sepolia.etherscan.io';
+          : mint.network === 'moonwalker' || mint.chainId === 1828369849
+            ? 'https://moonwalker-blockscout.eu-north-2.gateway.fm'
+            : mint.network === 'monad-testnet' || mint.chainId === 10143
+              ? 'https://monad-testnet.socialscan.io'
+              : 'https://sepolia.etherscan.io';
 
     return (
       <div className="text-sm text-gray-400">
@@ -246,11 +254,14 @@ export default function RecentMints() {
 
     // Handle native tokens based on network
     if (isNativeToken) {
-      if (mint.network === 'moonwalker') {
+      if (mint.network === 'moonwalker' || mint.chainId === 1828369849) {
         return <img src="/Zero.png" alt="ZERO" className="w-6 h-6" />;
       }
       if (mint.network === 'polygon') {
         return <img src="/polygon.png" alt="POL" className="w-6 h-6" />;
+      }
+      if (mint.network === 'monad-testnet' || mint.chainId === 10143) {
+        return <img src="/monad.png" alt="MON" className="w-6 h-6" />;
       }
       return <FaEthereum className="w-6 h-6 text-[#00ffbd]" />;
     }

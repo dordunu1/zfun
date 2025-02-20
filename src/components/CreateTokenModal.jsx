@@ -114,7 +114,8 @@ const CHAIN_IDS = {
   POLYGON: 137,
   UNICHAIN_MAINNET: 130,
   UNICHAIN: 1301,
-  MOONWALKER: 1828369849
+  MOONWALKER: 1828369849,
+  MONAD_TESTNET: 10143
 };
 
 const FACTORY_ADDRESSES = {
@@ -122,7 +123,8 @@ const FACTORY_ADDRESSES = {
   [CHAIN_IDS.POLYGON]: import.meta.env.VITE_FACTORY_ADDRESS_137,
   [CHAIN_IDS.UNICHAIN_MAINNET]: import.meta.env.VITE_FACTORY_ADDRESS_130,
   [CHAIN_IDS.UNICHAIN]: import.meta.env.VITE_FACTORY_ADDRESS_1301,
-  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_FACTORY_ADDRESS_1828369849
+  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_FACTORY_ADDRESS_1828369849,
+  [CHAIN_IDS.MONAD_TESTNET]: import.meta.env.VITE_FACTORY_ADDRESS_10143
 };
 
 const CHAIN_FEES = {
@@ -130,7 +132,8 @@ const CHAIN_FEES = {
   [CHAIN_IDS.POLYGON]: "20",      // Polygon fee in POL
   [CHAIN_IDS.UNICHAIN_MAINNET]: "0.01",   // Unichain Mainnet fee in ETH
   [CHAIN_IDS.UNICHAIN]: "0.01",   // Unichain fee in ETH
-  [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
+  [CHAIN_IDS.MOONWALKER]: "369",   // Moonwalker fee in ZERO
+  [CHAIN_IDS.MONAD_TESTNET]: "0.01"  // Monad Testnet fee in MON
 };
 
 const NETWORK_NAMES = {
@@ -138,7 +141,8 @@ const NETWORK_NAMES = {
   [CHAIN_IDS.POLYGON]: 'Polygon',
   [CHAIN_IDS.UNICHAIN_MAINNET]: 'Unichain Mainnet',
   [CHAIN_IDS.UNICHAIN]: 'Unichain Testnet',
-  [CHAIN_IDS.MOONWALKER]: 'Moonwalker'
+  [CHAIN_IDS.MOONWALKER]: 'Moonwalker',
+  [CHAIN_IDS.MONAD_TESTNET]: 'Monad Testnet'
 };
 
 const NETWORK_CURRENCIES = {
@@ -146,7 +150,8 @@ const NETWORK_CURRENCIES = {
   [CHAIN_IDS.POLYGON]: 'POL',
   [CHAIN_IDS.UNICHAIN_MAINNET]: 'ETH',
   [CHAIN_IDS.UNICHAIN]: 'ETH',
-  [CHAIN_IDS.MOONWALKER]: 'ZERO'
+  [CHAIN_IDS.MOONWALKER]: 'ZERO',
+  [CHAIN_IDS.MONAD_TESTNET]: 'MON'
 };
 
 // Progress Modal Component
@@ -442,6 +447,14 @@ const DEX_CONFIGS = {
       addLiquidityUrl: (tokenAddress) =>
         `https://unichain.blockscout.com/token/${tokenAddress}`
     }
+  ],
+  10143: [ // Monad Testnet
+    {
+      name: 'Monad Explorer',
+      logo: '/monad.png',
+      addLiquidityUrl: (tokenAddress) =>
+        `https://monad-testnet.socialscan.io/token/${tokenAddress}`
+    }
   ]
 };
 
@@ -520,6 +533,8 @@ export default function CreateTokenModal({ isOpen, onClose }) {
             return 'unichain';
           case 1828369849:
             return 'moonwalker';
+          case 10143:
+            return 'monad-testnet';
           default:
             return 'unknown';
         }
@@ -647,15 +662,24 @@ export default function CreateTokenModal({ isOpen, onClose }) {
 
       // Calculate fee based on network
       let fee;
-      if (currentChainId === CHAIN_IDS.MOONWALKER) {
-        // For moonwalker, we'll still send ETH for now until contract is updated
+      if (currentChainId === CHAIN_IDS.MONAD_TESTNET) {
+        fee = ethers.parseEther(CHAIN_FEES[currentChainId]); // Use MON as fee
+        toast.info('Creating token with MON as fee on Monad Testnet');
+      } else if (currentChainId === CHAIN_IDS.MOONWALKER) {
         fee = ethers.parseEther("0.01"); // Keep original fee until contract update
-        toast.info('Note: 69 ZERO fee will be implemented in the next contract update');
+        toast.info('Note: 369 ZERO fee will be implemented in the next contract update');
       } else {
         fee = ethers.parseEther(CHAIN_FEES[currentChainId]?.toString() || "0.01");
       }
       
       setProgressStep('creating');
+
+      // Add specific gas settings for Monad
+      const gasSettings = currentChainId === CHAIN_IDS.MONAD_TESTNET ? {
+        gasLimit: 5000000, // Higher gas limit for Monad
+      } : {
+        gasLimit: 3000000
+      };
 
       const tx = await factory.createToken(
         formData.name,
@@ -665,7 +689,7 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         logoUrls.ipfsUrl,
         { 
           value: fee,
-          gasLimit: 3000000
+          ...gasSettings
         }
       );
 
@@ -679,13 +703,13 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         }
         
         try {
-        // Get the event signature for TokenCreated event
-        const eventSignature = ethers.id(
-          'TokenCreated(address,address,string,string,uint8,uint256,string,bool)'
-      );
+          // Get the event signature for TokenCreated event
+          const eventSignature = ethers.id(
+            'TokenCreated(address,address,string,string,uint8,uint256,string,bool)'
+          );
 
           // Check if this log's first topic matches our event signature
-        return log.topics[0].toLowerCase() === eventSignature.toLowerCase();
+          return log.topics[0].toLowerCase() === eventSignature.toLowerCase();
         } catch (e) {
           console.error('Error checking event signature:', e);
           return false;
@@ -716,7 +740,12 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         decimals: parsedLog.args[4],   // non-indexed decimals
         supply: parsedLog.args[5],     // non-indexed supply
         logo: parsedLog.args[6]        // non-indexed logo
-        };
+      };
+
+      // Add Monad-specific error handling
+      if (currentChainId === CHAIN_IDS.MONAD_TESTNET && !tokenAddress) {
+        throw new Error('Token deployment failed on Monad Testnet. Please check your MON balance.');
+      }
       
       await handleSuccess(tokenAddress, tokenData, logoUrls);
 
