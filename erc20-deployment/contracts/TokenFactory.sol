@@ -123,6 +123,7 @@ contract TokenFactory is ReentrancyGuard {
         chainFees[130] = 0.01 ether;          // Unichain Mainnet
         chainFees[1301] = 0.01 ether;         // Unichain Testnet
         chainFees[1828369849] = 0.01 ether;   // Moonwalker
+        chainFees[10143] = 0.01 ether;        // Monad Testnet
 
         // Configure DEXes for all supported networks
         
@@ -154,6 +155,14 @@ contract TokenFactory is ReentrancyGuard {
         dexConfigs[1301] = DEXConfig({
             router: 0x920b806E40A00E02E7D2b94fFc89860fDaEd3640,  // Unichain Uniswap V2 Router
             factory: 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f, // Unichain Uniswap V2 Factory
+            name: "Uniswap V2",
+            isActive: true
+        });
+
+        // Monad Testnet - Uniswap V2
+        dexConfigs[10143] = DEXConfig({
+            router: 0xfB8e1C3b833f9E67a71C859a132cf783b645e436,  // Monad Testnet Uniswap V2 Router
+            factory: 0x733E88f248b742db6C14C0b1713Af5AD7fDd59D0, // Monad Testnet Uniswap V2 Factory
             name: "Uniswap V2",
             isActive: true
         });

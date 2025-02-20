@@ -52,6 +52,11 @@ const DEX_TRADING_URLS = {
     name: 'Uniswap V2',
     network: 'Moonwalker',
     getTradeUrl: (tokenAddress) => `https://app.uniswap.org/#/swap?outputCurrency=${tokenAddress}&chain=moonwalker`
+  },
+  10143: {
+    name: 'Uniswap V2',
+    network: 'Monad Testnet',
+    getTradeUrl: (tokenAddress) => `https://app.uniswap.org/#/swap?outputCurrency=${tokenAddress}&chain=monad-testnet`
   }
 };
 
@@ -67,7 +72,8 @@ const FACTORY_ADDRESSES = {
   137: import.meta.env.VITE_FACTORY_ADDRESS_137,
   1301: import.meta.env.VITE_FACTORY_ADDRESS_1301,
   130: import.meta.env.VITE_FACTORY_ADDRESS_130,
-  1828369849: import.meta.env.VITE_FACTORY_ADDRESS_1828369849
+  1828369849: import.meta.env.VITE_FACTORY_ADDRESS_1828369849,
+  10143: import.meta.env.VITE_FACTORY_ADDRESS_10143
 };
 
 // Add getFactoryAddress function
@@ -559,33 +565,36 @@ const RecentlyCreatedTokens = () => {
         }
 
         const factory = new ethers.Contract(factoryAddress, TokenFactoryABI.abi, provider);
-        
-        // Get the latest block number
         const latestBlock = await provider.getBlockNumber();
         
-        // Calculate the starting block
-        const fromBlock = 0;
+        // Initialize array to store all events
+        let allEvents = [];
+        
+        // Handle different block range limitations per chain
+        const BLOCK_RANGE = chain?.id === 10143 ? 100 : 5000; // 100 blocks for Monad, 5000 for others
+        let fromBlock = Math.max(0, latestBlock - 10000); // Look back 10000 blocks max
+        
+        while (fromBlock < latestBlock) {
+          const toBlock = Math.min(fromBlock + BLOCK_RANGE, latestBlock);
+          try {
+            const filter = factory.filters.TokenCreated();
+            const events = await factory.queryFilter(filter, fromBlock, toBlock);
+            allEvents = [...allEvents, ...events];
+          } catch (error) {
+            console.error(`Error fetching events for blocks ${fromBlock} to ${toBlock}:`, error);
+          }
+          fromBlock = toBlock + 1;
+        }
 
-        // Get TokenCreated events
-        const filter = factory.filters.TokenCreated();
-        const events = await factory.queryFilter(filter, fromBlock, 'latest');
-
-        // Sort events by timestamp in descending order
-        const sortedTokens = await Promise.all(events.map(async (event) => {
-          // Log the raw event args for debugging
-          console.log('Event args:', event.args);
+        // Sort and process events
+        const sortedTokens = await Promise.all(allEvents.map(async (event) => {
+          const decimals = Number(event.args[4]);
+          const rawSupply = event.args[5].toString();
           
-          // Extract values from event args
-          const decimals = Number(event.args[4]); // Get decimals from event
-          const rawSupply = event.args[5].toString(); // Get supply as string
-          
-          // Calculate the actual supply based on decimals
           let totalSupply;
           if (rawSupply.length <= decimals) {
-            // If raw supply is shorter than decimals, it's already in base units
             totalSupply = rawSupply;
           } else {
-            // If it's a full number, format it with decimals
             totalSupply = ethers.formatUnits(rawSupply, decimals);
           }
 
@@ -604,7 +613,6 @@ const RecentlyCreatedTokens = () => {
 
         // Sort by timestamp
         sortedTokens.sort((a, b) => b.timestamp - a.timestamp);
-
         setRecentTokens(sortedTokens);
       } catch (error) {
         console.error('Error fetching recent tokens:', error);

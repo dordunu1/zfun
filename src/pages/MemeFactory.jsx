@@ -205,6 +205,12 @@ const dexConfigs = {
     factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
     name: 'Uniswap V2',
     isActive: true
+  },
+  10143: {
+    router: '0xfB8e1C3b833f9E67a71C859a132cf783b645e436',
+    factory: '0x733E88f248b742db6C14C0b1713Af5AD7fDd59D0',
+    name: 'Uniswap V2',
+    isActive: true
   }
 };
 
@@ -234,6 +240,11 @@ const DEX_TRADING_URLS = {
     name: 'Uniswap V2',
     network: 'Moonwalker',
     getTradeUrl: (tokenAddress) => `https://app.uniswap.org/#/swap?outputCurrency=${tokenAddress}&chain=moonwalker`
+  },
+  10143: {
+    name: 'Uniswap V2',
+    network: 'Monad Testnet',
+    getTradeUrl: (tokenAddress) => `https://app.uniswap.org/#/swap?outputCurrency=${tokenAddress}&chain=monad-testnet`
   }
 };
 
@@ -292,7 +303,8 @@ const CHAIN_IDS = {
   POLYGON: 137,
   UNICHAIN_MAINNET: 130,
   UNICHAIN_TESTNET: 1301,
-  MOONWALKER: 1828369849
+  MOONWALKER: 1828369849,
+  MONAD_TESTNET: 10143
 };
 
 const FACTORY_ADDRESSES = {
@@ -300,7 +312,8 @@ const FACTORY_ADDRESSES = {
   [CHAIN_IDS.POLYGON]: import.meta.env.VITE_FACTORY_ADDRESS_137,
   [CHAIN_IDS.UNICHAIN_MAINNET]: import.meta.env.VITE_FACTORY_ADDRESS_130,
   [CHAIN_IDS.UNICHAIN_TESTNET]: import.meta.env.VITE_FACTORY_ADDRESS_1301,
-  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_FACTORY_ADDRESS_1828369849
+  [CHAIN_IDS.MOONWALKER]: import.meta.env.VITE_FACTORY_ADDRESS_1828369849,
+  [CHAIN_IDS.MONAD_TESTNET]: import.meta.env.VITE_FACTORY_ADDRESS_10143
 };
 
 const CHAIN_FEES = {
@@ -308,7 +321,8 @@ const CHAIN_FEES = {
   [CHAIN_IDS.POLYGON]: "1",       // Polygon fee in POL
   [CHAIN_IDS.UNICHAIN_MAINNET]: "0.01",   // Unichain Mainnet fee in ETH
   [CHAIN_IDS.UNICHAIN_TESTNET]: "0.01",   // Unichain Testnet fee in ETH
-  [CHAIN_IDS.MOONWALKER]: "369"   // Moonwalker fee in ZERO
+  [CHAIN_IDS.MOONWALKER]: "369",   // Moonwalker fee in ZERO
+  [CHAIN_IDS.MONAD_TESTNET]: "0.01"   // Monad Testnet fee in MON
 };
 
 // Add meme messages
