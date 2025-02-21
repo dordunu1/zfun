@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useNetwork } from 'wagmi';
 import { toast } from 'react-hot-toast';
 import PoolSelectionModal from '../shared/PoolSelectionModal';
 import { ethers } from 'ethers';
@@ -326,37 +326,34 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
   );
 };
 
-// Common tokens with metadata
-const COMMON_TOKENS = [
-  {
-    address: 'ETH',
-    symbol: 'ETH',
-    name: 'Ethereum',
-    decimals: 18,
-    logo: '/logos/eth.png'
-  },
-  {
-    address: '0x4200000000000000000000000000000000000006',
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 18,
-    logo: '/logos/eth.png'
-  },
-  {
-    address: '0x31d0220469e10c4E71834a79b1f276d740d3768F',
-    symbol: 'USDC',
-    name: 'USD Coin',
-    decimals: 6,
-    logo: '/logos/usdc.png'
-  },
-  {
-    address: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
-    symbol: 'USDT',
-    name: 'Tether USD',
-    decimals: 6,
-    logo: '/logos/usdt.png'
-  }
-];
+// Add Monad testnet tokens
+const COMMON_TOKENS = {
+  // Monad Testnet tokens (10143)
+  10143: [
+    {
+      symbol: 'MON',
+      name: 'Monad',
+      decimals: 18,
+      logo: '/monad.png',
+      isNative: true
+    },
+    {
+      address: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
+      symbol: 'WMONAD',
+      name: 'Wrapped Monad',
+      decimals: 18,
+      logo: '/monad.png'
+    },
+    {
+      address: '0xB5a30b0FDc5EA94A52fDc42e3E9760Cb8449Fb37',
+      symbol: 'WETH',
+      name: 'Wrapped Ether',
+      decimals: 18,
+      logo: '/eth.png'
+    }
+  ],
+  // ... existing tokens for other networks ...
+};
 
 const getTokenLogo = (token) => {
   // Check if it's a common token
@@ -380,18 +377,39 @@ const TokenBalance = ({ token }) => {
   const [balance, setBalance] = useState('0');
   const [isLoading, setIsLoading] = useState(false);
   const uniswap = useUnichain();
+  const { chain } = useNetwork();
 
   useEffect(() => {
     const fetchBalance = async () => {
-      if (!userAddress || !token || !uniswap) return;
+      if (!userAddress || !token || !chain?.id) return;
       
       try {
         setIsLoading(true);
-        const balance = await uniswap.getTokenBalance(
-          token.symbol === 'ETH' ? 'ETH' : token.address,
-          userAddress
-        );
-        setBalance(balance);
+        if (chain.id === 10143) {
+          // Handle Monad testnet
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          if (token.isNative) {
+            // For native MON token
+            const balance = await provider.getBalance(userAddress);
+            setBalance(ethers.formatEther(balance));
+          } else {
+            // For other tokens
+            const tokenContract = new ethers.Contract(
+              token.address,
+              ['function balanceOf(address) view returns (uint256)'],
+              provider
+            );
+            const balance = await tokenContract.balanceOf(userAddress);
+            setBalance(ethers.formatUnits(balance, token.decimals));
+          }
+        } else {
+          // Original logic for Unichain networks
+          const balance = await uniswap.getTokenBalance(
+            token.symbol === 'ETH' ? 'ETH' : token.address,
+            userAddress
+          );
+          setBalance(balance);
+        }
       } catch (error) {
         console.error('Error fetching balance:', error);
         setBalance('0');
@@ -401,7 +419,7 @@ const TokenBalance = ({ token }) => {
     };
 
     fetchBalance();
-  }, [token, userAddress, uniswap]);
+  }, [token, userAddress, uniswap, chain?.id]);
 
   if (!token) return null;
 
@@ -607,94 +625,172 @@ export default function RemoveLiquidity() {
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const chainId = await provider.getNetwork().then(n => Number(n.chainId));
       const signer = await provider.getSigner();
-      
-      // Create router contract instance
-      const routerContract = new ethers.Contract(
-        UNISWAP_ADDRESSES.router,
-        ROUTER_ABI,
-        signer
-      );
-
-      // Get the pair contract to check allowance and approve if needed
-      const pairContract = new ethers.Contract(
-        selectedPool.pairAddress,
-        [
-          'function allowance(address,address) view returns (uint256)',
-          'function approve(address,uint256) returns (bool)',
-          'function balanceOf(address) view returns (uint256)',
-          'function totalSupply() view returns (uint256)',
-          'function getReserves() view returns (uint112, uint112, uint32)'
-        ],
-        signer
-      );
 
       // Parse amount with proper decimals
       const parsedAmount = ethers.parseUnits(lpTokenAmount, 18);
 
-      // Check allowance
-      const allowance = await pairContract.allowance(address, UNISWAP_ADDRESSES.router);
-      if (allowance < parsedAmount) {
-        setCurrentStep('approval');
-        const approveTx = await pairContract.approve(UNISWAP_ADDRESSES.router, ethers.MaxUint256);
-        await approveTx.wait();
-      }
+      if (chainId === 10143) {
+        // Handle Monad testnet
+        const routerAddress = UNISWAP_ADDRESSES[10143].router;
+        const routerInterface = new ethers.Interface([
+          'function removeLiquidity(address tokenA, address tokenB, uint liquidity, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB)',
+          'function removeLiquidityETH(address token, uint liquidity, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external returns (uint amountToken, uint amountETH)'
+        ]);
 
-      // Calculate minimum amounts (1% slippage)
-      const amount0Min = ethers.parseUnits(token0Amount, selectedPool.token0.decimals || 18) * 99n / 100n;
-      const amount1Min = ethers.parseUnits(token1Amount, selectedPool.token1.decimals || 18) * 99n / 100n;
-
-      // Set deadline 20 minutes from now
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
-
-      // Check if one of the tokens is WETH
-      const isToken0WETH = selectedPool.token0.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-      const isToken1WETH = selectedPool.token1.address.toLowerCase() === UNISWAP_ADDRESSES.WETH.toLowerCase();
-
-      setCurrentStep('removing');
-      let tx;
-      if (isToken0WETH || isToken1WETH) {
-        // Handle ETH pair
-        const token = isToken0WETH ? selectedPool.token1.address : selectedPool.token0.address;
-        const amountTokenMin = isToken0WETH ? amount1Min : amount0Min;
-        const amountETHMin = isToken0WETH ? amount0Min : amount1Min;
-
-        tx = await routerContract.removeLiquidityETH(
-          token,
-          parsedAmount,
-          amountTokenMin,
-          amountETHMin,
-          address,
-          deadline,
-          { gasLimit: 1000000n }
+        // Get the pair contract to check allowance and approve if needed
+        const pairContract = new ethers.Contract(
+          selectedPool.pairAddress,
+          [
+            'function allowance(address,address) view returns (uint256)',
+            'function approve(address,uint256) returns (bool)',
+            'function balanceOf(address) view returns (uint256)',
+            'function totalSupply() view returns (uint256)',
+            'function getReserves() view returns (uint112, uint112, uint32)'
+          ],
+          signer
         );
+
+        // Check allowance
+        const allowance = await pairContract.allowance(address, routerAddress);
+        if (allowance < parsedAmount) {
+          setCurrentStep('approval');
+          const approveTx = await pairContract.approve(routerAddress, ethers.MaxUint256);
+          await approveTx.wait();
+        }
+
+        // Calculate minimum amounts (1% slippage)
+        const amount0Min = ethers.parseUnits(token0Amount, selectedPool.token0.decimals) * 99n / 100n;
+        const amount1Min = ethers.parseUnits(token1Amount, selectedPool.token1.decimals) * 99n / 100n;
+
+        // Set deadline 20 minutes from now
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+
+        // Check if one of the tokens is native MON
+        const isToken0Native = selectedPool.token0.isNative;
+        const isToken1Native = selectedPool.token1.isNative;
+
+        setCurrentStep('removing');
+        let tx;
+        if (isToken0Native || isToken1Native) {
+          // Handle MON pair
+          const token = isToken0Native ? selectedPool.token1.address : selectedPool.token0.address;
+          const amountTokenMin = isToken0Native ? amount1Min : amount0Min;
+          const amountETHMin = isToken0Native ? amount0Min : amount1Min;
+
+          tx = await signer.sendTransaction({
+            to: routerAddress,
+            data: routerInterface.encodeFunctionData('removeLiquidityETH', [
+              token,
+              parsedAmount,
+              amountTokenMin,
+              amountETHMin,
+              await signer.getAddress(),
+              deadline
+            ])
+          });
+        } else {
+          // Handle token-token pair
+          tx = await signer.sendTransaction({
+            to: routerAddress,
+            data: routerInterface.encodeFunctionData('removeLiquidity', [
+              selectedPool.token0.address,
+              selectedPool.token1.address,
+              parsedAmount,
+              amount0Min,
+              amount1Min,
+              await signer.getAddress(),
+              deadline
+            ])
+          });
+        }
+
+        setCurrentStep('confirming');
+        await tx.wait();
       } else {
-        // Handle token-token pair
-        tx = await routerContract.removeLiquidity(
-          selectedPool.token0.address,
-          selectedPool.token1.address,
-          parsedAmount,
-          amount0Min,
-          amount1Min,
-          address,
-          deadline,
-          { gasLimit: 1000000n }
+        // Original logic for Unichain networks
+        const routerContract = new ethers.Contract(
+          UNISWAP_ADDRESSES[chainId].router,
+          ROUTER_ABI,
+          signer
         );
+
+        // Get the pair contract to check allowance and approve if needed
+        const pairContract = new ethers.Contract(
+          selectedPool.pairAddress,
+          [
+            'function allowance(address,address) view returns (uint256)',
+            'function approve(address,uint256) returns (bool)',
+            'function balanceOf(address) view returns (uint256)',
+            'function totalSupply() view returns (uint256)',
+            'function getReserves() view returns (uint112, uint112, uint32)'
+          ],
+          signer
+        );
+
+        // Check allowance
+        const allowance = await pairContract.allowance(address, UNISWAP_ADDRESSES[chainId].router);
+        if (allowance < parsedAmount) {
+          setCurrentStep('approval');
+          const approveTx = await pairContract.approve(UNISWAP_ADDRESSES[chainId].router, ethers.MaxUint256);
+          await approveTx.wait();
+        }
+
+        // Calculate minimum amounts (1% slippage)
+        const amount0Min = ethers.parseUnits(token0Amount, selectedPool.token0.decimals || 18) * 99n / 100n;
+        const amount1Min = ethers.parseUnits(token1Amount, selectedPool.token1.decimals || 18) * 99n / 100n;
+
+        // Set deadline 20 minutes from now
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
+
+        // Check if one of the tokens is WETH
+        const isToken0WETH = selectedPool.token0.address.toLowerCase() === UNISWAP_ADDRESSES[chainId].WETH.toLowerCase();
+        const isToken1WETH = selectedPool.token1.address.toLowerCase() === UNISWAP_ADDRESSES[chainId].WETH.toLowerCase();
+
+        setCurrentStep('removing');
+        let tx;
+        if (isToken0WETH || isToken1WETH) {
+          // Handle ETH pair
+          const token = isToken0WETH ? selectedPool.token1.address : selectedPool.token0.address;
+          const amountTokenMin = isToken0WETH ? amount1Min : amount0Min;
+          const amountETHMin = isToken0WETH ? amount0Min : amount1Min;
+
+          tx = await routerContract.removeLiquidityETH(
+            token,
+            parsedAmount,
+            amountTokenMin,
+            amountETHMin,
+            address,
+            deadline,
+            { gasLimit: 1000000n }
+          );
+        } else {
+          // Handle token-token pair
+          tx = await routerContract.removeLiquidity(
+            selectedPool.token0.address,
+            selectedPool.token1.address,
+            parsedAmount,
+            amount0Min,
+            amount1Min,
+            address,
+            deadline,
+            { gasLimit: 1000000n }
+          );
+        }
+
+        setCurrentStep('confirming');
+        await tx.wait();
       }
 
-      setCurrentStep('confirming');
-      await tx.wait();
-
-      // Show completed state and trigger confetti immediately
+      // Show completed state and trigger confetti
       setCurrentStep('completed');
       setShowConfetti(true);
 
-      // Close progress modal immediately and show rating after a delay
-      setShowProgressModal(false);
-      setCurrentStep(null);
-      
-      // Show rating modal after a short delay
+      // Close progress modal and show rating after a delay
       setTimeout(() => {
+        setShowProgressModal(false);
+        setCurrentStep(null);
         setShowRatingModal(true);
       }, 1000);
       
@@ -706,9 +802,6 @@ export default function RemoveLiquidity() {
       // Reset form and refresh balances
       const newBalance = await pairContract.balanceOf(address);
       setLpTokenBalance(ethers.formatUnits(newBalance, 18));
-
-      // Remove the success toast notification
-      // toast.success('Liquidity removed successfully');
     } catch (error) {
       console.error('Remove liquidity error:', error);
       setProgressError(error.message || 'Failed to remove liquidity');

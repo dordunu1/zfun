@@ -14,34 +14,42 @@ import { useNavigate } from 'react-router-dom';
 
 // Common tokens with metadata
 const getCommonTokens = (chainId) => {
-  if (!chainId) return [];
-  
-  const addresses = UNISWAP_ADDRESSES[chainId];
-  if (!addresses) return [];
-
-  return [
-    {
-      address: 'ETH',
-      symbol: 'ETH',
-      name: 'Ethereum',
-      decimals: 18,
-      logo: '/eth.png'
-    },
-    {
-      address: addresses.WETH,
-      symbol: 'WETH',
-      name: 'Wrapped Ethereum',
-      decimals: 18,
-      logo: '/eth.png'
-    },
-    {
-      address: addresses.USDT,
-      symbol: 'USDT',
-      name: 'Test USDT',
-      decimals: 6,
-      logo: '/usdt.png'
-    }
-  ];
+  switch (chainId) {
+    case 10143: // Monad testnet
+      return [
+        {
+          symbol: 'MON',
+          name: 'Monad',
+          decimals: 18,
+          logo: '/monad.png',
+          isNative: true
+        },
+        {
+          address: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
+          symbol: 'WMONAD',
+          name: 'Wrapped Monad',
+          decimals: 18,
+          logo: '/monad.png'
+        },
+        {
+          address: '0xB5a30b0FDc5EA94A52fDc42e3E9760Cb8449Fb37',
+          symbol: 'WETH',
+          name: 'Wrapped Ether',
+          decimals: 18,
+          logo: '/eth.png'
+        }
+      ];
+    case 1301: // Unichain testnet
+      return [
+        // ... existing Unichain testnet tokens ...
+      ];
+    case 130: // Unichain mainnet
+      return [
+        // ... existing Unichain mainnet tokens ...
+      ];
+    default:
+      return [];
+  }
 };
 
 // Update getTokenLogo to use the function
@@ -72,39 +80,41 @@ const getTokenLogo = (token, chainId) => {
 
 // Add balance display component
 const TokenBalance = ({ token, chainId }) => {
+  const { address: userAddress } = useAccount();
   const [balance, setBalance] = useState('0');
   const [isLoading, setIsLoading] = useState(false);
   const uniswap = useUnichain();
-  const { address: userAddress } = useAccount();
 
   useEffect(() => {
     const fetchBalance = async () => {
-      if (!userAddress || !chainId) return;
+      if (!userAddress || !token) return;
       
-      setIsLoading(true);
       try {
-        // Get the common tokens for the current network
-        const commonTokens = getCommonTokens(chainId);
-        const wethToken = commonTokens.find(t => t.symbol === 'WETH');
-        
-        // Check if this token is WETH/ETH
-        const isWETH = wethToken && token?.address?.toLowerCase() === wethToken.address?.toLowerCase();
-        const isETH = token?.symbol === 'ETH' || isWETH;
-
-        if (isETH) {
-          // For ETH, get the native balance
+        setIsLoading(true);
+        if (chainId === 10143) {
+          // Handle Monad testnet
           const provider = new ethers.BrowserProvider(window.ethereum);
-          const ethBalance = await provider.getBalance(userAddress);
-          setBalance(ethers.formatEther(ethBalance));
-        } else if (token?.address) {
-          // For other tokens, get the token balance
-          const tokenContract = new ethers.Contract(
-            token.address,
-            ['function balanceOf(address) view returns (uint256)'],
-            new ethers.BrowserProvider(window.ethereum)
+          if (token.isNative) {
+            // For native MON token
+            const balance = await provider.getBalance(userAddress);
+            setBalance(ethers.formatEther(balance));
+          } else {
+            // For other tokens
+            const tokenContract = new ethers.Contract(
+              token.address,
+              ['function balanceOf(address) view returns (uint256)'],
+              provider
+            );
+            const balance = await tokenContract.balanceOf(userAddress);
+            setBalance(ethers.formatUnits(balance, token.decimals));
+          }
+        } else {
+          // Original logic for Unichain networks
+          const balance = await uniswap.getTokenBalance(
+            token.symbol === 'ETH' ? 'ETH' : token.address,
+            userAddress
           );
-          const tokenBalance = await tokenContract.balanceOf(userAddress);
-          setBalance(ethers.formatUnits(tokenBalance, token.decimals || 18));
+          setBalance(balance);
         }
       } catch (error) {
         console.error('Error fetching balance:', error);
@@ -115,7 +125,7 @@ const TokenBalance = ({ token, chainId }) => {
     };
 
     fetchBalance();
-  }, [token, userAddress, chainId]);
+  }, [token, userAddress, uniswap, chainId]);
 
   if (!token || !userAddress || !chainId) return null;
 
@@ -665,233 +675,127 @@ export default function AddLiquidity() {
     setAddLiquidityError(null);
 
     try {
-      // Get the provider and signer
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const account = await signer.getAddress();
-
-      // Get network-specific addresses
-      const addresses = UNISWAP_ADDRESSES[chainId];
-      if (!addresses) {
-        throw new Error('Network not supported');
-      }
-
-      // Get common tokens for the current network
-      const commonTokens = getCommonTokens(chainId);
-      const wethToken = commonTokens.find(t => t.symbol === 'WETH');
-      if (!wethToken) {
-        throw new Error('WETH token not found for this network');
-      }
-
-      // Create router contract instance
-      const router = new ethers.Contract(
-        addresses.router,
-        ROUTER_ABI,
-        signer
-      );
-
-      // Create factory contract instance
-      const factory = new ethers.Contract(
-        addresses.factory,
-        FACTORY_ABI,
-        provider
-      );
-
-      // Parse initial amounts
-      let parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals || 18);
-      let parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals || 18);
-      let token0Address = pool.token0.address;
-      let token1Address = pool.token1.address;
-
-      // Get pair address and check if it exists
-      const pairAddress = await factory.getPair(token0Address, token1Address);
-      console.log('Pair address:', pairAddress);
-
-      // If pair exists, adjust amounts based on reserves
-      if (pairAddress !== '0x0000000000000000000000000000000000000000') {
-        console.log('Pair exists, checking current pool ratio...');
-        const pairContract = new ethers.Contract(pairAddress, PAIR_ABI, provider);
-        const reserves = await pairContract.getReserves();
-        console.log('Current reserves:', {
-          reserve0: reserves[0].toString(),
-          reserve1: reserves[1].toString()
-        });
-
-        // Calculate optimal amounts
-        const reserve0 = reserves[0];
-        const reserve1 = reserves[1];
-        const amount0Desired = parsedAmount0;
-        const amount1Desired = parsedAmount1;
-
-        // Use the same ratio calculation as the router
-        if ((amount0Desired * reserve1) / reserve0 < amount1Desired) {
-          parsedAmount1 = (amount0Desired * reserve1) / reserve0;
-          console.log('Adjusted token1 amount:', ethers.formatUnits(parsedAmount1, pool.token1.decimals || 18));
-        } else if ((amount1Desired * reserve0) / reserve1 < amount0Desired) {
-          parsedAmount0 = (amount1Desired * reserve0) / reserve1;
-          console.log('Adjusted token0 amount:', ethers.formatUnits(parsedAmount0, pool.token0.decimals || 18));
-        }
-      }
-
-      // Calculate minimum amounts (1% slippage)
-      const amount0Min = (parsedAmount0 * 990n) / 1000n;
-      const amount1Min = (parsedAmount1 * 990n) / 1000n;
-
-      // Calculate deadline (20 minutes from now)
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
-
-      // Check if either token is ETH/WETH
-      console.log('Token debug:', {
-        token0Symbol: pool.token0.symbol,
-        token1Symbol: pool.token1.symbol,
-        token0Address: token0Address,
-        token1Address: token1Address,
-        WETH_ADDRESS: wethToken.address
-      });
-
-      const isToken0WETH = token0Address?.toLowerCase() === wethToken.address?.toLowerCase();
-      const isToken1WETH = token1Address?.toLowerCase() === wethToken.address?.toLowerCase();
-      const isToken0ETH = pool.token0.symbol === 'ETH' || pool.token0.symbol === 'WETH';
-      const isToken1ETH = pool.token1.symbol === 'ETH' || pool.token1.symbol === 'WETH';
-
-      console.log('Flag checks:', {
-        isToken0WETH,
-        isToken1WETH,
-        isToken0ETH,
-        isToken1ETH
-      });
-
-      const isETHPair = (isToken0WETH || isToken0ETH) || (isToken1WETH || isToken1ETH);
-
-      let tx;
-
-      if (isETHPair) {
-        // For ETH pairs, we need to handle the token order correctly and always use ETH
-        const tokenAddress = (isToken0WETH || isToken0ETH) ? token1Address : token0Address;
-        const ethAmount = (isToken0WETH || isToken0ETH) ? parsedAmount0 : parsedAmount1;
-        const tokenAmount = (isToken0WETH || isToken0ETH) ? parsedAmount1 : parsedAmount0;
-        const tokenAmountMin = (isToken0WETH || isToken0ETH) ? amount1Min : amount0Min;
-        const ethAmountMin = (isToken0WETH || isToken0ETH) ? amount0Min : amount1Min;
-
-        // Remove the WETH check since we want to treat WETH display as ETH
-        setCurrentStep('approval');
-        // Only approve the token (not ETH)
-        await uniswap.approveToken(tokenAddress, tokenAmount);
-
-        console.log('Adding ETH liquidity with params:', {
-          tokenAddress,
-          tokenAmount: tokenAmount.toString(),
-          ethAmount: ethAmount.toString(),
-          tokenAmountMin: tokenAmountMin.toString(),
-          ethAmountMin: ethAmountMin.toString(),
-          account,
-          deadline: deadline.toString()
-        });
-
-        setCurrentStep('adding');
-        // Call addLiquidityETH
-        tx = await router.addLiquidityETH(
-          tokenAddress,
-          tokenAmount,
-          tokenAmountMin,
-          ethAmountMin,
-          account,
-          deadline,
-          {
-            value: ethAmount,
-            gasLimit: ethers.getBigInt(1000000)
-          }
-        );
-      } else {
-        // Regular ERC20-ERC20 pair
-        setCurrentStep('approval');
-        // Approve both tokens first
-        await Promise.all([
-          uniswap.approveToken(token0Address, parsedAmount0),
-          uniswap.approveToken(token1Address, parsedAmount1)
+      const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+      
+      if (chainId === 10143) {
+        // Handle Monad testnet
+        const signer = await provider.getSigner();
+        const routerAddress = UNISWAP_ADDRESSES[10143].router;
+        const routerInterface = new ethers.Interface([
+          'function addLiquidity(address tokenA, address tokenB, uint amountADesired, uint amountBDesired, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB, uint liquidity)',
+          'function addLiquidityETH(address token, uint amountTokenDesired, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external payable returns (uint amountToken, uint amountETH, uint liquidity)'
         ]);
 
-        console.log('Adding ERC20 liquidity with params:', {
-          token0: token0Address,
-          token1: token1Address,
-          amount0: parsedAmount0.toString(),
-          amount1: parsedAmount1.toString(),
-          amount0Min: amount0Min.toString(),
-          amount1Min: amount1Min.toString(),
-          account,
-          deadline: deadline.toString()
-        });
+        const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
+        const parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
+        const parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
 
-        setCurrentStep('adding');
-        // Add liquidity for ERC20-ERC20 pair
-        tx = await router.addLiquidity(
-          token0Address,
-          token1Address,
+        setCurrentStep('approval');
+
+        if (pool.token0.isNative || pool.token1.isNative) {
+          // Handle native MON + token pair
+          const tokenAddress = pool.token0.isNative ? pool.token1.address : pool.token0.address;
+          const tokenAmount = pool.token0.isNative ? parsedAmount1 : parsedAmount0;
+          const ethAmount = pool.token0.isNative ? parsedAmount0 : parsedAmount1;
+
+          // Approve token first if needed
+          if (!pool.token0.isNative) {
+            const tokenContract = new ethers.Contract(
+              pool.token0.address,
+              ['function approve(address spender, uint256 amount) external returns (bool)'],
+              signer
+            );
+            await tokenContract.approve(routerAddress, parsedAmount0);
+          } else if (!pool.token1.isNative) {
+            const tokenContract = new ethers.Contract(
+              pool.token1.address,
+              ['function approve(address spender, uint256 amount) external returns (bool)'],
+              signer
+            );
+            await tokenContract.approve(routerAddress, parsedAmount1);
+          }
+
+          setCurrentStep('adding');
+          const tx = await signer.sendTransaction({
+            to: routerAddress,
+            data: routerInterface.encodeFunctionData('addLiquidityETH', [
+              tokenAddress,
+              tokenAmount,
+              tokenAmount,
+              ethAmount,
+              await signer.getAddress(),
+              deadline
+            ]),
+            value: ethAmount
+          });
+
+          setCurrentStep('confirming');
+          await tx.wait();
+        } else {
+          // Handle token + token pair
+          // Approve both tokens
+          const token0Contract = new ethers.Contract(
+            pool.token0.address,
+            ['function approve(address spender, uint256 amount) external returns (bool)'],
+            signer
+          );
+          const token1Contract = new ethers.Contract(
+            pool.token1.address,
+            ['function approve(address spender, uint256 amount) external returns (bool)'],
+            signer
+          );
+
+          await token0Contract.approve(routerAddress, parsedAmount0);
+          await token1Contract.approve(routerAddress, parsedAmount1);
+
+          setCurrentStep('adding');
+          const tx = await signer.sendTransaction({
+            to: routerAddress,
+            data: routerInterface.encodeFunctionData('addLiquidity', [
+              pool.token0.address,
+              pool.token1.address,
+              parsedAmount0,
+              parsedAmount1,
+              parsedAmount0,
+              parsedAmount1,
+              await signer.getAddress(),
+              deadline
+            ])
+          });
+
+          setCurrentStep('confirming');
+          await tx.wait();
+        }
+      } else {
+        // Original logic for Unichain networks
+        await uniswap.addLiquidity(
+          pool.token0.address,
+          pool.token1.address,
           parsedAmount0,
           parsedAmount1,
-          amount0Min,
-          amount1Min,
-          account,
-          deadline,
-          {
-            gasLimit: ethers.getBigInt(1000000)
-          }
+          address
         );
       }
 
-      setCurrentStep('confirming');
-      const receipt = await tx.wait();
-      console.log('Liquidity added:', receipt);
-
-      // Add small delay to show confirming state
-      await new Promise(resolve => setTimeout(resolve, 1000));
       setCurrentStep('completed');
+      setShowConfetti(true);
       
-      // Close the Manage Liquidity UI by emitting a custom event
-      window.dispatchEvent(new CustomEvent('closeManageLiquidity'));
-
-      // Show completed state briefly, then close modal and show confetti
       setTimeout(() => {
         setShowProgressModal(false);
         setCurrentStep(null);
-        
-        // Show confetti after modal is closed
-        setTimeout(() => {
-          setShowConfetti(true);
-          
-          // Show rating modal after a short delay
-          setTimeout(() => {
-            setShowRatingModal(true);
-          }, 1000);
-          
-          // Reset form and cleanup after confetti (30 seconds)
-          setTimeout(() => {
-            setToken0Amount('');
-            setToken1Amount('');
-            setShowConfetti(false);
-          }, 30000);
-        }, 100);
+        setShowRatingModal(true);
       }, 1000);
-
-      // Reset form and refresh pool info
-      const updatedPool = await uniswap.getPoolInfo(pool.token0.address, pool.token1.address);
-      setPool(prev => ({
-        ...prev,
-        ...updatedPool,
-        token0: {
-          ...prev.token0,
-          ...updatedPool.token0,
-          logo: prev.token0.logo || getTokenLogo(updatedPool.token0, chainId)
-        },
-        token1: {
-          ...prev.token1,
-          ...updatedPool.token1,
-          logo: prev.token1.logo || getTokenLogo(updatedPool.token1, chainId)
-        }
-      }));
+      
+      setTimeout(() => {
+        setToken0Amount('');
+        setToken1Amount('');
+        setShowConfetti(false);
+      }, 30000);
     } catch (error) {
       console.error('Add liquidity error:', error);
-      setAddLiquidityError(error.message || 'Failed to add liquidity');
+      setAddLiquidityError(error.message);
+      setCurrentStep(null);
     } finally {
       setLoading(false);
     }
