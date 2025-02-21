@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUnichain } from '../../../../hooks/useUnichain';
 import TokenSelectionModal from '../shared/TokenSelectionModal';
 import { UNISWAP_ADDRESSES } from '../../../../services/unichain/uniswap';
-import { ERC20_ABI } from '../../../../services/erc20';
 import { getTokenDeploymentByAddress } from '../../../../services/firebase';
 import { BiWallet } from 'react-icons/bi';
 import { toast } from 'react-hot-toast';
@@ -526,6 +525,120 @@ const NetworkStatus = ({ currentChainId }) => {
         <p className="text-xs mt-1">
           Please switch to Unichain network (Testnet or Mainnet) or Monad Testnet to create pools
         </p>
+      )}
+    </div>
+  );
+};
+
+// Add all ABIs at the top of the file
+const ROUTER_ABI = [
+  'function addLiquidity(address tokenA, address tokenB, uint amountADesired, uint amountBDesired, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB, uint liquidity)',
+  'function addLiquidityETH(address token, uint amountTokenDesired, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external payable returns (uint amountToken, uint amountETH, uint liquidity)',
+  'function quote(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB)',
+  'function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) external view returns (uint amountOut)'
+];
+
+const PAIR_ABI = [
+  'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
+  'function token0() view returns (address)',
+  'function token1() view returns (address)'
+];
+
+const FACTORY_ABI = [
+  'function getPair(address tokenA, address tokenB) view returns (address)'
+];
+
+const ERC20_ABI = [
+  'function balanceOf(address) view returns (uint256)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function name() view returns (string)'
+];
+
+// Update TokenBalance component
+const TokenBalance = ({ token }) => {
+  const [balance, setBalance] = useState('0');
+  const [isLoading, setIsLoading] = useState(false);
+  const { address } = useAccount();
+
+  useEffect(() => {
+    async function getBalance() {
+      if (!token || !address || !window.ethereum) return;
+
+      try {
+        setIsLoading(true);
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+        
+        // Handle native token (ETH/MON) balance
+        if (token.isNative || token.symbol === 'ETH' || token.symbol === 'MON') {
+          const balance = await provider.getBalance(address);
+          setBalance(ethers.formatEther(balance));
+          return;
+        }
+
+        // For ERC20 tokens
+        try {
+          const tokenContract = new ethers.Contract(
+            token.address,
+            ERC20_ABI,
+            provider
+          );
+
+          const [rawBalance, decimals] = await Promise.all([
+            tokenContract.balanceOf(address),
+            tokenContract.decimals()
+          ]);
+
+          setBalance(ethers.formatUnits(rawBalance, decimals));
+        } catch (error) {
+          console.error('Error fetching ERC20 balance:', error);
+          // Fallback to basic balance fetch for Monad testnet
+          if (chainId === 10143) {
+            const data = ethers.AbiCoder.defaultAbiCoder().encode(
+              ['address'],
+              [address]
+            ).slice(2);
+            
+            const result = await window.ethereum.request({
+              method: 'eth_call',
+              params: [{
+                to: token.address,
+                data: '0x70a08231' + data // balanceOf(address) selector
+              }, 'latest']
+            });
+            
+            const balance = BigInt(result);
+            setBalance(ethers.formatUnits(balance, token.decimals || 18));
+          } else {
+            throw error;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching balance:', error);
+        setBalance('0');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    getBalance();
+  }, [token, address]);
+
+  if (!token || !address) return null;
+
+  return (
+    <div className="flex justify-between items-center text-sm">
+      <span className="text-gray-500 dark:text-gray-400">Balance:</span>
+      {isLoading ? (
+        <div className="animate-pulse bg-gray-200 dark:bg-gray-700 h-4 w-20 rounded"></div>
+      ) : (
+        <span className="text-gray-900 dark:text-white font-medium">
+          {Number(balance).toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 6
+          })} {token.symbol}
+        </span>
       )}
     </div>
   );
@@ -1075,49 +1188,6 @@ export default function PoolCreation({ setActiveTab }) {
 
     updatePriceRatio();
   }, [token0, token1, amount0, amount1]);
-
-  // Add TokenBalance component
-  const TokenBalance = ({ token }) => {
-    const [balance, setBalance] = useState('0');
-    const { address } = useAccount();
-
-    useEffect(() => {
-      async function getBalance() {
-        if (!token || !address) return;
-
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          
-          // Handle ETH balance differently
-          if (token.symbol === 'ETH') {
-            const rawBalance = await provider.getBalance(address);
-            const formattedBalance = ethers.formatUnits(rawBalance, 18);
-            setBalance(formattedBalance);
-            return;
-          }
-
-          // For ERC20 tokens
-          const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
-          const rawBalance = await tokenContract.balanceOf(address);
-          const formattedBalance = ethers.formatUnits(rawBalance, token.decimals);
-          setBalance(formattedBalance);
-        } catch (error) {
-          console.error('Error fetching balance:', error);
-          setBalance('0');
-        }
-      }
-
-      getBalance();
-    }, [token, address]);
-
-    if (!token) return null;
-
-    return (
-      <span className="text-sm text-gray-500 dark:text-gray-400">
-        Balance: {Number(balance).toLocaleString(undefined, { maximumFractionDigits: 6 })}
-      </span>
-    );
-  };
 
   return (
     <motion.div 

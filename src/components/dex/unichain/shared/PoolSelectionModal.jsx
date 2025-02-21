@@ -51,7 +51,21 @@ const COMMON_TOKENS = {
       symbol: 'WETH',
       name: 'Wrapped Ether',
       decimals: 18,
-      logo: '/eth.png'
+      logo: '/weth.png'
+    },
+    {
+      address: '0xf817257fed379853cDe0fa4F97AB987181B1E5Ea',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      logo: '/usdc.png'
+    },
+    {
+      address: '0x88b8E2161DEDC77EF4ab7585569D2415a1C1055D',
+      symbol: 'USDT',
+      name: 'Tether USD',
+      decimals: 6,
+      logo: '/usdt.png'
     }
   ],
   // Testnet tokens (1301)
@@ -130,12 +144,28 @@ const getEnhancedTokenMetadata = async (tokenAddress, existingMetadata, chainId)
     );
 
     if (commonToken) {
+      console.log('Found common token:', commonToken);
       return {
         ...existingMetadata,
         ...commonToken,
         address: tokenAddress,
         logo: commonToken.logo,
-        verified: true
+        verified: true,
+        decimals: commonToken.decimals || existingMetadata?.decimals || 18
+      };
+    }
+
+    // Special handling for WETH/WMONAD
+    const WETH_ADDRESS = UNISWAP_ADDRESSES[chainId]?.WETH?.toLowerCase();
+    if (tokenAddress?.toLowerCase() === WETH_ADDRESS) {
+      return {
+        ...existingMetadata,
+        symbol: chainId === 10143 ? 'MON' : 'ETH',
+        name: chainId === 10143 ? 'Monad' : 'Ethereum',
+        decimals: 18,
+        logo: chainId === 10143 ? '/monad.png' : '/eth.png',
+        verified: true,
+        address: tokenAddress
       };
     }
 
@@ -830,21 +860,24 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
             ]);
 
             // Create pool with complete information
+            const commonToken0 = COMMON_TOKENS[chainId]?.find(t => t.address?.toLowerCase() === token0Address?.toLowerCase());
+            const commonToken1 = COMMON_TOKENS[chainId]?.find(t => t.address?.toLowerCase() === token1Address?.toLowerCase());
+
             const pool = {
               token0: {
                 address: token0Address,
                 symbol: token0Symbol,
                 name: token0Name,
-                decimals: 18,
-                logo: isToken0WETH ? '/monad.png' : '/token-default.png',
+                decimals: commonToken0?.decimals || 18,
+                logo: commonToken0?.logo || (isToken0WETH ? '/monad.png' : '/token-default.png'),
                 isWETH: isToken0WETH
               },
               token1: {
                 address: token1Address,
                 symbol: token1Symbol,
                 name: token1Name,
-                decimals: 18,
-                logo: isToken1WETH ? '/monad.png' : '/token-default.png',
+                decimals: commonToken1?.decimals || 18,
+                logo: commonToken1?.logo || (isToken1WETH ? '/monad.png' : '/token-default.png'),
                 isWETH: isToken1WETH
               },
               pairAddress,
@@ -852,8 +885,8 @@ export default function PoolSelectionModal({ isOpen, onClose, onSelect }) {
               reserves: {
                 reserve0: reserve0.toString(),
                 reserve1: reserve1.toString(),
-                reserve0Formatted: ethers.formatUnits(reserve0, 18),
-                reserve1Formatted: ethers.formatUnits(reserve1, 18)
+                reserve0Formatted: ethers.formatUnits(reserve0, commonToken0?.decimals || 18),
+                reserve1Formatted: ethers.formatUnits(reserve1, commonToken1?.decimals || 18)
               }
             };
 
