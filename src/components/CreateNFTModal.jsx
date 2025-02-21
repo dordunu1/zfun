@@ -1068,7 +1068,9 @@ export default function CreateNFTModal({ isOpen, onClose }) {
         let gasSettings = {};
         if (networkChainId === CHAIN_IDS.MONAD_TESTNET) {
           gasSettings = {
-            gasLimit: 5000000, // Higher gas limit for Monad
+            gasLimit: 8000000, // Increased gas limit for Monad
+            maxFeePerGas: ethers.parseUnits('100', 'gwei'),
+            maxPriorityFeePerGas: ethers.parseUnits('10', 'gwei')
           };
           toast('Using higher gas limit for Monad Testnet', {
             duration: 4000,
@@ -2645,3 +2647,15 @@ export default function CreateNFTModal({ isOpen, onClose }) {
     </>
   );
 }
+
+// Add this function near the top of the file
+const getGasSettings = async (chainId, provider) => {
+  if (chainId === CHAIN_IDS.MONAD_TESTNET) {
+    return {
+      gasLimit: 10000000, // Increased gas limit for Monad
+      maxFeePerGas: ethers.parseUnits('200', 'gwei'),
+      maxPriorityFeePerGas: ethers.parseUnits('20', 'gwei')
+    };
+  }
+  return {};
+};

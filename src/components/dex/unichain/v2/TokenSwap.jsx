@@ -682,6 +682,25 @@ const StarRatingModal = ({ isOpen, onClose, onRate }) => {
   );
 };
 
+// Add supported network IDs
+const SUPPORTED_CHAIN_IDS = [130, 1301, 10143];
+
+// Add network names mapping
+const NETWORK_NAMES = {
+  130: 'Unichain Mainnet',
+  1301: 'Unichain Testnet',
+  10143: 'Monad Testnet'
+};
+
+// Update the network validation message
+const getNetworkMessage = (chainId) => {
+  if (!chainId) return 'Please connect your wallet';
+  if (!SUPPORTED_CHAIN_IDS.includes(chainId)) {
+    return `Please switch to Unichain network or Monad Testnet`;
+  }
+  return null;
+};
+
 export default function TokenSwap() {
   const { address, isConnected } = useAccount();
   const uniswap = useUnichain();
@@ -711,33 +730,50 @@ export default function TokenSwap() {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [swapError, setSwapError] = useState(null);
   const [currentChainId, setCurrentChainId] = useState(null);
+  const [networkError, setNetworkError] = useState(null);
+  const [findingRoute, setFindingRoute] = useState(false);
 
-  // Add chain ID initialization
+  // Update useEffect for network validation
   useEffect(() => {
-    const getChainId = async () => {
+    const validateNetwork = async () => {
       if (!window.ethereum) return;
       try {
         const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
-        const decimalChainId = parseInt(hexChainId, 16);
-        setCurrentChainId(decimalChainId);
+        const chainId = parseInt(hexChainId, 16);
+        setCurrentChainId(chainId);
+        
+        // Only set network error if we're not on Monad testnet
+        if (chainId !== 10143) {
+          const errorMessage = getNetworkMessage(chainId);
+          setNetworkError(errorMessage);
+        } else {
+          setNetworkError(null); // Clear any network error if we're on Monad
+        }
       } catch (error) {
-        console.error('Error getting chain ID:', error);
+        console.error('Error validating network:', error);
       }
     };
-    getChainId();
 
-    // Listen for chain changes
+    validateNetwork();
+
     if (window.ethereum) {
       window.ethereum.on('chainChanged', (chainId) => {
-        setCurrentChainId(parseInt(chainId, 16));
+        const decimalChainId = parseInt(chainId, 16);
+        setCurrentChainId(decimalChainId);
+        
+        // Only set network error if we're not on Monad testnet
+        if (decimalChainId !== 10143) {
+          const errorMessage = getNetworkMessage(decimalChainId);
+          setNetworkError(errorMessage);
+        } else {
+          setNetworkError(null); // Clear any network error if we're on Monad
+        }
       });
     }
 
     return () => {
       if (window.ethereum) {
-        window.ethereum.removeListener('chainChanged', (chainId) => {
-          setCurrentChainId(parseInt(chainId, 16));
-        });
+        window.ethereum.removeListener('chainChanged', () => {});
       }
     };
   }, []);
@@ -774,15 +810,31 @@ export default function TokenSwap() {
 
     useEffect(() => {
       const fetchBalance = async () => {
-        if (!userAddress || !token || !uniswap) return;
+        if (!userAddress || !token) return;
         
         try {
           setIsLoading(true);
-          const balance = await uniswap.getTokenBalance(
-            token.symbol === 'ETH' ? 'ETH' : token.address,
-            userAddress
+          
+          // Handle native MON token
+          if (token.isNative && token.symbol === 'MON') {
+            const balance = await window.ethereum.request({
+              method: 'eth_getBalance',
+              params: [userAddress, 'latest']
+            });
+            const formattedBalance = ethers.formatEther(BigInt(balance));
+            setBalance(formattedBalance);
+            return;
+          }
+
+          // Handle ERC20 tokens
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const tokenContract = new ethers.Contract(
+            token.address,
+            ['function balanceOf(address) view returns (uint256)'],
+            provider
           );
-          setBalance(balance);
+          const balance = await tokenContract.balanceOf(userAddress);
+          setBalance(ethers.formatUnits(balance, token.decimals || 18));
         } catch (error) {
           console.error('Error fetching balance:', error);
           setBalance('0');
@@ -792,13 +844,16 @@ export default function TokenSwap() {
       };
 
       fetchBalance();
-    }, [token, userAddress, uniswap]);
+    }, [token, userAddress]);
 
     if (!token) return null;
 
     return (
       <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-        Balance: {isLoading ? 'Loading...' : balance} {token.symbol}
+        Balance: {isLoading ? 'Loading...' : Number(balance).toLocaleString(undefined, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 6
+        })} {token.symbol}
       </div>
     );
   };
@@ -813,6 +868,7 @@ export default function TokenSwap() {
         return;
       }
 
+      setFindingRoute(true);
       try {
         const { route: newRoute, toAmount: newToAmount, path } = await uniswap.updateRoute(
           fromToken,
@@ -834,6 +890,8 @@ export default function TokenSwap() {
         setToAmount('');
         setRoute(null);
         setRouteError('Error finding route');
+      } finally {
+        setFindingRoute(false);
       }
     };
 
@@ -882,8 +940,6 @@ export default function TokenSwap() {
         throw new Error('No valid route found');
       }
 
-      console.log('Route info:', routeInfo);
-
       // Parse input amount with proper decimals
       const amountIn = ethers.parseUnits(fromAmount, fromToken.decimals);
       
@@ -896,8 +952,11 @@ export default function TokenSwap() {
 
       let actualFromToken = fromToken;
 
-      // Check if we need to wrap ETH first
-      if (fromToken.symbol === 'ETH' && routeInfo.path[0] === UNISWAP_ADDRESSES[currentChainId]?.WETH) {
+      // Check if we need to wrap native token (ETH/MON) first
+      const isFromNative = fromToken.symbol === 'ETH' || fromToken.symbol === 'MON';
+      const isToNative = toToken.symbol === 'ETH' || toToken.symbol === 'MON';
+
+      if (isFromNative && routeInfo.path[0] === UNISWAP_ADDRESSES[currentChainId]?.WETH) {
         const wethBalance = await uniswap.getWETHBalance(address);
         if (wethBalance < amountIn) {
           setSwapStep('wrapping');
@@ -915,7 +974,7 @@ export default function TokenSwap() {
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 minutes
 
       // First approve if needed
-      if (actualFromToken.symbol !== 'ETH') {
+      if (!isFromNative) {
         setSwapStep('approval');
         
         // Get the router address for the current chain
@@ -982,12 +1041,10 @@ export default function TokenSwap() {
         }
 
         setSwapStep('swapping');
-        console.log('Executing swap with path:', routeInfo.path);
 
         // Use appropriate swap function based on whether either token has fees
         if (fromTokenHasFees || toTokenHasFees) {
-          console.log('Using fee-on-transfer swap function...');
-          if (toToken.symbol === 'ETH') {
+          if (isToNative) {
             const tx = await uniswap.swapExactTokensForETHSupportingFeeOnTransferTokens(
               amountIn,
               amountOutMin,
@@ -1007,8 +1064,7 @@ export default function TokenSwap() {
             await tx.wait();
           }
         } else {
-          console.log('Using regular swap function...');
-          if (toToken.symbol === 'ETH') {
+          if (isToNative) {
             const tx = await uniswap.swapExactTokensForETH(
               amountIn,
               amountOutMin,
@@ -1029,11 +1085,10 @@ export default function TokenSwap() {
           }
         }
       } else {
-        // Handle ETH to token swap
+        // Handle native token (MON/ETH) to token swap
         setSwapStep('swapping');
-        console.log('Executing ETH to token swap with path:', routeInfo.path);
         
-        // For ETH to token, we'll also check if the output token has fees
+        // For native token to token, we'll also check if the output token has fees
         const tokenContract = new ethers.Contract(
           toToken.address,
           [
@@ -1057,7 +1112,6 @@ export default function TokenSwap() {
         }
 
         if (hasFees) {
-          console.log('Using fee-on-transfer swap function for ETH...');
           const tx = await uniswap.swapExactETHForTokensSupportingFeeOnTransferTokens(
             amountOutMin,
             routeInfo.path,
@@ -1067,7 +1121,6 @@ export default function TokenSwap() {
           );
           await tx.wait();
         } else {
-          console.log('Using regular swap function for ETH...');
           const tx = await uniswap.swapExactETHForTokens(
             amountOutMin,
             routeInfo.path,
@@ -1214,6 +1267,7 @@ export default function TokenSwap() {
   // Helper function to get button text
   const getActionButtonText = () => {
     if (loading) return 'Processing...';
+    if (findingRoute) return 'Finding best route...';
     if (!fromToken || !toToken) return 'Select Tokens';
     if (!fromAmount) return 'Enter Amount';
     if (routeError && !isWrapUnwrapOperation()) return 'No Route Available';
@@ -1286,7 +1340,7 @@ export default function TokenSwap() {
         className="bg-white/5 dark:bg-[#1a1b1f] backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800"
         variants={itemVariants}
       >
-        {!isConnected ? (
+        {networkError ? (
           <motion.div 
             className="text-center py-8"
             variants={itemVariants}
@@ -1296,29 +1350,17 @@ export default function TokenSwap() {
               whileHover={{ scale: 1.1 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
-              <BiWallet size={48} className="mx-auto text-gray-400 dark:text-gray-600" />
+              <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-4" />
             </motion.div>
-            <motion.h3 
-              className="text-lg font-semibold text-gray-900 dark:text-white mb-2"
+            <motion.h2 
+              className="text-xl font-semibold text-gray-900 dark:text-white mb-2"
               variants={itemVariants}
             >
-              Connect Your Wallet
-            </motion.h3>
-            <motion.p 
-              className="text-gray-500 dark:text-gray-400 mb-6"
-              variants={itemVariants}
-            >
-              Please connect your wallet to start swapping tokens
-            </motion.p>
-            <motion.button
-              onClick={openConnectModal}
-              className="px-6 py-2 bg-[#00ffbd] hover:bg-[#00e6a9] text-black font-semibold rounded-lg transition-colors"
-              variants={buttonVariants}
-              whileHover="hover"
-              whileTap="tap"
-            >
-              Connect Wallet
-            </motion.button>
+              {networkError}
+            </motion.h2>
+            <p className="text-gray-500 dark:text-gray-400">
+              Trading is available on Unichain networks and Monad Testnet
+            </p>
           </motion.div>
         ) : (
           <AnimatePresence mode="wait">

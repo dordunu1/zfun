@@ -8,21 +8,48 @@ import { FaSearch, FaCoins } from 'react-icons/fa';
 import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../../../services/firebase';
 import { ipfsToHttp } from '../../../../utils/ipfs';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Contract } from 'ethers';
 
 // Add RPC URL constant at the top
 const UNICHAIN_RPC_URLS = {
   1301: 'https://sepolia.unichain.org',
-  130: 'https://mainnet.unichain.org'
+  130: 'https://mainnet.unichain.org',
+  10143: 'https://monad-testnet.drpc.org'
 };
 
 // Add chain ID constant at the top
 const UNICHAIN_CHAIN_IDS = {
   TESTNET: 1301,
-  MAINNET: 130
+  MAINNET: 130,
+  MONAD_TESTNET: 10143
 };
 
 // Common tokens with metadata
 const COMMON_TOKENS = {
+  // Monad Testnet tokens (10143)
+  10143: [
+    {
+      symbol: 'MON',
+      name: 'Monad',
+      decimals: 18,
+      logo: '/monad.png',
+      isNative: true
+    },
+    {
+      address: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
+      symbol: 'WMONAD',
+      name: 'Wrapped Monad',
+      decimals: 18,
+      logo: '/monad.png'
+    },
+    {
+      address: '0xB5a30b0FDc5EA94A52fDc42e3E9760Cb8449Fb37',
+      symbol: 'WETH',
+      name: 'Wrapped Ether',
+      decimals: 18,
+      logo: '/eth.png'
+    }
+  ],
   // Testnet tokens (1301)
   1301: [
     {
@@ -106,7 +133,48 @@ const formatBalance = (balance, decimals = 18) => {
 
 const scanForTokens = async (provider, userAddress, chainId) => {
   try {
-    // Get tokens from Blockscout API
+    // Handle Monad testnet differently
+    if (chainId === UNICHAIN_CHAIN_IDS.MONAD_TESTNET) {
+      const commonTokens = COMMON_TOKENS[chainId] || [];
+      const tokens = [...commonTokens];
+
+      // Get token balances
+      for (const token of tokens) {
+        try {
+          if (token.isNative) {
+            // For native MON token
+            const balance = await window.ethereum.request({
+              method: 'eth_getBalance',
+              params: [userAddress, 'latest']
+            });
+            const balanceBigInt = BigInt(balance);
+            token.balance = balanceBigInt.toString();
+            token.formatted = ethers.formatEther(balanceBigInt);
+          } else {
+            // For other tokens (like WMONAD)
+            const tokenContract = new ethers.Contract(
+              token.address,
+              [
+                'function balanceOf(address) view returns (uint256)',
+                'function decimals() view returns (uint8)'
+              ],
+              provider
+            );
+            const balance = await tokenContract.balanceOf(userAddress);
+            token.balance = balance.toString();
+            token.formatted = ethers.formatUnits(balance, token.decimals);
+          }
+        } catch (error) {
+          console.warn(`Error fetching balance for token ${token.symbol}:`, error);
+          token.balance = '0';
+          token.formatted = '0';
+        }
+      }
+
+      return tokens;
+    }
+
+    // Original Blockscout logic for Unichain networks
     const blockscoutUrl = chainId === UNICHAIN_CHAIN_IDS.TESTNET 
       ? 'https://unichain-sepolia.blockscout.com'
       : 'https://unichain.blockscout.com';
@@ -197,6 +265,58 @@ const getWalletTokens = async (provider, userAddress, chainId) => {
   }
 };
 
+const getTokenBalance = async (tokenAddress, userAddress) => {
+  try {
+    if (!provider) await init();
+
+    // Handle native token balance (ETH or MN)
+    if (tokenAddress === 'ETH' || tokenAddress === 'MN') {
+      const balance = await provider.getBalance(userAddress);
+      return ethers.formatEther(balance);
+    }
+
+    // Handle ERC20 token balance
+    const token = new ethers.Contract(
+      tokenAddress,
+      ERC20_ABI,
+      provider
+    );
+
+    const [balance, decimals] = await Promise.all([
+      token.balanceOf(userAddress),
+      token.decimals()
+    ]);
+
+    return ethers.formatUnits(balance, decimals);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Add Multicall ABI
+const MULTICALL_ABI = [
+  'function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)'
+];
+
+// Add ERC20 interface
+const ERC20_INTERFACE = [
+  'function balanceOf(address) view returns (uint256)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function name() view returns (string)'
+];
+
+// Add Multicall addresses
+const MULTICALL_ADDRESSES = {
+  10143: '0x6a49F8E8d4F21F4A6Fb9A1d3D67E793f5676eEf0', // Monad testnet
+  1301: '0x6a49F8E8d4F21F4A6Fb9A1d3D67E793f5676eEf0',  // Unichain testnet
+  130: '0x6a49F8E8d4F21F4A6Fb9A1d3D67E793f5676eEf0'    // Unichain mainnet
+};
+
+// Add balance cache
+const balanceCache = new Map();
+const CACHE_DURATION = 30000; // 30 seconds
+
 export default function TokenSelectionModal({ isOpen, onClose, onSelect, selectedTokenAddress }) {
   const { address: userAddress } = useAccount();
   const [searchQuery, setSearchQuery] = useState('');
@@ -208,6 +328,214 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   const [deployedTokens, setDeployedTokens] = useState([]);
   const [tokensWithBalance, setTokensWithBalance] = useState([]);
   const [currentChainId, setCurrentChainId] = useState(null);
+
+  const fetchTokensAndBalances = async () => {
+    if (!isOpen || !userAddress || !window.ethereum) return;
+    
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+      setCurrentChainId(chainId);
+
+      // Check if search query is a valid address
+      if (ethers.isAddress(searchQuery)) {
+        try {
+          // For Monad testnet, use direct RPC calls
+          if (chainId === 10143) {
+            const tokenContract = new ethers.Contract(
+              searchQuery,
+              [
+                'function symbol() view returns (string)',
+                'function name() view returns (string)',
+                'function decimals() view returns (uint8)',
+                'function balanceOf(address) view returns (uint256)'
+              ],
+              provider
+            );
+
+            const [symbol, name, decimals, balance] = await Promise.all([
+              window.ethereum.request({
+                method: 'eth_call',
+                params: [{
+                  to: searchQuery,
+                  data: tokenContract.interface.encodeFunctionData('symbol')
+                }, 'latest']
+              }).then(data => tokenContract.interface.decodeFunctionResult('symbol', data)[0]),
+              window.ethereum.request({
+                method: 'eth_call',
+                params: [{
+                  to: searchQuery,
+                  data: tokenContract.interface.encodeFunctionData('name')
+                }, 'latest']
+              }).then(data => tokenContract.interface.decodeFunctionResult('name', data)[0]),
+              window.ethereum.request({
+                method: 'eth_call',
+                params: [{
+                  to: searchQuery,
+                  data: tokenContract.interface.encodeFunctionData('decimals')
+                }, 'latest']
+              }).then(data => tokenContract.interface.decodeFunctionResult('decimals', data)[0]),
+              window.ethereum.request({
+                method: 'eth_call',
+                params: [{
+                  to: searchQuery,
+                  data: tokenContract.interface.encodeFunctionData('balanceOf', [userAddress])
+                }, 'latest']
+              }).then(data => tokenContract.interface.decodeFunctionResult('balanceOf', data)[0])
+            ]);
+
+            const customToken = {
+              address: searchQuery,
+              symbol,
+              name,
+              decimals,
+              balance: ethers.formatUnits(balance, decimals)
+            };
+
+            setTokensWithBalance([customToken]);
+            setTokenBalances({
+              [searchQuery]: {
+                raw: balance.toString(),
+                formatted: ethers.formatUnits(balance, decimals)
+              }
+            });
+            setIsLoading(false);
+            return;
+          } else {
+            // For other networks, use ethers contract as before
+            const tokenContract = new ethers.Contract(
+              searchQuery,
+              [
+                'function symbol() view returns (string)',
+                'function name() view returns (string)',
+                'function decimals() view returns (uint8)',
+                'function balanceOf(address) view returns (uint256)'
+              ],
+              provider
+            );
+
+            const [symbol, name, decimals, balance] = await Promise.all([
+              tokenContract.symbol().catch(() => 'Unknown'),
+              tokenContract.name().catch(() => 'Unknown Token'),
+              tokenContract.decimals().catch(() => 18),
+              tokenContract.balanceOf(userAddress).catch(() => '0')
+            ]);
+
+            const customToken = {
+              address: searchQuery,
+              symbol,
+              name,
+              decimals,
+              balance: ethers.formatUnits(balance, decimals)
+            };
+
+            setTokensWithBalance([customToken]);
+            setTokenBalances({
+              [searchQuery]: {
+                raw: balance.toString(),
+                formatted: ethers.formatUnits(balance, decimals)
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching custom token:', err);
+          setError('Could not fetch token information. Please verify the contract address.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const tokens = COMMON_TOKENS[chainId] || [];
+
+      // Check cache first
+      const cacheKey = `${userAddress}-${chainId}`;
+      const cachedData = balanceCache.get(cacheKey);
+      if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
+        setTokenBalances(cachedData.balances);
+        setTokensWithBalance(cachedData.tokensWithBalance);
+        setIsLoading(false);
+        return;
+      }
+
+      const newBalances = {};
+      
+      // Get native token balance first
+      try {
+        const nativeBalance = await window.ethereum.request({
+          method: 'eth_getBalance',
+          params: [userAddress, 'latest']
+        });
+        const balanceBigInt = BigInt(nativeBalance);
+        newBalances['MON'] = {
+          raw: balanceBigInt.toString(),
+          formatted: ethers.formatEther(balanceBigInt)
+        };
+      } catch (err) {
+        console.warn('Error fetching native balance:', err);
+        newBalances['MON'] = { raw: '0', formatted: '0' };
+      }
+
+      // Get ERC20 token balances in parallel
+      const tokenPromises = tokens
+        .filter(token => !token.isNative && token.address)
+        .map(async (token) => {
+          try {
+            const tokenContract = new ethers.Contract(
+              token.address,
+              ['function balanceOf(address) view returns (uint256)'],
+              provider
+            );
+            const balance = await tokenContract.balanceOf(userAddress);
+            return {
+              token,
+              balance: balance.toString(),
+              formatted: ethers.formatUnits(balance, token.decimals)
+            };
+          } catch (err) {
+            console.warn(`Error fetching balance for token ${token.symbol}:`, err);
+            return {
+              token,
+              balance: '0',
+              formatted: '0'
+            };
+          }
+        });
+
+      const tokenResults = await Promise.all(tokenPromises);
+
+      // Update balances object
+      tokenResults.forEach(({ token, balance, formatted }) => {
+        newBalances[token.address] = {
+          raw: balance,
+          formatted
+        };
+      });
+
+      // Update tokens with balances
+      const tokensWithBalances = tokens.map(token => ({
+        ...token,
+        balance: token.isNative ? newBalances['MON']?.formatted || '0' : newBalances[token.address]?.formatted || '0'
+      }));
+
+      // Update cache
+      balanceCache.set(cacheKey, {
+        timestamp: Date.now(),
+        balances: newBalances,
+        tokensWithBalance: tokensWithBalances
+      });
+
+      setTokenBalances(newBalances);
+      setTokensWithBalance(tokensWithBalances);
+    } catch (error) {
+      console.error('Error fetching tokens and balances:', error);
+      setError('Failed to fetch tokens. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Get current chain ID
   useEffect(() => {
@@ -224,92 +552,18 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     getChainId();
   }, []);
 
-  // Fetch tokens and balances
+  // Update useEffect to trigger on searchQuery changes
   useEffect(() => {
-    const fetchTokensAndBalances = async () => {
-      if (!isOpen || !userAddress || !window.ethereum) return;
-      
-      setIsLoading(true);
-      setError('');
-      
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const chainId = await provider.getNetwork().then(n => n.chainId);
-        
-        // Get tokens list
-        const tokens = await scanForTokens(provider, userAddress, Number(chainId));
-        
-        // Fetch balances
-        const newBalances = {};
-        
-        await Promise.all(
-          tokens.map(async (token) => {
-            try {
-              if (!token.address) return;
-              
-              if (token.address === 'ETH') {
-                const balance = await provider.getBalance(userAddress);
-                newBalances[token.address] = {
-                  raw: balance.toString(),
-                  formatted: formatBalance(balance, 18)
-                };
-              } else if (ethers.isAddress(token.address)) {
-                const tokenContract = new ethers.Contract(
-                  token.address,
-                  ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'],
-                  provider
-                );
-                
-                const [balance, decimals] = await Promise.all([
-                  tokenContract.balanceOf(userAddress).catch(() => ethers.parseUnits('0', token.decimals || 18)),
-                  tokenContract.decimals().catch(() => token.decimals || 18)
-                ]);
-                
-                newBalances[token.address] = {
-                  raw: balance.toString(),
-                  formatted: formatBalance(balance, decimals)
-                };
-              }
-            } catch (err) {
-              console.warn(`Error fetching balance for token ${token.address}:`, err);
-              newBalances[token.address] = {
-                raw: '0',
-                formatted: '0'
-              };
-            }
-          })
-        );
-        
-        setTokenBalances(newBalances);
-        
-        // Filter and sort tokens
-        const tokensWithBalances = tokens
-          .filter(token => token && (token.address === 'ETH' || ethers.isAddress(token.address)))
-          .map(token => ({
-            ...token,
-            balance: newBalances[token.address]?.formatted || '0'
-          }))
-          .sort((a, b) => {
-            const balanceA = parseFloat(a.balance) || 0;
-            const balanceB = parseFloat(b.balance) || 0;
-            return balanceB - balanceA;
-          });
-        
-        setTokensWithBalance(tokensWithBalances);
-      } catch (error) {
-        console.error('Error fetching tokens and balances:', error);
-        setError('Failed to fetch tokens. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchTokensAndBalances();
-  }, [isOpen, userAddress, refreshTrigger]);
+  }, [isOpen, userAddress, refreshTrigger, searchQuery]);
 
   const TokenRow = ({ token, onSelect, isSelected }) => {
-    const balance = tokenBalances[token.address]?.formatted || '0';
-    const isLoadingBalance = !tokenBalances[token.address];
+    const tokenBalance = token.isNative ? 
+      tokenBalances['MON']?.formatted || '0' : 
+      tokenBalances[token.address]?.formatted || '0';
+    const isTokenLoading = token.isNative ? 
+      !tokenBalances['MON'] : 
+      !tokenBalances[token.address];
 
     return (
       <motion.button
@@ -335,14 +589,14 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           </div>
         </div>
         <div className="text-right text-sm font-medium text-gray-900 dark:text-white">
-          {isLoadingBalance ? (
+          {isTokenLoading ? (
             <motion.div 
               className="w-12 h-4 bg-gray-200 dark:bg-gray-700 rounded"
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 1.5, repeat: Infinity }}
             />
           ) : (
-            balance
+            tokenBalance
           )}
         </div>
       </motion.button>
@@ -350,8 +604,10 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   };
 
   const hasBalance = token => {
-    const balance = tokenBalances[token.address]?.formatted;
-    return parseFloat(balance || '0') > 0;
+    const balance = token.isNative ? 
+      tokenBalances['MON']?.formatted || '0' : 
+      tokenBalances[token.address]?.formatted || '0';
+    return parseFloat(balance) > 0;
   };
 
   // Filter tokens based on search query
@@ -413,8 +669,17 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
 
       let finalToken;
       
+      // Handle native MON token
+      if (token.isNative && token.symbol === 'MON') {
+        finalToken = {
+          ...token,
+          address: 'MON', // Special identifier for native token
+          decimals: 18,
+          verified: true
+        };
+      }
       // Handle ETH/WETH case
-      if (token.symbol === 'ETH') {
+      else if (token.symbol === 'ETH') {
         if (!currentChainId || !UNISWAP_ADDRESSES[currentChainId]?.WETH) {
           console.error('No WETH address found for current chain');
           setError('WETH address not configured for this chain');
@@ -472,8 +737,8 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         };
       }
 
-      // Final validation
-      if (!finalToken.address || !ethers.isAddress(finalToken.address)) {
+      // Final validation - allow 'MON' as a valid address for native token
+      if (!finalToken.address || (finalToken.address !== 'MON' && !ethers.isAddress(finalToken.address))) {
         console.error('Invalid final token address:', finalToken);
         setError('Invalid token address');
         return;

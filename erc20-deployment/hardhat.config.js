@@ -62,7 +62,9 @@ module.exports = {
     }
   },
   sourcify: {
-    enabled: true
+    enabled: true,
+    apiUrl: "https://sourcify-api-monad.blockvision.org",
+    browserUrl: "https://testnet.monadexplorer.com"
   },
   etherscan: {
     apiKey: {

@@ -14,7 +14,6 @@
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.2.0",
     "@metamask/detect-provider": "^2.0.0",
-    "@openzeppelin/contracts": "^5.1.0",
     "@paystack/inline-js": "^2.22.1",
     "@pinata/sdk": "^2.1.0",
     "@rainbow-me/rainbowkit": "^1.3.3",
@@ -49,11 +48,14 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ignition": "^0.15.9",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.12",
     "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@openzeppelin/contracts": "^5.2.0",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
+    "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
     "dotenv": "^16.4.7",

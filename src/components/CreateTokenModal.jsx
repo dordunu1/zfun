@@ -214,8 +214,8 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deploye
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-[#1a1b1f] p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                  {isError ? 'Error Creating Token' : 'Creating Token'}
-                  {tokenName && !isError && (
+                  {error ? 'Error Creating Token' : 'Creating Token'}
+                  {tokenName && !error && (
                     <div className="mt-2 text-base font-normal text-gray-500 dark:text-gray-400">
                       {tokenName}
                     </div>
@@ -225,8 +225,8 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deploye
                   {steps.map((step, index) => {
                     const Icon = step.icon;
                     const isActive = index === currentStepIndex;
-                    const isCompleted = !isError && index < currentStepIndex;
-                    const isErrorStep = isError && index === currentStepIndex;
+                    const isCompleted = !error && index < currentStepIndex;
+                    const isErrorStep = error && index === currentStepIndex;
 
                     return (
                       <div
@@ -244,7 +244,7 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deploye
                         <Icon />
                         <div className="flex-1">
                           <span className="font-medium text-gray-900 dark:text-white">{step.label}</span>
-                          {isActive && step.key === 'creating' && !isError && (
+                          {isActive && step.key === 'creating' && !error && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               Creating token {tokenName}
                             </p>
@@ -254,7 +254,7 @@ const ProgressModal = ({ isOpen, onClose, currentStep, tokenName, error, deploye
                     );
                   })}
                 </div>
-                {isError && (
+                {error && (
                   <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
                     <div className="flex items-start gap-3">
                       <Icons.Error />
@@ -517,105 +517,60 @@ export default function CreateTokenModal({ isOpen, onClose }) {
     return `${fee} ${currency}`;
   };
 
-  // Update the handleSuccess function
   const handleSuccess = async (deployedAddress, eventData, logoUrls) => {
     try {
-      // Get chain name based on chain ID
       const getChainName = (chainId) => {
         switch (chainId) {
           case 137:
-            return 'polygon';
+            return 'Polygon';
           case 11155111:
-            return 'sepolia';
+            return 'Sepolia';
           case 130:
-            return 'unichain-mainnet';
+            return 'Unichain Mainnet';
           case 1301:
-            return 'unichain';
+            return 'Unichain Testnet';
           case 1828369849:
-            return 'moonwalker';
+            return 'Moonwalker';
           case 10143:
-            return 'monad-testnet';
+            return 'Monad Testnet';
           default:
-            return 'unknown';
+            return 'Unknown';
         }
       };
 
-      const chainName = getChainName(currentChainId);
-      console.log('Saving token deployment with data:', {
-        name: eventData.name,
-        symbol: eventData.symbol,
-        address: deployedAddress,
-        chainId: currentChainId,
-        chainName,
-        logo: logoUrls.httpUrl,
-        logoIpfs: logoUrls.ipfsUrl,
-        description: formData.description,
-        totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
-        timestamp: Date.now(),
-        creatorAddress: account.toLowerCase(),
-        network: chainName // Add network field to match the expected format
-      });
+      // If we have the deployed address directly, use it even if saving deployment fails
+      if (deployedAddress) {
+        setDeployedTokenAddress(deployedAddress);
+      }
 
-      await addDeployment({
-        name: eventData.name,
-        symbol: eventData.symbol,
-        address: deployedAddress,
-        chainId: currentChainId,
-        chainName,
-        logo: logoUrls.httpUrl,
-        logoIpfs: logoUrls.ipfsUrl,
-        description: formData.description,
-        totalSupply: ethers.formatUnits(eventData.supply, eventData.decimals),
-        timestamp: Date.now(),
-        creatorAddress: account.toLowerCase(),
-        network: chainName // Add network field to match the expected format
-      });
+      // Try to save deployment
+      try {
+        const chainId = await getNetwork().then(network => network.chainId);
+        const deployment = {
+          address: deployedAddress,
+          name: formData.name,
+          symbol: formData.symbol,
+          decimals: 18,
+          totalSupply: formData.totalSupply,
+          logo: logoUrls?.logo,
+          logoIpfs: logoUrls?.logoIpfs,
+          timestamp: Date.now(),
+          chainId: chainId,
+          chainName: getChainName(chainId),
+          type: 'token'
+        };
+        await addDeployment(deployment);
+      } catch (error) {
+        console.warn('Error saving deployment:', error);
+        // Continue anyway since we have the address
+      }
 
-      console.log('Token deployment saved successfully');
-
-      // Initialize token transfer tracking
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      console.log('Initializing transfer tracking for token:', deployedAddress);
-      await trackTokenTransfers(deployedAddress, provider);
-      console.log('Transfer tracking initialized');
-
-      // Clear any existing toasts
-      toast.dismiss();
-      
-      setDeployedTokenAddress(deployedAddress);
+      // Show success state
       setProgressStep('completed');
-      setShowConfetti(true);
-
-      // Keep the success message visible for 10 seconds
-      setTimeout(() => {
-        setShowProgressModal(false);
-        setProgressStep(null);
-        setProgressError(null);
-        setDeployedTokenAddress(null);
-        
-        // Show rating modal after success message
-        setTimeout(() => {
-          setShowRatingModal(true);
-        }, 1000);
-        
-        // Cleanup confetti after some time
-        setTimeout(() => {
-          setShowConfetti(false);
-        }, 30000);
-      }, 10000); // Changed from 8000 to 10000
-
-      onClose();
-      setFormData({
-        name: '',
-        symbol: '',
-        totalSupply: '',
-        description: '',
-        logo: null
-      });
-      setPreviewLogo(null);
+      setProgressError(null);
     } catch (error) {
-      console.error('Error saving deployment:', error);
-      toast.error('Error saving deployment data');
+      console.error('Error in handleSuccess:', error);
+      setProgressError(error.message);
     }
   };
 
@@ -716,37 +671,51 @@ export default function CreateTokenModal({ isOpen, onClose }) {
         }
       });
 
+      // If we can't find the event in logs, try to get it from the transaction receipt events
+      let tokenAddress;
       if (!tokenCreatedEvent) {
-        console.error('Factory address:', factoryAddress);
-        console.error('Available logs:', receipt.logs);
-        console.error('Transaction hash:', tx.hash);
-        throw new Error('Token creation event not found');
+        // Try to get the address from transaction receipt events
+        const events = receipt.logs.map(log => {
+          try {
+            return factory.interface.parseLog(log);
+          } catch (e) {
+            return null;
+          }
+        }).filter(Boolean);
+        
+        const tokenEvent = events.find(event => event.name === 'TokenCreated');
+        if (tokenEvent) {
+          tokenAddress = tokenEvent.args[1]; // token address should be the second argument
+        } else {
+          console.error('Available logs:', receipt.logs);
+          throw new Error('Could not find token address in transaction events');
+        }
+      } else {
+        // Parse the event data using the factory interface
+        const parsedLog = factory.interface.parseLog({
+          topics: tokenCreatedEvent.topics,
+          data: tokenCreatedEvent.data
+        });
+        tokenAddress = parsedLog.args[1];
       }
 
-      // Parse the event data using the factory interface
-      const parsedLog = factory.interface.parseLog({
-        topics: tokenCreatedEvent.topics,
-        data: tokenCreatedEvent.data
-      });
+      // Set the token address immediately
+      if (tokenAddress) {
+        setDeployedTokenAddress(tokenAddress);
+        setProgressStep('completed');
+      } else {
+        throw new Error('Failed to get token address from transaction');
+      }
 
-      console.log('Parsed event log:', parsedLog);
-      console.log('Event arguments:', parsedLog.args);
-      
-      // Extract data from the parsed log
-      const tokenAddress = parsedLog.args[1];  // indexed tokenAddress
+      // Now try to handle the rest of the success flow
       const tokenData = {
-        name: parsedLog.args[2],      // non-indexed name
-        symbol: parsedLog.args[3],     // non-indexed symbol
-        decimals: parsedLog.args[4],   // non-indexed decimals
-        supply: parsedLog.args[5],     // non-indexed supply
-        logo: parsedLog.args[6]        // non-indexed logo
+        name: formData.name,
+        symbol: formData.symbol,
+        decimals: 18,
+        supply: ethers.parseUnits(formData.totalSupply, 18),
+        logo: logoUrls.ipfsUrl
       };
 
-      // Add Monad-specific error handling
-      if (currentChainId === CHAIN_IDS.MONAD_TESTNET && !tokenAddress) {
-        throw new Error('Token deployment failed on Monad Testnet. Please check your MON balance.');
-      }
-      
       await handleSuccess(tokenAddress, tokenData, logoUrls);
 
       // Show completed state and trigger confetti
