@@ -499,6 +499,12 @@ const NetworkStatus = ({ currentChainId }) => {
           status: 'supported',
           className: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
         };
+      case 10143:
+        return {
+          name: 'Monad Testnet',
+          status: 'supported',
+          className: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
+        };
       default:
         return {
           name: 'Unsupported Network',
@@ -518,7 +524,7 @@ const NetworkStatus = ({ currentChainId }) => {
       </div>
       {networkInfo.status === 'unsupported' && (
         <p className="text-xs mt-1">
-          Please switch to Unichain network (Testnet or Mainnet) to create pools
+          Please switch to Unichain network (Testnet or Mainnet) or Monad Testnet to create pools
         </p>
       )}
     </div>
@@ -589,17 +595,17 @@ export default function PoolCreation({ setActiveTab }) {
   }, []);
 
   // Add network validation
-  const isValidNetwork = currentChainId === 1301 || currentChainId === 130;
+  const isValidNetwork = currentChainId === 1301 || currentChainId === 130 || currentChainId === 10143;
 
   // Handle token selection
   const handleToken0Select = async (token) => {
     try {
       if (!isValidNetwork) {
-        toast.error('Please switch to Unichain network (Testnet or Mainnet)');
+        toast.error('Please switch to Unichain network (Testnet or Mainnet) or Monad Testnet');
         return;
       }
 
-      if (token.symbol === 'WETH') {
+      if (token.symbol === 'WETH' && currentChainId !== 10143) {
         toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
           duration: 6000,
           style: {
@@ -612,11 +618,12 @@ export default function PoolCreation({ setActiveTab }) {
       }
 
       let selectedToken;
-      if (token.symbol === 'ETH') {
+      if (token.symbol === 'ETH' || token.symbol === 'MON') {
         selectedToken = {
           ...token,
           address: UNISWAP_ADDRESSES[currentChainId]?.WETH,
-          decimals: 18
+          decimals: 18,
+          isNative: true
         };
       } else {
         try {
@@ -664,22 +671,49 @@ export default function PoolCreation({ setActiveTab }) {
           throw new Error('Invalid network configuration');
         }
 
-        const factoryContract = new ethers.Contract(
-          factoryAddress,
-          ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
-          provider
-        );
-        
-        const poolAddress = await factoryContract.getPair(selectedToken.address, token1.address);
-        
-        if (poolAddress && poolAddress !== ethers.ZeroAddress) {
-          setPoolExists({ address: poolAddress });
-          setError('pool exists');
-          setShowProgressModal(true);
-          setCurrentStep('preparing');
+        // For Monad testnet, use direct RPC calls
+        if (currentChainId === 10143) {
+          const getPairData = ethers.AbiCoder.defaultAbiCoder().encode(
+            ['address', 'address'],
+            [selectedToken.address, token1.address]
+          ).slice(2);
+          
+          const pairAddress = await window.ethereum.request({
+            method: 'eth_call',
+            params: [{
+              to: factoryAddress,
+              data: '0xe6a43905' + getPairData // getPair function selector
+            }, 'latest']
+          });
+          
+          if (pairAddress && pairAddress !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+            const actualAddress = '0x' + pairAddress.slice(26);
+            setPoolExists({ address: actualAddress });
+            setError('pool exists');
+            setShowProgressModal(true);
+            setCurrentStep('preparing');
+          } else {
+            setPoolExists(null);
+            setError(null);
+          }
         } else {
-          setPoolExists(null);
-          setError(null);
+          const factoryContract = new ethers.Contract(
+            factoryAddress,
+            ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
+            provider
+          );
+          
+          const poolAddress = await factoryContract.getPair(selectedToken.address, token1.address);
+          
+          if (poolAddress && poolAddress !== ethers.ZeroAddress) {
+            setPoolExists({ address: poolAddress });
+            setError('pool exists');
+            setShowProgressModal(true);
+            setCurrentStep('preparing');
+          } else {
+            setPoolExists(null);
+            setError(null);
+          }
         }
       }
     } catch (error) {
@@ -691,12 +725,12 @@ export default function PoolCreation({ setActiveTab }) {
   const handleToken1Select = async (token) => {
     try {
       if (!isValidNetwork) {
-        toast.error('Please switch to Unichain network (Testnet or Mainnet)');
+        toast.error('Please switch to Unichain network (Testnet or Mainnet) or Monad Testnet');
         return;
       }
 
       // Check for WETH and show warning
-      if (token.symbol === 'WETH') {
+      if (token.symbol === 'WETH' && currentChainId !== 10143) {
         toast.error('Please use ETH instead of WETH. The router will automatically convert ETH to WETH.', {
           duration: 6000,
           style: {
@@ -709,11 +743,12 @@ export default function PoolCreation({ setActiveTab }) {
       }
 
       let selectedToken;
-      if (token.symbol === 'ETH') {
+      if (token.symbol === 'ETH' || token.symbol === 'MON') {
         selectedToken = {
           ...token,
           address: UNISWAP_ADDRESSES[currentChainId]?.WETH,
-          decimals: 18
+          decimals: 18,
+          isNative: true
         };
       } else {
         // Try to get token info from Firebase first
@@ -838,7 +873,7 @@ export default function PoolCreation({ setActiveTab }) {
     }
 
     if (!isValidNetwork) {
-      toast.error('Please switch to Unichain network (Testnet or Mainnet)');
+      toast.error('Please switch to a supported network (Unichain or Monad Testnet)');
       return;
     }
 
@@ -869,13 +904,27 @@ export default function PoolCreation({ setActiveTab }) {
         throw new Error('Invalid network configuration');
       }
 
-      const factoryContract = new ethers.Contract(
-        factoryAddress,
-        ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
-        provider
-      );
-      
-      const poolAddress = await factoryContract.getPair(token0.address, token1.address);
+      // Check if pool exists
+      let poolAddress;
+      if (currentChainId === 10143) {
+        // For Monad testnet, use direct RPC call
+        const factoryInterface = new ethers.Interface([
+          'function getPair(address tokenA, address tokenB) external view returns (address pair)'
+        ]);
+        const data = factoryInterface.encodeFunctionData('getPair', [token0.address, token1.address]);
+        const result = await provider.call({
+          to: factoryAddress,
+          data: data
+        });
+        poolAddress = ethers.getAddress(ethers.dataSlice(result, 12));
+      } else {
+        const factoryContract = new ethers.Contract(
+          factoryAddress,
+          ['function getPair(address tokenA, address tokenB) external view returns (address pair)'],
+          provider
+        );
+        poolAddress = await factoryContract.getPair(token0.address, token1.address);
+      }
       
       if (poolAddress && poolAddress !== ethers.ZeroAddress) {
         setPoolExists({ address: poolAddress });
@@ -891,12 +940,95 @@ export default function PoolCreation({ setActiveTab }) {
       const parsedAmount0 = ethers.parseUnits(amount0, token0.decimals);
       const parsedAmount1 = ethers.parseUnits(amount1, token1.decimals);
 
-      await uniswap.createPool(
-        token0.address,
-        token1.address,
-        parsedAmount0,
-        parsedAmount1
-      );
+      // Handle pool creation based on network
+      if (currentChainId === 10143) {
+        // For Monad testnet
+        const routerAddress = UNISWAP_ADDRESSES[currentChainId].router;
+        const routerInterface = new ethers.Interface([
+          'function addLiquidity(address tokenA, address tokenB, uint amountADesired, uint amountBDesired, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB, uint liquidity)',
+          'function addLiquidityETH(address token, uint amountTokenDesired, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external payable returns (uint amountToken, uint amountETH, uint liquidity)'
+        ]);
+
+        const signer = await provider.getSigner();
+        const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
+
+        if (token0.isNative || token1.isNative) {
+          // Handle native MON + token pair
+          const tokenAddress = token0.isNative ? token1.address : token0.address;
+          const tokenAmount = token0.isNative ? parsedAmount1 : parsedAmount0;
+          const ethAmount = token0.isNative ? parsedAmount0 : parsedAmount1;
+
+          // Approve token first if needed
+          if (!token0.isNative) {
+            const tokenContract = new ethers.Contract(
+              token0.address,
+              ['function approve(address spender, uint256 amount) external returns (bool)'],
+              signer
+            );
+            await tokenContract.approve(routerAddress, parsedAmount0);
+          } else if (!token1.isNative) {
+            const tokenContract = new ethers.Contract(
+              token1.address,
+              ['function approve(address spender, uint256 amount) external returns (bool)'],
+              signer
+            );
+            await tokenContract.approve(routerAddress, parsedAmount1);
+          }
+
+          const tx = await signer.sendTransaction({
+            to: routerAddress,
+            data: routerInterface.encodeFunctionData('addLiquidityETH', [
+              tokenAddress,
+              tokenAmount,
+              tokenAmount,
+              ethAmount,
+              await signer.getAddress(),
+              deadline
+            ]),
+            value: ethAmount
+          });
+          await tx.wait();
+        } else {
+          // Handle token + token pair
+          // Approve both tokens
+          const token0Contract = new ethers.Contract(
+            token0.address,
+            ['function approve(address spender, uint256 amount) external returns (bool)'],
+            signer
+          );
+          const token1Contract = new ethers.Contract(
+            token1.address,
+            ['function approve(address spender, uint256 amount) external returns (bool)'],
+            signer
+          );
+
+          await token0Contract.approve(routerAddress, parsedAmount0);
+          await token1Contract.approve(routerAddress, parsedAmount1);
+
+          const tx = await signer.sendTransaction({
+            to: routerAddress,
+            data: routerInterface.encodeFunctionData('addLiquidity', [
+              token0.address,
+              token1.address,
+              parsedAmount0,
+              parsedAmount1,
+              parsedAmount0,
+              parsedAmount1,
+              await signer.getAddress(),
+              deadline
+            ])
+          });
+          await tx.wait();
+        }
+      } else {
+        // For other networks, use existing uniswap service
+        await uniswap.createPool(
+          token0.address,
+          token1.address,
+          parsedAmount0,
+          parsedAmount1
+        );
+      }
 
       setCurrentStep('completed');
       
