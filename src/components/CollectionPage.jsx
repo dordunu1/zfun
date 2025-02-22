@@ -1022,8 +1022,10 @@ export default function CollectionPage() {
   // Update the mint button section to include end time check
   const renderMintButton = () => {
     const now = Date.now();
+    const releaseDate = new Date(collection.releaseDate);
     const mintEndDate = collection.mintEndDate ? new Date(collection.mintEndDate) : null;
     const isMintEnded = !collection.infiniteMint && mintEndDate && now >= mintEndDate;
+    const isBeforeRelease = now < releaseDate;
 
     // Determine if on wrong network
     const expectedChainId = collection.network === 'unichain-mainnet' || collection.chainId === 130 ? 130 :
@@ -1032,13 +1034,6 @@ export default function CollectionPage() {
                            collection.network === 'moonwalker' || collection.chainId === 1828369849 ? 1828369849 :
                            collection.network === 'monad-testnet' || collection.chainId === 10143 ? 10143 :
                            collection.network === 'polygon' ? 137 : null;
-    
-    console.log('Network Check:', {
-      currentChainId,
-      expectedChainId,
-      collectionNetwork: collection.network,
-      collectionChainId: collection.chainId
-    });
     
     const isWrongNetwork = currentChainId && currentChainId !== expectedChainId;
 
@@ -1052,7 +1047,18 @@ export default function CollectionPage() {
 
     return (
       <div className="flex flex-col gap-2">
-        {!collection.infiniteMint && (
+        {/* Show countdown timer when before release */}
+        {isBeforeRelease && (
+          <div className="mb-4">
+            <div className="text-center mb-2">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Minting Starts In</h3>
+            </div>
+            <CountdownTimer targetDate={releaseDate} />
+          </div>
+        )}
+
+        {/* Show mint end countdown if applicable */}
+        {!collection.infiniteMint && isLive && !isMintEnded && (
           <MintEndCountdown 
             endDate={collection.mintEndDate} 
             infiniteMint={collection.infiniteMint}
@@ -1107,7 +1113,7 @@ export default function CollectionPage() {
         <button
           onClick={handleMint}
           disabled={
-            !isLive || 
+            isBeforeRelease ||
             isMintEnded ||
             isWrongNetwork ||
             (collection.enableWhitelist ? (
@@ -1120,6 +1126,7 @@ export default function CollectionPage() {
             mintAmount === 0
           }
           className={`w-full py-3 ${
+            isBeforeRelease ? 'bg-gray-400 cursor-not-allowed' :
             isMintEnded ? 'bg-gray-400 cursor-not-allowed' :
             isWrongNetwork ? 'bg-yellow-500 hover:bg-yellow-600 text-black' :
             collection.enableWhitelist && (!whitelistChecked || !isWhitelisted)
@@ -1128,7 +1135,7 @@ export default function CollectionPage() {
           } disabled:opacity-50 disabled:cursor-not-allowed font-bold rounded-lg text-lg transition-colors`}
         >
           {!account ? 'Connect Wallet' :
-           !isLive ? 'Minting Not Live' :
+           isBeforeRelease ? 'Minting Not Live Yet' :
            isMintEnded ? 'Minting Ended' :
            isWrongNetwork ? `Switch to ${networkDisplayName} Network` :
            collection.enableWhitelist && !whitelistChecked ? 'Check Whitelist Status' :

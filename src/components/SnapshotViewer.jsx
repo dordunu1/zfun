@@ -114,18 +114,47 @@ const SnapshotViewer = ({ onClose }) => {
 
             // Create contract instance
             const provider = new ethers.BrowserProvider(window.ethereum);
-            const contract = new ethers.Contract(inputTokenAddress, MemeTokenABI.abi, provider);
+            const chainId = await provider.getNetwork().then(n => Number(n.chainId));
 
-            // Try to call basic functions to verify it's a valid token contract
-            await Promise.all([
-                contract.name(),
-                contract.symbol(),
-                contract.owner()
-            ]);
+            // Special handling for Monad testnet
+            if (chainId === 10143) {
+                const contract = new ethers.Contract(inputTokenAddress, MemeTokenABI.abi, provider);
+                
+                // Try to call basic functions to verify it's a valid token contract
+                try {
+                    await Promise.all([
+                        contract.name(),
+                        contract.symbol(),
+                        contract.owner(),
+                        contract.snapshot() // Check if snapshot function exists
+                    ]);
 
-            setVerifiedTokenAddress(inputTokenAddress);
-            setTokenContract(contract);
-            toast.success('Token contract verified', toastOptions);
+                    setVerifiedTokenAddress(inputTokenAddress);
+                    setTokenContract(contract);
+                    toast.success('Token contract verified', toastOptions);
+                } catch (err) {
+                    // If snapshot function doesn't exist, show specific error
+                    if (err.message.includes('snapshot')) {
+                        setError('This token does not support snapshots. Make sure you are using the correct token contract.');
+                    } else {
+                        setError('Invalid token contract. Please check the address and try again.');
+                    }
+                    setVerifiedTokenAddress('');
+                    setTokenContract(null);
+                }
+            } else {
+                // Original logic for other networks
+                const contract = new ethers.Contract(inputTokenAddress, MemeTokenABI.abi, provider);
+                await Promise.all([
+                    contract.name(),
+                    contract.symbol(),
+                    contract.owner()
+                ]);
+
+                setVerifiedTokenAddress(inputTokenAddress);
+                setTokenContract(contract);
+                toast.success('Token contract verified', toastOptions);
+            }
         } catch (err) {
             console.error('Error verifying token:', err);
             setError('Invalid token contract. Please check the address and try again.');
@@ -141,6 +170,9 @@ const SnapshotViewer = ({ onClose }) => {
         const fetchSnapshots = async () => {
             try {
                 setLoading(true);
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+
                 // Get past Snapshot events
                 const filter = tokenContract.filters.Snapshot();
                 const events = await tokenContract.queryFilter(filter);
@@ -154,7 +186,6 @@ const SnapshotViewer = ({ onClose }) => {
                 
                 // Try to get timestamps, but don't fail if we can't
                 try {
-                    const provider = new ethers.BrowserProvider(window.ethereum);
                     const updatedSnapshotData = await Promise.all(
                         snapshotData.map(async (snapshot) => {
                             try {
@@ -182,7 +213,7 @@ const SnapshotViewer = ({ onClose }) => {
                 setLoading(false);
             } catch (err) {
                 console.error('Error fetching snapshots:', err);
-                setError('Failed to load snapshots');
+                setError('Failed to load snapshots. This may not be supported on the current network.');
                 setLoading(false);
             }
         };
