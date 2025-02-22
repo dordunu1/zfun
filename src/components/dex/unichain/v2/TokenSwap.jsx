@@ -469,14 +469,41 @@ const SwapProgressModal = ({ isOpen, onClose, currentStep, tokenIn, tokenOut, er
 };
 
 // Update WrapProgressModal component
-const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken }) => {
-  const isWrapping = fromToken?.symbol === 'ETH';
+const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken, error }) => {
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const [chainId, setChainId] = useState(null);
+
+  useEffect(() => {
+    const getChainId = async () => {
+      const network = await provider.getNetwork();
+      setChainId(Number(network.chainId));
+    };
+    getChainId();
+  }, [provider]);
+
+  const isWrapping = fromToken?.symbol === (chainId === 10143 ? 'MON' : 'ETH');
   const steps = [
     { id: 'preparing', title: 'Preparing', icon: <WrapIcons.Preparing /> },
     { id: 'wrapping', title: isWrapping ? 'Wrapping' : 'Unwrapping', icon: isWrapping ? <WrapIcons.Wrapping /> : <WrapIcons.Unwrapping /> },
     { id: 'confirming', title: 'Confirming', icon: <WrapIcons.Confirming /> },
     { id: 'completed', title: 'Completed', icon: <WrapIcons.Completed /> }
   ];
+
+  const isError = Boolean(error);
+
+  const formatErrorMessage = (error) => {
+    if (!error) return '';
+    if (error.includes('user rejected')) return 'Transaction was rejected. Please try again.';
+    if (error.includes('insufficient funds')) return 'Insufficient balance for the operation.';
+    return error;
+  };
+
+  const getOperationText = () => {
+    if (chainId === 10143) {
+      return isWrapping ? 'MON to WMONAD' : 'WMONAD to MON';
+    }
+    return isWrapping ? 'ETH to WETH' : 'WETH to ETH';
+  };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -509,46 +536,38 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                   as="h3"
                   className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4"
                 >
-                  {isWrapping ? 'Wrapping ETH' : 'Unwrapping WETH'}
+                  {isError ? 'Error Processing Transaction' : (isWrapping ? `Wrapping ${getOperationText()}` : `Unwrapping ${getOperationText()}`)}
                 </Dialog.Title>
 
                 <div className="space-y-4">
-                  {steps.map((step, index) => {
+                  {steps.map((step) => {
                     const isActive = currentStep === step.id;
-                    const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+                    const isCompleted = !isError && steps.findIndex(s => s.id === currentStep) > steps.findIndex(s => s.id === step.id);
+                    const isErrorStep = isError && currentStep === step.id;
                     
                     return (
                       <div
                         key={step.id}
-                        className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 ${
-                          isActive ? 'bg-[#00ffbd]/10 border-[#00ffbd] border' : 
-                          isCompleted ? 'bg-gray-100 dark:bg-gray-800/50' : 
-                          'bg-gray-50 dark:bg-gray-800/20'
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                          isActive && !isErrorStep ? 'bg-[#00ffbd]/10 text-[#00ffbd]' : 
+                          isCompleted ? 'text-[#00ffbd]' : 
+                          isErrorStep ? 'bg-red-500/10 text-red-500' : 
+                          'text-gray-400'
                         }`}
                       >
-                        <div 
-                          className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-200 ${
-                            isActive ? 'text-[#00ffbd] animate-pulse' : 
-                            isCompleted ? 'text-[#00ffbd]' : 
-                            'text-gray-400 dark:text-gray-600'
-                          }`}
-                        >
-                          {step.icon}
-                        </div>
+                        {step.icon}
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 dark:text-white">
-                            {step.title}
-                          </h4>
-                          {isActive && (
+                          <span className="font-medium text-gray-900 dark:text-white">{step.title}</span>
+                          {isActive && !isError && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                               {step.id === 'preparing' && 'Preparing transaction...'}
                               {step.id === 'wrapping' && (isWrapping 
-                                ? 'Converting ETH to WETH...' 
-                                : 'Converting WETH to ETH...')}
+                                ? `Converting ${chainId === 10143 ? 'MON to WMONAD' : 'ETH to WETH'}...` 
+                                : `Converting ${chainId === 10143 ? 'WMONAD to MON' : 'WETH to ETH'}...`)}
                               {step.id === 'confirming' && 'Waiting for confirmation...'}
                               {step.id === 'completed' && (isWrapping 
-                                ? 'Successfully wrapped ETH to WETH!' 
-                                : 'Successfully unwrapped WETH to ETH!')}
+                                ? `Successfully wrapped ${chainId === 10143 ? 'MON to WMONAD' : 'ETH to WETH'}!` 
+                                : `Successfully unwrapped ${chainId === 10143 ? 'WMONAD to MON' : 'WETH to ETH'}!`)}
                             </p>
                           )}
                         </div>
@@ -561,6 +580,28 @@ const WrapProgressModal = ({ isOpen, onClose, currentStep, fromToken, toToken })
                     );
                   })}
                 </div>
+
+                {isError && (
+                  <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-start gap-3">
+                      <Icons.Error />
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-red-500">Error Details</h3>
+                        <p className="mt-1 text-sm text-red-400">
+                          {formatErrorMessage(error)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {currentStep === 'completed' && (
                   <div className="mt-6">
@@ -700,6 +741,14 @@ const getNetworkMessage = (chainId) => {
   }
   return null;
 };
+
+// Add WMONAD ABI
+const WMONAD_ABI = [
+  'function deposit() external payable',
+  'function withdraw(uint256 amount) external',
+  'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender, uint256 amount) external returns (bool)'
+];
 
 export default function TokenSwap() {
   const { address, isConnected } = useAccount();
@@ -861,8 +910,16 @@ export default function TokenSwap() {
   // Update useEffect for route calculation
   useEffect(() => {
     const updateRoute = async () => {
-      if (!fromToken || !toToken || !fromAmount || !uniswap) {
+      if (!fromToken || !toToken || !fromAmount) {
         setToAmount('');
+        setRoute(null);
+        setRouteError(null);
+        return;
+      }
+
+      // For wrap/unwrap operations, set toAmount equal to fromAmount
+      if (isWrapUnwrapOperation()) {
+        setToAmount(fromAmount);
         setRoute(null);
         setRouteError(null);
         return;
@@ -1142,20 +1199,17 @@ export default function TokenSwap() {
       setTimeout(() => {
         setShowProgressModal(false);
         setSwapStep(null);
+        setShowConfetti(true);
         
         setTimeout(() => {
-          setShowConfetti(true);
-          
-          setTimeout(() => {
-            setShowRatingModal(true);
-          }, 1000);
-          
-          setTimeout(() => {
-            setFromAmount('');
-            setToAmount('');
-            setShowConfetti(false);
-          }, 30000);
-        }, 100);
+          setShowRatingModal(true);
+        }, 1000);
+        
+        setTimeout(() => {
+          setFromAmount('');
+          setToAmount('');
+          setShowConfetti(false);
+        }, 30000);
       }, 1000);
 
     } catch (error) {
@@ -1200,59 +1254,88 @@ export default function TokenSwap() {
 
   // Add new function for wrapping/unwrapping
   const handleWrapUnwrap = async () => {
-    if (!address || !fromToken || !fromAmount) return;
-    
+    if (!address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+
+    if (!fromToken || !toToken || !fromAmount) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
     setLoading(true);
     setShowProgressModal(true);
     setSwapStep('preparing');
-    
-    try {
-      const amount = ethers.parseUnits(fromAmount, 18); // Both ETH and WETH use 18 decimals
+    setSwapError(null);
 
-      setSwapStep('wrapping');
-      if (fromToken.symbol === 'ETH' && toToken?.symbol === 'WETH') {
-        await uniswap.wrapETH(amount);
-      } else if (fromToken.symbol === 'WETH' && toToken?.symbol === 'ETH') {
-        await uniswap.unwrapWETH(amount);
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+      const parsedAmount = ethers.parseUnits(fromAmount, 18);
+
+      if (chainId === 10143) {
+        // Handle MON/WMONAD on Monad testnet
+        const wmonadContract = new ethers.Contract(
+          '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701', // WMONAD address
+          WMONAD_ABI,
+          signer
+        );
+
+        if (fromToken.symbol === 'MON') {
+          // Wrap MON to WMONAD
+          setSwapStep('wrapping');
+          const tx = await wmonadContract.deposit({ value: parsedAmount });
+          setSwapStep('confirming');
+          await tx.wait();
+        } else {
+          // Unwrap WMONAD to MON
+          setSwapStep('unwrapping');
+          const tx = await wmonadContract.withdraw(parsedAmount);
+          setSwapStep('confirming');
+          await tx.wait();
+        }
+      } else {
+        // Original ETH/WETH handling for other networks
+        if (fromToken.symbol === 'ETH') {
+          // Wrap ETH to WETH
+          setSwapStep('wrapping');
+          const tx = await uniswap.wrapETH(parsedAmount);
+          setSwapStep('confirming');
+          await tx.wait();
+        } else {
+          // Unwrap WETH to ETH
+          setSwapStep('unwrapping');
+          const tx = await uniswap.unwrapWETH(parsedAmount);
+          setSwapStep('confirming');
+          await tx.wait();
+        }
       }
 
-      setSwapStep('confirming');
-      // Small delay to show the confirming state
-      await new Promise(resolve => setTimeout(resolve, 1000));
       setSwapStep('completed');
-
+      
       // Show completed state briefly, then close modal and show confetti
       setTimeout(() => {
         setShowProgressModal(false);
         setSwapStep(null);
+        setShowConfetti(true);
         
-        // Show confetti after modal is closed
         setTimeout(() => {
-          setShowConfetti(true);
-          
-          // Show rating modal after a short delay
-          setTimeout(() => {
-            setShowRatingModal(true);
-          }, 1000);
-          
-          // Reset form and cleanup after confetti (30 seconds)
-          setTimeout(() => {
-            setFromAmount('');
-            setToAmount('');
-            setShowConfetti(false);
-          }, 30000); // 30 seconds
-        }, 100);
+          setShowRatingModal(true);
+        }, 1000);
+        
+        setTimeout(() => {
+          setFromAmount('');
+          setToAmount('');
+          setShowConfetti(false);
+        }, 30000);
       }, 1000);
 
-      // Reset form
-      setFromAmount('');
-      setToAmount('');
     } catch (error) {
       console.error('Wrap/Unwrap error:', error);
-      setShowProgressModal(false);
-      setSwapStep(null);
-      setShowConfetti(false);
-      toast.error(error.message || 'Transaction failed. Please try again.');
+      setSwapError(error.message || 'Transaction failed. Please try again.');
+      setSwapStep('error');
     } finally {
       setLoading(false);
     }
@@ -1260,6 +1343,10 @@ export default function TokenSwap() {
 
   // Helper function to determine if it's a wrap/unwrap operation
   const isWrapUnwrapOperation = () => {
+    if (currentChainId === 10143) {
+      return (fromToken?.symbol === 'MON' && toToken?.symbol === 'WMONAD') ||
+             (fromToken?.symbol === 'WMONAD' && toToken?.symbol === 'MON');
+    }
     return (fromToken?.symbol === 'ETH' && toToken?.symbol === 'WETH') ||
            (fromToken?.symbol === 'WETH' && toToken?.symbol === 'ETH');
   };
@@ -1271,8 +1358,12 @@ export default function TokenSwap() {
     if (!fromToken || !toToken) return 'Select Tokens';
     if (!fromAmount) return 'Enter Amount';
     if (routeError && !isWrapUnwrapOperation()) return 'No Route Available';
-    if (fromToken.symbol === 'ETH' && toToken?.symbol === 'WETH') return 'Wrap ETH to WETH';
-    if (fromToken.symbol === 'WETH' && toToken?.symbol === 'ETH') return 'Unwrap WETH to ETH';
+    if (currentChainId === 10143) {
+      if (fromToken?.symbol === 'MON' && toToken?.symbol === 'WMONAD') return 'Wrap MON to WMONAD';
+      if (fromToken?.symbol === 'WMONAD' && toToken?.symbol === 'MON') return 'Unwrap WMONAD to MON';
+    }
+    if (fromToken?.symbol === 'ETH' && toToken?.symbol === 'WETH') return 'Wrap ETH to WETH';
+    if (fromToken?.symbol === 'WETH' && toToken?.symbol === 'ETH') return 'Unwrap WETH to ETH';
     return 'Swap';
   };
 
@@ -1653,10 +1744,12 @@ export default function TokenSwap() {
           onClose={() => {
             setShowProgressModal(false);
             setSwapStep(null);
+            setSwapError(null);
           }}
           currentStep={swapStep}
           fromToken={fromToken}
           toToken={toToken}
+          error={swapError}
         />
       ) : (
         <SwapProgressModal

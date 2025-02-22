@@ -16,11 +16,11 @@ import { useNavigate } from 'react-router-dom';
 const getCommonTokens = (chainId) => {
   switch (chainId) {
     case 10143: // Monad testnet
-      return [
-        {
+  return [
+    {
           symbol: 'MON',
           name: 'Monad',
-          decimals: 18,
+      decimals: 18,
           logo: '/monad.png',
           isNative: true
         },
@@ -28,7 +28,7 @@ const getCommonTokens = (chainId) => {
           address: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
           symbol: 'WMONAD',
           name: 'Wrapped Monad',
-          decimals: 18,
+      decimals: 18,
           logo: '/monad.png'
         },
         {
@@ -100,9 +100,9 @@ const TokenBalance = ({ token, chainId }) => {
             setBalance(ethers.formatEther(balance));
           } else {
             // For other tokens
-            const tokenContract = new ethers.Contract(
-              token.address,
-              ['function balanceOf(address) view returns (uint256)'],
+          const tokenContract = new ethers.Contract(
+            token.address,
+            ['function balanceOf(address) view returns (uint256)'],
               provider
             );
             const balance = await tokenContract.balanceOf(userAddress);
@@ -677,7 +677,7 @@ export default function AddLiquidity() {
       
       if (chainId === 10143) {
         // Handle Monad testnet
-        const signer = await provider.getSigner();
+      const signer = await provider.getSigner();
         const routerAddress = UNISWAP_ADDRESSES[10143].router;
         const routerInterface = new ethers.Interface([
           'function addLiquidity(address tokenA, address tokenB, uint amountADesired, uint amountBDesired, uint amountAMin, uint amountBMin, address to, uint deadline) external returns (uint amountA, uint amountB, uint liquidity)',
@@ -705,8 +705,8 @@ export default function AddLiquidity() {
             const tokenContract = new ethers.Contract(
               pool.token0.address,
               ['function approve(address spender, uint256 amount) external returns (bool)'],
-              signer
-            );
+        signer
+      );
             await tokenContract.approve(routerAddress, parsedAmount0);
           } else if (!isToken1Native) {
             const tokenContract = new ethers.Contract(
@@ -810,20 +810,20 @@ export default function AddLiquidity() {
             await tokenContract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount1);
           }
 
-          setCurrentStep('adding');
+        setCurrentStep('adding');
           const tx = await routerContract.addLiquidityETH(
-            tokenAddress,
-            tokenAmount,
+          tokenAddress,
+          tokenAmount,
             tokenAmount * 99n / 100n, // 1% slippage
             ethAmount * 99n / 100n, // 1% slippage
             address,
-            deadline,
+          deadline,
             { value: ethAmount }
-          );
+        );
 
           setCurrentStep('confirming');
           await tx.wait();
-        } else {
+      } else {
           // Handle token + token pair
           // Approve both tokens
           const token0Contract = new ethers.Contract(
@@ -840,25 +840,25 @@ export default function AddLiquidity() {
           await token0Contract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount0);
           await token1Contract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount1);
 
-          setCurrentStep('adding');
+        setCurrentStep('adding');
           const tx = await routerContract.addLiquidity(
             pool.token0.address,
             pool.token1.address,
-            parsedAmount0,
-            parsedAmount1,
+          parsedAmount0,
+          parsedAmount1,
             parsedAmount0 * 99n / 100n, // 1% slippage
             parsedAmount1 * 99n / 100n, // 1% slippage
             address,
             deadline
           );
 
-          setCurrentStep('confirming');
+      setCurrentStep('confirming');
           await tx.wait();
         }
       }
 
       setCurrentStep('completed');
-      setShowConfetti(true);
+          setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 5000);
     } catch (error) {
       console.error('Error adding liquidity:', error);

@@ -317,6 +317,12 @@ const MULTICALL_ADDRESSES = {
 const balanceCache = new Map();
 const CACHE_DURATION = 30000; // 30 seconds
 
+// Update Blockscout API endpoints
+const BLOCKSCOUT_URLS = {
+  1301: 'https://unichain-sepolia.blockscout.com/api/v2/addresses',
+  130: 'https://unichain.blockscout.com/api/v2/addresses'
+};
+
 export default function TokenSelectionModal({ isOpen, onClose, onSelect, selectedTokenAddress }) {
   const { address: userAddress } = useAccount();
   const [searchQuery, setSearchQuery] = useState('');
@@ -330,172 +336,168 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   const [currentChainId, setCurrentChainId] = useState(null);
 
   const fetchTokensAndBalances = async () => {
-    if (!isOpen || !userAddress || !window.ethereum) return;
+    if (!isOpen || !userAddress || !window.ethereum) {
+      console.log('Early return conditions:', { isOpen, userAddress, hasEthereum: !!window.ethereum });
+      return;
+    }
     
     setIsLoading(true);
     setError('');
     
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+      // Get chainId directly from ethereum provider to avoid ENS issues
+      const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+      const chainId = parseInt(chainIdHex, 16);
+      console.log('Current chain ID:', chainId);
       setCurrentChainId(chainId);
-
-      // Check if search query is a valid address
-      if (ethers.isAddress(searchQuery)) {
-        try {
-          // For Monad testnet, use direct RPC calls
-          if (chainId === 10143) {
-            const tokenContract = new ethers.Contract(
-              searchQuery,
-              [
-                'function symbol() view returns (string)',
-                'function name() view returns (string)',
-                'function decimals() view returns (uint8)',
-                'function balanceOf(address) view returns (uint256)'
-              ],
-              provider
-            );
-
-            const [symbol, name, decimals, balance] = await Promise.all([
-              window.ethereum.request({
-                method: 'eth_call',
-                params: [{
-                  to: searchQuery,
-                  data: tokenContract.interface.encodeFunctionData('symbol')
-                }, 'latest']
-              }).then(data => tokenContract.interface.decodeFunctionResult('symbol', data)[0]),
-              window.ethereum.request({
-                method: 'eth_call',
-                params: [{
-                  to: searchQuery,
-                  data: tokenContract.interface.encodeFunctionData('name')
-                }, 'latest']
-              }).then(data => tokenContract.interface.decodeFunctionResult('name', data)[0]),
-              window.ethereum.request({
-                method: 'eth_call',
-                params: [{
-                  to: searchQuery,
-                  data: tokenContract.interface.encodeFunctionData('decimals')
-                }, 'latest']
-              }).then(data => tokenContract.interface.decodeFunctionResult('decimals', data)[0]),
-              window.ethereum.request({
-                method: 'eth_call',
-                params: [{
-                  to: searchQuery,
-                  data: tokenContract.interface.encodeFunctionData('balanceOf', [userAddress])
-                }, 'latest']
-              }).then(data => tokenContract.interface.decodeFunctionResult('balanceOf', data)[0])
-            ]);
-
-            const customToken = {
-              address: searchQuery,
-              symbol,
-              name,
-              decimals,
-              balance: ethers.formatUnits(balance, decimals)
-            };
-
-            setTokensWithBalance([customToken]);
-            setTokenBalances({
-              [searchQuery]: {
-                raw: balance.toString(),
-                formatted: ethers.formatUnits(balance, decimals)
-              }
-            });
-            setIsLoading(false);
-            return;
-          } else {
-            // For other networks, use ethers contract as before
-            const tokenContract = new ethers.Contract(
-              searchQuery,
-              [
-                'function symbol() view returns (string)',
-                'function name() view returns (string)',
-                'function decimals() view returns (uint8)',
-                'function balanceOf(address) view returns (uint256)'
-              ],
-              provider
-            );
-
-            const [symbol, name, decimals, balance] = await Promise.all([
-              tokenContract.symbol().catch(() => 'Unknown'),
-              tokenContract.name().catch(() => 'Unknown Token'),
-              tokenContract.decimals().catch(() => 18),
-              tokenContract.balanceOf(userAddress).catch(() => '0')
-            ]);
-
-            const customToken = {
-              address: searchQuery,
-              symbol,
-              name,
-              decimals,
-              balance: ethers.formatUnits(balance, decimals)
-            };
-
-            setTokensWithBalance([customToken]);
-            setTokenBalances({
-              [searchQuery]: {
-                raw: balance.toString(),
-                formatted: ethers.formatUnits(balance, decimals)
-              }
-            });
-          }
-        } catch (err) {
-          console.error('Error fetching custom token:', err);
-          setError('Could not fetch token information. Please verify the contract address.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const tokens = COMMON_TOKENS[chainId] || [];
 
       // Check cache first
       const cacheKey = `${userAddress}-${chainId}`;
       const cachedData = balanceCache.get(cacheKey);
       if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
+        console.log('Using cached balances:', cachedData);
         setTokenBalances(cachedData.balances);
         setTokensWithBalance(cachedData.tokensWithBalance);
         setIsLoading(false);
         return;
       }
 
+      // Get both common tokens and Blockscout tokens
+      let allTokens = [...(COMMON_TOKENS[chainId] || [])];
       const newBalances = {};
-      
-      // Get native token balance first
+
+      // Fetch additional tokens from Blockscout for Unichain networks
+      if (chainId === 1301 || chainId === 130) {
+        try {
+          const blockscoutUrl = BLOCKSCOUT_URLS[chainId];
+          console.log('Fetching tokens from Blockscout:', `${blockscoutUrl}/${userAddress}/token-balances`);
+          
+          const response = await fetch(
+            `${blockscoutUrl}/${userAddress}/token-balances`,
+            {
+              headers: {
+                'Accept': 'application/json'
+              }
+            }
+          );
+
+          console.log('Blockscout response status:', response.status);
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Blockscout tokens data:', data);
+
+            const blockscoutTokens = data
+              .filter(item => {
+                const isValidToken = item.token?.type === 'ERC-20' && 
+                                   ethers.isAddress(item.token?.address) && 
+                                   !item.token?.symbol?.includes('LP') && 
+                                   !item.token?.symbol?.includes('UNI-V2');
+                
+                // Check for TEMP in various forms
+                const hasTemp = (str) => {
+                  if (!str) return false;
+                  const lowerStr = str.toLowerCase();
+                  return lowerStr.includes('temp') || 
+                         lowerStr.includes('tmp') ||
+                         lowerStr.includes('temporary');
+                };
+                
+                const isNotTempToken = !hasTemp(item.token?.symbol) && !hasTemp(item.token?.name);
+                
+                // Don't add tokens that are already in common tokens
+                const isDuplicate = allTokens.some(t => 
+                  t.address?.toLowerCase() === item.token?.address?.toLowerCase()
+                );
+                
+                return isValidToken && isNotTempToken && !isDuplicate;
+              })
+              .map(item => ({
+                address: item.token.address,
+                symbol: item.token.symbol || 'Unknown',
+                name: item.token.name || 'Unknown Token',
+                decimals: parseInt(item.token.decimals || '18'),
+                logo: item.token.icon_url || '/token-default.png',
+                balance: item.value || '0'
+              }));
+            
+            console.log('Processed Blockscout tokens:', blockscoutTokens);
+            allTokens = [...allTokens, ...blockscoutTokens];
+          }
+        } catch (err) {
+          console.warn('Error fetching Blockscout tokens:', err);
+        }
+      }
+
+      // Get native token balance (MON for Monad testnet, ETH for Unichain)
       try {
+        console.log('Fetching native token balance...');
         const nativeBalance = await window.ethereum.request({
           method: 'eth_getBalance',
           params: [userAddress, 'latest']
         });
+        console.log('Raw native balance:', nativeBalance);
         const balanceBigInt = BigInt(nativeBalance);
-        newBalances['MON'] = {
+        const nativeSymbol = chainId === 10143 ? 'MON' : 'ETH';
+        const formattedBalance = ethers.formatEther(balanceBigInt);
+        console.log('Formatted native balance:', { symbol: nativeSymbol, balance: formattedBalance });
+        
+        newBalances[nativeSymbol] = {
           raw: balanceBigInt.toString(),
-          formatted: ethers.formatEther(balanceBigInt)
+          formatted: formattedBalance
         };
       } catch (err) {
-        console.warn('Error fetching native balance:', err);
-        newBalances['MON'] = { raw: '0', formatted: '0' };
+        console.error('Error fetching native balance:', err);
+        const nativeSymbol = chainId === 10143 ? 'MON' : 'ETH';
+        newBalances[nativeSymbol] = { raw: '0', formatted: '0' };
       }
 
-      // Get ERC20 token balances in parallel
-      const tokenPromises = tokens
-        .filter(token => !token.isNative && token.address)
+      // Get ERC20 token balances
+      console.log('Starting ERC20 token balance fetching for all tokens:', allTokens);
+      const tokenPromises = allTokens
+        .filter(token => !token.isNative && token.address && token.address !== 'ETH')
         .map(async (token) => {
           try {
-            const tokenContract = new ethers.Contract(
-              token.address,
-              ['function balanceOf(address) view returns (uint256)'],
-              provider
-            );
-            const balance = await tokenContract.balanceOf(userAddress);
+            console.log('Fetching balance for token:', token);
+            
+            // Use direct RPC calls for all networks to avoid ENS issues
+            const data = ethers.AbiCoder.defaultAbiCoder().encode(
+              ['address'],
+              [userAddress]
+            ).slice(2);
+            
+            const balanceOfSelector = '0x70a08231'; // balanceOf(address)
+            const callData = balanceOfSelector + data;
+            
+            console.log('Making RPC call with data:', {
+              to: token.address,
+              data: callData
+            });
+            
+            const result = await window.ethereum.request({
+              method: 'eth_call',
+              params: [{
+                to: token.address,
+                data: callData
+              }, 'latest']
+            });
+            
+            console.log('Raw balance result:', result);
+            const balance = BigInt(result || '0');
+            const formatted = ethers.formatUnits(balance, token.decimals || 18);
+
+            console.log('Token balance fetched:', {
+              token: token.symbol,
+              balance: balance.toString(),
+              formatted
+            });
+
             return {
               token,
               balance: balance.toString(),
-              formatted: ethers.formatUnits(balance, token.decimals)
+              formatted
             };
           } catch (err) {
-            console.warn(`Error fetching balance for token ${token.symbol}:`, err);
+            console.error(`Error fetching balance for token ${token.symbol}:`, err);
             return {
               token,
               balance: '0',
@@ -504,7 +506,9 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
           }
         });
 
+      console.log('Waiting for all token balances...');
       const tokenResults = await Promise.all(tokenPromises);
+      console.log('All token balances received:', tokenResults);
 
       // Update balances object
       tokenResults.forEach(({ token, balance, formatted }) => {
@@ -515,10 +519,36 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       });
 
       // Update tokens with balances
-      const tokensWithBalances = tokens.map(token => ({
-        ...token,
-        balance: token.isNative ? newBalances['MON']?.formatted || '0' : newBalances[token.address]?.formatted || '0'
-      }));
+      const tokensWithBalances = allTokens.map(token => {
+        let balance;
+        if (token.isNative || token.address === 'ETH') {
+          // For native token (ETH/MON)
+          balance = newBalances[chainId === 10143 ? 'MON' : 'ETH']?.formatted || '0';
+        } else if (token.symbol === 'WETH' && chainId === 1301) {
+          // Special case for WETH on Unichain testnet
+          balance = newBalances[UNISWAP_ADDRESSES[1301].WETH]?.formatted || '0';
+        } else {
+          // For other ERC20 tokens
+          balance = newBalances[token.address]?.formatted || '0';
+        }
+        
+        console.log('Mapping token balance:', {
+          token: token.symbol,
+          isNative: token.isNative,
+          address: token.address,
+          balance
+        });
+
+        return {
+          ...token,
+          balance
+        };
+      });
+
+      console.log('Final balances:', {
+        newBalances,
+        tokensWithBalances
+      });
 
       // Update cache
       balanceCache.set(cacheKey, {
@@ -530,7 +560,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       setTokenBalances(newBalances);
       setTokensWithBalance(tokensWithBalances);
     } catch (error) {
-      console.error('Error fetching tokens and balances:', error);
+      console.error('Error in fetchTokensAndBalances:', error);
       setError('Failed to fetch tokens. Please try again.');
     } finally {
       setIsLoading(false);
@@ -556,6 +586,143 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   useEffect(() => {
     fetchTokensAndBalances();
   }, [isOpen, userAddress, refreshTrigger, searchQuery]);
+
+  // Filter tokens based on search query
+  const filteredTokens = useMemo(() => {
+    if (!tokensWithBalance) return [];
+    
+    // If search query is a valid address, only show that token
+    if (ethers.isAddress(searchQuery)) {
+      const token = tokensWithBalance.find(t => 
+        t.address?.toLowerCase() === searchQuery.toLowerCase()
+      );
+      return token ? [token] : [];
+    }
+
+    const searchLower = searchQuery.toLowerCase();
+    return tokensWithBalance.filter(token => {
+      if (!token) return false;
+      return (
+        token.symbol?.toLowerCase().includes(searchLower) ||
+        token.name?.toLowerCase().includes(searchLower) ||
+        token.address?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [searchQuery, tokensWithBalance]);
+
+  // Update useEffect to fetch token info when address is pasted
+  useEffect(() => {
+    const fetchCustomTokenInfo = async () => {
+      if (!ethers.isAddress(searchQuery) || !window.ethereum) return;
+
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const chainId = await provider.getNetwork().then(n => Number(n.chainId));
+
+        // For Monad testnet, use direct RPC calls
+        if (chainId === 10143) {
+          const tokenContract = new ethers.Contract(
+            searchQuery,
+            [
+              'function symbol() view returns (string)',
+              'function name() view returns (string)',
+              'function decimals() view returns (uint8)',
+              'function balanceOf(address) view returns (uint256)'
+            ],
+            provider
+          );
+
+          const [symbol, name, decimals, balance] = await Promise.all([
+            window.ethereum.request({
+              method: 'eth_call',
+              params: [{
+                to: searchQuery,
+                data: tokenContract.interface.encodeFunctionData('symbol')
+              }, 'latest']
+            }).then(data => tokenContract.interface.decodeFunctionResult('symbol', data)[0]),
+            window.ethereum.request({
+              method: 'eth_call',
+              params: [{
+                to: searchQuery,
+                data: tokenContract.interface.encodeFunctionData('name')
+              }, 'latest']
+            }).then(data => tokenContract.interface.decodeFunctionResult('name', data)[0]),
+            window.ethereum.request({
+              method: 'eth_call',
+              params: [{
+                to: searchQuery,
+                data: tokenContract.interface.encodeFunctionData('decimals')
+              }, 'latest']
+            }).then(data => tokenContract.interface.decodeFunctionResult('decimals', data)[0]),
+            window.ethereum.request({
+              method: 'eth_call',
+              params: [{
+                to: searchQuery,
+                data: tokenContract.interface.encodeFunctionData('balanceOf', [userAddress])
+              }, 'latest']
+            }).then(data => tokenContract.interface.decodeFunctionResult('balanceOf', data)[0])
+          ]);
+
+          const customToken = {
+            address: searchQuery,
+            symbol,
+            name,
+            decimals,
+            balance: ethers.formatUnits(balance, decimals)
+          };
+
+          setTokensWithBalance([customToken]);
+          setTokenBalances({
+            [searchQuery]: {
+              raw: balance.toString(),
+              formatted: ethers.formatUnits(balance, decimals)
+            }
+          });
+        } else {
+          const tokenContract = new ethers.Contract(
+            searchQuery,
+            [
+              'function symbol() view returns (string)',
+              'function name() view returns (string)',
+              'function decimals() view returns (uint8)',
+              'function balanceOf(address) view returns (uint256)'
+            ],
+            provider
+          );
+
+          const [symbol, name, decimals, balance] = await Promise.all([
+            tokenContract.symbol().catch(() => 'Unknown'),
+            tokenContract.name().catch(() => 'Unknown Token'),
+            tokenContract.decimals().catch(() => 18),
+            tokenContract.balanceOf(userAddress).catch(() => '0')
+          ]);
+
+          const customToken = {
+            address: searchQuery,
+            symbol,
+            name,
+            decimals,
+            balance: ethers.formatUnits(balance, decimals)
+          };
+
+          setTokensWithBalance([customToken]);
+          setTokenBalances({
+            [searchQuery]: {
+              raw: balance.toString(),
+              formatted: ethers.formatUnits(balance, decimals)
+            }
+          });
+        }
+
+        setError('');
+      } catch (err) {
+        console.error('Error fetching custom token:', err);
+        setError('Could not fetch token information. Please verify the contract address.');
+      }
+    };
+
+    fetchCustomTokenInfo();
+  }, [searchQuery, userAddress]);
 
   const TokenRow = ({ token, onSelect, isSelected }) => {
     const tokenBalance = token.isNative ? 
@@ -610,52 +777,60 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     return parseFloat(balance) > 0;
   };
 
-  // Filter tokens based on search query
-  const filteredTokens = useMemo(() => {
-    if (!tokensWithBalance) return [];
-    
-    const searchLower = (searchQuery || '').toLowerCase();
-    return tokensWithBalance.filter(token => {
-      if (!token) return false;
-      return (
-        (token.symbol || '').toLowerCase().includes(searchLower) ||
-        (token.name || '').toLowerCase().includes(searchLower) ||
-        (token.address || '').toLowerCase().includes(searchLower)
-      );
-    });
-  }, [searchQuery, tokensWithBalance]);
-
   // Move renderTokenLogo outside of TokenRow
   const renderTokenLogo = (token) => {
     // For common tokens, use their predefined logos
     const commonToken = COMMON_TOKENS[currentChainId]?.find(t => t.address === token.address);
-    if (commonToken) {
-      return <img src={commonToken.logo} alt={commonToken.symbol} className="w-8 h-8 rounded-full" />;
-    }
-
-    // For tokens with IPFS logo or direct logo
-    const logoUrl = token.logo || (token.logoIpfs ? ipfsToHttp(token.logoIpfs) : null);
-    if (logoUrl) {
+    if (commonToken?.logo) {
       return (
-        <img 
-          src={logoUrl}
-          alt={token.symbol}
-          className="w-8 h-8 rounded-full"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.src = '/token-default.png';
-          }}
-        />
+        <div className="relative w-8 h-8">
+          <img src={commonToken.logo} alt={commonToken.symbol} className="w-8 h-8 rounded-full" />
+          <img 
+            src={currentChainId === 10143 ? '/monad.png' : '/unichain-logo.png'} 
+            alt="Chain Logo" 
+            className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full ring-1 ring-black"
+          />
+        </div>
       );
     }
 
-    // Default token logo
+    // For tokens with direct logo or IPFS logo
+    const logoUrl = token.logo || (token.logoIpfs ? ipfsToHttp(token.logoIpfs) : null);
+    if (logoUrl && !logoUrl.includes('token-default.png')) {
+      return (
+        <div className="relative w-8 h-8">
+          <img 
+            src={logoUrl}
+            alt={token.symbol}
+            className="w-8 h-8 rounded-full"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.parentElement.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-[#1a1b1f] flex items-center justify-center relative">
+                  <span class="text-[#00ffbd] font-bold text-sm">${token.symbol?.slice(0, 2).toUpperCase() || '??'}</span>
+                  <img 
+                    src="${currentChainId === 10143 ? '/monad.png' : '/unichain-logo.png'}" 
+                    alt="Chain Logo" 
+                    class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full ring-1 ring-black"
+                  />
+                </div>
+              `;
+            }}
+          />
+        </div>
+      );
+    }
+
+    // Default case: show initials with chain logo
     return (
-      <img 
-        src="/token-default.png"
-        alt={token.symbol || 'Unknown'}
-        className="w-8 h-8 rounded-full"
-      />
+      <div className="w-8 h-8 rounded-full bg-[#1a1b1f] flex items-center justify-center relative">
+        <span className="text-[#00ffbd] font-bold text-sm">{token.symbol?.slice(0, 2).toUpperCase() || '??'}</span>
+        <img 
+          src={currentChainId === 10143 ? '/monad.png' : '/unichain-logo.png'} 
+          alt="Chain Logo" 
+          className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full ring-1 ring-black"
+        />
+      </div>
     );
   };
 
@@ -852,56 +1027,25 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                   <AnimatePresence mode="wait">
                     {isLoading ? (
                       <motion.div 
-                        className="space-y-2 min-h-[400px]"
+                        className="space-y-2"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                       >
-                        {/* Loading State Header */}
-                        <motion.div className="flex items-center gap-2 mb-3 px-3">
-                          <FaCoins className="text-[#00ffbd]/20 w-4 h-4" />
-                          <motion.div 
-                            className="h-4 w-24 rounded-lg bg-gray-200 dark:bg-gray-700"
-                            animate={{ opacity: [0.5, 1, 0.5] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                          />
-                        </motion.div>
-
-                        {/* Loading Token Rows */}
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                          <motion.div 
-                            key={i}
-                            className="w-full flex items-center justify-between p-3 bg-white dark:bg-[#2d2f36] rounded-xl border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-[#2d2f36]"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <motion.div 
-                                className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0"
-                                animate={{ opacity: [0.5, 1, 0.5] }}
-                                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                              />
-                              <div className="space-y-2">
-                                <motion.div 
-                                  className="h-4 w-20 rounded-lg bg-gray-200 dark:bg-gray-700"
-                                  animate={{ opacity: [0.5, 1, 0.5] }}
-                                  transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                                />
-                                <motion.div 
-                                  className="h-3 w-24 rounded-lg bg-gray-200 dark:bg-gray-700"
-                                  animate={{ opacity: [0.5, 1, 0.5] }}
-                                  transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                                />
-                              </div>
+                        <motion.div 
+                          className="w-full flex items-center justify-between p-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl"
+                          animate={{ opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
+                            <div className="space-y-2">
+                              <div className="h-4 w-20 rounded bg-gray-200 dark:bg-gray-700" />
+                              <div className="h-3 w-24 rounded bg-gray-200 dark:bg-gray-700" />
                             </div>
-                            <motion.div 
-                              className="w-24 h-4 rounded-lg bg-gray-200 dark:bg-gray-700 flex-shrink-0"
-                              animate={{ opacity: [0.5, 1, 0.5] }}
-                              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
-                            />
-                          </motion.div>
-                        ))}
+                          </div>
+                          <div className="h-4 w-16 rounded bg-gray-200 dark:bg-gray-700" />
+                        </motion.div>
                       </motion.div>
                     ) : (
                       <motion.div
@@ -910,89 +1054,70 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                         animate="visible"
                         className="min-h-[400px]"
                       >
-                        {/* Your Tokens Section */}
-                        <motion.div 
-                          className="mb-4"
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.3 }}
-                        >
-                          <div className="flex items-center gap-2 mb-3">
-                            <FaCoins className="text-[#00ffbd] w-4 h-4" />
-                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                              Your Tokens
-                            </h3>
-                          </div>
+                        {ethers.isAddress(searchQuery) ? (
+                          // When searching by address, show only the token
                           <motion.div className="space-y-2">
-                            <AnimatePresence>
-                              {filteredTokens
-                                .filter(hasBalance)
-                                .map((token) => (
-                                  <TokenRow
-                                    key={`${token.address}-${refreshTrigger}`}
-                                    token={token}
-                                    onSelect={handleTokenSelect}
-                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES[currentChainId].WETH : token.address)}
-                                  />
-                                ))}
-                            </AnimatePresence>
-                          </motion.div>
-                        </motion.div>
-
-                        {/* Separator */}
-                        <motion.div 
-                          className="my-4 border-t border-gray-200 dark:border-gray-700"
-                          initial={{ scaleX: 0 }}
-                          animate={{ scaleX: 1 }}
-                          transition={{ delay: 0.4 }}
-                        />
-
-                        {/* Other Tokens Section */}
-                        <motion.div 
-                          className="mb-4"
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 }}
-                        >
-                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
-                            Other Tokens
-                          </h3>
-                          <motion.div className="space-y-2">
-                            <AnimatePresence>
-                              {filteredTokens
-                                .filter(token => !hasBalance(token))
-                                .map((token) => (
-                                  <TokenRow
-                                    key={`${token.address}-${refreshTrigger}`}
-                                    token={token}
-                                    onSelect={handleTokenSelect}
-                                    isSelected={selectedTokenAddress === (token.symbol === 'ETH' ? UNISWAP_ADDRESSES[currentChainId].WETH : token.address)}
-                                  />
-                                ))}
-                            </AnimatePresence>
-                          </motion.div>
-                        </motion.div>
-
-                        {/* Custom Token Section */}
-                        <AnimatePresence>
-                          {customToken && !error && (
-                            <motion.div 
-                              className="mt-4"
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                            >
-                              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                Custom Token
-                              </h3>
+                            {filteredTokens.map((token) => (
                               <TokenRow
-                                token={customToken}
+                                key={token.address}
+                                token={token}
                                 onSelect={handleTokenSelect}
-                                isSelected={selectedTokenAddress === customToken.address}
+                                isSelected={selectedTokenAddress === token.address}
                               />
+                            ))}
+                          </motion.div>
+                        ) : (
+                          // Normal search view with sections
+                          <>
+                            {/* Your Tokens Section */}
+                            <motion.div className="mb-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <FaCoins className="text-[#00ffbd] w-4 h-4" />
+                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                  Your Tokens
+                                </h3>
+                              </div>
+                              <motion.div className="space-y-2">
+                                {filteredTokens
+                                  .filter(hasBalance)
+                                  .map((token) => (
+                                    <TokenRow
+                                      key={`${token.address}-${refreshTrigger}`}
+                                      token={token}
+                                      onSelect={handleTokenSelect}
+                                      isSelected={selectedTokenAddress === token.address}
+                                    />
+                                  ))}
+                              </motion.div>
                             </motion.div>
-                          )}
-                        </AnimatePresence>
+
+                            {/* Separator */}
+                            <motion.div 
+                              className="my-4 border-t border-gray-200 dark:border-gray-700"
+                              initial={{ scaleX: 0 }}
+                              animate={{ scaleX: 1 }}
+                            />
+
+                            {/* Other Tokens Section */}
+                            <motion.div className="mb-4">
+                              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                                Other Tokens
+                              </h3>
+                              <motion.div className="space-y-2">
+                                {filteredTokens
+                                  .filter(token => !hasBalance(token))
+                                  .map((token) => (
+                                    <TokenRow
+                                      key={`${token.address}-${refreshTrigger}`}
+                                      token={token}
+                                      onSelect={handleTokenSelect}
+                                      isSelected={selectedTokenAddress === token.address}
+                                    />
+                                  ))}
+                              </motion.div>
+                            </motion.div>
+                          </>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>

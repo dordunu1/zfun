@@ -157,7 +157,7 @@ export const getTokenMetadata = async (token, chainId) => {
 };
 
 export const getTokenLogo = (token, chainId) => {
-  if (!token) return '/token-default.png';
+  if (!token) return generateTokenInitialsLogo('??');
 
   // Check if it's a common token by address
   const chainTokens = getChainTokens(chainId);
@@ -172,9 +172,35 @@ export const getTokenLogo = (token, chainId) => {
 
   // Check for IPFS or direct logo from token data
   if (token.logo || token.logoIpfs) {
-    return token.logo || ipfsToHttp(token.logoIpfs);
+    const logoUrl = token.logo || ipfsToHttp(token.logoIpfs);
+    if (!logoUrl.includes('token-default.png')) {
+      return logoUrl;
+    }
   }
 
-  // Default token logo
-  return '/token-default.png';
+  // Generate token initials logo
+  return generateTokenInitialsLogo(token.symbol || '??');
+};
+
+// Helper function to generate a data URL for token initials
+const generateTokenInitialsLogo = (symbol) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 40;
+  canvas.height = 40;
+  const ctx = canvas.getContext('2d');
+
+  // Draw background
+  ctx.fillStyle = '#1a1b1f';
+  ctx.beginPath();
+  ctx.arc(20, 20, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw text
+  ctx.fillStyle = '#00ffbd';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(symbol.slice(0, 2).toUpperCase(), 20, 20);
+
+  return canvas.toDataURL('image/png');
 }; 
