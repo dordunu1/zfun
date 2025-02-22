@@ -69,47 +69,51 @@ function CountdownTimer({ targetDate }) {
 
 // Add this new countdown component for mint end
 function MintEndCountdown({ endDate, infiniteMint }) {
-  if (infiniteMint) {
-    return null; // Don't show countdown for infinite mint
-  }
-
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
   function calculateTimeLeft() {
-    const difference = +new Date(endDate) - +new Date();
-    let timeLeft = {};
+    if (infiniteMint) return null;
+    const now = new Date().getTime();
+    const end = new Date(endDate).getTime();
+    const difference = end - now;
 
-    if (difference > 0) {
-      timeLeft = {
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60),
-      };
-    }
+    if (difference <= 0) return null;
 
-    return timeLeft;
+    return {
+      days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+      minutes: Math.floor((difference / 1000 / 60) % 60),
+      seconds: Math.floor((difference / 1000) % 60)
+    };
   }
 
   useEffect(() => {
+    if (infiniteMint) return;
+
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endDate]);
+  }, [endDate, infiniteMint]);
 
-  const isMintEnded = Object.keys(timeLeft).length === 0;
+  if (infiniteMint || !timeLeft) return null;
 
   return (
-    <div className="text-center">
-      {!isMintEnded ? (
-        <div className="text-sm text-gray-500">
-          Mint ends in: {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
-        </div>
-      ) : (
-        <div className="text-sm text-red-500">Mint Ended</div>
-      )}
+    <div className="mb-4">
+      <div className="text-center mb-2">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white">Mint Ends In</h3>
+      </div>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        {Object.entries(timeLeft).map(([key, value]) => (
+          <div key={key} className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-2 border border-gray-200 dark:border-gray-800">
+            <div className="text-xl font-bold text-[#00ffbd]">
+              {String(value).padStart(2, '0')}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{key}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1209,30 +1213,36 @@ export default function CollectionPage() {
               ))}
             </div>
 
-            {/* Main Content - Update background */}
+            {/* Main Content */}
             <div className="relative z-10 bg-white dark:bg-[#0a0b0f] p-6">
-              <div className="flex items-center gap-6 mb-6">
-                {collection.artworkType === 'video' ? (
-                  <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-[#00ffbd]">
-                    <video 
+              {/* Top section with large image and description side by side */}
+              <div className="flex gap-6 mb-6">
+                {/* Large Image */}
+                <div className="flex-1">
+                  {collection.artworkType === 'video' ? (
+                    <div className="w-full aspect-square rounded-xl overflow-hidden border-2 border-[#00ffbd]">
+                      <video 
+                        src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
+                        className="w-full h-full object-cover"
+                        controls
+                        playsInline
+                      />
+                    </div>
+                  ) : (
+                    <img 
                       src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
-                      className="w-full h-full object-cover"
-                      controls
-                      playsInline
+                      alt={collection.name}
+                      className="w-full aspect-square rounded-xl object-cover border-2 border-[#00ffbd]"
                     />
-                  </div>
-                ) : (
-                  <img 
-                    src={collection.previewUrl || ipfsToHttp(collection.imageIpfsUrl)}
-                    alt={collection.name}
-                    className="w-24 h-24 rounded-xl object-cover border-2 border-[#00ffbd]"
-                  />
-                )}
-                <div>
+                  )}
+                </div>
+
+                {/* Description Section */}
+                <div className="flex-1">
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                     {collection.name}
                   </h1>
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 mb-4">
                     <span>{collection.symbol}</span>
                     <button 
                       onClick={() => {
@@ -1244,70 +1254,71 @@ export default function CollectionPage() {
                       <BiCopy size={16} />
                     </button>
                   </div>
+                  <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                    {collection.description}
+                  </p>
                 </div>
               </div>
 
-              <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
-                {collection.description}
-              </p>
+              {/* Social Links Section */}
+              <div className="mb-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex gap-4">
+                  {collection.website && (
+                    <a 
+                      href={collection.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                    >
+                      <BiWorld size={20} />
+                    </a>
+                  )}
+                  {collection.socials?.twitter && (
+                    <a 
+                      href={`https://twitter.com/${collection.socials.twitter}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                    >
+                      <FaTwitter size={20} />
+                    </a>
+                  )}
+                  {collection.socials?.discord && (
+                    <a 
+                      href={collection.socials.discord}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                    >
+                      <FaDiscord size={20} />
+                    </a>
+                  )}
+                  {collection.socials?.telegram && (
+                    <a 
+                      href={collection.socials.telegram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-[#00ffbd] transition-colors"
+                    >
+                      <FaTelegram size={20} />
+                    </a>
+                  )}
+                </div>
+              </div>
 
-              {/* Properties Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {/* Traits Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {collection.attributes?.map((attr, index) => (
                   <div 
                     key={index}
-                    className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-4 border border-gray-200 dark:border-gray-800"
+                    className="bg-gray-50 dark:bg-[#0d0e12] rounded-lg p-2.5 border border-gray-200 dark:border-gray-800"
                   >
-                    <p className="text-sm text-gray-500 mb-1">{attr.trait_type}</p>
-                    <p className="text-lg font-medium text-[#00ffbd]">
+                    <p className="text-xs text-gray-500 mb-0.5">{attr.trait_type}</p>
+                    <p className="text-sm font-medium text-[#00ffbd]">
                       {typeof attr.value === 'number' ? attr.value.toString() : attr.value}
                     </p>
                   </div>
                 ))}
-              </div>
-
-              {/* Social Links */}
-              <div className="flex gap-4 mt-6 mb-6">
-                {collection.website && (
-                  <a 
-                    href={collection.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                  >
-                    <BiWorld size={20} />
-                  </a>
-                )}
-                {collection.socials?.twitter && (
-                  <a 
-                    href={`https://twitter.com/${collection.socials.twitter}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                  >
-                    <FaTwitter size={20} />
-                  </a>
-                )}
-                {collection.socials?.discord && (
-                  <a 
-                    href={collection.socials.discord}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                  >
-                    <FaDiscord size={20} />
-                  </a>
-                )}
-                {collection.socials?.telegram && (
-                  <a 
-                    href={collection.socials.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-[#00ffbd] transition-colors"
-                  >
-                    <FaTelegram size={20} />
-                  </a>
-                )}
               </div>
             </div>
           </div>

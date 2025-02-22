@@ -118,9 +118,9 @@ const SnapshotViewer = ({ onClose }) => {
 
             // Special handling for Monad testnet
             if (chainId === 10143) {
-                const contract = new ethers.Contract(inputTokenAddress, MemeTokenABI.abi, provider);
-                
-                // Try to call basic functions to verify it's a valid token contract
+            const contract = new ethers.Contract(inputTokenAddress, MemeTokenABI.abi, provider);
+
+            // Try to call basic functions to verify it's a valid token contract
                 try {
                     await Promise.all([
                         contract.name(),
@@ -145,15 +145,15 @@ const SnapshotViewer = ({ onClose }) => {
             } else {
                 // Original logic for other networks
                 const contract = new ethers.Contract(inputTokenAddress, MemeTokenABI.abi, provider);
-                await Promise.all([
-                    contract.name(),
-                    contract.symbol(),
-                    contract.owner()
-                ]);
+            await Promise.all([
+                contract.name(),
+                contract.symbol(),
+                contract.owner()
+            ]);
 
-                setVerifiedTokenAddress(inputTokenAddress);
-                setTokenContract(contract);
-                toast.success('Token contract verified', toastOptions);
+            setVerifiedTokenAddress(inputTokenAddress);
+            setTokenContract(contract);
+            toast.success('Token contract verified', toastOptions);
             }
         } catch (err) {
             console.error('Error verifying token:', err);
