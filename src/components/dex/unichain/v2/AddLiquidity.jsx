@@ -78,7 +78,7 @@ const getTokenLogo = (token, chainId) => {
   return '/token-default.png';
 };
 
-// Add balance display component
+// Update TokenBalance component to handle MON correctly
 const TokenBalance = ({ token, chainId }) => {
   const { address: userAddress } = useAccount();
   const [balance, setBalance] = useState('0');
@@ -94,7 +94,7 @@ const TokenBalance = ({ token, chainId }) => {
         if (chainId === 10143) {
           // Handle Monad testnet
           const provider = new ethers.BrowserProvider(window.ethereum);
-          if (token.isNative) {
+          if (token.isNative || token.isWETH) {
             // For native MON token
             const balance = await provider.getBalance(userAddress);
             setBalance(ethers.formatEther(balance));
@@ -129,11 +129,8 @@ const TokenBalance = ({ token, chainId }) => {
 
   if (!token || !userAddress || !chainId) return null;
 
-  // Get display symbol (convert WETH to ETH)
-  const commonTokens = getCommonTokens(chainId);
-  const wethToken = commonTokens.find(t => t.symbol === 'WETH');
-  const isWETH = wethToken && token.address?.toLowerCase() === wethToken.address?.toLowerCase();
-  const displaySymbol = isWETH ? 'ETH' : token.symbol;
+  // Get display symbol (convert WETH to MON on Monad testnet)
+  const displaySymbol = chainId === 10143 && (token.isWETH || token.isNative) ? 'MON' : token.symbol;
 
   return (
     <div className="flex justify-between items-center text-sm">
@@ -693,21 +690,25 @@ export default function AddLiquidity() {
 
         setCurrentStep('approval');
 
-        if (pool.token0.isNative || pool.token1.isNative) {
+        // Check if either token is native MON
+        const isToken0Native = pool.token0.isWETH || pool.token0.isNative;
+        const isToken1Native = pool.token1.isWETH || pool.token1.isNative;
+
+        if (isToken0Native || isToken1Native) {
           // Handle native MON + token pair
-          const tokenAddress = pool.token0.isNative ? pool.token1.address : pool.token0.address;
-          const tokenAmount = pool.token0.isNative ? parsedAmount1 : parsedAmount0;
-          const ethAmount = pool.token0.isNative ? parsedAmount0 : parsedAmount1;
+          const tokenAddress = isToken0Native ? pool.token1.address : pool.token0.address;
+          const tokenAmount = isToken0Native ? parsedAmount1 : parsedAmount0;
+          const monAmount = isToken0Native ? parsedAmount0 : parsedAmount1;
 
           // Approve token first if needed
-          if (!pool.token0.isNative) {
+          if (!isToken0Native) {
             const tokenContract = new ethers.Contract(
               pool.token0.address,
               ['function approve(address spender, uint256 amount) external returns (bool)'],
               signer
             );
             await tokenContract.approve(routerAddress, parsedAmount0);
-          } else if (!pool.token1.isNative) {
+          } else if (!isToken1Native) {
             const tokenContract = new ethers.Contract(
               pool.token1.address,
               ['function approve(address spender, uint256 amount) external returns (bool)'],
@@ -722,12 +723,12 @@ export default function AddLiquidity() {
             data: routerInterface.encodeFunctionData('addLiquidityETH', [
               tokenAddress,
               tokenAmount,
-              tokenAmount,
-              ethAmount,
+              tokenAmount * 99n / 100n, // 1% slippage
+              monAmount * 99n / 100n, // 1% slippage
               await signer.getAddress(),
               deadline
             ]),
-            value: ethAmount
+            value: monAmount
           });
 
           setCurrentStep('confirming');
@@ -757,8 +758,8 @@ export default function AddLiquidity() {
               pool.token1.address,
               parsedAmount0,
               parsedAmount1,
-              parsedAmount0,
-              parsedAmount1,
+              parsedAmount0 * 99n / 100n, // 1% slippage
+              parsedAmount1 * 99n / 100n, // 1% slippage
               await signer.getAddress(),
               deadline
             ])
@@ -769,33 +770,100 @@ export default function AddLiquidity() {
         }
       } else {
         // Original logic for Unichain networks
-        await uniswap.addLiquidity(
-          pool.token0.address,
-          pool.token1.address,
-          parsedAmount0,
-          parsedAmount1,
-          address
+        const signer = await provider.getSigner();
+        const routerContract = new ethers.Contract(
+          UNISWAP_ADDRESSES[chainId].router,
+          ROUTER_ABI,
+          signer
         );
+
+        const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
+        const parsedAmount0 = ethers.parseUnits(token0Amount, pool.token0.decimals);
+        const parsedAmount1 = ethers.parseUnits(token1Amount, pool.token1.decimals);
+
+        setCurrentStep('approval');
+
+        // Check if either token is ETH
+        const isToken0ETH = pool.token0.isWETH;
+        const isToken1ETH = pool.token1.isWETH;
+
+        if (isToken0ETH || isToken1ETH) {
+          // Handle ETH + token pair
+          const tokenAddress = isToken0ETH ? pool.token1.address : pool.token0.address;
+          const tokenAmount = isToken0ETH ? parsedAmount1 : parsedAmount0;
+          const ethAmount = isToken0ETH ? parsedAmount0 : parsedAmount1;
+
+          // Approve token first if needed
+          if (!isToken0ETH) {
+            const tokenContract = new ethers.Contract(
+              pool.token0.address,
+              ['function approve(address spender, uint256 amount) external returns (bool)'],
+              signer
+            );
+            await tokenContract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount0);
+          } else if (!isToken1ETH) {
+            const tokenContract = new ethers.Contract(
+              pool.token1.address,
+              ['function approve(address spender, uint256 amount) external returns (bool)'],
+              signer
+            );
+            await tokenContract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount1);
+          }
+
+          setCurrentStep('adding');
+          const tx = await routerContract.addLiquidityETH(
+            tokenAddress,
+            tokenAmount,
+            tokenAmount * 99n / 100n, // 1% slippage
+            ethAmount * 99n / 100n, // 1% slippage
+            address,
+            deadline,
+            { value: ethAmount }
+          );
+
+          setCurrentStep('confirming');
+          await tx.wait();
+        } else {
+          // Handle token + token pair
+          // Approve both tokens
+          const token0Contract = new ethers.Contract(
+            pool.token0.address,
+            ['function approve(address spender, uint256 amount) external returns (bool)'],
+            signer
+          );
+          const token1Contract = new ethers.Contract(
+            pool.token1.address,
+            ['function approve(address spender, uint256 amount) external returns (bool)'],
+            signer
+          );
+
+          await token0Contract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount0);
+          await token1Contract.approve(UNISWAP_ADDRESSES[chainId].router, parsedAmount1);
+
+          setCurrentStep('adding');
+          const tx = await routerContract.addLiquidity(
+            pool.token0.address,
+            pool.token1.address,
+            parsedAmount0,
+            parsedAmount1,
+            parsedAmount0 * 99n / 100n, // 1% slippage
+            parsedAmount1 * 99n / 100n, // 1% slippage
+            address,
+            deadline
+          );
+
+          setCurrentStep('confirming');
+          await tx.wait();
+        }
       }
 
       setCurrentStep('completed');
       setShowConfetti(true);
-      
-      setTimeout(() => {
-        setShowProgressModal(false);
-        setCurrentStep(null);
-        setShowRatingModal(true);
-      }, 1000);
-      
-      setTimeout(() => {
-        setToken0Amount('');
-        setToken1Amount('');
-        setShowConfetti(false);
-      }, 30000);
+      setTimeout(() => setShowConfetti(false), 5000);
     } catch (error) {
-      console.error('Add liquidity error:', error);
-      setAddLiquidityError(error.message);
-      setCurrentStep(null);
+      console.error('Error adding liquidity:', error);
+      setAddLiquidityError(error.message || 'Failed to add liquidity');
+      setCurrentStep('error');
     } finally {
       setLoading(false);
     }
@@ -880,7 +948,7 @@ export default function AddLiquidity() {
           {/* Token 0 Input */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {pool.token0.isWETH ? 'ETH' : pool.token0.symbol} Amount
+              {chainId === 10143 && (pool.token0.isWETH || pool.token0.isNative) ? 'MON' : pool.token0.symbol} Amount
             </label>
             <div className="relative">
               <input
@@ -892,12 +960,12 @@ export default function AddLiquidity() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <img
-                  src={getTokenLogo(pool.token0, chainId)}
-                  alt={pool.token0.isWETH ? 'ETH' : pool.token0.symbol}
+                  src={chainId === 10143 && (pool.token0.isWETH || pool.token0.isNative) ? '/monad.png' : getTokenLogo(pool.token0, chainId)}
+                  alt={chainId === 10143 && (pool.token0.isWETH || pool.token0.isNative) ? 'MON' : pool.token0.symbol}
                   className="w-6 h-6 rounded-full"
                 />
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {pool.token0.isWETH ? 'ETH' : pool.token0.symbol}
+                  {chainId === 10143 && (pool.token0.isWETH || pool.token0.isNative) ? 'MON' : pool.token0.symbol}
                 </span>
               </div>
             </div>
@@ -907,7 +975,7 @@ export default function AddLiquidity() {
           {/* Token 1 Input */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {pool.token1.isWETH ? 'ETH' : pool.token1.symbol} Amount
+              {chainId === 10143 && (pool.token1.isWETH || pool.token1.isNative) ? 'MON' : pool.token1.symbol} Amount
             </label>
             <div className="relative">
               <input
@@ -919,12 +987,12 @@ export default function AddLiquidity() {
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <img
-                  src={getTokenLogo(pool.token1, chainId)}
-                  alt={pool.token1.isWETH ? 'ETH' : pool.token1.symbol}
+                  src={chainId === 10143 && (pool.token1.isWETH || pool.token1.isNative) ? '/monad.png' : getTokenLogo(pool.token1, chainId)}
+                  alt={chainId === 10143 && (pool.token1.isWETH || pool.token1.isNative) ? 'MON' : pool.token1.symbol}
                   className="w-6 h-6 rounded-full"
                 />
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {pool.token1.isWETH ? 'ETH' : pool.token1.symbol}
+                  {chainId === 10143 && (pool.token1.isWETH || pool.token1.isNative) ? 'MON' : pool.token1.symbol}
                 </span>
               </div>
             </div>

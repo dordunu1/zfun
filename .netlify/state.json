@@ -1,19 +1,19 @@
 {
 	"geolocation": {
 		"data": {
-			"city": "Kumasi",
+			"city": "Accra",
 			"country": {
 				"code": "GH",
 				"name": "Ghana"
 			},
 			"subdivision": {
-				"code": "AH",
-				"name": "Ashanti Region"
+				"code": "AA",
+				"name": "Greater Accra Region"
 			},
 			"timezone": "Africa/Accra",
-			"latitude": 6.6816,
-			"longitude": -1.6221
+			"latitude": 5.5545,
+			"longitude": -0.1902
 		},
-		"timestamp": 1740089723632
+		"timestamp": 1740191544418
 	}
 }
