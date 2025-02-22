@@ -337,17 +337,35 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
   const [currentChainId, setCurrentChainId] = useState(null);
 
   const fetchTokensAndBalances = async () => {
-    if (!isOpen || !userAddress || !window.ethereum) {
-      console.log('Early return conditions:', { isOpen, userAddress, hasEthereum: !!window.ethereum });
-      return;
-    }
-    
     setIsLoading(true);
     setError('');
     
     try {
-      // Get chainId directly from ethereum provider to avoid ENS issues
-      const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+      // Check if ethereum provider exists
+      if (!window.ethereum) {
+        console.warn('No ethereum provider found');
+        setError('Please install a Web3 wallet like MetaMask');
+        setIsLoading(false);
+        return;
+      }
+
+      // Wait for provider to be ready
+      let retries = 0;
+      while (!window.ethereum.request && retries < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        retries++;
+      }
+
+      if (!window.ethereum.request) {
+        throw new Error('Ethereum provider not initialized');
+      }
+
+      // Get chainId directly from ethereum provider
+      const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' }).catch(err => {
+        console.error('Error getting chainId:', err);
+        throw new Error('Could not get network information');
+      });
+      
       const chainId = parseInt(chainIdHex, 16);
       console.log('Current chain ID:', chainId);
       setCurrentChainId(chainId);
@@ -568,10 +586,15 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     }
   };
 
-  // Get current chain ID
+  // Update the useEffect for chainId
   useEffect(() => {
     const getChainId = async () => {
-      if (!window.ethereum) return;
+      // Check if provider exists and is ready
+      if (!window.ethereum?.request) {
+        console.warn('Ethereum provider not ready');
+        return;
+      }
+
       try {
         const hexChainId = await window.ethereum.request({ method: 'eth_chainId' });
         const decimalChainId = parseInt(hexChainId, 16);
@@ -580,7 +603,26 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         console.error('Error getting chain ID:', error);
       }
     };
-    getChainId();
+
+    // Add event listener for provider
+    const handleProviderChange = () => {
+      if (window.ethereum?.request) {
+        getChainId();
+      }
+    };
+
+    // Check periodically for provider
+    const checkForProvider = setInterval(() => {
+      if (window.ethereum?.request) {
+        getChainId();
+        clearInterval(checkForProvider);
+      }
+    }, 1000);
+
+    // Cleanup
+    return () => {
+      clearInterval(checkForProvider);
+    };
   }, []);
 
   // Update useEffect to trigger on searchQuery changes

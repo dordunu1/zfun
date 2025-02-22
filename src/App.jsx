@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import AdminLayout from './components/admin/AdminLayout';
@@ -35,6 +35,43 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
+  const [isProviderLoading, setIsProviderLoading] = useState(true);
+
+  useEffect(() => {
+    const checkProvider = () => {
+      if (window.ethereum?.request) {
+        setIsProviderLoading(false);
+      }
+    };
+
+    // Check immediately
+    checkProvider();
+
+    // Set up interval to check for provider
+    const interval = setInterval(checkProvider, 500);
+
+    // Clear interval after 10 seconds to prevent infinite checking
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setIsProviderLoading(false);
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  if (isProviderLoading) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-[#0a0b0f] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#00ffbd] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading Web3 Provider...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DeploymentsProvider>
