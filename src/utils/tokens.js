@@ -34,9 +34,43 @@ export const COMMON_TOKENS = [
   }
 ];
 
+// Add Monad specific tokens
+export const MONAD_TOKENS = [
+  {
+    symbol: 'MON',
+    name: 'Monad',
+    decimals: 18,
+    logo: '/monad.png',
+    isNative: true
+  },
+  {
+    address: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
+    symbol: 'WMONAD',
+    name: 'Wrapped Monad',
+    decimals: 18,
+    logo: '/monad.png'
+  },
+  {
+    address: '0xc60A9A0E7F3cBea1852B945EdB35Be52c2c8954e',
+    symbol: 'PYRO',
+    name: 'PYRO',
+    decimals: 18,
+    logo: '/pyro.png'
+  },
+  {
+    address: '0xB5a30b0FDc5EA94A52fDc42e3E9760Cb8449Fb37',
+    symbol: 'WETH',
+    name: 'Wrapped Ether',
+    decimals: 18,
+    logo: '/eth.png'
+  }
+];
+
 // Helper function to get chain-specific token addresses
 export const getChainTokens = (chainId) => {
   switch (chainId) {
+    case 10143: // Monad Testnet
+      return MONAD_TOKENS; // Return the full MONAD_TOKENS array directly
     case 1301: // Unichain
       return [
         {
@@ -69,19 +103,7 @@ export const getChainTokens = (chainId) => {
         }
       ];
     default:
-      return COMMON_TOKENS.map(token => {
-        if (token.address === 'ETH') return token;
-        
-        const chainAddresses = UNISWAP_ADDRESSES[chainId] || UNISWAP_ADDRESSES;
-        const addressKey = Object.keys(chainAddresses).find(key => 
-          key === token.symbol
-        );
-        
-        return {
-          ...token,
-          address: addressKey ? chainAddresses[addressKey] : token.address
-        };
-      });
+      return COMMON_TOKENS.filter(token => !token.chainId || token.chainId === chainId);
   }
 };
 

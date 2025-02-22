@@ -9,6 +9,7 @@ import { getTokenDeploymentByAddress, getAllTokenDeployments } from '../../../..
 import { ipfsToHttp } from '../../../../utils/ipfs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Contract } from 'ethers';
+import { getChainTokens } from '../../../../utils/tokens';
 
 // Add RPC URL constant at the top
 const UNICHAIN_RPC_URLS = {
@@ -135,7 +136,7 @@ const scanForTokens = async (provider, userAddress, chainId) => {
   try {
     // Handle Monad testnet differently
     if (chainId === UNICHAIN_CHAIN_IDS.MONAD_TESTNET) {
-      const commonTokens = COMMON_TOKENS[chainId] || [];
+      const commonTokens = getChainTokens(chainId);
       const tokens = [...commonTokens];
 
       // Get token balances
@@ -151,7 +152,7 @@ const scanForTokens = async (provider, userAddress, chainId) => {
             token.balance = balanceBigInt.toString();
             token.formatted = ethers.formatEther(balanceBigInt);
           } else {
-            // For other tokens (like WMONAD)
+            // For other tokens
             const tokenContract = new ethers.Contract(
               token.address,
               [
@@ -185,7 +186,7 @@ const scanForTokens = async (provider, userAddress, chainId) => {
 
     if (!response.ok) {
       console.warn(`Blockscout API error: ${response.status}`);
-      return COMMON_TOKENS[chainId] || [];
+      return getChainTokens(chainId);
     }
 
     const data = await response.json();
@@ -208,7 +209,7 @@ const scanForTokens = async (provider, userAddress, chainId) => {
       }));
 
     // Add common tokens if they're not already included
-    const commonTokens = COMMON_TOKENS[chainId] || [];
+    const commonTokens = getChainTokens(chainId);
     const allTokens = [...tokens];
     
     for (const commonToken of commonTokens) {
@@ -221,7 +222,7 @@ const scanForTokens = async (provider, userAddress, chainId) => {
   } catch (error) {
     console.error('Token scanning error:', error);
     // Return common tokens as fallback
-    return COMMON_TOKENS[chainId] || [];
+    return getChainTokens(chainId);
   }
 };
 
@@ -363,7 +364,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
       }
 
       // Get both common tokens and Blockscout tokens
-      let allTokens = [...(COMMON_TOKENS[chainId] || [])];
+      let allTokens = getChainTokens(chainId);
       const newBalances = {};
 
       // Fetch additional tokens from Blockscout for Unichain networks
@@ -1059,7 +1060,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                           <motion.div className="space-y-2">
                             {filteredTokens.map((token) => (
                               <TokenRow
-                                key={token.address}
+                                key={token.address || token.symbol}
                                 token={token}
                                 onSelect={handleTokenSelect}
                                 isSelected={selectedTokenAddress === token.address}
@@ -1082,7 +1083,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                                   .filter(hasBalance)
                                   .map((token) => (
                                     <TokenRow
-                                      key={`${token.address}-${refreshTrigger}`}
+                                      key={token.address || token.symbol}
                                       token={token}
                                       onSelect={handleTokenSelect}
                                       isSelected={selectedTokenAddress === token.address}
@@ -1099,7 +1100,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                             />
 
                             {/* Other Tokens Section */}
-                            <motion.div className="mb-4">
+                            <motion.div>
                               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
                                 Other Tokens
                               </h3>
@@ -1108,7 +1109,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                                   .filter(token => !hasBalance(token))
                                   .map((token) => (
                                     <TokenRow
-                                      key={`${token.address}-${refreshTrigger}`}
+                                      key={token.address || token.symbol}
                                       token={token}
                                       onSelect={handleTokenSelect}
                                       isSelected={selectedTokenAddress === token.address}
