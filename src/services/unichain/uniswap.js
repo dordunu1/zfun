@@ -8,7 +8,7 @@ export const UNISWAP_ADDRESSES = {
     router: '0xfb8e1c3b833f9e67a71c859a132cf783b645e436',
     factory: '0x733e88f248b742db6c14c0b1713af5ad7fdd59d0',
     WETH: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701', // WMONA address
-    USDT: '0x70262e266E50603AcFc5D58997eF73e5a8775844',
+    USDT: '0x88b8E2161DEDC77EF4ab7585569D2415a1C1055D',
   },
   // Unichain Testnet (1301)
   1301: {
@@ -644,10 +644,7 @@ export class UnichainUniswapService {
       if (!this.router) await this.init();
       
       if (!fromToken || !toToken || !amount) {
-        return {
-          route: null,
-          toAmount: '0'
-        };
+        return { route: null, toAmount: '0' };
       }
 
       const chainId = await this.provider.getNetwork().then(network => network.chainId);
@@ -657,177 +654,149 @@ export class UnichainUniswapService {
         throw new Error('Network not supported');
       }
 
-      // Handle MON (native) token by using WMONAD
-      const fromAddress = fromToken.symbol === 'MON' ? addresses.WETH : fromToken.address;
-      const toAddress = toToken.symbol === 'MON' ? addresses.WETH : toToken.address;
+      // Handle MON/ETH (native) token by using WETH
+      const fromAddress = fromToken.symbol === 'MON' || fromToken.symbol === 'ETH' ? addresses.WETH : fromToken.address;
+      const toAddress = toToken.symbol === 'MON' || toToken.symbol === 'ETH' ? addresses.WETH : toToken.address;
 
-      // Parse input amount - use 18 decimals for MON
+      // Parse input amount - use 18 decimals for native tokens
       const amountIn = ethers.parseUnits(
         amount, 
-        fromToken.symbol === 'MON' ? 18 : fromToken.decimals
+        fromToken.symbol === 'MON' || fromToken.symbol === 'ETH' ? 18 : fromToken.decimals
       );
 
-      // For Monad testnet, use direct RPC calls
-      if (chainId === 10143) {
-        // Try direct path first if not involving native MON
-        if (fromToken.symbol !== 'MON' && toToken.symbol !== 'MON' && fromAddress !== toAddress) {
-          const directPath = [fromAddress, toAddress];
-          const hasDirectPair = await this.checkPoolExists(fromAddress, toAddress);
-          
-          if (hasDirectPair) {
-            try {
-              // Encode getAmountsOut function call
-              const getAmountsOutData = ethers.AbiCoder.defaultAbiCoder().encode(
-                ['uint256', 'address[]'],
-                [amountIn, directPath]
-              ).slice(2);
-              
-              const amountsHex = await window.ethereum.request({
-                method: 'eth_call',
-                params: [{
-                  to: addresses.router,
-                  data: '0xd06ca61f' + getAmountsOutData // getAmountsOut function selector
-                }, 'latest']
-              });
-              
-              const amounts = ethers.AbiCoder.defaultAbiCoder().decode(['uint256[]'], amountsHex)[0];
-              const toAmount = ethers.formatUnits(
-                amounts[amounts.length - 1],
-                toToken.symbol === 'MON' ? 18 : toToken.decimals
-              );
+      // Cache key for this swap
+      const cacheKey = `${fromAddress}_${toAddress}_${amount}`;
+      if (this.routeCache && this.routeCache[cacheKey] && Date.now() - this.routeCache[cacheKey].timestamp < 30000) {
+        return this.routeCache[cacheKey].route;
+      }
 
-              return {
-                route: `${fromToken.symbol} → ${toToken.symbol}`,
-                toAmount,
-                path: directPath
-              };
-            } catch (error) {
-              console.log('Error getting amounts for direct path:', error);
-            }
-          }
-        }
+      // Common intermediary tokens for multi-hop routes
+      const intermediaryTokens = [
+        addresses.WETH,
+        addresses.USDC,
+        addresses.USDT
+      ].filter(addr => addr && addr !== fromAddress && addr !== toAddress);
 
-        // For MON to token or token to MON, always use WMONAD path
-        const pathThroughWMONAD = fromToken.symbol === 'MON' ?
-          [addresses.WETH, toAddress] :
-          toToken.symbol === 'MON' ?
-          [fromAddress, addresses.WETH] :
-          [fromAddress, addresses.WETH, toAddress];
+      // Try all possible routes in parallel
+      const routePromises = [];
 
-        const hasFirstPair = fromToken.symbol === 'MON' || await this.checkPoolExists(fromAddress, addresses.WETH);
-        const hasSecondPair = toToken.symbol === 'MON' || await this.checkPoolExists(addresses.WETH, toAddress);
-        
-        if (hasFirstPair && hasSecondPair) {
-          try {
-            // For MON to token swaps, we need to account for wrapping MON first
-            const effectiveAmountIn = fromToken.symbol === 'MON' ? amountIn : amountIn;
-            
-            // Encode getAmountsOut function call
-            const getAmountsOutData = ethers.AbiCoder.defaultAbiCoder().encode(
-              ['uint256', 'address[]'],
-              [effectiveAmountIn, pathThroughWMONAD]
-            ).slice(2);
-            
-            const amountsHex = await window.ethereum.request({
-              method: 'eth_call',
-              params: [{
-                to: addresses.router,
-                data: '0xd06ca61f' + getAmountsOutData // getAmountsOut function selector
-              }, 'latest']
-            });
-            
-            const amounts = ethers.AbiCoder.defaultAbiCoder().decode(['uint256[]'], amountsHex)[0];
-            const toAmount = ethers.formatUnits(
-              amounts[amounts.length - 1],
-              toToken.symbol === 'MON' ? 18 : toToken.decimals
+      // 1. Direct route
+      if (fromAddress !== toAddress) {
+        routePromises.push(
+          this.tryRoute([fromAddress, toAddress], amountIn)
+            .then(result => ({ ...result, path: [fromAddress, toAddress] }))
+            .catch(() => null)
+        );
+      }
+
+      // 2. Single-hop routes through intermediary tokens
+      for (const intermediary of intermediaryTokens) {
+        routePromises.push(
+          this.tryRoute([fromAddress, intermediary, toAddress], amountIn)
+            .then(result => ({ ...result, path: [fromAddress, intermediary, toAddress] }))
+            .catch(() => null)
+        );
+      }
+
+      // 3. Double-hop routes for complex paths
+      if (chainId !== 10143) { // Skip for Monad testnet to reduce RPC calls
+        for (let i = 0; i < intermediaryTokens.length; i++) {
+          for (let j = i + 1; j < intermediaryTokens.length; j++) {
+            const path = [fromAddress, intermediaryTokens[i], intermediaryTokens[j], toAddress];
+            routePromises.push(
+              this.tryRoute(path, amountIn)
+                .then(result => ({ ...result, path }))
+                .catch(() => null)
             );
-            
-            const routeDescription = fromToken.symbol === 'MON' ?
-              `${fromToken.symbol} → WMONAD → ${toToken.symbol}` :
-              toToken.symbol === 'MON' ?
-              `${fromToken.symbol} → WMONAD → ${toToken.symbol}` :
-              `${fromToken.symbol} → WMONAD → ${toToken.symbol}`;
-
-            return {
-              route: routeDescription,
-              toAmount,
-              path: pathThroughWMONAD
-            };
-          } catch (error) {
-            console.log('Error getting amounts through WMONAD:', error);
-            throw new Error('Failed to calculate swap amounts');
           }
-        }
-      } else {
-        // Original implementation for other networks
-        // ... existing code for other networks ...
-        try {
-          // For token to token swaps, construct path through WETH
-          const pathThroughWETH = [fromAddress, addresses.WETH, toAddress];
-          
-          // Check if pools exist
-          const hasFirstPair = await this.checkPoolExists(fromAddress, addresses.WETH);
-          const hasSecondPair = await this.checkPoolExists(addresses.WETH, toAddress);
-          
-          if (hasFirstPair && hasSecondPair) {
-            try {
-              const amounts = await this.router.getAmountsOut(amountIn, pathThroughWETH);
-              const toAmount = ethers.formatUnits(
-                amounts[amounts.length - 1],
-                toToken.symbol === 'ETH' ? 18 : toToken.decimals
-              );
-              
-              return {
-                route: `${fromToken.symbol} → WETH → ${toToken.symbol}`,
-                toAmount,
-                path: pathThroughWETH
-              };
-            } catch (amountError) {
-              console.log('Error getting amounts through WETH:', amountError);
-            }
-          }
-        } catch (error) {
-          console.log('Error checking WETH route:', error);
-        }
-
-        // Try direct path as fallback
-        try {
-          // Only try direct path if tokens are different
-          if (fromAddress !== toAddress) {
-            const directPath = [fromAddress, toAddress];
-            const hasDirectPair = await this.checkPoolExists(fromAddress, toAddress);
-            
-            if (hasDirectPair) {
-              try {
-                const amounts = await this.router.getAmountsOut(amountIn, directPath);
-                const toAmount = ethers.formatUnits(
-                  amounts[amounts.length - 1],
-                  toToken.symbol === 'ETH' ? 18 : toToken.decimals
-                );
-
-                return {
-                  route: `${fromToken.symbol} → ${toToken.symbol}`,
-                  toAmount,
-                  path: directPath
-                };
-              } catch (amountError) {
-                console.log('Error getting amounts for direct path:', amountError);
-              }
-            }
-          }
-        } catch (error) {
-          console.log('Error checking direct path:', error);
         }
       }
 
-      return {
-        route: null,
-        toAmount: '0',
-        error: 'No valid route found'
+      // Wait for all route checks to complete
+      const routes = (await Promise.all(routePromises)).filter(Boolean);
+
+      // Find the best route (highest output amount)
+      let bestRoute = null;
+      let maxOutput = ethers.parseUnits('0', toToken.decimals);
+
+      for (const route of routes) {
+        if (route.amountOut > maxOutput) {
+          maxOutput = route.amountOut;
+          bestRoute = route;
+        }
+      }
+
+      if (!bestRoute) {
+        return { route: null, toAmount: '0', error: 'No valid route found' };
+      }
+
+      // Format the route description
+      const routeSymbols = bestRoute.path.map(addr => {
+        if (addr === addresses.WETH) {
+          return fromToken.symbol === 'MON' || toToken.symbol === 'MON' ? 'WMONAD' :
+                 fromToken.symbol === 'ETH' || toToken.symbol === 'ETH' ? 'WETH' : 'WETH';
+        }
+        if (addr === fromAddress) return fromToken.symbol;
+        if (addr === toAddress) return toToken.symbol;
+        if (addr === addresses.USDC) return 'USDC';
+        if (addr === addresses.USDT) return 'USDT';
+        return 'Unknown';
+      });
+
+      const result = {
+        route: routeSymbols.join(' → '),
+        toAmount: ethers.formatUnits(bestRoute.amountOut, toToken.decimals),
+        path: bestRoute.path
       };
+
+      // Cache the result
+      if (!this.routeCache) this.routeCache = {};
+      this.routeCache[cacheKey] = {
+        route: result,
+        timestamp: Date.now()
+      };
+
+      return result;
     } catch (error) {
       console.error('Error in updateRoute:', error);
       throw error;
+    }
+  }
+
+  // Helper method to try a specific route
+  async tryRoute(path, amountIn) {
+    if (path.length < 2) return null;
+
+    // For Monad testnet, use direct RPC calls
+    if (await this.provider.getNetwork().then(n => n.chainId) === 10143) {
+      try {
+        // Encode getAmountsOut function call
+        const getAmountsOutData = ethers.AbiCoder.defaultAbiCoder().encode(
+          ['uint256', 'address[]'],
+          [amountIn, path]
+        ).slice(2);
+        
+        const amountsHex = await window.ethereum.request({
+          method: 'eth_call',
+          params: [{
+            to: UNISWAP_ADDRESSES[10143].router,
+            data: '0xd06ca61f' + getAmountsOutData // getAmountsOut function selector
+          }, 'latest']
+        });
+        
+        const amounts = ethers.AbiCoder.defaultAbiCoder().decode(['uint256[]'], amountsHex)[0];
+        return { amountOut: amounts[amounts.length - 1] };
+      } catch (error) {
+        throw new Error('Failed to get amounts for route');
+      }
+    }
+
+    // For other networks, use the router contract
+    try {
+      const amounts = await this.router.getAmountsOut(amountIn, path);
+      return { amountOut: amounts[amounts.length - 1] };
+    } catch (error) {
+      throw new Error('Failed to get amounts for route');
     }
   }
 
