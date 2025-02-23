@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  base: '/',  // Ensure this matches your deployment URL path
   plugins: [react()],
   resolve: {
     alias: {
@@ -17,6 +18,17 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
+        assetFileNames: (assetInfo) => {
+          let extType = assetInfo.name.split('.')[1];
+          if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
+            extType = 'img';
+          } else if (/woff|woff2/.test(extType)) {
+            extType = 'fonts';
+          }
+          return `assets/${extType}/[name]-[hash][extname]`;
+        },
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
         manualChunks: (id) => {
           // Split external dependencies (node_modules) into chunks
           if (id.includes('node_modules')) {
@@ -31,6 +43,10 @@ export default defineConfig({
             }
             if (id.includes('react') || id.includes('react-dom')) {
               return 'react';
+            }
+            // Group smaller common dependencies together
+            if (id.includes('@emotion/') || id.includes('styled-components') || id.includes('@mui/')) {
+              return 'ui-libs';
             }
             return 'vendor';
           }
