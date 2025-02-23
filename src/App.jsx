@@ -35,45 +35,29 @@ function App() {
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   const [isProviderLoading, setIsProviderLoading] = useState(true);
-  const [providerError, setProviderError] = useState(null);
 
   useEffect(() => {
-    let retryCount = 0;
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 seconds
-
-    const checkProvider = async () => {
-      try {
-        if (window.ethereum?.request) {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-          setIsProviderLoading(false);
-          setProviderError(null);
-          return true;
-        }
-        return false;
-      } catch (error) {
-        console.warn('Provider check failed:', error);
-        return false;
-      }
-    };
-
-    const initializeProvider = async () => {
-      const hasProvider = await checkProvider();
-      
-      if (!hasProvider && retryCount < maxRetries) {
-        retryCount++;
-        console.log(`Retrying provider check (${retryCount}/${maxRetries})...`);
-        setTimeout(initializeProvider, retryDelay);
-      } else if (!hasProvider) {
-        setProviderError('Unable to connect to Web3 provider. Please make sure your wallet is connected.');
+    const checkProvider = () => {
+      if (window.ethereum?.request) {
         setIsProviderLoading(false);
       }
     };
 
-    initializeProvider();
+    // Check immediately
+    checkProvider();
+
+    // Set up interval to check for provider
+    const interval = setInterval(checkProvider, 500);
+
+    // Clear interval after 10 seconds to prevent infinite checking
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setIsProviderLoading(false);
+    }, 10000);
 
     return () => {
-      // Cleanup if needed
+      clearInterval(interval);
+      clearTimeout(timeout);
     };
   }, []);
 
@@ -83,23 +67,6 @@ function App() {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-[#00ffbd] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Loading Web3 Provider...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (providerError) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-[#0a0b0f] flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto px-4">
-          <div className="text-red-500 mb-4">⚠️</div>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">{providerError}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-[#00ffbd] text-black rounded-lg hover:opacity-90"
-          >
-            Retry Connection
-          </button>
         </div>
       </div>
     );
