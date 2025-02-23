@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background with gradient -->
+    <rect width="1200" height="630" fill="#0a0b0f"/>
+    <path d="M0 0h1200v630H0z" fill="url(#gradient)"/>
+    
+    <!-- Decorative elements -->
+    <circle cx="200" cy="315" r="160" fill="#00ffbd" fill-opacity="0.05"/>
+    <circle cx="1000" cy="315" r="160" fill="#00ffbd" fill-opacity="0.05"/>
+    
+    <!-- L-shaped corners -->
+    <path d="M40 40v80h-20V20h100v20H40z" fill="#00ffbd"/>
+    <path d="M1160 40h-80v-20h100v100h-20V40z" fill="#00ffbd"/>
+    <path d="M40 590v-80h-20v100h100v-20H40z" fill="#00ffbd"/>
+    <path d="M1160 590h-80v20h100V510h-20v80z" fill="#00ffbd"/>
+    
+    <!-- Glowing dots in corners -->
+    <circle cx="40" cy="40" r="4" fill="#00ffbd">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="1160" cy="40" r="4" fill="#00ffbd">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" begin="0.5s"/>
+    </circle>
+    <circle cx="40" cy="590" r="4" fill="#00ffbd">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" begin="1s"/>
+    </circle>
+    <circle cx="1160" cy="590" r="4" fill="#00ffbd">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" begin="1.5s"/>
+    </circle>
+    
+    <!-- Token Factory Logo -->
+    <g transform="translate(460,200)">
+        <circle cx="140" cy="80" r="60" fill="#00ffbd" fill-opacity="0.1" stroke="#00ffbd" stroke-width="2"/>
+        <text x="140" y="100" font-family="Arial" font-size="70" fill="#00ffbd" text-anchor="middle">TF</text>
+    </g>
+    
+    <!-- Text Content -->
+    <text x="600" y="400" font-family="Arial" font-size="48" font-weight="bold" fill="white" text-anchor="middle">Token Factory</text>
+    <text x="600" y="460" font-family="Arial" font-size="24" fill="#8f9099" text-anchor="middle">Create • Deploy • Trade • Bridge • Manage Custom Tokens</text>
+    
+    <!-- Network Icons -->
+    <g transform="translate(450,500)" fill="#00ffbd" fill-opacity="0.7">
+        <circle cx="50" cy="0" r="15"/>
+        <circle cx="100" cy="0" r="15"/>
+        <circle cx="150" cy="0" r="15"/>
+        <circle cx="200" cy="0" r="15"/>
+        <circle cx="250" cy="0" r="15"/>
+    </g>
+    
+    <!-- Gradient definition -->
+    <defs>
+        <linearGradient id="gradient" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#0a0b0f"/>
+            <stop offset="50%" stop-color="#1a1b1f"/>
+            <stop offset="100%" stop-color="#0a0b0f"/>
+        </linearGradient>
+    </defs>
+</svg> 

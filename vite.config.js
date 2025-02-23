@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  base: '/',
   resolve: {
     alias: {
       'recharts': 'recharts'
@@ -16,9 +17,16 @@ export default defineConfig({
       output: {
         manualChunks: {
           'recharts': ['recharts']
-        }
+        },
+        format: 'es',
+        inlineDynamicImports: false
       }
-    }
+    },
+    sourcemap: true,
+    assetsDir: 'assets',
+    outDir: 'dist',
+    chunkSizeWarningLimit: 1000,
+    cssCodeSplit: true
   },
   optimizeDeps: {
     include: ['recharts']
