@@ -607,7 +607,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     // Add event listener for provider
     const handleProviderChange = () => {
       if (window.ethereum?.request) {
-        getChainId();
+    getChainId();
       }
     };
 
@@ -664,7 +664,7 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
 
         // For Monad testnet, use direct RPC calls
         if (chainId === 10143) {
-          const tokenContract = new ethers.Contract(
+                const tokenContract = new ethers.Contract(
             searchQuery,
             [
               'function symbol() view returns (string)',
@@ -672,9 +672,9 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
               'function decimals() view returns (uint8)',
               'function balanceOf(address) view returns (uint256)'
             ],
-            provider
-          );
-
+                  provider
+                );
+                
           const [symbol, name, decimals, balance] = await Promise.all([
             window.ethereum.request({
               method: 'eth_call',
@@ -790,24 +790,26 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
         <div className="flex items-center gap-3">
           {renderTokenLogo(token)}
           <div className="text-left">
-            <div className="text-base font-medium text-gray-900 dark:text-white">
+            <div className="text-base font-semibold text-gray-900 dark:text-white">
               {token.symbol || 'Unknown'}
             </div>
-            <div className="text-sm font-normal text-gray-500 dark:text-gray-400">
+            <div className="text-sm text-gray-500 dark:text-gray-300">
               {token.name || 'Unknown Token'}
             </div>
           </div>
         </div>
-        <div className="text-right text-sm font-medium text-gray-900 dark:text-white">
-          {isTokenLoading ? (
-            <motion.div 
-              className="w-12 h-4 bg-gray-200 dark:bg-gray-700 rounded"
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-          ) : (
-            tokenBalance
-          )}
+        <div className="text-right">
+          <div className="text-base font-semibold text-gray-900 dark:text-white">
+            {isTokenLoading ? (
+              <motion.div 
+                className="w-12 h-4 bg-gray-200 dark:bg-gray-700 rounded"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+            ) : (
+              tokenBalance
+            )}
+          </div>
         </div>
       </motion.button>
     );
@@ -842,12 +844,12 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
     if (logoUrl && !logoUrl.includes('token-default.png')) {
       return (
         <div className="relative w-8 h-8">
-          <img 
-            src={logoUrl}
-            alt={token.symbol}
-            className="w-8 h-8 rounded-full"
-            onError={(e) => {
-              e.target.onerror = null;
+        <img 
+          src={logoUrl}
+          alt={token.symbol}
+          className="w-8 h-8 rounded-full"
+          onError={(e) => {
+            e.target.onerror = null;
               e.target.parentElement.innerHTML = `
                 <div class="w-8 h-8 rounded-full bg-[#1a1b1f] flex items-center justify-center relative">
                   <span class="text-[#00ffbd] font-bold text-sm">${token.symbol?.slice(0, 2).toUpperCase() || '??'}</span>
@@ -1075,20 +1077,20 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                       >
-                        <motion.div 
+                          <motion.div 
                           className="w-full flex items-center justify-between p-3 bg-white/5 dark:bg-[#2d2f36] rounded-xl"
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                        >
-                          <div className="flex items-center gap-3">
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          >
+                            <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
-                            <div className="space-y-2">
+                              <div className="space-y-2">
                               <div className="h-4 w-20 rounded bg-gray-200 dark:bg-gray-700" />
                               <div className="h-3 w-24 rounded bg-gray-200 dark:bg-gray-700" />
+                              </div>
                             </div>
-                          </div>
                           <div className="h-4 w-16 rounded bg-gray-200 dark:bg-gray-700" />
-                        </motion.div>
+                          </motion.div>
                       </motion.div>
                     ) : (
                       <motion.div
@@ -1112,53 +1114,53 @@ export default function TokenSelectionModal({ isOpen, onClose, onSelect, selecte
                         ) : (
                           // Normal search view with sections
                           <>
-                            {/* Your Tokens Section */}
+                        {/* Your Tokens Section */}
                             <motion.div className="mb-4">
-                              <div className="flex items-center gap-2 mb-3">
-                                <FaCoins className="text-[#00ffbd] w-4 h-4" />
-                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                                  Your Tokens
-                                </h3>
-                              </div>
-                              <motion.div className="space-y-2">
-                                {filteredTokens
-                                  .filter(hasBalance)
-                                  .map((token) => (
-                                    <TokenRow
+                          <div className="flex items-center gap-2 mb-3">
+                            <FaCoins className="text-[#00ffbd] w-4 h-4" />
+                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                              Your Tokens
+                            </h3>
+                          </div>
+                          <motion.div className="space-y-2">
+                              {filteredTokens
+                                .filter(hasBalance)
+                                .map((token) => (
+                                  <TokenRow
                                       key={token.address || token.symbol}
-                                      token={token}
-                                      onSelect={handleTokenSelect}
+                                    token={token}
+                                    onSelect={handleTokenSelect}
                                       isSelected={selectedTokenAddress === token.address}
-                                    />
-                                  ))}
-                              </motion.div>
-                            </motion.div>
+                                  />
+                                ))}
+                          </motion.div>
+                        </motion.div>
 
-                            {/* Separator */}
-                            <motion.div 
-                              className="my-4 border-t border-gray-200 dark:border-gray-700"
-                              initial={{ scaleX: 0 }}
-                              animate={{ scaleX: 1 }}
-                            />
+                        {/* Separator */}
+                        <motion.div 
+                          className="my-4 border-t border-gray-200 dark:border-gray-700"
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                        />
 
-                            {/* Other Tokens Section */}
+                        {/* Other Tokens Section */}
                             <motion.div>
-                              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
-                                Other Tokens
-                              </h3>
-                              <motion.div className="space-y-2">
-                                {filteredTokens
-                                  .filter(token => !hasBalance(token))
-                                  .map((token) => (
-                                    <TokenRow
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                            Other Tokens
+                          </h3>
+                          <motion.div className="space-y-2">
+                              {filteredTokens
+                                .filter(token => !hasBalance(token))
+                                .map((token) => (
+                                  <TokenRow
                                       key={token.address || token.symbol}
-                                      token={token}
-                                      onSelect={handleTokenSelect}
+                                    token={token}
+                                    onSelect={handleTokenSelect}
                                       isSelected={selectedTokenAddress === token.address}
-                                    />
-                                  ))}
-                              </motion.div>
-                            </motion.div>
+                                  />
+                                ))}
+                          </motion.div>
+                        </motion.div>
                           </>
                         )}
                       </motion.div>
