@@ -15,18 +15,22 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'recharts': ['recharts']
-        },
-        format: 'es',
-        inlineDynamicImports: false
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts')) {
+              return 'recharts';
+            }
+            return 'vendor';
+          }
+        }
       }
     },
-    sourcemap: true,
+    sourcemap: false,
     assetsDir: 'assets',
     outDir: 'dist',
     chunkSizeWarningLimit: 1000,
-    cssCodeSplit: true
+    cssCodeSplit: true,
+    minify: 'esbuild'
   },
   optimizeDeps: {
     include: ['recharts']
