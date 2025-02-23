@@ -28,6 +28,7 @@ import ActivityPage from './pages/ActivityPage';
 import BridgePage from './pages/bridge';
 import FeesTracker from './pages/FeesTracker';
 import MemeFactory from './pages/MemeFactory';
+import MetaTags from './components/MetaTags';
 
 function App() {
   const { isDarkMode } = useTheme();
