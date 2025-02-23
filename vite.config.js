@@ -35,20 +35,35 @@ export default defineConfig({
             if (id.includes('recharts')) {
               return 'recharts';
             }
-            if (id.includes('@rainbow-me')) {
-              return 'rainbow';
+            if (id.includes('@rainbow-me/rainbowkit')) {
+              return 'rainbow-core';
             }
-            if (id.includes('wagmi') || id.includes('viem')) {
-              return 'web3';
+            if (id.includes('@rainbow-me') && !id.includes('@rainbow-me/rainbowkit')) {
+              return 'rainbow-utils';
+            }
+            if (id.includes('wagmi')) {
+              return 'web3-wagmi';
+            }
+            if (id.includes('viem')) {
+              return 'web3-viem';
+            }
+            if (id.includes('ethers')) {
+              return 'web3-ethers';
             }
             if (id.includes('react') || id.includes('react-dom')) {
               return 'react';
             }
-            // Group smaller common dependencies together
             if (id.includes('@emotion/') || id.includes('styled-components') || id.includes('@mui/')) {
               return 'ui-libs';
             }
-            return 'vendor';
+            // Split remaining vendor chunks by first letter to make them smaller
+            const match = id.match(/node_modules\/((@[^/]+\/)?[^/]+)/);
+            if (match) {
+              const pkg = match[1];
+              const firstChar = pkg.charAt(0).toLowerCase();
+              return `vendor-${firstChar}`;
+            }
+            return 'vendor-misc';
           }
           // Split your app code into feature-based chunks
           if (id.includes('/components/')) {
@@ -67,7 +82,7 @@ export default defineConfig({
     target: 'esnext'
   },
   optimizeDeps: {
-    include: ['recharts']
+    include: ['recharts', '@rainbow-me/rainbowkit', 'wagmi', 'viem', 'ethers']
   },
   server: {
     host: true,
